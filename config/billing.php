@@ -15,16 +15,27 @@
 return [
 
     // ─── Entreprise émettrice ────────────────────────────────────
+    // Ces valeurs alimentent l'entête FNE du PDF facture — cf. modèle
+    // officiel Côte d'Ivoire fourni par la patronne (bloc identité
+    // haut-gauche encadré + bandeau vendeur/PDV/date/paiement).
     'company' => [
-        'name'      => env('BILLING_COMPANY_NAME', 'CIBLE SARL'),
-        'legal'     => env('BILLING_COMPANY_LEGAL', 'Société à responsabilité limitée'),
-        'address'   => env('BILLING_COMPANY_ADDRESS', 'Abidjan, Côte d\'Ivoire'),
-        'phone'     => env('BILLING_COMPANY_PHONE', ''),
-        'email'     => env('BILLING_COMPANY_EMAIL', ''),
-        'rccm'      => env('BILLING_COMPANY_RCCM', ''),
-        'ifu'       => env('BILLING_COMPANY_IFU', ''),
-        'ncc'       => env('BILLING_COMPANY_NCC', ''),
-        'logo_path' => env('BILLING_COMPANY_LOGO', 'images/panora.png'),
+        'name'              => env('BILLING_COMPANY_NAME', 'CIBLE'),
+        'legal'             => env('BILLING_COMPANY_LEGAL', 'Société à responsabilité limitée'),
+        'address'           => env('BILLING_COMPANY_ADDRESS', '08 BP 687 ABIDJAN (VILLE)'),
+        'phone'             => env('BILLING_COMPANY_PHONE', '27 22 20 80 08'),
+        'email'             => env('BILLING_COMPANY_EMAIL', 'commercial@cible-ci.com'),
+        'rccm'              => env('BILLING_COMPANY_RCCM', '262441 du 27-03-2001'),
+        'ifu'               => env('BILLING_COMPANY_IFU', ''),
+        'ncc'               => env('BILLING_COMPANY_NCC', '0184670J'),
+        // FNE (nouveaux champs 2026-07-20) — apparaissent dans l'entête
+        // encadrée en haut-gauche du PDF conformément au modèle DGI.
+        'regime_imposition' => env('BILLING_COMPANY_REGIME',  'RNI'),
+        'centre_impots'     => env('BILLING_COMPANY_CENTRE',  '877 Impôts de Bietry'),
+        // Nom du PDV (point de vente) affiché sur chaque facture.
+        // Peut varier selon l'agence physique où la facture est émise.
+        'pdv_name'          => env('BILLING_COMPANY_PDV',     'COMPTA 1'),
+        // Logo de l'émetteur (dans l'entête PDF). Version couleur.
+        'logo_path'         => env('BILLING_COMPANY_LOGO', 'images/logol.png'),
     ],
 
     // ─── Taux légaux applicables ─────────────────────────────────
