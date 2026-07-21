@@ -223,7 +223,8 @@
                 // suit le règlement de son portefeuille). Cachée pour MP
                 // (matrice FACTURES — MP ne facture pas).
                 $authRole = auth()->user()?->role?->value;
-                $canSeeBilling = in_array($authRole, ['admin', 'commercial'], true);
+                // 2026-07-21 : comptable ajouté (colonne Facturation visible)
+                $canSeeBilling = in_array($authRole, ['admin', 'commercial', 'comptable'], true);
             @endphp
             <table class="data-table" id="campaigns-table">
                 <thead>
