@@ -112,6 +112,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Pige::class,         PigePolicy::class);
         Gate::policy(Maintenance::class,  MaintenancePolicy::class);
         Gate::policy(Panel::class,        PanelPolicy::class);
+        Gate::policy(\App\Models\Quote::class, \App\Policies\QuotePolicy::class);
 
         // Gates dédiées Proposition (workflow construction → envoi → décision).
         // Usage Blade : @can('proposition.send', $reservation)
