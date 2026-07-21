@@ -28,6 +28,7 @@ class Client extends Authenticatable  // ← était "extends Model"
         'contact_name',
         'notes',
         'ncc',
+        'regime_imposition',
         'sector',
         'user_id',
         // Ajoute ici tout autre champ déjà présent dans ta table
