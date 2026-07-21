@@ -101,11 +101,16 @@ class ClientQuoteController extends Controller
             'decision_reason' => $data['reason'] ?? null,
         ]);
 
-        AlertService::create('devis', 'warning',
+        AlertService::notify(
+            'devis_refuse',
             '❌ Devis refusé — ' . $quote->reference,
             ($quote->client?->name ?? '') . ' a refusé le devis ' . $quote->reference
             . ($data['reason'] ? " (motif: {$data['reason']})" : ''),
-            $quote
+            $quote,
+            [
+                'user_id' => $quote->commercial_user_id,
+                'lien'    => route('admin.quotes.show', $quote->id),
+            ]
         );
 
         return redirect()->route('client.devis.show', $quote)
@@ -126,10 +131,15 @@ class ClientQuoteController extends Controller
             'decision_reason' => $data['reason'],
         ]);
 
-        AlertService::create('devis', 'info',
-            '🔁 Demande de modification — ' . $quote->reference,
+        AlertService::notify(
+            'devis_en_negociation',
+            '💬 Demande de modification — ' . $quote->reference,
             ($quote->client?->name ?? '') . ' demande une modification du devis ' . $quote->reference . ' : ' . $data['reason'],
-            $quote
+            $quote,
+            [
+                'user_id' => $quote->commercial_user_id,
+                'lien'    => route('admin.quotes.show', $quote->id),
+            ]
         );
 
         return redirect()->route('client.devis.show', $quote)

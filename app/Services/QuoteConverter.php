@@ -79,12 +79,17 @@ class QuoteConverter
                         . implode(', ', array_map('strval', $unavailable)),
                 ]);
 
-                AlertService::create('devis', 'danger',
+                AlertService::notify(
+                    'devis_converti_avec_conflit',
                     '⚠️ Conflit conversion devis — ' . $quote->reference,
                     'Le client a accepté le devis ' . $quote->reference
                     . ' mais ' . count($unavailable) . ' panneau(x) ne sont plus disponibles.'
-                    . ' Le commercial ' . ($quote->commercial?->name ?? '—') . ' doit ajuster.',
-                    $quote
+                    . ' Le commercial ' . ($quote->commercial?->name ?? '—') . ' doit ajuster manuellement.',
+                    $quote,
+                    [
+                        'user_id' => $quote->commercial_user_id,
+                        'lien'    => route('admin.quotes.show', $quote->id),
+                    ]
                 );
 
                 Log::warning('quote.convert.conflict', [
@@ -145,11 +150,16 @@ class QuoteConverter
                 'converted_reservation_id'  => $reservation->id,
             ]);
 
-            AlertService::create('devis', 'info',
-                '✅ Devis accepté — ' . $quote->reference,
+            AlertService::notify(
+                'devis_accepte',
+                '🎉 Devis accepté — ' . $quote->reference,
                 ($quote->client?->name ?? 'Client') . ' a accepté le devis ' . $quote->reference
                 . '. Réservation ' . $reservation->reference . ' créée automatiquement.',
-                $quote
+                $quote,
+                [
+                    'user_id' => $quote->commercial_user_id,
+                    'lien'    => route('admin.quotes.show', $quote->id),
+                ]
             );
 
             Log::info('quote.convert.success', [

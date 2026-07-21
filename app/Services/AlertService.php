@@ -376,6 +376,45 @@ class AlertService
             'label' => 'Message client',
             'group' => 'Espace client',
         ],
+
+        // ── Devis (module commercial) ─────────────────────────────
+        // Alertes ciblées commercial (user_id = commercial_user_id) +
+        // broadcastées à MP/admin via broadcastTypesForRole().
+        'devis_envoye' => [
+            'icon' => '📤', 'niveau' => 'info', 'color' => '#8b5cf6',
+            'label' => 'Devis envoyé',
+            'group' => 'Devis',
+        ],
+        'devis_accepte' => [
+            'icon' => '🎉', 'niveau' => 'info', 'color' => '#22c55e',
+            'label' => 'Devis accepté',
+            'group' => 'Devis',
+        ],
+        'devis_refuse' => [
+            'icon' => '❌', 'niveau' => 'warning', 'color' => '#f97316',
+            'label' => 'Devis refusé',
+            'group' => 'Devis',
+        ],
+        'devis_en_negociation' => [
+            'icon' => '💬', 'niveau' => 'warning', 'color' => '#f59e0b',
+            'label' => 'Devis en négociation',
+            'group' => 'Devis',
+        ],
+        'devis_expire_bientot' => [
+            'icon' => '⏰', 'niveau' => 'warning', 'color' => '#f59e0b',
+            'label' => 'Devis expire bientôt (J-3)',
+            'group' => 'Devis',
+        ],
+        'devis_expire' => [
+            'icon' => '⌛', 'niveau' => 'warning', 'color' => '#94a3b8',
+            'label' => 'Devis expiré',
+            'group' => 'Devis',
+        ],
+        'devis_converti_avec_conflit' => [
+            'icon' => '⚠️', 'niveau' => 'danger', 'color' => '#dc2626',
+            'label' => 'Devis accepté mais panneaux indisponibles',
+            'group' => 'Devis',
+        ],
     ];
 
     public const DEFAULT_META = [
@@ -710,6 +749,8 @@ class AlertService
                 'reservation_en_attente_longue', 'reservation_expiree',
                 'reservation_nouvelle',
                 'proposition_acceptee', 'proposition_refusee',
+                // Devis (commercial) — visibilité pilotage
+                'devis_accepte', 'devis_refuse', 'devis_converti_avec_conflit',
                 // Panneaux — état du parc
                 'conflit_reservation', 'panneau_maintenance',
                 // Poses — pilotage prod

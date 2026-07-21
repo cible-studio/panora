@@ -94,11 +94,17 @@ class PublicQuoteController extends Controller
             'decision_reason' => $data['reason'] ?? null,
         ]);
 
-        AlertService::create('devis', 'warning',
+        AlertService::notify(
+            'devis_refuse',
             '❌ Devis refusé — ' . $quote->reference,
             ($quote->client?->name ?? 'Client') . ' a refusé le devis ' . $quote->reference
-            . ($data['reason'] ? " (motif: {$data['reason']})" : ''),
-            $quote
+            . ($data['reason'] ? " (motif: {$data['reason']})" : '')
+            . ' (via lien public).',
+            $quote,
+            [
+                'user_id' => $quote->commercial_user_id,
+                'lien'    => route('admin.quotes.show', $quote->id),
+            ]
         );
 
         return redirect()->route('public.quote.show', $token)

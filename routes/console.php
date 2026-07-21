@@ -20,6 +20,10 @@ Schedule::command('reservations:expire-options')->dailyAt('01:15');
 //     Tous les jours à 01h20
 Schedule::command('reservations:expire-old-options', ['--days' => 7])->dailyAt('01:20');
 
+// 2c. Cycle de vie devis commerciaux : alerte J-3 + bascule EXPIRE
+//     Tous les jours à 01h25 — indépendant des réservations.
+Schedule::command('quotes:handle-expiry')->dailyAt('01:25');
+
 // 3. Campagnes actives expirées → "termine"
 //    Tous les jours à 01h30
 Schedule::command('campaigns:sync-expired')->dailyAt('01:30');

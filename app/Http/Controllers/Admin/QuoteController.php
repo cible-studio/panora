@@ -240,12 +240,16 @@ class QuoteController extends Controller
             }
         }
 
-        AlertService::create(
-            'devis', 'info',
+        AlertService::notify(
+            'devis_envoye',
             '📤 Devis envoyé — ' . $quote->reference,
             auth()->user()->name . ' a envoyé le devis ' . $quote->reference . ' à ' . ($quote->client?->name ?? '—')
             . ($mailSent ? ' (mail envoyé)' : ($mailError ? ' (mail KO : ' . $mailError . ')' : ' (mail non envoyé — client sans email)')),
-            $quote
+            $quote,
+            [
+                'user_id' => $quote->commercial_user_id,
+                'lien'    => route('admin.quotes.show', $quote->id),
+            ]
         );
 
         $baseMsg = "Devis {$quote->reference} marqué envoyé. Expire le "

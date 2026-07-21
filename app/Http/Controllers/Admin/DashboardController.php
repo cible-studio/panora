@@ -201,6 +201,11 @@ class DashboardController extends Controller
                 return $this->computeFinanceKpis($isCommercial, $uid, $now);
             });
 
+        // ═══ KPIs Devis (Phase 4 module commercial) ═══
+        // Compteurs sur les 90 derniers jours + taux de conversion + panier
+        // moyen accepté. Scope commercial : ses devis (commercial_user_id).
+        $devisKpis = $this->computeQuoteKpis($isCommercial, $uid, $now);
+
         return view('dashboard', compact(
             'totalPanneaux', 'panneauxLibres', 'panneauxOccupes',
             'panneauxMaintenance', 'reservationsEnAttente',
@@ -215,8 +220,53 @@ class DashboardController extends Controller
             'caMonthFne', 'caYearFne', 'encaissMonth',
             'invoicesEnRetard', 'totalRecouvrer', 'previsionMontant30j',
             // Phase 8D — Top 10 clients + Top 10 communes (§12)
-            'topClients', 'topCommunes'
+            'topClients', 'topCommunes',
+            'devisKpis'
         ));
+    }
+
+    /**
+     * KPIs devis (90 derniers jours) : envoyés, acceptés, refusés, expirés,
+     * taux de conversion, panier moyen accepté. Scope commercial appliqué.
+     *
+     * @return array{envoyes:int, acceptes:int, refuses:int, expires:int,
+     *               en_negociation:int, en_attente:int, taux_conversion:float,
+     *               panier_moyen_accepte:int, montant_pipeline:int}
+     */
+    protected function computeQuoteKpis(bool $isCommercial, int $uid, \Carbon\Carbon $now): array
+    {
+        $depuis = $now->copy()->subDays(90)->startOfDay();
+
+        $base = \App\Models\Quote::query()
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
+            ->where('created_at', '>=', $depuis);
+
+        $envoyes    = (clone $base)->whereIn('status', ['envoye', 'accepte', 'accepte_avec_conflit', 'refuse', 'expire', 'en_negociation'])->count();
+        $acceptes   = (clone $base)->whereIn('status', ['accepte', 'accepte_avec_conflit'])->count();
+        $refuses    = (clone $base)->where('status', 'refuse')->count();
+        $expires    = (clone $base)->where('status', 'expire')->count();
+        $enNego     = (clone $base)->where('status', 'en_negociation')->count();
+        $enAttente  = (clone $base)->where('status', 'envoye')->count();
+
+        // Taux de conversion : acceptés / (envoyés une fois — donc tout sauf brouillon/archive)
+        $tauxConv = $envoyes > 0
+            ? round(($acceptes / $envoyes) * 100, 1)
+            : 0.0;
+
+        // Panier moyen accepté
+        $panierMoyen = (int) (clone $base)
+            ->whereIn('status', ['accepte', 'accepte_avec_conflit'])
+            ->avg('total_a_payer');
+
+        // Pipeline : total FCFA des devis envoyés / en négo (non décidés)
+        $pipeline = (int) (clone $base)
+            ->whereIn('status', ['envoye', 'en_negociation'])
+            ->sum('total_a_payer');
+
+        return compact(
+            'envoyes', 'acceptes', 'refuses', 'expires',
+            'enNego', 'enAttente', 'tauxConv', 'panierMoyen', 'pipeline'
+        );
     }
 
     /**
