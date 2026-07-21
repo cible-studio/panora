@@ -71,6 +71,19 @@ Route::get('/p/{token}', [\App\Http\Controllers\PublicLinkController::class, 'sh
     ->where('token', '[a-f0-9]{64}')
     ->name('public-link.show');
 
+// ── Devis publics — clients SANS COMPTE (lien reçu par email) ────
+// Token 256 bits + throttle 20/min/IP. Cf. PublicQuoteController pour
+// les contrôles (statut envoyé, non expiré, non archivé).
+Route::prefix('devis/{token}')
+    ->middleware(['throttle:20,1'])
+    ->where(['token' => '[a-f0-9]{64}'])
+    ->group(function () {
+        Route::get('/',        [\App\Http\Controllers\PublicQuoteController::class, 'show'])   ->name('public.quote.show');
+        Route::get('/pdf',     [\App\Http\Controllers\PublicQuoteController::class, 'pdf'])    ->name('public.quote.pdf');
+        Route::post('/accept', [\App\Http\Controllers\PublicQuoteController::class, 'accept']) ->name('public.quote.accept');
+        Route::post('/refuse', [\App\Http\Controllers\PublicQuoteController::class, 'refuse']) ->name('public.quote.refuse');
+    });
+
 require __DIR__ . '/auth.php';
 require __DIR__ . '/admin.php';
 

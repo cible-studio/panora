@@ -220,22 +220,44 @@ class QuoteController extends Controller
             'expires_at' => now()->addDays((int) $quote->valid_days),
         ]);
 
-        // TODO Phase 2 : envoi du mail au client + notification espace
-        // client si compte. Pour Phase 1, on marque envoyé et le
-        // commercial peut télécharger le PDF pour l'envoyer manuellement.
+        // Envoi du mail au client avec PDF joint + lien direct.
+        // Try/catch pour ne pas bloquer si le SMTP est down — le devis
+        // reste envoyé côté app, le commercial peut renvoyer manuellement.
+        $mailSent = false;
+        $mailError = null;
+        if (!empty($quote->client?->email)) {
+            try {
+                \Illuminate\Support\Facades\Mail::to($quote->client->email)
+                    ->send(new \App\Mail\QuoteSentMail($quote));
+                $mailSent = true;
+            } catch (\Throwable $e) {
+                $mailError = $e->getMessage();
+                \Illuminate\Support\Facades\Log::error('quote.send.mail_failed', [
+                    'quote_id' => $quote->id,
+                    'client_email' => $quote->client->email,
+                    'error' => $mailError,
+                ]);
+            }
+        }
 
         AlertService::create(
             'devis', 'info',
             '📤 Devis envoyé — ' . $quote->reference,
-            auth()->user()->name . ' a envoyé le devis ' . $quote->reference . ' à ' . ($quote->client?->name ?? '—'),
+            auth()->user()->name . ' a envoyé le devis ' . $quote->reference . ' à ' . ($quote->client?->name ?? '—')
+            . ($mailSent ? ' (mail envoyé)' : ($mailError ? ' (mail KO : ' . $mailError . ')' : ' (mail non envoyé — client sans email)')),
             $quote
         );
 
-        return back()->with('success',
-            "Devis {$quote->reference} envoyé. Il expire le "
-            . $quote->fresh()->expires_at->format('d/m/Y') . '. '
-            . 'Télécharge le PDF ci-dessous pour l\'envoyer au client par email.'
-        );
+        $baseMsg = "Devis {$quote->reference} marqué envoyé. Expire le "
+                 . $quote->fresh()->expires_at->format('d/m/Y') . '.';
+
+        if ($mailSent) {
+            return back()->with('success', $baseMsg . " 📧 Un email avec le PDF a été envoyé à {$quote->client->email}.");
+        }
+        if ($mailError) {
+            return back()->with('warning', $baseMsg . " ⚠️ Erreur envoi mail : {$mailError}. Télécharge le PDF et envoie manuellement.");
+        }
+        return back()->with('warning', $baseMsg . ' Le client n\'a pas d\'email — télécharge le PDF et envoie manuellement.');
     }
 
     public function extend(Request $request, Quote $quote)

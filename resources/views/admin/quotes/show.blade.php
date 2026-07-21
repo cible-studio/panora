@@ -157,6 +157,15 @@
                 </table>
             </div>
 
+            {{-- Bloc lien public --}}
+            @if(in_array($quote->status, [\App\Enums\QuoteStatus::ENVOYE, \App\Enums\QuoteStatus::EN_NEGOCIATION], true))
+                <div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:12px;padding:16px;margin-bottom:16px">
+                    <div style="font-weight:700;color:#6d28d9;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:.5px">🔗 Lien public client</div>
+                    <div style="font-size:11.5px;color:#475569;margin-bottom:8px">À partager avec un client sans compte Panora :</div>
+                    <input type="text" readonly value="{{ url('/devis/' . $quote->public_token) }}" onclick="this.select();document.execCommand('copy');this.style.background='#dcfce7'" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-family:monospace;font-size:11px;background:#fff;cursor:pointer" title="Cliquer pour copier">
+                </div>
+            @endif
+
             {{-- Bloc conversion --}}
             @if($quote->convertedReservation)
                 <div style="background:#f0f9f0;border:1px solid #86e186;border-radius:12px;padding:16px">

@@ -271,6 +271,14 @@ Route::prefix('client')->name('client.')->middleware(\App\Http\Middleware\SetFre
         Route::get('/propositions', [ClientDashboardController::class, 'propositions'])->name('propositions');
         Route::get('/propositions/{token}', [ClientDashboardController::class, 'propositionDetail'])->name('proposition.detail');
 
+        // ── Devis (nouveau module 2026-07-21) ──────────────────
+        Route::get('/devis',                                [\App\Http\Controllers\Client\ClientQuoteController::class, 'index'])   ->name('devis.index');
+        Route::get('/devis/{quote}',                        [\App\Http\Controllers\Client\ClientQuoteController::class, 'show'])    ->name('devis.show')  ->whereNumber('quote');
+        Route::get('/devis/{quote}/pdf',                    [\App\Http\Controllers\Client\ClientQuoteController::class, 'pdf'])     ->name('devis.pdf')   ->whereNumber('quote');
+        Route::post('/devis/{quote}/accept',                [\App\Http\Controllers\Client\ClientQuoteController::class, 'accept'])  ->name('devis.accept')->whereNumber('quote');
+        Route::post('/devis/{quote}/refuse',                [\App\Http\Controllers\Client\ClientQuoteController::class, 'refuse'])  ->name('devis.refuse')->whereNumber('quote');
+        Route::post('/devis/{quote}/request-modification',  [\App\Http\Controllers\Client\ClientQuoteController::class, 'requestModification'])->name('devis.request-modification')->whereNumber('quote');
+
         // Campagnes
         Route::get('/campagnes', [ClientDashboardController::class, 'campagnes'])->name('campagnes');
         Route::get('/campagnes/{campaign}', [ClientDashboardController::class, 'campagneDetail'])->name('campagne.detail');
