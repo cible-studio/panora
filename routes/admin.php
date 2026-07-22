@@ -771,6 +771,9 @@ Route::prefix('admin')
             // Écriture réservée admin + commercial (les MP/comptable sont
             // en lecture seule sur les devis — c'est un flux commercial).
             Route::middleware('role:admin,commercial')->group(function () {
+                // AJAX — recherche panneaux (autocomplete Select2 dans le form devis)
+                // Doit rester AVANT create() pour ne pas être matché par {quote}.
+                Route::get('search-panels',          [\App\Http\Controllers\Admin\QuoteController::class, 'searchPanels'])->name('search-panels');
                 Route::get('create',                 [\App\Http\Controllers\Admin\QuoteController::class, 'create'])->name('create');
                 Route::post('/',                     [\App\Http\Controllers\Admin\QuoteController::class, 'store'])->name('store');
                 Route::get('{quote}/edit',           [\App\Http\Controllers\Admin\QuoteController::class, 'edit'])->name('edit')->whereNumber('quote');

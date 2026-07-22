@@ -180,6 +180,48 @@ class QuoteController extends Controller
         return view('admin.quotes.show', compact('quote'));
     }
 
+    // ─── AJAX : recherche de panneaux (autocomplete Select2 dans le form) ─
+    //
+    // GET /admin/quotes/search-panels?q=CDY
+    // Retour : [{ id, text, reference, name, address, commune_id, commune_name,
+    //            dimension_m2, monthly_rate, status }]
+    //
+    // Utilisé par _form.blade.php pour proposer au commercial une recherche
+    // live des panneaux du parc. Au choix, la ligne est pré-remplie avec les
+    // caractéristiques du panneau (surface, tarif catalogue, commune) — le
+    // commercial peut encore ajuster le prix négocié avant enregistrement.
+    public function searchPanels(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->authorize('create', Quote::class);
+        $q = trim((string) $request->input('q', ''));
+
+        $panels = \App\Models\Panel::with('commune:id,name')
+            ->when($q !== '', fn($qr) => $qr->where(fn($s) =>
+                $s->where('reference', 'like', "%{$q}%")
+                  ->orWhere('name', 'like', "%{$q}%")
+                  ->orWhere('address', 'like', "%{$q}%")
+            ))
+            ->whereNull('deleted_at')
+            ->orderBy('reference')
+            ->limit(30)
+            ->get(['id', 'reference', 'name', 'address', 'commune_id', 'width', 'height', 'monthly_rate', 'status']);
+
+        return response()->json([
+            'results' => $panels->map(fn($p) => [
+                'id'           => $p->id,
+                'text'         => trim(($p->reference ?? '') . ' — ' . ($p->address ?? $p->name ?? '')),
+                'reference'    => $p->reference,
+                'name'         => $p->name,
+                'address'      => $p->address,
+                'commune_id'   => $p->commune_id,
+                'commune_name' => $p->commune?->name,
+                'dimension_m2' => (float) ($p->width * $p->height),
+                'monthly_rate' => (int) $p->monthly_rate,
+                'status'       => $p->status,
+            ])->values(),
+        ]);
+    }
+
     public function edit(Quote $quote)
     {
         $this->authorize('update', $quote);
