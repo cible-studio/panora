@@ -303,7 +303,27 @@
         font-size: 13px !important;
         line-height: 1.4 !important;
         border-bottom: 1px solid var(--border, #eef2f7) !important;
+        white-space: normal !important;
+        word-break: break-word !important;
     }
+    /* Le dropdown des panneaux doit être plus large que la cellule pour
+       ne pas couper les adresses longues (ex. "Rond-point hôtel de ville…"). */
+    .select2-container--ql-compact .select2-dropdown { min-width: 480px !important; }
+    /* Template panneau : référence en gras + adresse en gris en dessous */
+    .panel-result { display:flex; flex-direction:column; gap:2px; }
+    .panel-result .pr-head { font-weight:700; color:var(--text, #0f172a); font-size:13px; }
+    .panel-result .pr-head .pr-badge {
+        display:inline-block; margin-left:6px; padding:1px 6px; border-radius:4px;
+        font-size:10px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;
+    }
+    .panel-result .pr-badge-libre    { background:#dcfce7; color:#166534; }
+    .panel-result .pr-badge-option   { background:#fef3c7; color:#78350f; }
+    .panel-result .pr-badge-confirme,
+    .panel-result .pr-badge-occupe   { background:#fee2e2; color:#991b1b; }
+    .panel-result .pr-badge-maintenance { background:#e0e7ff; color:#3730a3; }
+    .panel-result .pr-sub { font-size:11.5px; color:var(--text3, #64748b); }
+    .panel-result .pr-meta { font-size:11px; color:var(--text3, #64748b); margin-top:2px; }
+    .panel-result .pr-meta strong { color:var(--accent, #e8a020); }
     .select2-results__option:last-child { border-bottom: none !important; }
     .select2-results__option[aria-selected="true"] {
         background: var(--surface2, #f8fafc) !important;
@@ -376,6 +396,34 @@ window.QuoteForm = (function() {
         // Select2 AJAX sur le panneau — dropdown attaché au <body> pour
         // ne pas être tronqué par le tableau parent.
         const $panel = $row.find('.ql-panel-search');
+
+        // Template résultat riche : réf en gras + adresse en dessous +
+        // ligne meta (commune · m² · tarif catalogue).
+        const escapeHtml = s => String(s || '').replace(/[&<>"']/g, c => ({
+            '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+        })[c]);
+        const templatePanel = (p) => {
+            if (!p.id) return escapeHtml(p.text || ''); // placeholder / "searching..."
+            const addr    = p.address || p.name || '';
+            const commune = p.commune_name || '—';
+            const m2      = p.dimension_m2 ? Number(p.dimension_m2).toLocaleString('fr-FR') + ' m²' : '';
+            const tarif   = p.monthly_rate ? Number(p.monthly_rate).toLocaleString('fr-FR') + ' FCFA/mois' : '';
+            const status  = (p.status || '').toLowerCase();
+            const badge   = status ? `<span class="pr-badge pr-badge-${escapeHtml(status)}">${escapeHtml(status)}</span>` : '';
+            const meta    = [commune, m2, tarif].filter(Boolean).map(escapeHtml).join(' · ');
+            return $(`
+                <div class="panel-result">
+                    <div class="pr-head">${escapeHtml(p.reference || '—')} ${badge}</div>
+                    <div class="pr-sub">${escapeHtml(addr)}</div>
+                    <div class="pr-meta">${meta ? '<strong>' + meta + '</strong>' : ''}</div>
+                </div>
+            `);
+        };
+        const templatePanelSelected = (p) => {
+            if (!p.id) return p.text || '';
+            return $(`<span>${escapeHtml(p.reference || '')} — ${escapeHtml(p.address || p.name || '')}</span>`);
+        };
+
         $panel.select2({
             placeholder: $panel.data('placeholder'),
             allowClear: true,
@@ -384,6 +432,9 @@ window.QuoteForm = (function() {
             dropdownCssClass: 'ql-compact',
             dropdownParent: $('body'),
             minimumInputLength: 0,
+            escapeMarkup: m => m,
+            templateResult: templatePanel,
+            templateSelection: templatePanelSelected,
             language: {
                 inputTooShort: () => 'Tape pour rechercher…',
                 noResults: () => 'Aucun panneau trouvé',
