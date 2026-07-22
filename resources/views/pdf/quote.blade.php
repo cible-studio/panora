@@ -1,21 +1,20 @@
 @php
     /**
-     * PDF Devis — calqué sur le PDF facture FNE mais adapté au contexte
-     * devis (non contractuel) : bandeau clair « DEVIS » en haut,
-     * suppression du badge FNE, mention légale spécifique, encart
-     * validité mis en évidence.
+     * PDF Devis — modèle CIBLE SARL officiel (calqué sur le devis manuel
+     * utilisé historiquement par la Direction Commerciale, exemple fourni
+     * 2026-07-21 : "DEVIS 12m² BARRY.pdf").
+     *
+     * Structure 3 pages :
+     *   Page 1 — Émetteur, Client, tableau désignation, taxes publicitaires,
+     *            services additionnels, montant net à payer, modalités
+     *   Page 2 — Cadre signatures (Directrice Commerciale + Annonceur)
+     *   Page 3 — Conditions générales complètes (8 articles)
      */
     $company = config('billing.company');
-    $legalMention = config('billing.quote_legal_mention');
+    $bank    = config('billing.bank');
 
-    // Emplacement (concat communes uniques)
-    $emplacement = $quote->lines->pluck('snapshot_commune_name')->filter()->unique()->take(4)->implode(' · ') ?: '—';
-    $nbPanneaux  = $quote->lines->sum('quantite') ?: 0;
-
-    // Période
-    $periode = ($quote->period_start && $quote->period_end)
-        ? strtoupper('DU ' . $quote->period_start->format('d/m/Y') . ' AU ' . $quote->period_end->format('d/m/Y'))
-        : '—';
+    // Formatage entier FCFA (espaces comme séparateurs — norme locale)
+    $fmt = fn($n) => number_format((int) $n, 0, ',', ' ');
 
     // Logo émetteur (base64 pour DomPDF)
     $logoPath = public_path($company['logo_path'] ?? 'images/logol.png');
@@ -23,19 +22,86 @@
         ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
         : null;
 
-    // Formatage entier FCFA
-    $fmt = fn($n) => number_format((int) $n, 0, ',', ' ');
+    // ── Agrégation des taxes publicitaires par commune ─────────────
+    // Le modèle CIBLE présente ODP + TM regroupés par commune sous forme
+    // "Type / Commune / PU/m²/mois / Montant" — on reconstruit depuis les
+    // lignes du devis (odp_ligne / tm_ligne + odp_rate_applique / tm_rate_applique).
+    $taxesPub = [];
+    foreach ($quote->lines as $line) {
+        $commune = $line->snapshot_commune_name ?: '—';
+        if ((int) $line->tm_ligne > 0) {
+            $key = 'TM|' . $commune;
+            $taxesPub[$key] = [
+                'type'    => 'Taxe Municipale',
+                'commune' => $commune,
+                'rate'    => (float) $line->tm_rate_applique,
+                'montant' => (int) (($taxesPub[$key]['montant'] ?? 0) + $line->tm_ligne),
+            ];
+        }
+        if ((int) $line->odp_ligne > 0) {
+            $key = 'ODP|' . $commune;
+            $taxesPub[$key] = [
+                'type'    => 'ODP',
+                'commune' => $commune,
+                'rate'    => (float) $line->odp_rate_applique,
+                'montant' => (int) (($taxesPub[$key]['montant'] ?? 0) + $line->odp_ligne),
+            ];
+        }
+    }
+    // Tri : TM d'abord puis ODP, chacun ordonné par commune
+    uasort($taxesPub, fn($a, $b) => [$a['type'], $a['commune']] <=> [$b['type'], $b['commune']]);
+    $totalTaxesPub = array_sum(array_column($taxesPub, 'montant'));
 
-    // Ventilations et taxes
+    // ── Totaux nets ────────────────────────────────────────────────
     $netHt         = (int) $quote->net_ht;
-    $totalTtc      = (int) $quote->amount_ttc;
     $tvaAmount     = (int) $quote->tva_amount;
+    $tspAmount     = (int) $quote->tsp_amount;
+    $totalTtc      = (int) $quote->amount_ttc;      // Panneaux HT + TVA + TSP
     $servicesHtTot = (int) $quote->services_ht_total;
-    $autresTaxes   = (int) $quote->tsp_amount + (int) $quote->tm_total + (int) $quote->odp_total;
+    $totalAPayer   = (int) $quote->total_a_payer;   // TTC + Taxes pub + Services
 
-    // Base résumé ODP+TM+TSP = TTC panneaux + TTC services
-    $autresBase = $totalTtc + (int) round($servicesHtTot * (1 + ((float) $quote->tva) / 100));
-    $autresRate = $autresBase > 0 ? round(($autresTaxes / $autresBase) * 100, 5) : 0;
+    // ── Somme en toutes lettres (français, entier FCFA) ────────────
+    $montantEnLettres = function (int $n): string {
+        if ($n === 0) return 'zéro';
+        $units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
+                  'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize',
+                  'dix-sept', 'dix-huit', 'dix-neuf'];
+        $tens  = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante',
+                  'soixante', 'quatre-vingt', 'quatre-vingt'];
+
+        $sub999 = function (int $n) use (&$sub999, $units, $tens): string {
+            if ($n < 20) return $units[$n];
+            if ($n < 100) {
+                $t = intdiv($n, 10); $u = $n % 10;
+                if ($t === 7 || $t === 9) {
+                    return $tens[$t] . '-' . $units[10 + $u];
+                }
+                if ($t === 8 && $u === 0) return 'quatre-vingts';
+                $sep = ($u === 1 && $t !== 8) ? ' et ' : '-';
+                return $tens[$t] . ($u ? $sep . $units[$u] : '');
+            }
+            $c = intdiv($n, 100); $r = $n % 100;
+            $prefix = $c === 1 ? 'cent' : $units[$c] . ' cent' . ($r === 0 ? 's' : '');
+            return $prefix . ($r ? ' ' . $sub999($r) : '');
+        };
+
+        $out = '';
+        if ($n >= 1_000_000) {
+            $m = intdiv($n, 1_000_000);
+            $out .= ($m === 1 ? 'un million' : $sub999($m) . ' millions') . ' ';
+            $n %= 1_000_000;
+        }
+        if ($n >= 1000) {
+            $k = intdiv($n, 1000);
+            $out .= ($k === 1 ? 'mille' : $sub999($k) . ' mille') . ' ';
+            $n %= 1000;
+        }
+        if ($n > 0) $out .= $sub999($n);
+        return trim($out);
+    };
+
+    // Date d'émission = date d'envoi si envoyé, sinon date de création
+    $dateEmission = ($quote->sent_at ?: $quote->created_at)?->format('d/m/Y');
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
@@ -43,289 +109,571 @@
     <meta charset="UTF-8">
     <title>Devis N° {{ $quote->reference }}</title>
     <style>
-        @page { margin: 10mm 12mm 10mm 12mm; size: A4 portrait; }
+        @page { margin: 12mm 10mm 10mm 10mm; size: A4 portrait; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'DejaVu Sans', Helvetica, sans-serif; font-size: 10px; color: #0f172a; line-height: 1.42; }
+        body { font-family: 'DejaVu Sans', Helvetica, sans-serif; font-size: 9.5px; color: #1f2937; line-height: 1.4; }
         table { border-collapse: collapse; width: 100%; }
-        td, th { vertical-align: top; }
-        strong { font-weight: 700; }
+        td, th { vertical-align: middle; }
+        strong, b { font-weight: 700; }
+        .page-break { page-break-after: always; }
+        .no-break { page-break-inside: avoid; }
 
-        /* Bandeau DEVIS haut de page — remplace le badge FNE de la facture */
-        .devis-banner {
-            background: #8b5cf6;
-            color: #ffffff;
-            padding: 6px 12px;
+        /* ═══ HEADER ═══ */
+        .hdr { margin-bottom: 8px; }
+        .hdr td { padding: 0; vertical-align: top; }
+        .hdr .logo-cell { width: 32%; padding: 6px 12px; background: #fff; }
+        .hdr .logo-cell img { max-height: 62px; max-width: 160px; }
+        .hdr .title-cell {
+            width: 68%;
+            background: #f4c542;
+            color: #1e40af;
+            padding: 14px 18px;
+        }
+        .hdr .title { font-size: 26px; font-weight: 900; letter-spacing: 3px; margin-bottom: 4px; color: #1e40af; }
+        .hdr .meta { font-size: 10.5px; color: #1e40af; }
+        .hdr .meta .lbl { font-weight: 700; display: inline-block; min-width: 48px; }
+        .hdr .meta .val { color: #b91c1c; font-weight: 700; margin-left: 4px; }
+
+        /* ═══ BLOC ÉMETTEUR / CLIENT ═══ */
+        .party { margin-bottom: 12px; border: 1px solid #cbd5e1; }
+        .party td { padding: 0; vertical-align: top; }
+        .party .left, .party .right { width: 50%; }
+        .party .header-band {
+            background: #1e40af;
+            color: #fff;
+            padding: 5px 10px;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .party .rgt-title { background: #cbd5e1; color: #1e293b; }
+        .party .body { padding: 8px 10px; font-size: 9.5px; }
+        .party .body strong { display: inline-block; min-width: 78px; color: #1e293b; }
+        .party .body .row { padding: 2px 0; }
+        .party .body .link { color: #1d4ed8; }
+
+        /* ═══ TABLEAU DÉSIGNATION ═══ */
+        .lines { margin-bottom: 0; border: 1px solid #94a3b8; }
+        .lines thead th {
+            background: #1e293b;
+            color: #ffd166;
+            font-size: 9.5px;
+            font-weight: 700;
+            text-align: center;
+            padding: 8px 6px;
+            border-right: 1px solid #334155;
+        }
+        .lines thead th:last-child { border-right: none; }
+        .lines thead th.designation { text-align: left; padding-left: 10px; }
+        .lines tbody td {
+            padding: 8px 6px;
+            border-top: 1px solid #cbd5e1;
+            border-right: 1px solid #e2e8f0;
+            font-size: 9.5px;
+            text-align: center;
+        }
+        .lines tbody td:last-child { border-right: none; }
+        .lines tbody td.designation {
+            text-align: left;
+            padding-left: 10px;
+            font-style: italic;
+            line-height: 1.5;
+        }
+        .lines tbody td.designation .row-desc { display: block; font-style: italic; }
+        .lines tbody td.num { text-align: right; padding-right: 8px; font-family: 'DejaVu Sans', sans-serif; }
+
+        /* ═══ SOUS-TOTAUX (colonne étroite à droite) ═══ */
+        .subtotals { margin-top: 0; margin-left: 50%; width: 50%; border: 1px solid #94a3b8; border-top: 0; }
+        .subtotals td { padding: 6px 10px; font-size: 10px; border-top: 1px solid #cbd5e1; }
+        .subtotals .lbl { text-align: right; font-weight: 600; color: #1e293b; background: #f8fafc; }
+        .subtotals .val { text-align: right; font-weight: 700; width: 40%; }
+        .subtotals tr.ttc td.lbl { background: #1e40af; color: #ffd166; font-size: 12px; font-weight: 800; padding: 9px 10px; }
+        .subtotals tr.ttc td.val { background: #1e40af; color: #ffd166; font-size: 13px; font-weight: 900; padding: 9px 10px; }
+
+        /* ═══ TABLE SECTION (TAXES PUB + SERVICES) ═══ */
+        .section-tbl { margin-top: 12px; border: 1px solid #94a3b8; }
+        .section-tbl .section-header {
+            background: #1e40af;
+            color: #fff;
+            padding: 7px 12px;
             font-size: 11px;
             font-weight: 800;
-            letter-spacing: 2px;
-            text-align: center;
-            margin-bottom: 12px;
-            border-radius: 4px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
-        .devis-banner .sub { font-weight: 500; letter-spacing: 0.5px; opacity: 0.9; font-size: 9.5px; margin-top: 2px; }
-
-        .header td { padding: 0; }
-        .header .left  { width: 54%; padding-right: 12px; }
-        .header .right { width: 46%; text-align: right; }
-        .header { margin-bottom: 14px; }
-
-        .emit-box { border: 1.2px solid #94a3b8; border-radius: 10px; padding: 10px 14px; }
-        .emit-box .co-name { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
-        .emit-box .co-line { font-size: 10px; color: #1e293b; line-height: 1.55; }
-
-        .header .right .brand-strip img { height: 44px; max-width: 200px; margin-bottom: 8px; }
-        .header .right .fac-num { font-size: 12.5px; font-weight: 800; color: #8b5cf6; margin-bottom: 8px; }
-        .header .right .validity {
-            display: inline-block;
-            background: #fef3c7;
-            border: 1px solid #f59e0b;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 10.5px;
+        .section-tbl thead th {
+            background: #cbd5e1;
+            color: #1e293b;
+            font-size: 9.5px;
             font-weight: 700;
-            color: #78350f;
+            padding: 6px 8px;
+            text-align: left;
+            border-right: 1px solid #94a3b8;
         }
-        .header .right .validity small { font-weight: 500; font-size: 9px; color: #92400e; display: block; }
+        .section-tbl thead th.num { text-align: right; }
+        .section-tbl tbody td { padding: 6px 8px; border-top: 1px solid #e2e8f0; font-size: 9.5px; }
+        .section-tbl tbody td.num { text-align: right; }
+        .section-tbl tfoot td { padding: 7px 8px; border-top: 1px solid #94a3b8; font-weight: 700; font-size: 10px; background: #f8fafc; text-align: right; }
+        .section-tbl tfoot td.num { text-align: right; color: #1e40af; }
 
-        /* Infos vendeur / client */
-        .infos { margin-bottom: 14px; }
-        .infos td { padding: 0; }
-        .infos .vendor { width: 58%; padding-right: 20px; }
-        .infos .client { width: 42%; }
-        .infos .row { font-size: 10px; padding: 1px 0; line-height: 1.55; }
-        .infos .row .lbl { font-weight: 600; color: #0f172a; }
-        .infos .client-title { font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
-        .infos .highlight { font-weight: 700; color: #0f172a; }
-
-        /* Lignes */
-        .lines { margin-top: 4px; border: 1px solid #cbd5e1; }
-        .lines thead th { background: #8b5cf6; color: #fff; font-size: 9.5px; font-weight: 700; text-align: left; padding: 6px 8px; border-right: 1px solid #a78bfa; }
-        .lines thead th:last-child { border-right: none; }
-        .lines thead th.num { text-align: right; }
-        .lines thead th.center { text-align: center; }
-        .lines tbody td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #f1f5f9; font-size: 9.5px; }
-        .lines tbody tr:last-child td { border-bottom: none; }
-        .lines tbody td:last-child { border-right: none; }
-        .lines tbody td.num { text-align: right; }
-        .lines tbody td.center { text-align: center; }
-        .lines tbody td.ref { font-family: 'DejaVu Sans Mono', monospace; font-weight: 700; color: #6d28d9; }
-
-        /* Totaux */
-        .totals-wrap { margin-top: -1px; }
-        .totals-wrap table { width: 55%; margin-left: 45%; border-collapse: collapse; }
-        .totals-wrap td { padding: 6px 10px; font-size: 10px; border: 1px solid #cbd5e1; }
-        .totals-wrap .lbl-tot { text-align: left; font-weight: 600; background: #f8fafc; }
-        .totals-wrap .val-tot { text-align: right; font-weight: 700; }
-        .totals-wrap tr.grand td {
-            background: #8b5cf6;
-            color: #ffffff;
-            font-size: 12px;
-            padding: 9px 10px;
+        /* ═══ MONTANT NET À PAYER ═══ */
+        .net {
+            margin-top: 14px;
+            border: 2px solid #1e40af;
+            border-radius: 4px;
+            padding: 12px 18px;
+            display: table;
+            width: 100%;
+        }
+        .net .lbl-net {
+            display: table-cell;
+            width: 60%;
+            font-size: 15px;
+            font-weight: 900;
+            color: #1e40af;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            vertical-align: middle;
+        }
+        .net .val-net {
+            display: table-cell;
+            width: 40%;
+            text-align: right;
+            font-size: 22px;
+            font-weight: 900;
+            color: #b91c1c;
+            vertical-align: middle;
+        }
+        .net-en-lettres {
+            padding: 8px 14px;
+            font-style: italic;
+            font-size: 10px;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            border-top: none;
         }
 
-        /* Résumé */
-        .resume-title { font-size: 10px; font-weight: 800; margin: 12px 0 5px; color: #0f172a; letter-spacing: 0.5px; text-transform: uppercase; }
-        .resume { border: 1px solid #cbd5e1; }
-        .resume thead th { background: #8b5cf6; color: #fff; font-size: 9.5px; font-weight: 700; text-align: left; padding: 6px 8px; text-transform: uppercase; }
-        .resume thead th.num { text-align: right; }
-        .resume tbody td { padding: 6px 8px; font-size: 9.5px; border-bottom: 1px solid #e2e8f0; }
-        .resume tbody tr:last-child td { border-bottom: none; }
-        .resume tbody td.num { text-align: right; }
+        /* ═══ MODALITÉS DE RÈGLEMENT ═══ */
+        .modalites { margin-top: 12px; border: 1px solid #94a3b8; }
+        .modalites .head { background: #1e40af; color: #fff; padding: 7px 12px; font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+        .modalites td { padding: 6px 10px; font-size: 9.5px; border-top: 1px solid #e2e8f0; }
+        .modalites td.lbl { background: #f8fafc; font-weight: 700; width: 35%; color: #1e293b; }
+        .modalites .cb { display: inline-block; width: 10px; height: 10px; border: 1.2px solid #1e293b; margin-right: 4px; vertical-align: middle; }
 
-        .ventil { margin-top: 6px; text-align: center; font-size: 9.5px; line-height: 1.5; }
+        /* ═══ SIGNATURES (PAGE 2) ═══ */
+        .sign-table { margin-top: 20px; border-collapse: collapse; width: 100%; }
+        .sign-table td { border: 1px solid #94a3b8; width: 50%; height: 160px; padding: 12px; vertical-align: top; text-align: center; background: #f8fafc; }
+        .sign-table td .sign-title { font-weight: 800; font-size: 12px; color: #1e40af; margin-bottom: 6px; }
+        .sign-table td .sign-sub { font-size: 10px; color: #475569; }
+        .sign-table td .sign-line { border-bottom: 1px solid #1e293b; width: 60%; margin: 90px auto 0 auto; }
 
-        .footer { margin-top: 10px; padding-top: 5px; border-top: 1px solid #e2e8f0; font-size: 8px; color: #64748b; text-align: center; line-height: 1.35; }
-        .footer .mention { color: #78350f; font-weight: 700; margin-bottom: 3px; }
+        /* ═══ CONDITIONS GÉNÉRALES (PAGE 3) ═══ */
+        .cgv-head { background: #1e40af; color: #fff; padding: 8px 12px; font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+        .cgv-head .site { float: right; font-size: 10px; font-weight: 500; color: #ffd166; }
+        .cgv-art-title { background: #f4c542; color: #1e40af; padding: 5px 10px; font-size: 10px; font-weight: 800; margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; }
+        .cgv-body { padding: 6px 10px; font-size: 9.5px; line-height: 1.55; color: #1f2937; border: 1px solid #e2e8f0; border-top: none; }
+        .cgv-body ul { margin: 4px 0 4px 20px; }
+        .cgv-body li { margin: 2px 0; }
+        .cgv-body .highlight { font-weight: 700; }
+
+        /* ═══ FOOTER commun ═══ */
+        .footer { position: fixed; bottom: 4mm; left: 0; right: 0; text-align: center; font-size: 8px; color: #64748b; }
     </style>
 </head>
 <body>
 
-    {{-- Bandeau DEVIS --}}
-    <div class="devis-banner">
-        DEVIS COMMERCIAL
-        <div class="sub">Non contractuel avant signature — les panneaux ne sont pas bloqués</div>
-    </div>
+    {{-- ═══════════════════════════════════════════════════════════════
+         PAGE 1
+    ═══════════════════════════════════════════════════════════════ --}}
 
-    {{-- Header --}}
-    <table class="header">
+    {{-- HEADER : logo + bandeau jaune "DEVIS" --}}
+    <table class="hdr">
+        <tr>
+            <td class="logo-cell">
+                @if($logoSrc)
+                    <img src="{{ $logoSrc }}" alt="{{ $company['name'] }}">
+                @else
+                    <div style="font-size:22px;font-weight:900;color:#1e40af">{{ $company['name'] }}</div>
+                @endif
+            </td>
+            <td class="title-cell">
+                <div class="title">DEVIS</div>
+                <div class="meta"><span class="lbl">N° :</span><span class="val">{{ $quote->reference }}</span></div>
+                <div class="meta"><span class="lbl">Date :</span><span class="val">{{ $dateEmission }}</span></div>
+            </td>
+        </tr>
+    </table>
+
+    {{-- BLOC ÉMETTEUR / CLIENT --}}
+    <table class="party">
         <tr>
             <td class="left">
-                <div class="emit-box">
-                    <div class="co-name">{{ $company['name'] }}</div>
+                <div class="header-band">Émetteur</div>
+                <div class="body">
+                    <div class="row"><strong>{{ $company['name'] ?? 'CIBLE SARL' }}</strong></div>
+                    @if(!empty($company['address']))
+                        <div class="row">{{ $company['address'] }}</div>
+                    @endif
+                    @if(!empty($company['phone']))
+                        <div class="row">Tél. : {{ $company['phone'] }}</div>
+                    @endif
                     @if(!empty($company['ncc']))
-                        <div class="co-line"><strong>NCC :</strong> {{ $company['ncc'] }}</div>
+                        <div class="row">CC : N°{{ $company['ncc'] }}</div>
                     @endif
-                    @if(!empty($company['regime_imposition']))
-                        <div class="co-line"><strong>Régime d'imposition :</strong> {{ $company['regime_imposition'] }}</div>
-                    @endif
-                    @if(!empty($company['centre_impots']))
-                        <div class="co-line"><strong>Centre des impôts :</strong> {{ $company['centre_impots'] }}</div>
+                    @if(!empty($company['email']))
+                        <div class="row">{{ $company['email'] }}</div>
                     @endif
                 </div>
             </td>
             <td class="right">
-                <div class="brand-strip">
-                    @if($logoSrc) <img src="{{ $logoSrc }}" alt="{{ $company['name'] }}"> @endif
+                <div class="header-band rgt-title">Client / Mandataire</div>
+                <div class="body">
+                    <div class="row"><strong>Nom :</strong>{{ $quote->client?->contact_name ?? $quote->client?->name ?? '—' }}</div>
+                    <div class="row"><strong>Entreprise :</strong>{{ $quote->client?->company ?? $quote->client?->name ?? '—' }}</div>
+                    <div class="row"><strong>N°CC :</strong>{{ $quote->client?->ncc ?? '' }}</div>
+                    <div class="row"><strong>Tél. :</strong>{{ $quote->client?->phone ?? '' }}</div>
+                    <div class="row"><strong>Email :</strong>@if($quote->client?->email)<span class="link">{{ $quote->client->email }}</span>@endif</div>
                 </div>
-                <div class="fac-num">
-                    Devis N° {{ $quote->reference }}
-                    @if($quote->version > 1) <span style="color:#94a3b8;font-size:10px">(v{{ $quote->version }})</span> @endif
-                </div>
-                @if($quote->expires_at)
-                    <div class="validity">
-                        Validité : {{ $quote->valid_days }} jours
-                        <small>Jusqu'au {{ $quote->expires_at->format('d/m/Y') }}</small>
-                    </div>
-                @endif
             </td>
         </tr>
     </table>
 
-    {{-- Bandeau vendeur / client --}}
-    <table class="infos">
-        <tr>
-            <td class="vendor">
-                @if(!empty($company['rccm'])) <div class="row"><span class="lbl">RCCM :</span> {{ $company['rccm'] }}</div> @endif
-                <div class="row"><span class="lbl">Établissement :</span> {{ $company['name'] }}</div>
-                @if(!empty($company['address'])) <div class="row"><span class="lbl">Adresse :</span> {{ $company['address'] }}</div> @endif
-                @if(!empty($company['phone'])) <div class="row"><span class="lbl">N° Tel :</span> {{ $company['phone'] }}</div> @endif
-                @if(!empty($company['email'])) <div class="row"><span class="lbl">Mail :</span> {{ $company['email'] }}</div> @endif
-                <div class="row"><span class="lbl">Commercial :</span> {{ $quote->commercial?->name ?? '—' }}</div>
-                <div class="row"><span class="lbl">Date d'émission :</span> {{ optional($quote->sent_at ?: $quote->created_at)->format('d/m/Y') }}</div>
-                @if($periode !== '—')
-                    <div class="row highlight" style="margin-top: 6px;">PÉRIODE ENVISAGÉE : {{ $periode }}</div>
-                @endif
-                <div class="row highlight">EMPLACEMENT : {{ $emplacement }}</div>
-                @if($nbPanneaux > 0)
-                    <div class="row highlight">Nbre de panneaux : {{ str_pad($nbPanneaux, 2, '0', STR_PAD_LEFT) }}</div>
-                @endif
-            </td>
-            <td class="client">
-                <div class="client-title">Destiné à</div>
-                <div class="row"><span class="lbl">Nom :</span> {{ $quote->client?->name ?? '—' }}</div>
-                @if(!empty($quote->client?->email))     <div class="row"><span class="lbl">Email :</span> {{ $quote->client->email }}</div> @endif
-                @if(!empty($quote->client?->address))   <div class="row"><span class="lbl">Adresse :</span> {{ $quote->client->address }}</div> @endif
-                @if(!empty($quote->client?->phone))     <div class="row"><span class="lbl">Téléphone :</span> {{ $quote->client->phone }}</div> @endif
-                @if(!empty($quote->client?->ncc))       <div class="row"><span class="lbl">NCC :</span> {{ $quote->client->ncc }}</div> @endif
-                @if(!empty($quote->client?->regime_imposition))
-                    <div class="row"><span class="lbl">Régime d'imposition :</span> {{ $quote->client->regime_imposition }}</div>
-                @endif
-            </td>
-        </tr>
-    </table>
-
-    {{-- Titre du devis --}}
-    <div style="background:#f8fafc;border-left:4px solid #8b5cf6;padding:8px 12px;margin-bottom:12px;border-radius:0 4px 4px 0">
-        <strong style="font-size:12px;color:#0f172a">Objet :</strong> {{ $quote->title }}
-    </div>
-
-    {{-- Lignes --}}
+    {{-- TABLEAU DES LIGNES --}}
     <table class="lines">
         <thead>
             <tr>
-                <th style="width:8%">Réf</th>
-                <th style="width:32%">Désignation</th>
-                <th style="width:12%" class="num">P.U HT</th>
-                <th style="width:6%" class="center">Qté</th>
-                <th style="width:6%" class="center">Unité</th>
-                <th style="width:11%" class="center">Taxes (%)</th>
-                <th style="width:8%" class="num">Rem. (%)</th>
-                <th style="width:17%" class="num">Montant HT</th>
+                <th class="designation" style="width:44%">Désignation / Emplacement</th>
+                <th style="width:8%">Format<br>m²</th>
+                <th style="width:14%">Commune</th>
+                <th style="width:6%">Qté</th>
+                <th style="width:8%">Durée<br>(mois)</th>
+                <th style="width:10%">PU HT<br>(FCFA)</th>
+                <th style="width:10%">Montant HT<br>(FCFA)</th>
             </tr>
         </thead>
         <tbody>
             @foreach($quote->lines as $line)
+                @php
+                    // Reconstruction du bloc emplacement multi-lignes
+                    $panel  = $line->panel_id ? \App\Models\Panel::find($line->panel_id) : null;
+                    $refPan = $panel?->reference ?? '';
+                    $addr   = $panel?->address ?: $line->designation;
+
+                    // Période affichée sur chaque ligne (période globale du devis)
+                    $periodeLine = ($quote->period_start && $quote->period_end)
+                        ? 'Du ' . $quote->period_start->translatedFormat('j F Y') . ' au ' . $quote->period_end->translatedFormat('j F Y')
+                        : null;
+                @endphp
                 <tr>
-                    <td class="ref">LP</td>
-                    <td>{{ $line->designation }}</td>
+                    <td class="designation">
+                        <span class="row-desc"><strong>Emplacement :</strong> {{ $addr ?: $line->snapshot_commune_name ?? '—' }}</span>
+                        @if($periodeLine)
+                            <span class="row-desc"><strong>Période :</strong> {{ $periodeLine }}</span>
+                        @endif
+                        @if($refPan)
+                            <span class="row-desc"><strong>Code :</strong> {{ $refPan }}</span>
+                        @endif
+                    </td>
+                    <td>{{ (int) $line->dimension_m2 }}</td>
+                    <td>{{ $line->snapshot_commune_name ?: '—' }}</td>
+                    <td>{{ (int) $line->quantite }}</td>
+                    <td>{{ rtrim(rtrim(number_format((float) $line->duree_mois, 1, ',', ''), '0'), ',') }}</td>
                     <td class="num">{{ $fmt($line->pu_ht_mensuel) }}</td>
-                    <td class="center">{{ $line->quantite }}</td>
-                    <td class="center">m²</td>
-                    <td class="center">TVA ({{ (int) $quote->tva }})</td>
-                    <td class="num">{{ $quote->remise_pct > 0 ? number_format($quote->remise_pct, 2, ',', '') : '0' }}</td>
                     <td class="num">{{ $fmt($line->montant_ht_ligne) }}</td>
                 </tr>
             @endforeach
-            @foreach($quote->services as $svc)
-                @php
-                    $ref = str_contains(mb_strtolower($svc->label), 'impression') ? 'IMP'
-                         : (str_contains(mb_strtolower($svc->label), 'pose') ? 'FP' : 'SRV');
-                @endphp
-                <tr>
-                    <td class="ref">{{ $ref }}</td>
-                    <td>{{ $svc->label }}</td>
-                    <td class="num">{{ $fmt($svc->prix_ht) }}</td>
-                    <td class="center">1</td>
-                    <td class="center">—</td>
-                    <td class="center">TVA ({{ (int) $quote->tva }})</td>
-                    <td class="num">0</td>
-                    <td class="num">{{ $fmt($svc->prix_ht) }}</td>
-                </tr>
-            @endforeach
         </tbody>
     </table>
 
-    {{-- Totaux --}}
-    <div class="totals-wrap">
-        <table>
-            @php $htBrut = (int) $quote->amount; $remiseMontant = $htBrut - $netHt; @endphp
-            <tr><td class="lbl-tot">TOTAL HT</td><td class="val-tot">{{ $fmt($htBrut) }}</td></tr>
-            @if($remiseMontant > 0)
-                <tr><td class="lbl-tot">REMISE ({{ number_format($quote->remise_pct, 2, ',', '') }} %)</td><td class="val-tot">- {{ $fmt($remiseMontant) }}</td></tr>
-                <tr><td class="lbl-tot">TOTAL HT APRÈS REMISE</td><td class="val-tot">{{ $fmt($netHt) }}</td></tr>
-            @endif
-            @if($servicesHtTot > 0)
-                <tr><td class="lbl-tot">Services annexes HT</td><td class="val-tot">{{ $fmt($servicesHtTot) }}</td></tr>
-            @endif
-            <tr><td class="lbl-tot">TVA</td><td class="val-tot">{{ $fmt($tvaAmount + (int) round($servicesHtTot * ((float) $quote->tva / 100))) }}</td></tr>
-            <tr><td class="lbl-tot">TOTAL TTC</td><td class="val-tot">{{ $fmt($totalTtc + (int) round($servicesHtTot * (1 + (float) $quote->tva / 100))) }}</td></tr>
-            <tr><td class="lbl-tot">AUTRES TAXES (ODP+TM+TSP)</td><td class="val-tot">{{ $fmt($autresTaxes) }}</td></tr>
-            <tr class="grand"><td>TOTAL À PAYER</td><td class="val-tot">{{ $fmt($quote->total_a_payer) }}</td></tr>
-        </table>
-    </div>
+    {{-- SOUS-TOTAUX --}}
+    <table class="subtotals">
+        <tr>
+            <td class="lbl">Montant Total HT</td>
+            <td class="val">{{ $fmt($netHt) }} FCFA</td>
+        </tr>
+        <tr>
+            <td class="lbl"><strong>Total HT</strong></td>
+            <td class="val"><strong>{{ $fmt($netHt) }} FCFA</strong></td>
+        </tr>
+        <tr>
+            <td class="lbl">TVA ({{ (int) $quote->tva }}%)</td>
+            <td class="val">{{ $fmt($tvaAmount) }} FCFA</td>
+        </tr>
+        <tr>
+            <td class="lbl">TSP ({{ (int) config('billing.tsp_rate', 3) }}%)</td>
+            <td class="val">{{ $fmt($tspAmount) }} FCFA</td>
+        </tr>
+        <tr class="ttc">
+            <td class="lbl">MONTANT TOTAL TTC</td>
+            <td class="val">{{ $fmt($totalTtc) }} FCFA</td>
+        </tr>
+    </table>
 
-    <div class="resume-title">RESUME DU DEVIS</div>
-    <table class="resume">
+    {{-- TAXES PUBLICITAIRES (agrégées par commune) --}}
+    <table class="section-tbl no-break">
+        <tr><td colspan="4" class="section-header">Taxes publicitaires</td></tr>
         <thead>
             <tr>
-                <th style="width:45%">CATEGORIE</th>
-                <th class="num" style="width:22%">SOUS-TOTAL</th>
-                <th class="num" style="width:15%">TAUX (%)</th>
-                <th class="num" style="width:18%">TOTAL TAXES</th>
+                <th style="width:30%">Type</th>
+                <th style="width:20%">Commune</th>
+                <th style="width:25%" class="num">PU/m²/mois</th>
+                <th style="width:25%" class="num">Montant</th>
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>TVA normal - TVA sur HT {{ number_format((float) $quote->tva, 2, ',', '') }}% - A</td>
-                <td class="num">{{ $fmt($netHt + $servicesHtTot) }}</td>
-                <td class="num">{{ (int) $quote->tva }}%</td>
-                <td class="num">{{ $fmt($tvaAmount + (int) round($servicesHtTot * ((float) $quote->tva / 100))) }}</td>
-            </tr>
-            <tr>
-                <td>ODP+TM+TSP</td>
-                <td class="num">{{ $fmt($autresBase) }}</td>
-                <td class="num">{{ number_format($autresRate, 5, '.', '') }}%</td>
-                <td class="num">{{ $fmt($autresTaxes) }}</td>
-            </tr>
+            @forelse($taxesPub as $tax)
+                <tr>
+                    <td>{{ $tax['type'] }}</td>
+                    <td>{{ $tax['commune'] }}</td>
+                    <td class="num">{{ $fmt($tax['rate']) }}</td>
+                    <td class="num">{{ $fmt($tax['montant']) }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="4" style="text-align:center;color:#94a3b8;font-style:italic">Aucune taxe publicitaire applicable</td></tr>
+            @endforelse
         </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="3">Total Taxes Publicitaires</td>
+                <td class="num">{{ $fmt($totalTaxesPub) }} FCFA</td>
+            </tr>
+        </tfoot>
     </table>
 
-    <div class="ventil">
-        <span>ODP = {{ number_format((int) $quote->odp_total, 0, ',', '.') }}</span> ·
-        <span>TM = {{ number_format((int) $quote->tm_total, 0, ',', '.') }}</span> ·
-        <span>TSP = {{ number_format((int) $quote->tsp_amount, 0, ',', '.') }}</span>
+    {{-- SERVICES ADDITIONNELS --}}
+    <table class="section-tbl no-break">
+        <tr><td colspan="4" class="section-header">Services additionnels</td></tr>
+        <tbody>
+            @if($quote->services->isEmpty())
+                <tr>
+                    <td style="width:35%">Frais d'impression</td>
+                    <td style="width:30%"></td>
+                    <td class="num" style="width:20%">0 FCFA</td>
+                    <td class="num" style="width:15%">0 FCFA</td>
+                </tr>
+                <tr>
+                    <td>Frais de pose et dépose</td>
+                    <td></td>
+                    <td class="num">OFFERT</td>
+                    <td class="num">OFFERT</td>
+                </tr>
+            @else
+                @foreach($quote->services as $svc)
+                    <tr>
+                        <td style="width:35%">{{ $svc->label }}</td>
+                        <td style="width:30%"></td>
+                        <td class="num" style="width:20%">{{ $svc->prix_ht > 0 ? $fmt($svc->prix_ht) . ' FCFA' : 'OFFERT' }}</td>
+                        <td class="num" style="width:15%">{{ $svc->prix_ht > 0 ? $fmt($svc->prix_ht) . ' FCFA' : 'OFFERT' }}</td>
+                    </tr>
+                @endforeach
+            @endif
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="3">Total Services Additionnels</td>
+                <td class="num">{{ $fmt($servicesHtTot) }} FCFA</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    {{-- MONTANT NET TOTAL À PAYER --}}
+    <div class="net no-break">
+        <div class="lbl-net">Montant Net Total à Payer</div>
+        <div class="val-net">{{ $fmt($totalAPayer) }} FCFA</div>
+    </div>
+    <div class="net-en-lettres">
+        Arrêté le présent devis à la somme de : <strong>{{ ucfirst($montantEnLettres($totalAPayer)) }} francs CFA</strong>
     </div>
 
-    @if($quote->notes_client)
-        <div style="margin-top:10px;padding:10px 12px;background:#f8fafc;border-left:3px solid #8b5cf6;border-radius:0 4px 4px 0;font-size:10px">
-            <strong>Message : </strong>{{ $quote->notes_client }}
-        </div>
-    @endif
+    {{-- MODALITÉS DE RÈGLEMENT --}}
+    <table class="modalites no-break">
+        <tr><td colspan="2" class="head">Modalités de règlement</td></tr>
+        <tr>
+            <td class="lbl">Moyens de paiement :</td>
+            <td>Espèces · Chèque · Virement bancaire</td>
+        </tr>
+        <tr>
+            <td class="lbl">Conditions de paiement :</td>
+            <td>
+                <span class="cb"></span> 100% à la commande
+                &nbsp;&nbsp;&nbsp;
+                <span class="cb"></span> 70% à la commande + 30% à J-15 avant fin de campagne
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">Libellé du chèque :</td>
+            <td>{{ $company['name'] ?? 'CIBLE SARL' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">Banque / BIC :</td>
+            <td>{{ $bank['name'] ?? '' }}@if(!empty($bank['swift'])) &nbsp;·&nbsp; BIC : {{ $bank['swift'] }}@endif</td>
+        </tr>
+        <tr>
+            <td class="lbl">IBAN :</td>
+            <td>{{ $bank['iban'] ?? '' }}</td>
+        </tr>
+        <tr>
+            <td colspan="2" style="background:#fef3c7;font-weight:800;color:#78350f;text-align:center;font-size:11px;letter-spacing:.5px">
+                BON POUR ACCORD — Lu et approuvé
+            </td>
+        </tr>
+    </table>
 
-    {{-- Footer légal --}}
+    <div class="page-break"></div>
+
+    {{-- ═══════════════════════════════════════════════════════════════
+         PAGE 2 — SIGNATURES
+    ═══════════════════════════════════════════════════════════════ --}}
+    <table class="hdr">
+        <tr>
+            <td class="logo-cell">
+                @if($logoSrc)<img src="{{ $logoSrc }}" alt="{{ $company['name'] }}">@endif
+            </td>
+            <td class="title-cell">
+                <div class="title" style="font-size:20px">SIGNATURES</div>
+                <div class="meta"><span class="lbl">Devis :</span><span class="val">{{ $quote->reference }}</span></div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="sign-table">
+        <tr>
+            <td>
+                <div class="sign-title">Pour {{ $company['name'] ?? 'CIBLE SARL' }}</div>
+                <div class="sign-sub">Directrice Commerciale</div>
+                <div class="sign-line"></div>
+            </td>
+            <td>
+                <div class="sign-title">Pour l'Annonceur / Mandataire</div>
+                <div class="sign-sub">Nom &amp; Fonction :</div>
+                <div class="sign-line"></div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="page-break"></div>
+
+    {{-- ═══════════════════════════════════════════════════════════════
+         PAGE 3 — CONDITIONS GÉNÉRALES
+    ═══════════════════════════════════════════════════════════════ --}}
+    <div class="cgv-head">
+        {{ $company['name'] ?? 'CIBLE SARL' }} — Conditions générales
+        <span class="site">www.cible-ci.com</span>
+    </div>
+
+    <div class="cgv-art-title">1. Validité du devis</div>
+    <div class="cgv-body">
+        Le présent devis est valable <strong>{{ $quote->valid_days ?? 30 }} jours calendaires</strong>
+        à compter de sa date d'émission, sous réserve de la disponibilité des emplacements à la date
+        de signature des deux parties. Passé ce délai, {{ $company['name'] ?? 'CIBLE SARL' }} se réserve
+        le droit de modifier les tarifs et/ou les disponibilités sans préavis.
+        <span class="highlight">La commande n'est confirmée qu'après réception du présent devis signé,
+        cacheté par l'annonceur/mandataire, et accompagné du règlement correspondant aux conditions
+        définies ci-après.</span>
+    </div>
+
+    <div class="cgv-art-title">2. Conditions de paiement</div>
+    <div class="cgv-body">
+        Sauf conditions particulières expressément mentionnées sur ce devis, le règlement s'effectue
+        selon l'une des modalités suivantes :
+        <ul>
+            <li><strong>Option A</strong> — 100 % du montant TTC à la signature du devis / bon de commande (paiement intégral à la commande) ;</li>
+            <li><strong>Option B</strong> — 70 % du montant TTC à la signature, solde de 30 % au plus tard quinze (15) jours avant la date de fin de campagne.</li>
+        </ul>
+        La modalité applicable est cochée sur la page 1. {{ $company['name'] ?? 'CIBLE SARL' }} se réserve
+        le droit de suspendre toute prestation en cas de non-respect des délais de paiement,
+        sans que cela ne constitue un manquement contractuel de sa part.
+    </div>
+
+    <div class="cgv-art-title">3. Annulation, report et non-remboursement</div>
+    <div class="cgv-body">
+        Tout acompte ou paiement versé est <strong>NON REMBOURSABLE</strong> en cas d'annulation ou de
+        report de campagne, quelle qu'en soit la cause, à l'exception des cas de force majeure dûment
+        reconnus (voir article 4).<br>
+        En cas d'annulation confirmée par écrit, les retenues suivantes s'appliquent sur le montant total TTC :
+        <ul>
+            <li>Annulation <strong>avant J-30</strong> du démarrage → retenue de <strong>30 %</strong></li>
+            <li>Annulation <strong>entre J-30 et J-15</strong> du démarrage → retenue de <strong>50 %</strong></li>
+            <li>Annulation <strong>à moins de J-15</strong> ou en cours → retenue de <strong>100 %</strong></li>
+        </ul>
+        Un <strong>AVOIR</strong> sera émis pour le montant versé diminué de la retenue applicable. Cet
+        avoir est valable à compter de sa date d'émission sur l'exercice comptable en cours, utilisable
+        exclusivement pour toute prestation {{ $company['name'] ?? 'CIBLE SARL' }}, non remboursable et non cessible.
+    </div>
+
+    <div class="cgv-art-title">4. Cas de force majeure</div>
+    <div class="cgv-body">
+        Sont considérés comme cas de force majeure tout événement imprévisible, irrésistible et
+        extérieur aux parties : catastrophe naturelle, acte de guerre, émeute, décision
+        gouvernementale rendant impossible l'exécution des prestations. En cas de force majeure dûment
+        prouvée et notifiée par écrit dans les 72 heures, {{ $company['name'] ?? 'CIBLE SARL' }} émettra
+        un avoir sans retenue dans les conditions de l'article 3.
+    </div>
+
+    <div class="cgv-art-title">5. Production et livraison des visuels</div>
+    <div class="cgv-body">
+        Les frais d'impression, de pose et de dépose des visuels sont à la charge de
+        l'annonceur/mandataire, sauf mention contraire expressément indiquée sur ce devis. Les visuels
+        doivent être livrés en haute définition au moins cinq (5) jours ouvrables avant le démarrage
+        de la campagne. Tout retard de livraison imputable à l'annonceur ne donnera droit à aucun
+        report, prolongation, ni remboursement.
+    </div>
+
+    <div class="cgv-art-title">6. Taxes, impôts et redevances</div>
+    <div class="cgv-body">
+        Tous les montants sont exprimés en FCFA Hors Taxes. La <strong>TVA ({{ (int) $quote->tva }} %)</strong>
+        et la <strong>TSP ({{ (int) config('billing.tsp_rate', 3) }} %)</strong> sont appliquées
+        conformément à la législation fiscale de la République de Côte d'Ivoire. Les taxes
+        publicitaires municipales (<strong>ODP</strong> et <strong>Taxe Municipale</strong>) sont
+        facturées séparément selon la commune d'implantation du panneau. Toute modification
+        législative entraînant une variation de ces taux sera répercutée de plein droit sur les
+        montants facturés.
+    </div>
+
+    <div class="cgv-art-title">7. Droits de timbre</div>
+    <div class="cgv-body">
+        Pour tout règlement en espèces, des droits de timbre s'appliquent conformément à la
+        réglementation fiscale ivoirienne :
+        De 0 à 5 000 FCFA : 0 FCFA · De 5 001 à 100 000 FCFA : 100 FCFA ·
+        De 100 001 à 500 000 FCFA : 500 FCFA · De 500 001 à 1 000 000 FCFA : 1 000 FCFA ·
+        De 1 000 001 à 5 000 000 FCFA : 2 000 FCFA · Au-delà de 5 000 000 FCFA : 5 000 FCFA.
+    </div>
+
+    <div class="cgv-art-title">8. Droit applicable et règlement des litiges</div>
+    <div class="cgv-body">
+        Le présent devis/contrat est régi par le <strong>droit ivoirien</strong>. En cas de litige
+        relatif à son interprétation, son exécution ou sa résiliation, les parties s'engagent à
+        rechercher une solution amiable dans les trente (30) jours suivant la notification écrite du
+        différend. À défaut d'accord amiable dans ce délai, tout litige sera soumis à la
+        <strong>compétence exclusive du Tribunal de Commerce d'Abidjan</strong>.
+    </div>
+
+    {{-- Zone BON POUR ACCORD + signatures redondantes en bas de page 3 --}}
+    <div style="margin-top:14px;padding:8px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:4px;font-size:10.5px;font-weight:800;color:#78350f;text-align:center;letter-spacing:.5px">
+        BON POUR ACCORD — Lu et approuvé, bon pour accord
+    </div>
+
+    <table class="sign-table" style="margin-top:12px">
+        <tr>
+            <td style="height:100px">
+                <div class="sign-title">Pour {{ $company['name'] ?? 'CIBLE SARL' }}</div>
+                <div class="sign-sub">Directrice Commerciale</div>
+                <div class="sign-line" style="margin-top:50px"></div>
+            </td>
+            <td style="height:100px">
+                <div class="sign-title">Pour l'Annonceur / Mandataire</div>
+                <div class="sign-sub">Nom &amp; Fonction :</div>
+                <div class="sign-line" style="margin-top:50px"></div>
+            </td>
+        </tr>
+    </table>
+
     <div class="footer">
-        <div class="mention">⚠️ {{ $legalMention }}</div>
-        <div>Devis émis par {{ $quote->commercial?->name ?? $company['name'] }} · Réf. {{ $quote->reference }} · {{ optional($quote->created_at)->format('d/m/Y') }}</div>
+        {{ $company['name'] ?? 'CIBLE SARL' }} — Capital : 10 000 000 FCFA
+        | {{ $company['address'] ?? '' }}
+        | Tél. {{ $company['phone'] ?? '' }}
+        | {{ $company['email'] ?? '' }}
     </div>
 </body>
 </html>
