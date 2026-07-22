@@ -415,7 +415,7 @@ class QuoteController extends Controller
 
     protected function validateQuotePayload(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'client_id'                    => 'required|exists:clients,id',
             'campaign_id'                  => 'nullable|exists:campaigns,id',
             'title'                        => 'required|string|max:200',
@@ -442,6 +442,36 @@ class QuoteController extends Controller
         ], [
             'lines.required' => 'Au moins une ligne (panneau) est requise dans un devis.',
         ]);
+
+        // Défense en profondeur : refuse deux lignes qui pointent sur le même
+        // panneau interne (ou externe). Le JS bloque déjà en amont, ceci
+        // couvre les cas de bypass (bouton back+submit, curl, script tiers).
+        $seenPanels = [];
+        $seenExtern = [];
+        foreach (($data['lines'] ?? []) as $i => $l) {
+            if (!empty($l['panel_id'])) {
+                if (isset($seenPanels[$l['panel_id']])) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "lines.$i.panel_id" =>
+                            "Le panneau #{$l['panel_id']} apparaît plusieurs fois. "
+                            . "Fusionne les lignes et augmente la quantité (Qté) à la place.",
+                    ]);
+                }
+                $seenPanels[$l['panel_id']] = true;
+            }
+            if (!empty($l['external_panel_id'])) {
+                if (isset($seenExtern[$l['external_panel_id']])) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "lines.$i.external_panel_id" =>
+                            "Le panneau externe #{$l['external_panel_id']} apparaît plusieurs fois. "
+                            . "Fusionne les lignes et augmente la quantité (Qté) à la place.",
+                    ]);
+                }
+                $seenExtern[$l['external_panel_id']] = true;
+            }
+        }
+
+        return $data;
     }
 
     protected function syncLines(Quote $quote, array $lines): void

@@ -145,9 +145,12 @@
             <h3 style="font-size:14px;font-weight:800">🪧 Panneaux proposés</h3>
             <button type="button" onclick="QuoteForm.addLine()" style="background:var(--accent);color:#fff;padding:8px 14px;border:none;border-radius:8px;font-weight:700;cursor:pointer">+ Ajouter une ligne</button>
         </div>
-        <p style="font-size:12px;color:var(--text3);margin-bottom:12px">
+        <p style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.55">
             💡 Utilise <strong>« Rechercher un panneau »</strong> pour choisir un panneau du parc (surface, tarif et commune se pré-remplissent).
             Ou tape une <strong>désignation libre</strong> pour proposer un emplacement hors parc.
+            <br>
+            ⚠️ Un panneau ne peut être ajouté qu'<strong>une seule fois</strong>. Pour proposer plusieurs exemplaires du même,
+            augmente la colonne <strong>Qté</strong> plutôt que de dupliquer la ligne.
         </p>
         <div style="overflow:visible">
             <table id="quote-lines-table" style="width:100%;border-collapse:separate;border-spacing:0 8px">
@@ -566,6 +569,35 @@ window.QuoteForm = (function() {
         }).on('select2:select', function(e) {
             const p   = e.params?.data || {};
             const idx = $row.data('index');
+            const pid = String(p.id || '');
+
+            // ── Anti-doublon : le même panneau ne peut pas apparaître 2× ──
+            // Un panneau physique ne peut être proposé qu'une seule fois par
+            // devis — le nombre d'exemplaires se gère avec la colonne Qté.
+            if (pid) {
+                const existing = document.querySelectorAll('#quote-lines-tbody .ql-panel-search');
+                for (const sel of existing) {
+                    if (sel === $panel[0]) continue;
+                    if (String(sel.value || '') === pid) {
+                        alert(
+                            "⚠️ " + (p.reference || 'Ce panneau') + " est déjà dans le devis.\n\n" +
+                            "Pour proposer plusieurs exemplaires du même panneau, " +
+                            "augmente la colonne « Qté » de la ligne existante."
+                        );
+                        // Reset propre du Select2 sur cette ligne
+                        $panel.val(null).trigger('change');
+                        // Scroll vers la ligne existante pour aider le commercial
+                        const $existingRow = $(sel).closest('tr.ql-row');
+                        if ($existingRow.length) {
+                            $existingRow[0].scrollIntoView({behavior: 'smooth', block: 'center'});
+                            $existingRow.css('outline', '2px solid #f59e0b');
+                            setTimeout(() => $existingRow.css('outline', ''), 1800);
+                        }
+                        return;
+                    }
+                }
+            }
+
             // Pré-remplit désignation, commune, dimension, PU HT
             if (p.text) {
                 $row.find('.ql-designation').val(p.text);
