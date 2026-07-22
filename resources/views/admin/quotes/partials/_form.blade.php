@@ -148,7 +148,7 @@
                                     <input type="text" name="lines[{{ $i }}][designation]" required maxlength="200" value="{{ $l['designation'] ?? '' }}" placeholder="ex. SP-001 — San-Pedro Triangle (ou saisie libre)" class="ql-input ql-designation">
                                 </div>
                             </td>
-                            <td class="ql-td">
+                            <td class="ql-td" data-label="Commune">
                                 <select name="lines[{{ $i }}][commune_id]" class="ql-input ql-commune-select" data-placeholder="—">
                                     <option value=""></option>
                                     @foreach($communes as $c)
@@ -156,10 +156,10 @@
                                     @endforeach
                                 </select>
                             </td>
-                            <td class="ql-td"><input type="number" name="lines[{{ $i }}][dimension_m2]" required min="0" step="0.01" value="{{ $l['dimension_m2'] ?: 0 }}" class="ql-input ql-num"></td>
-                            <td class="ql-td"><input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" required min="0" step="1" value="{{ $l['pu_ht_mensuel'] ?: 0 }}" class="ql-input ql-num"></td>
-                            <td class="ql-td"><input type="number" name="lines[{{ $i }}][quantite]" required min="1" step="1" value="{{ $l['quantite'] ?: 1 }}" class="ql-input ql-num ql-center"></td>
-                            <td class="ql-td"><input type="number" name="lines[{{ $i }}][duree_mois]" required min="0.5" step="0.5" value="{{ $l['duree_mois'] ?: 1 }}" class="ql-input ql-num ql-center"></td>
+                            <td class="ql-td" data-label="m²"><input type="number" name="lines[{{ $i }}][dimension_m2]" required min="0" step="0.01" value="{{ $l['dimension_m2'] ?: 0 }}" class="ql-input ql-num"></td>
+                            <td class="ql-td" data-label="PU HT / mois"><input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" required min="0" step="1" value="{{ $l['pu_ht_mensuel'] ?: 0 }}" class="ql-input ql-num"></td>
+                            <td class="ql-td" data-label="Qté"><input type="number" name="lines[{{ $i }}][quantite]" required min="1" step="1" value="{{ $l['quantite'] ?: 1 }}" class="ql-input ql-num ql-center"></td>
+                            <td class="ql-td" data-label="Mois"><input type="number" name="lines[{{ $i }}][duree_mois]" required min="0.5" step="0.5" value="{{ $l['duree_mois'] ?: 1 }}" class="ql-input ql-num ql-center"></td>
                             <td class="ql-td" style="text-align:center"><button type="button" onclick="this.closest('tr').remove()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
                         </tr>
                     @endforeach
@@ -276,14 +276,17 @@
         margin-right: 22px !important; color: #94a3b8 !important;
     }
     /* Versions "compactes" pour les cellules du tableau lignes */
-    .select2-container--ql-compact .select2-selection--single {
+    /* Variante compacte pour les Select2 des lignes du tableau — ciblée
+       via un scope parent sur le <td> plutôt que dropdownCssClass qui
+       requiert le module compat manquant du build min de Select2 4.0.13. */
+    .ql-td .select2-container .select2-selection--single {
         height: 38px !important;
         background: var(--surface) !important;
         border-color: var(--border) !important;
         border-radius: 6px !important;
     }
-    .select2-container--ql-compact .select2-selection--single .select2-selection__rendered { line-height: 38px !important; padding-left: 8px !important; }
-    .select2-container--ql-compact .select2-selection--single .select2-selection__arrow { height: 36px !important; }
+    .ql-td .select2-container .select2-selection--single .select2-selection__rendered { line-height: 38px !important; padding-left: 8px !important; }
+    .ql-td .select2-container .select2-selection--single .select2-selection__arrow { height: 36px !important; }
 
     /* ── Dropdown : fond + padding + z-index élevé pour ne pas être caché ── */
     .select2-container--open { z-index: 100000 !important; }
@@ -306,9 +309,12 @@
         white-space: normal !important;
         word-break: break-word !important;
     }
-    /* Le dropdown des panneaux doit être plus large que la cellule pour
-       ne pas couper les adresses longues (ex. "Rond-point hôtel de ville…"). */
-    .select2-container--ql-compact .select2-dropdown { min-width: 480px !important; }
+    /* Le dropdown des panneaux (et autres Select2 de cette page) doit
+       pouvoir dépasser la largeur du champ trigger — sinon les longues
+       adresses "Rond-point hôtel de ville…" sont tronquées.
+       min-width: min(480px, 92vw) → 480 px sur desktop, mais reste
+       lisible sur mobile en respectant le viewport. */
+    .select2-dropdown { min-width: min(480px, 92vw) !important; }
     /* Template panneau : référence en gras + adresse en gris en dessous */
     .panel-result { display:flex; flex-direction:column; gap:2px; }
     .panel-result .pr-head { font-weight:700; color:var(--text, #0f172a); font-size:13px; }
@@ -350,6 +356,87 @@
         padding: 12px 14px !important;
         color: var(--text3, #64748b) !important;
         font-style: italic !important;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       RESPONSIVE — formulaire devis
+       ══════════════════════════════════════════════════════════════ */
+    /* Grilles identité (client/campagne, dates/validité, notes/remise) */
+    @media (max-width: 900px) {
+        #quote-form div[style*="grid-template-columns:1fr 1fr 1fr"],
+        #quote-form div[style*="grid-template-columns:150px 1fr 1fr"] {
+            grid-template-columns: 1fr !important;
+        }
+    }
+    @media (max-width: 700px) {
+        #quote-form div[style*="grid-template-columns:1fr 1fr"] {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* Tableau des lignes — sur mobile chaque ligne devient une carte
+       empilée pour rester lisible sans scroll horizontal. */
+    @media (max-width: 800px) {
+        #quote-lines-table thead { display: none; }
+        #quote-lines-table, #quote-lines-table tbody { display: block; width: 100%; }
+        #quote-lines-table tr.ql-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 12px;
+            background: var(--surface2);
+        }
+        #quote-lines-table tr.ql-row td.ql-td {
+            display: block;
+            padding: 0;
+            background: transparent;
+            border-radius: 0;
+        }
+        /* Le "Panneau/Désignation" occupe toute la largeur */
+        #quote-lines-table tr.ql-row td.ql-td:first-child { grid-column: 1 / -1; }
+        /* Le bouton supprimer va tout en bas à droite */
+        #quote-lines-table tr.ql-row td.ql-td:last-child {
+            grid-column: 1 / -1;
+            text-align: right;
+            border-top: 1px dashed var(--border);
+            padding-top: 8px;
+        }
+        /* Labels visibles au-dessus de chaque champ (via ::before) */
+        #quote-lines-table tr.ql-row td.ql-td::before {
+            content: attr(data-label);
+            display: block;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 4px;
+        }
+        #quote-lines-table tr.ql-row td.ql-td:first-child::before { content: "Panneau / Désignation"; }
+        #quote-lines-table tr.ql-row td.ql-td:last-child::before { content: ""; }
+    }
+
+    /* Tableau services — même approche mobile-first */
+    @media (max-width: 600px) {
+        #quote-services-table, #quote-services-table tbody { display: block; }
+        #quote-services-table thead { display: none; }
+        #quote-services-table tr.qs-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        #quote-services-table tr.qs-row td {
+            padding: 0 !important;
+            display: block;
+        }
+        #quote-services-table tr.qs-row td:first-child { grid-column: 1 / -1; }
     }
     .qf-panel-hint { font-size:11px; color:var(--text3); margin-top:2px; }
 </style>
@@ -428,8 +515,6 @@ window.QuoteForm = (function() {
             placeholder: $panel.data('placeholder'),
             allowClear: true,
             width: '100%',
-            containerCssClass: 'ql-compact',
-            dropdownCssClass: 'ql-compact',
             dropdownParent: $('body'),
             minimumInputLength: 0,
             escapeMarkup: m => m,
@@ -476,8 +561,6 @@ window.QuoteForm = (function() {
             placeholder: $commune.data('placeholder') || '—',
             allowClear: true,
             width: '100%',
-            containerCssClass: 'ql-compact',
-            dropdownCssClass: 'ql-compact',
             dropdownParent: $('body'),
             language: {
                 noResults: () => 'Aucune commune',
@@ -502,13 +585,13 @@ window.QuoteForm = (function() {
                     <input type="text" name="lines[${i}][designation]" required maxlength="200" placeholder="ex. SP-001 — San-Pedro Triangle (ou saisie libre)" class="ql-input ql-designation">
                 </div>
             </td>
-            <td class="ql-td">
+            <td class="ql-td" data-label="Commune">
                 <select name="lines[${i}][commune_id]" class="ql-input ql-commune-select" data-placeholder="—"><option value=""></option>${communesHtml}</select>
             </td>
-            <td class="ql-td"><input type="number" name="lines[${i}][dimension_m2]" required min="0" step="0.01" value="0" class="ql-input ql-num"></td>
-            <td class="ql-td"><input type="number" name="lines[${i}][pu_ht_mensuel]" required min="0" step="1" value="0" class="ql-input ql-num"></td>
-            <td class="ql-td"><input type="number" name="lines[${i}][quantite]" required min="1" step="1" value="1" class="ql-input ql-num ql-center"></td>
-            <td class="ql-td"><input type="number" name="lines[${i}][duree_mois]" required min="0.5" step="0.5" value="1" class="ql-input ql-num ql-center"></td>
+            <td class="ql-td" data-label="m²"><input type="number" name="lines[${i}][dimension_m2]" required min="0" step="0.01" value="0" class="ql-input ql-num"></td>
+            <td class="ql-td" data-label="PU HT / mois"><input type="number" name="lines[${i}][pu_ht_mensuel]" required min="0" step="1" value="0" class="ql-input ql-num"></td>
+            <td class="ql-td" data-label="Qté"><input type="number" name="lines[${i}][quantite]" required min="1" step="1" value="1" class="ql-input ql-num ql-center"></td>
+            <td class="ql-td" data-label="Mois"><input type="number" name="lines[${i}][duree_mois]" required min="0.5" step="0.5" value="1" class="ql-input ql-num ql-center"></td>
             <td class="ql-td" style="text-align:center"><button type="button" onclick="this.closest('tr').remove()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
         `;
         tbody.appendChild(row);
