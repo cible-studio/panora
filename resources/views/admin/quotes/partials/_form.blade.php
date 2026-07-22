@@ -95,18 +95,46 @@
             <label class="qf-label">Titre du devis *</label>
             <input type="text" name="title" required maxlength="200" value="{{ old('title', $isEdit ? $quote->title : '') }}" placeholder="ex. Campagne lancement Duster - Q2 2026" class="qf-input">
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:12px">
+        <div style="margin-top:16px;padding:10px 14px;background:#f5f3ff;border-left:3px solid #8b5cf6;border-radius:0 6px 6px 0">
+            <div style="font-size:12px;font-weight:700;color:#6d28d9;margin-bottom:4px">📅 Période de la campagne</div>
+            <div style="font-size:11.5px;color:#475569;line-height:1.5">
+                Ces dates correspondent à la <strong>période d'affichage</strong> souhaitée par le client
+                (quand les affiches seront visibles sur les panneaux). Elles servent au calcul du prix
+                (PU × durée) et au contrôle de disponibilité à l'acceptation du devis.
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px">
             <div>
-                <label class="qf-label">Période début</label>
+                <label class="qf-label">Début de campagne</label>
                 <input type="date" name="period_start" value="{{ old('period_start', $isEdit ? $quote->period_start?->format('Y-m-d') : ($preselect['period_start'] ?? '')) }}" class="qf-input">
+                <div class="qf-hint">Premier jour d'affichage prévu</div>
             </div>
             <div>
-                <label class="qf-label">Période fin</label>
+                <label class="qf-label">Fin de campagne</label>
                 <input type="date" name="period_end" value="{{ old('period_end', $isEdit ? $quote->period_end?->format('Y-m-d') : ($preselect['period_end'] ?? '')) }}" class="qf-input">
+                <div class="qf-hint">Dernier jour d'affichage prévu</div>
             </div>
+        </div>
+
+        <div style="margin-top:16px;padding:10px 14px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0">
+            <div style="font-size:12px;font-weight:700;color:#78350f;margin-bottom:4px">⏱ Validité du devis</div>
+            <div style="font-size:11.5px;color:#475569;line-height:1.5">
+                Nombre de jours pendant lesquels ce devis <strong>engage la régie</strong> après l'envoi
+                au client. Le client peut accepter/refuser dans ce délai. Au-delà, le devis passe
+                automatiquement en <strong>EXPIRÉ</strong> et une alerte t'est envoyée 3 jours avant.
+                (Par défaut : {{ (int) config('billing.quote_valid_days_default', 30) }} jours.)
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-top:10px;align-items:end">
             <div>
-                <label class="qf-label">Validité (jours)</label>
+                <label class="qf-label">Validité (jours) *</label>
                 <input type="number" name="valid_days" min="1" max="365" value="{{ old('valid_days', $validDays) }}" class="qf-input">
+                <div class="qf-hint">Ex. 7 jours = client a 1 semaine</div>
+            </div>
+            <div style="padding:10px;background:var(--surface2);border-radius:8px;font-size:11.5px;color:var(--text3)">
+                💡 <strong>À ne pas confondre :</strong>
+                <br>« Période de campagne » = quand les affiches sont visibles.
+                <br>« Validité » = combien de temps le client a pour dire oui.
             </div>
         </div>
     </div>
@@ -232,6 +260,7 @@
 
 <style>
     .qf-label { font-size:12px; font-weight:600; color:var(--text2); display:block; margin-bottom:4px; }
+    .qf-hint  { font-size:11px; color:var(--text3, #64748b); margin-top:4px; font-style:italic; }
     .qf-input, .qf-select2 {
         width:100%; height:40px; padding:0 12px;
         background:var(--surface2); border:1px solid var(--border2, var(--border));
