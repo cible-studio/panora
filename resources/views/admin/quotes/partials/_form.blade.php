@@ -25,8 +25,8 @@
     if ($isEdit) {
         $ids = $quote->lines->pluck('panel_id')->filter()->unique();
         if ($ids->isNotEmpty()) {
-            foreach (\App\Models\Panel::whereIn('id', $ids)->get(['id', 'reference', 'address']) as $p) {
-                $panelNames[$p->id] = trim(($p->reference ?? '') . ' — ' . ($p->address ?? ''));
+            foreach (\App\Models\Panel::whereIn('id', $ids)->get(['id', 'reference', 'adresse', 'quartier', 'name']) as $p) {
+                $panelNames[$p->id] = trim(($p->reference ?? '') . ' — ' . ($p->adresse ?: $p->quartier ?: $p->name ?: ''));
             }
         }
     }
@@ -284,15 +284,52 @@
     }
     .select2-container--ql-compact .select2-selection--single .select2-selection__rendered { line-height: 38px !important; padding-left: 8px !important; }
     .select2-container--ql-compact .select2-selection--single .select2-selection__arrow { height: 36px !important; }
-    .select2-dropdown { border-radius: 10px !important; box-shadow: 0 8px 24px rgba(0,0,0,.08) !important; z-index: 9999 !important; }
+
+    /* ── Dropdown : fond + padding + z-index élevé pour ne pas être caché ── */
+    .select2-container--open { z-index: 100000 !important; }
+    .select2-dropdown {
+        background: var(--surface, #fff) !important;
+        color: var(--text, #0f172a) !important;
+        border: 1px solid var(--border2, var(--border, #cbd5e1)) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 12px 32px rgba(0,0,0,.15) !important;
+        overflow: hidden !important;
+    }
+    .select2-results { background: var(--surface, #fff) !important; }
+    .select2-results__options { max-height: 320px !important; }
+    .select2-results__option {
+        padding: 10px 14px !important;
+        color: var(--text, #0f172a) !important;
+        font-size: 13px !important;
+        line-height: 1.4 !important;
+        border-bottom: 1px solid var(--border, #eef2f7) !important;
+    }
+    .select2-results__option:last-child { border-bottom: none !important; }
+    .select2-results__option[aria-selected="true"] {
+        background: var(--surface2, #f8fafc) !important;
+        font-weight: 700 !important;
+    }
+    .select2-search--dropdown {
+        padding: 8px !important;
+        background: var(--surface2, #f8fafc) !important;
+        border-bottom: 1px solid var(--border, #e2e8f0) !important;
+    }
     .select2-search--dropdown .select2-search__field {
+        background: var(--surface, #fff) !important;
+        color: var(--text, #0f172a) !important;
+        border: 1px solid var(--border, #e2e8f0) !important;
         border-radius: 6px !important;
-        padding: 6px 10px !important;
+        padding: 8px 12px !important;
         font-size: 13px !important;
     }
-    .select2-results__option--highlighted {
-        background: var(--accent) !important;
+    .select2-results__option--highlighted[aria-selected] {
+        background: var(--accent, #e8a020) !important;
         color: #fff !important;
+    }
+    .select2-results__message {
+        padding: 12px 14px !important;
+        color: var(--text3, #64748b) !important;
+        font-style: italic !important;
     }
     .qf-panel-hint { font-size:11px; color:var(--text3); margin-top:2px; }
 </style>
@@ -313,6 +350,7 @@ window.QuoteForm = (function() {
                 placeholder: $(this).data('placeholder'),
                 allowClear: true,
                 width: '100%',
+                dropdownParent: $('body'),
                 language: {
                     noResults: () => 'Aucun résultat',
                     searching: () => 'Recherche…',
@@ -335,7 +373,8 @@ window.QuoteForm = (function() {
     function initLineSelects(row) {
         const $row = $(row);
 
-        // Select2 AJAX sur le panneau — dropdown assez large pour l'adresse.
+        // Select2 AJAX sur le panneau — dropdown attaché au <body> pour
+        // ne pas être tronqué par le tableau parent.
         const $panel = $row.find('.ql-panel-search');
         $panel.select2({
             placeholder: $panel.data('placeholder'),
@@ -343,18 +382,20 @@ window.QuoteForm = (function() {
             width: '100%',
             containerCssClass: 'ql-compact',
             dropdownCssClass: 'ql-compact',
-            minimumInputLength: 1,
+            dropdownParent: $('body'),
+            minimumInputLength: 0,
             language: {
-                inputTooShort: () => '1+ caractère pour lancer la recherche',
+                inputTooShort: () => 'Tape pour rechercher…',
                 noResults: () => 'Aucun panneau trouvé',
                 searching: () => 'Recherche…',
+                loadingMore: () => 'Chargement…',
             },
             ajax: {
                 url: searchUrl,
                 dataType: 'json',
                 delay: 250,
                 data: params => ({ q: params.term || '' }),
-                processResults: data => ({ results: data.results }),
+                processResults: data => ({ results: data.results || [] }),
                 cache: true,
             },
         }).on('select2:select', function(e) {
@@ -386,6 +427,7 @@ window.QuoteForm = (function() {
             width: '100%',
             containerCssClass: 'ql-compact',
             dropdownCssClass: 'ql-compact',
+            dropdownParent: $('body'),
             language: {
                 noResults: () => 'Aucune commune',
                 searching: () => 'Recherche…',

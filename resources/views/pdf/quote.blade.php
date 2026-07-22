@@ -358,7 +358,7 @@
                     // Reconstruction du bloc emplacement multi-lignes
                     $panel  = $line->panel_id ? \App\Models\Panel::find($line->panel_id) : null;
                     $refPan = $panel?->reference ?? '';
-                    $addr   = $panel?->address ?: $line->designation;
+                    $addr   = ($panel?->adresse ?: $panel?->quartier ?: $line->designation);
 
                     // Période affichée sur chaque ligne (période globale du devis)
                     $periodeLine = ($quote->period_start && $quote->period_end)

@@ -102,12 +102,14 @@ class QuoteController extends Controller
         $prefilledLines = [];
         $panelIds = array_filter(array_map('intval', (array) $request->query('panel_ids', [])));
         if (!empty($panelIds)) {
-            $panels = \App\Models\Panel::with('commune')->whereIn('id', $panelIds)->get();
+            $panels = \App\Models\Panel::with(['commune', 'format'])->whereIn('id', $panelIds)->get();
             foreach ($panels as $p) {
+                $addr    = $p->adresse ?: $p->quartier ?: $p->name;
+                $surface = (float) ($p->format?->surface ?? (($p->format?->width ?? 0) * ($p->format?->height ?? 0)));
                 $prefilledLines[] = [
                     'panel_id'         => $p->id,
-                    'designation'      => trim(($p->reference ?? '') . ' — ' . ($p->address ?? '')),
-                    'dimension_m2'     => (float) ($p->width * $p->height ?? 0),
+                    'designation'      => trim(($p->reference ?? '') . ' — ' . ($addr ?? '')),
+                    'dimension_m2'     => $surface,
                     'pu_ht_mensuel'    => (int) ($p->monthly_rate ?? 0),
                     'quantite'         => 1,
                     'duree_mois'       => 1,
@@ -195,30 +197,37 @@ class QuoteController extends Controller
         $this->authorize('create', Quote::class);
         $q = trim((string) $request->input('q', ''));
 
-        $panels = \App\Models\Panel::with('commune:id,name')
+        // Colonnes réelles dans Panora : adresse (fr), format_id (belongsTo PanelFormat).
+        // Surface m² = format.surface (colonne calculée) OU format.width * format.height.
+        $panels = \App\Models\Panel::with(['commune:id,name', 'format:id,width,height,surface,name'])
             ->when($q !== '', fn($qr) => $qr->where(fn($s) =>
                 $s->where('reference', 'like', "%{$q}%")
                   ->orWhere('name', 'like', "%{$q}%")
-                  ->orWhere('address', 'like', "%{$q}%")
+                  ->orWhere('adresse', 'like', "%{$q}%")
+                  ->orWhere('quartier', 'like', "%{$q}%")
             ))
             ->whereNull('deleted_at')
             ->orderBy('reference')
             ->limit(30)
-            ->get(['id', 'reference', 'name', 'address', 'commune_id', 'width', 'height', 'monthly_rate', 'status']);
+            ->get(['id', 'reference', 'name', 'adresse', 'quartier', 'commune_id', 'format_id', 'monthly_rate', 'status']);
 
         return response()->json([
-            'results' => $panels->map(fn($p) => [
-                'id'           => $p->id,
-                'text'         => trim(($p->reference ?? '') . ' — ' . ($p->address ?? $p->name ?? '')),
-                'reference'    => $p->reference,
-                'name'         => $p->name,
-                'address'      => $p->address,
-                'commune_id'   => $p->commune_id,
-                'commune_name' => $p->commune?->name,
-                'dimension_m2' => (float) ($p->width * $p->height),
-                'monthly_rate' => (int) $p->monthly_rate,
-                'status'       => $p->status,
-            ])->values(),
+            'results' => $panels->map(function ($p) {
+                $addr    = $p->adresse ?: $p->quartier ?: $p->name;
+                $surface = (float) ($p->format?->surface ?? (($p->format?->width ?? 0) * ($p->format?->height ?? 0)));
+                return [
+                    'id'           => $p->id,
+                    'text'         => trim(($p->reference ?? '') . ' — ' . ($addr ?? '')),
+                    'reference'    => $p->reference,
+                    'name'         => $p->name,
+                    'address'      => $addr,
+                    'commune_id'   => $p->commune_id,
+                    'commune_name' => $p->commune?->name,
+                    'dimension_m2' => $surface,
+                    'monthly_rate' => (int) $p->monthly_rate,
+                    'status'       => $p->status,
+                ];
+            })->values(),
         ]);
     }
 
