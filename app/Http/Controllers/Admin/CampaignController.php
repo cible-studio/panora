@@ -1165,16 +1165,12 @@ class CampaignController extends Controller
             'notes'              => 'nullable|string|max:2000',
         ];
 
-        // start_date : verrouillée pour campagne ACTIVE, modifiable pour PLANIFIEE
-        $rules['start_date'] = $campaign->status === CampaignStatus::ACTIF
-            ? 'nullable|date'
-            : 'required|date';
+        // start_date : requise dans les deux cas (planifiée + active).
+        // Sur ACTIVE, un changement effectif exige la case "je comprends"
+        // cochée côté formulaire (défense en profondeur avec le JS).
+        $rules['start_date'] = 'required|date';
 
         $data = $request->validate($rules);
-
-        if ($campaign->status === CampaignStatus::ACTIF && empty($data['start_date'])) {
-            $data['start_date'] = $campaign->start_date->format('Y-m-d');
-        }
 
         $today    = now()->startOfDay();
         $newStart = \Carbon\Carbon::parse($data['start_date'])->startOfDay();
@@ -1191,12 +1187,20 @@ class CampaignController extends Controller
                 '❌ La durée maximale d\'une campagne est de 36 mois.');
         }
 
-        // Verrou date début pour campagne active
+        // Campagne ACTIVE + changement effectif de start_date :
+        // exige la confirmation explicite du formulaire.
+        // Impacts appliqués automatiquement : sync Reservation, recalcul
+        // du montant, sync statuts panneaux, recalcul du statut campagne.
+        // Impacts NON automatiques (à revoir à la main si besoin) : poses
+        // planifiées, factures déjà émises (immuables), emails déjà envoyés.
+        $startDateChanged = !$campaign->start_date->isSameDay($newStart);
         if ($campaign->status === CampaignStatus::ACTIF
-            && !$campaign->start_date->isSameDay($newStart)) {
+            && $startDateChanged
+            && !$request->boolean('confirm_start_date_change')) {
             return back()->withInput()->with('error',
-                '❌ Une campagne active ne peut pas voir sa date de début modifiée. ' .
-                'La campagne a déjà commencé le ' . $campaign->start_date->format('d/m/Y') . '.');
+                '❌ Modifier la date de début d\'une campagne active exige de cocher '
+                . '« Je comprends les conséquences » sous le champ.'
+            );
         }
 
         // ⚠ Garde anti-saisie incohérente : une campagne PLANIFIEE ne peut
@@ -1298,6 +1302,37 @@ class CampaignController extends Controller
             auth()->user()?->name . ' a modifié la campagne "' . $campaign->name . '"',
             $campaign
         );
+
+        // Alerte critique dédiée si la date de début d'une campagne active
+        // a été modifiée — action sensible tracée séparément pour la
+        // direction (recouvrement, audit, échanges client à documenter).
+        if ($oldStatus === CampaignStatus::ACTIF
+            && !$oldStart->isSameDay($campaign->start_date)) {
+            Log::warning('campaign.active.start_date_changed', [
+                'campaign_id' => $campaign->id,
+                'campaign'    => $campaign->name,
+                'client_id'   => $campaign->client_id,
+                'old_start'   => $oldStart->format('Y-m-d'),
+                'new_start'   => $campaign->start_date->format('Y-m-d'),
+                'user_id'     => auth()->id(),
+                'user_name'   => auth()->user()?->name,
+                'ip'          => $request->ip(),
+            ]);
+            AlertService::create(
+                'campagne',
+                'warning',
+                '🕰️ Date de début modifiée — ' . $campaign->name,
+                sprintf(
+                    '%s a modifié la date de début de la campagne active "%s" : %s → %s. '
+                    . 'À vérifier : réservation source, planning poses, cohérence facturation.',
+                    auth()->user()?->name ?? 'Utilisateur',
+                    $campaign->name,
+                    $oldStart->format('d/m/Y'),
+                    $campaign->start_date->format('d/m/Y')
+                ),
+                $campaign
+            );
+        }
 
         $message = "✅ Campagne « {$campaign->name} » mise à jour avec succès.";
         if ($oldStatus === CampaignStatus::PLANIFIE && $campaign->status === CampaignStatus::ACTIF) {
