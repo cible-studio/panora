@@ -55,11 +55,14 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                         </svg>
                         <div>
-                            <div class="text-sm font-semibold" style="color:var(--text)">⚠️ Campagne active</div>
+                            <div class="text-sm font-semibold" style="color:var(--text)">⚠️ Campagne active — modification sensible</div>
                             <p class="text-xs mt-1" style="color:var(--text2)">
-                                La date de début <strong class="text-sm" style="color:var(--accent)">{{ $campaign->start_date->format('d/m/Y') }}</strong> 
-                                ne peut pas être modifiée (déjà lancée).<br>
-                                Vous pouvez prolonger ou réduire la campagne via la date de fin.
+                                La date de début actuelle est
+                                <strong class="text-sm" style="color:var(--accent)">{{ $campaign->start_date->format('d/m/Y') }}</strong>.
+                                Elle <strong>peut être modifiée</strong>, mais un changement impacte la réservation source,
+                                le montant total, les statuts panneaux et le statut campagne.
+                                Un <strong>avertissement détaillé</strong> apparaîtra sous le champ si tu changes la date,
+                                et une case « Je comprends les conséquences » devra être cochée pour valider.
                             </p>
                         </div>
                     </div>
@@ -168,39 +171,77 @@
                    {{-- Date début --}}
                     <div class="form-group">
                         <label class="form-label">DATE DÉBUT *</label>
-                        
-                        @if($campaign->status->value === 'actif')
-                            {{-- Campagne active : affichage en lecture seule avec champ caché --}}
-                            <input type="text"
-                                value="{{ $campaign->start_date->format('d/m/Y') }}"
-                                class="form-input"
-                                readonly
-                                disabled
-                                style="background:var(--surface3); cursor:not-allowed; opacity:0.8;">
-                            {{-- Champ caché qui sera envoyé --}}
-                            <input type="hidden" name="start_date" 
-                                value="{{ $campaign->start_date->format('Y-m-d') }}">
-                            <p class="form-hint">
-                                🔒 Date de début non modifiable (campagne déjà lancée)
-                            </p>
-                        @elseif(in_array($campaign->status->value, ['termine', 'annule']))
-                            {{-- Campagne terminée/annulée : complètement désactivé --}}
+
+                        @if(in_array($campaign->status->value, ['termine', 'annule']))
+                            {{-- Terminée / annulée : verrouillée (historique comptable) --}}
                             <input type="date" name="start_date"
                                 value="{{ $campaign->start_date->format('Y-m-d') }}"
                                 class="form-input"
                                 disabled>
+                            <p class="form-hint">🔒 Date verrouillée — campagne clôturée.</p>
                         @else
-                            {{-- Campagne planifiée : modifiable --}}
-                            <input type="date" name="start_date"
+                            {{-- Planifiée OU Active : modifiable.
+                                 Sur ACTIVE, un avertissement JS apparaît si la date change
+                                 et une checkbox de confirmation est requise. --}}
+                            <input type="date" name="start_date" id="input-start-date"
                                 value="{{ old('start_date', $campaign->start_date->format('Y-m-d')) }}"
+                                data-original="{{ $campaign->start_date->format('Y-m-d') }}"
+                                data-campaign-active="{{ $campaign->status->value === 'actif' ? '1' : '0' }}"
                                 class="form-input @error('start_date') is-invalid @enderror"
                                 required>
+
+                            @if($campaign->status->value === 'actif')
+                                <p class="form-hint" style="color:#b45309">
+                                    ⚠️ La campagne est déjà <strong>active</strong> — modifier la date de début
+                                    a des impacts (facturation, panneaux, planning). Voir avertissement ci-dessous.
+                                </p>
+                            @endif
                         @endif
-                        
+
                         @error('start_date')
                         <p class="form-error">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    {{-- ══ AVERTISSEMENT DYNAMIQUE — apparaît quand start_date change ══ --}}
+                    @if(!in_array($campaign->status->value, ['termine', 'annule']))
+                    <div id="start-date-warning" class="form-group full-width"
+                         style="display:none;grid-column:1/-1;background:#fef3c7;border:2px solid #f59e0b;border-radius:10px;padding:16px;margin-top:8px">
+                        <div style="font-weight:800;color:#78350f;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+                            <span style="font-size:20px">⚠️</span>
+                            <span>Modification de la date de début — conséquences</span>
+                        </div>
+                        <div style="font-size:12.5px;color:#78350f;line-height:1.65">
+                            En modifiant la date de début (de
+                            <strong>{{ $campaign->start_date->format('d/m/Y') }}</strong>
+                            à <strong><span id="start-date-new">—</span></strong>), les changements
+                            suivants seront appliqués automatiquement :
+
+                            <ul style="margin:8px 0 8px 20px;line-height:1.7">
+                                <li>La <strong>réservation source</strong> ({{ $campaign->reservation?->reference ?? '—' }}) sera re-synchronisée sur les nouvelles dates.</li>
+                                <li>Le <strong>montant total</strong> sera recalculé si la durée change (jours × tarif journalier).</li>
+                                <li>Les <strong>statuts des panneaux</strong> seront resynchronisés (libéré / bloqué selon la nouvelle période).</li>
+                                <li>Le <strong>statut de la campagne</strong> sera recalculé (peut basculer entre Planifiée / Active / Terminée).</li>
+                            </ul>
+
+                            <div style="font-weight:700;margin-top:10px;color:#7f1d1d">Ce qui NE change PAS (préservé pour la comptabilité) :</div>
+                            <ul style="margin:4px 0 8px 20px;line-height:1.7">
+                                <li>Les <strong>factures déjà émises</strong> restent intactes (période imprimée figée).</li>
+                                <li>Les <strong>versements enregistrés</strong> ne bougent pas.</li>
+                                <li>Les <strong>poses déjà planifiées</strong> conservent leur date — à vérifier manuellement si un décalage est nécessaire.</li>
+                                <li>Les <strong>emails</strong> et <strong>alertes déjà envoyés</strong> au client ne sont pas rejoués.</li>
+                            </ul>
+
+                            <label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:10px;background:#fff;border:1px solid #fbbf24;border-radius:8px;cursor:pointer">
+                                <input type="checkbox" name="confirm_start_date_change" value="1"
+                                       id="confirm-start-date-change" style="margin-top:2px;flex-shrink:0">
+                                <span style="font-size:12.5px;color:#78350f;font-weight:600">
+                                    Je comprends les conséquences ci-dessus et je valide le changement de date de début.
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                    @endif
 
                     {{-- Date fin --}}
                     <div class="form-group">
@@ -580,15 +621,48 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 🔒 Bloquer la date de début si campagne active
-    @if($campaign->status->value === 'actif')
-    const startDateInput = document.querySelector('[name="start_date"]');
-    if (startDateInput) {
-        startDateInput.disabled = true;
-        startDateInput.classList.add('opacity-50', 'cursor-not-allowed');
-        startDateInput.title = "La date de début d'une campagne active ne peut pas être modifiée";
+    // ⚠️ Avertissement modification date de début (campagne planifiée OU active).
+    // Sur campagne active : la validation checkbox est BLOQUANTE côté serveur.
+    const inputStart = document.getElementById('input-start-date');
+    const warnBlock  = document.getElementById('start-date-warning');
+    const spanNew    = document.getElementById('start-date-new');
+    const cbConfirm  = document.getElementById('confirm-start-date-change');
+
+    if (inputStart && warnBlock) {
+        const original    = inputStart.getAttribute('data-original');
+        const isActive    = inputStart.getAttribute('data-campaign-active') === '1';
+
+        const refreshWarning = () => {
+            const changed = inputStart.value && inputStart.value !== original;
+            if (changed) {
+                warnBlock.style.display = 'block';
+                if (spanNew) {
+                    // Format JJ/MM/AAAA pour la lisibilité
+                    const [y, m, d] = inputStart.value.split('-');
+                    spanNew.textContent = `${d}/${m}/${y}`;
+                }
+            } else {
+                warnBlock.style.display = 'none';
+                if (cbConfirm) cbConfirm.checked = false;
+            }
+        };
+
+        inputStart.addEventListener('change', refreshWarning);
+        inputStart.addEventListener('input',  refreshWarning);
+        refreshWarning(); // état initial (utile après validation server-side qui repost)
+
+        // Blocage submit : si la campagne est active ET la date a changé,
+        // la checkbox "je comprends" doit être cochée.
+        document.getElementById('campaign-form')?.addEventListener('submit', function(e) {
+            const changed = inputStart.value && inputStart.value !== original;
+            if (changed && isActive && cbConfirm && !cbConfirm.checked) {
+                e.preventDefault();
+                alert("⚠️ Coche « Je comprends les conséquences » pour valider le changement de date de début d'une campagne active.");
+                cbConfirm.focus();
+                return false;
+            }
+        });
     }
-    @endif
 
     // ⚠️ Avertir si la nouvelle date de fin est avant aujourd'hui
     const endDateInput = document.querySelector('[name="end_date"]');
