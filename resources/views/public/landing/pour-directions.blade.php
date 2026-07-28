@@ -76,7 +76,7 @@
                     <div class="num">Question 04</div>
                     <h4>« Où en sont mes taxes communales ? »</h4>
                     <p>
-                        Sur 31 communes, vous voyez ODP théorique, TM théorique, déjà payé,
+                        Commune par commune, vous voyez ODP théorique, TM théorique, déjà payé,
                         solde restant, taux de couverture. Une commune non payée depuis 2 mois
                         remonte immédiatement. Chaque paiement enregistré met la vue à jour.
                     </p>

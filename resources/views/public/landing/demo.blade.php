@@ -166,7 +166,7 @@
         <div class="wrap-narrow">
             <span class="eyebrow">Préférez-vous écrire ?</span>
             <h2 class="section-title" style="font-size: 32px; margin-bottom: 20px;">
-                <a href="mailto:studio@cible-ci.com" style="color: var(--ink); border-bottom: 2px solid var(--accent); padding-bottom: 4px;">studio@cible-ci.com</a>
+                <a href="mailto:contact@panora.app" style="color: var(--ink); border-bottom: 2px solid var(--accent); padding-bottom: 4px;">contact@panora.app</a>
             </h2>
             <p style="font-size: 15px; color: var(--ink-3);">Réponse dans la journée ouvrée.</p>
         </div>

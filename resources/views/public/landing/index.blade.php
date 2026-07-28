@@ -884,7 +884,7 @@
                         <div class="cta-contact-icon">📧</div>
                         <div>
                             <div class="cta-contact-label">Email</div>
-                            <div class="cta-contact-value">studio@cible-ci.com</div>
+                            <div class="cta-contact-value">contact@panora.app</div>
                         </div>
                     </div>
                     <div class="cta-contact-item">

@@ -33,6 +33,7 @@ Route::prefix('decouvrir')->name('landing.')->group(function () {
     Route::get('/pour-directions',    [\App\Http\Controllers\LandingController::class, 'pourDirections'])->name('pour-directions');
     Route::get('/pour-commerciaux',   [\App\Http\Controllers\LandingController::class, 'pourCommerciaux'])->name('pour-commerciaux');
     Route::get('/demo',               [\App\Http\Controllers\LandingController::class, 'demo'])->name('demo');
+    Route::get('/faq',                [\App\Http\Controllers\LandingController::class, 'faq'])->name('faq');
     Route::post('/demande-demo',      [\App\Http\Controllers\LandingController::class, 'submitDemoRequest'])
         ->middleware('throttle:5,10')
         ->name('demo.submit');

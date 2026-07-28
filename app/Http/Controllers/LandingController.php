@@ -55,6 +55,11 @@ class LandingController extends Controller
         return view('public.landing.demo', $this->baseData('demo'));
     }
 
+    public function faq()
+    {
+        return view('public.landing.faq', $this->baseData('faq'));
+    }
+
     /**
      * Données partagées par toutes les pages du micro-site landing.
      * Permet à _layout.blade.php de bien highlighter l'entrée nav active.
@@ -68,6 +73,7 @@ class LandingController extends Controller
                 ['id' => 'produit',     'route' => 'landing.produit',         'label' => 'Le produit'],
                 ['id' => 'directions',  'route' => 'landing.pour-directions', 'label' => 'Pour la direction'],
                 ['id' => 'commerciaux', 'route' => 'landing.pour-commerciaux','label' => 'Pour les commerciaux'],
+                ['id' => 'faq',         'route' => 'landing.faq',             'label' => 'FAQ'],
                 ['id' => 'demo',        'route' => 'landing.demo',            'label' => 'Demander une démo', 'is_cta' => true],
             ],
         ];

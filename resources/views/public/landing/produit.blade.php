@@ -273,7 +273,7 @@
             <div class="split-2">
                 <div>
                     <span class="eyebrow">07 · Taxes communales</span>
-                    <h2 class="section-title">31 communes.<br><em>31 barèmes.</em></h2>
+                    <h2 class="section-title">Autant de communes,<br><em>autant de barèmes.</em></h2>
                     <p class="body">
                         La taxe d'occupation du domaine public (ODP) et la taxe municipale (TM)
                         varient d'une commune à l'autre. Panora tient à jour le barème par commune

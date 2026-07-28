@@ -441,7 +441,7 @@
                     <a href="{{ route('landing.pour-directions') }}">Pour la direction</a>
                     <a href="{{ route('landing.pour-commerciaux') }}">Pour les commerciaux</a>
                     <a href="{{ route('landing.demo') }}">Demander une démo</a>
-                    <a href="mailto:studio@cible-ci.com">studio@cible-ci.com</a>
+                    <a href="mailto:contact@panora.app">contact@panora.app</a>
                 </div>
             </div>
             <div class="footer-bottom">
