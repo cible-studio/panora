@@ -1,575 +1,195 @@
 @extends('public.cible._layout', [
-    'seo_title'       => 'CIBLE CI — 30 ans, 364 panneaux, 31 communes en Côte d\'Ivoire',
-    'seo_description' => 'CIBLE CI : régie publicitaire ivoirienne. 30 ans d\'expertise · 364 panneaux · 31 communes · affichage, mobile, digital. Vous visez juste.',
+    'seo_title'       => 'CIBLE — Régie publicitaire en Côte d\'Ivoire · 364 panneaux · Vous visez juste',
+    'seo_description' => 'Régie publicitaire ivoirienne depuis 1994. Affichage grand format, publicité mobile, communication 360°. 364 panneaux dans 31 communes. Devis sous 24 h.',
 ])
+
+@push('page-css')
+    /* HERO */
+    .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(24px,4vw,56px);align-items:center;padding:clamp(36px,5.5vw,80px) var(--pad) 0;position:relative}
+    @media(max-width:920px){.hero{grid-template-columns:1fr}}
+    .hero>*{position:relative;z-index:2}
+    .hero .sur{color:var(--vert)}
+    .hero h1{margin-top:16px;font-family:var(--titre);font-weight:900;line-height:.95;letter-spacing:-.038em;font-size:clamp(42px,7.2vw,96px)}
+    .hero h1 .l{display:block;opacity:0;transform:translateY(26px);animation:monte .8s cubic-bezier(.2,.8,.3,1) forwards}
+    .hero h1 .l:nth-child(1){animation-delay:.05s}
+    .hero h1 .l:nth-child(2){animation-delay:.16s}
+    .hero h1 .l:nth-child(3){animation-delay:.27s;color:var(--rouge)}
+    @keyframes monte{to{opacity:1;transform:none}}
+    .hero .sous-titre{margin-top:20px;max-width:52ch;font-family:var(--corps);font-weight:700;font-size:clamp(16px,1.6vw,20px);line-height:1.45;color:#3A3A3A;opacity:0;animation:monte .8s .36s cubic-bezier(.2,.8,.3,1) forwards}
+    .hero .accroche{margin-top:16px;max-width:48ch;font-size:clamp(15px,1.4vw,18px);color:#4A4A4A;opacity:0;animation:monte .8s .46s cubic-bezier(.2,.8,.3,1) forwards}
+    .hero .accroche strong{color:var(--rouge)}
+    .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px;opacity:0;animation:monte .8s .52s cubic-bezier(.2,.8,.3,1) forwards}
+    .hero-visuel{position:relative;aspect-ratio:1/1;border-radius:999px 28px 28px 999px;overflow:hidden;background:var(--gris);opacity:0;transform:scale(.94);animation:zoom .9s .3s cubic-bezier(.2,.8,.3,1) forwards}
+    @keyframes zoom{to{opacity:1;transform:none}}
+    @media(max-width:920px){.hero-visuel{border-radius:28px;aspect-ratio:4/3}}
+
+    /* bande de 5 panneaux */
+    .bande{display:flex;gap:10px;align-items:flex-end;padding:clamp(26px,4vw,46px) var(--pad) 0;position:relative;z-index:2}
+    .bande div{flex:1;height:clamp(26px,4vw,52px);border-radius:46% 46% 8px 8px / 55% 55% 8px 8px;transform-origin:bottom;transform:scaleY(.12);animation:pousse .7s cubic-bezier(.2,.9,.3,1) forwards}
+    .bande div:nth-child(1){animation-delay:.55s}
+    .bande div:nth-child(2){animation-delay:.64s}
+    .bande div:nth-child(3){animation-delay:.73s}
+    .bande div:nth-child(4){animation-delay:.82s}
+    .bande div:nth-child(5){animation-delay:.91s}
+    @keyframes pousse{to{transform:scaleY(1)}}
+
+    /* modules aperçu */
+    .modules{padding:clamp(56px,8vw,100px) var(--pad)}
+    .modules-tete{max-width:60ch;margin-bottom:44px}
+    .modules-tete .sur{color:var(--bleu)}
+    .modules-tete .t1{margin-top:14px}
+    .modules-tete p{margin-top:18px;color:#444}
+    .modules-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(14px,2vw,26px)}
+    @media(max-width:900px){.modules-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:560px){.modules-grid{grid-template-columns:1fr}}
+    .mod{padding:32px 26px;border-radius:20px;border:1px solid var(--gris);transition:transform .28s cubic-bezier(.2,.8,.3,1),border-color .28s,box-shadow .28s;background:#fff}
+    .mod:hover{transform:translateY(-6px);border-color:var(--c);box-shadow:0 20px 40px -20px rgba(0,0,0,.15)}
+    .mod .puce{width:44px;height:44px;border-radius:12px;background:var(--c);display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--titre);font-weight:800;font-size:18px;margin-bottom:20px}
+    .mod h4{font-family:var(--titre);font-weight:800;font-size:20px;margin-bottom:10px;line-height:1.25}
+    .mod p{font-size:14.5px;color:#555;line-height:1.6}
+    .mod a{display:inline-block;margin-top:16px;font-family:var(--titre);font-weight:700;font-size:13px;color:var(--c);border-bottom:2px solid var(--c);padding-bottom:2px}
+
+    /* marque teaser */
+    .marque-teaser{display:grid;grid-template-columns:1fr 1fr;align-items:stretch;min-height:min(70vh,540px)}
+    @media(max-width:900px){.marque-teaser{grid-template-columns:1fr}}
+    .marque-teaser .img{border-radius:0 999px 999px 0;overflow:hidden;background:var(--gris)}
+    @media(max-width:900px){.marque-teaser .img{border-radius:0 0 220px 220px;aspect-ratio:4/3}}
+    .marque-teaser .txt{background:var(--violet);color:var(--blanc);padding:clamp(34px,5vw,80px);display:flex;flex-direction:column;justify-content:center}
+    .marque-teaser .txt p{margin-top:20px;max-width:44ch;opacity:.95}
+    .marque-teaser .txt .fort{margin-top:26px;font-family:var(--titre);font-weight:800;font-size:clamp(17px,2vw,22px)}
+    .marque-teaser .txt a{display:inline-flex;margin-top:32px;background:#fff;color:var(--violet);padding:14px 26px;border-radius:999px;font-family:var(--titre);font-weight:800;font-size:14px;align-self:flex-start}
+
+    /* CTA final */
+    .cta-final{background:var(--noir);color:#fff;padding:clamp(60px,8vw,120px) var(--pad);text-align:center}
+    .cta-final .t1{max-width:20ch;margin:0 auto;color:#fff}
+    .cta-final p{margin-top:20px;max-width:52ch;margin-left:auto;margin-right:auto;color:rgba(255,255,255,.75)}
+    .cta-final .bouton{margin-top:32px}
+@endpush
 
 @section('content')
 
-    {{-- ═══════════════════ HERO ═══════════════════ --}}
-    <section class="hero-cible" style="padding: 90px 0 100px; position: relative; overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, var(--bg-cream) 100%);">
-        <span class="brand-blob b-jaune" style="top: -100px; right: -80px;"></span>
-        <span class="brand-blob b-rouge" style="bottom: -140px; left: -100px; opacity: 0.06;"></span>
-        <div class="wrap" style="position: relative; z-index: 2;">
-            <div class="hero-grid">
-                <div>
-                    <span class="eyebrow reveal reveal-fade">Depuis 1994 · Côte d'Ivoire</span>
-                    <h1 class="hero-title reveal" data-delay="1">
-                        30 ans<br>
-                        à porter la voix<br>
-                        des <em>marques ivoiriennes.</em>
-                    </h1>
-                    <p class="lead reveal" data-delay="2">
-                        Régie publicitaire ivoirienne, CIBLE opère un réseau de 364 panneaux
-                        répartis dans 31 communes. De la stratégie à la pose, du panneau
-                        statique à la campagne 360°, nous portons la parole des marques
-                        qui comptent.
-                    </p>
-                    <div class="reveal" data-delay="3" style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 32px;">
-                        <a href="{{ route('cible.contact') }}" class="btn btn-accent"><span>Demander un devis</span></a>
-                        <a href="{{ route('cible.reseau') }}" class="btn btn-outline">Voir le réseau</a>
-                    </div>
-                    <div class="hero-signature reveal" data-delay="4">« Vous visez juste »</div>
-                </div>
-
-                <div class="hero-visual reveal reveal-right" data-delay="2">
-                    <div class="photo-tile" style="aspect-ratio: 4/5;">
-                        <img src="{{ asset('images/perroquet-cible.jpg') }}" alt="Perroquets CIBLE — la marque qui vous fait remarquer" fetchpriority="high">
-                    </div>
-                    <div class="hero-chip">
-                        <span class="hero-chip-num">30</span>
-                        <span class="hero-chip-lbl">années d'expertise<br>en Côte d'Ivoire</span>
-                    </div>
-                </div>
+{{-- ═══ HERO ═══ --}}
+<section>
+    <div class="hero">
+        <div>
+            <span class="sur">Régie &amp; studio · Côte d'Ivoire · depuis 1994</span>
+            <h1>
+                <span class="l">Votre marque,</span>
+                <span class="l">partout où vit</span>
+                <span class="l">votre audience.</span>
+            </h1>
+            <h2 class="sous-titre">Régie publicitaire en Côte d'Ivoire — 364 panneaux d'affichage dans 31 communes, publicité mobile et communication 360°.</h2>
+            <p class="accroche">Nous n'offrons pas seulement de la visibilité : nous offrons une <strong>performance mesurable, orientée résultats</strong> — de l'exposition dans la rue jusqu'à la visite en point de vente.</p>
+            <div class="actions">
+                <a class="bouton b-rouge" href="{{ route('cible.contact') }}">Rendre ma marque visible</a>
+                <a class="bouton b-ligne" href="{{ route('cible.references') }}">Voir nos réalisations</a>
             </div>
         </div>
-        <span class="cible-rainbow" style="position: absolute; bottom: 0; left: 0; right: 0;"></span>
-    </section>
-
-    {{-- ═══════════════════ CHIFFRES CLÉS ═══════════════════ --}}
-    <section class="metrics-cible" style="background: var(--ink); color: #fff; border: none;">
-        <div class="wrap">
-            <div class="metrics-grid">
-                <div class="metric-item reveal" data-delay="1" style="--c: var(--cible-jaune);">
-                    <span class="metric-num count-up" data-target="30">0</span>
-                    <span class="metric-label">Années d'expertise</span>
-                </div>
-                <div class="metric-item reveal" data-delay="2" style="--c: var(--cible-rouge);">
-                    <span class="metric-num count-up" data-target="364">0</span>
-                    <span class="metric-label">Panneaux</span>
-                </div>
-                <div class="metric-item reveal" data-delay="3" style="--c: var(--cible-vert);">
-                    <span class="metric-num count-up" data-target="31">0</span>
-                    <span class="metric-label">Communes couvertes</span>
-                </div>
-                <div class="metric-item reveal" data-delay="4" style="--c: var(--cible-bleu);">
-                    <span class="metric-num count-up" data-target="3">0</span>
-                    <span class="metric-label">Pôles de métier</span>
-                </div>
+        <div class="hero-visuel">
+            <div class="slot slot--sombre">
+                Perroquet écarlate en vol
+                <small>images/cible/perroquet-hero.jpg</small>
             </div>
         </div>
-    </section>
+    </div>
 
-    {{-- ═══════════════════ 3 PÔLES ═══════════════════ --}}
-    <section>
-        <div class="wrap">
-            <div class="reveal" style="max-width: 720px; margin-bottom: 60px;">
-                <span class="eyebrow">Nos pôles de métier</span>
-                <h2 class="section-title">Trois métiers,<br><em>une même exigence.</em></h2>
-                <p class="body" style="font-size: 17px; color: var(--ink-3);">
-                    Du panneau planté sur un boulevard d'Abidjan à la campagne mobile qui
-                    traverse le pays, en passant par la stratégie de communication globale —
-                    trois pôles complémentaires, un seul interlocuteur.
-                </p>
-            </div>
+    <div class="bande" aria-hidden="true">
+        <div style="background:var(--rouge)"></div>
+        <div style="background:var(--jaune)"></div>
+        <div style="background:var(--vert)"></div>
+        <div style="background:var(--violet)"></div>
+        <div style="background:var(--bleu)"></div>
+    </div>
+</section>
 
-            <div class="pillars-grid-cible">
-                <a href="{{ route('cible.services') }}#regie" class="pillar-c reveal" data-delay="1" style="--c: var(--cible-bleu);">
-                    <div class="photo-tile" style="aspect-ratio: 16/10; margin-bottom: 22px;">
-                        <img src="{{ asset('images/cible/pole-1-affichage.jpg') }}" alt="Panneau publicitaire CIBLE — pôle régie">
-                    </div>
-                    <div class="pillar-num">01 · Régie</div>
-                    <h3 class="block-title">Régie publicitaire</h3>
-                    <p>364 panneaux stratégiquement placés. Classiques, lumipub, trivision, panoramiques, écrans digitaux et en magasins.</p>
-                    <span class="pillar-cta">Découvrir →</span>
-                </a>
+{{-- ═══ TICKER ═══ --}}
+<div class="ticker" aria-hidden="true" style="margin-top:clamp(24px,4vw,44px)">
+    <div class="piste">
+        <b style="background:var(--rouge)" class="num">364 panneaux</b>
+        <b style="background:var(--jaune);color:#111" class="num">31 communes</b>
+        <b style="background:var(--vert)" class="num">30 ans d'expertise</b>
+        <b style="background:var(--violet)" class="num">5 territoires de visibilité</b>
+        <b style="background:var(--bleu)" class="num">3 distinctions d'État</b>
+        <b style="background:var(--noir)">De la rue au digital</b>
+        <b style="background:var(--rouge)" class="num">364 panneaux</b>
+        <b style="background:var(--jaune);color:#111" class="num">31 communes</b>
+        <b style="background:var(--vert)" class="num">30 ans d'expertise</b>
+        <b style="background:var(--violet)" class="num">5 territoires de visibilité</b>
+        <b style="background:var(--bleu)" class="num">3 distinctions d'État</b>
+        <b style="background:var(--noir)">De la rue au digital</b>
+    </div>
+</div>
 
-                <a href="{{ route('cible.services') }}#mobile" class="pillar-c reveal" data-delay="2" style="--c: var(--cible-rouge);">
-                    <div class="photo-tile" style="aspect-ratio: 16/10; margin-bottom: 22px;">
-                        <img src="{{ asset('images/cible/pole-2-mobile.jpg') }}" alt="Camion publicitaire CIBLE — communication mobile">
-                    </div>
-                    <div class="pillar-num">02 · Mobile</div>
-                    <h3 class="block-title">Communication mobile</h3>
-                    <p>Camions publicitaires, motos, branding véhicules et taxis, chevalets publicitaires. Votre message en mouvement, partout dans la ville.</p>
-                    <span class="pillar-cta">Découvrir →</span>
-                </a>
+{{-- ═══ APERÇU DES 5 MODULES ═══ --}}
+<section class="modules">
+    <div class="modules-tete rev">
+        <span class="sur">Ce que nous faisons</span>
+        <h2 class="t1">Cinq façons de rendre votre marque visible.</h2>
+        <p>De l'affichage grand format sur les grands axes d'Abidjan à la campagne social media qui prolonge l'exposition, nous couvrons toute la chaîne — sur des supports que nous possédons ou pilotons directement.</p>
+    </div>
 
-                <a href="{{ route('cible.services') }}#globale" class="pillar-c reveal" data-delay="3" style="--c: var(--cible-vert);">
-                    <div class="photo-tile" style="aspect-ratio: 16/10; margin-bottom: 22px;">
-                        <img src="{{ asset('images/cible/regie-lumipub.jpg') }}" alt="Panneau CIBLE — communication 360°">
-                    </div>
-                    <div class="pillar-num">03 · 360°</div>
-                    <h3 class="block-title">Communication 360°</h3>
-                    <p>Création graphique, stratégie, street marketing, digital et réseaux sociaux, relations presse. De l'idée à l'exécution.</p>
-                    <span class="pillar-cta">Découvrir →</span>
-                </a>
-            </div>
+    <div class="modules-grid">
+        <div class="mod rev" style="--c:var(--rouge)">
+            <div class="puce">01</div>
+            <h4>Affichage grand format</h4>
+            <p>364 panneaux dans 31 communes : classiques, lumipub, trivision, panoramiques, écrans digitaux. Un patrimoine géré en propre, avec preuve photo horodatée.</p>
+            <a href="{{ route('cible.services') }}#rue">Explorer →</a>
         </div>
-    </section>
-
-    {{-- ═══════════════════ COUVERTURE GÉOGRAPHIQUE ═══════════════════ --}}
-    <section style="background: var(--bg-cream); position: relative; overflow: hidden;">
-        <span class="brand-blob b-vert" style="top: -100px; right: 15%;"></span>
-        <div class="wrap" style="position: relative; z-index: 2;">
-            <div class="split-2" style="align-items: center;">
-                <div class="reveal reveal-left">
-                    <span class="eyebrow">Notre couverture</span>
-                    <h2 class="section-title">Présents dans <em>31 communes</em>,<br>de Bouaké à San-Pédro.</h2>
-                    <p class="body">
-                        Notre patrimoine terrain n'est pas un slogan : c'est
-                        <strong>180 panneaux à Abidjan</strong> dans 14 communes du District,
-                        et <strong>184 panneaux à l'intérieur du pays</strong> dans 17 villes —
-                        de Bouaké (54) à Adiaké (1), en passant par Yamoussoukro, Korhogo,
-                        Daloa, San-Pédro et Gagnoa.
-                    </p>
-                    <p class="body">
-                        Aucun autre réseau ne combine cette densité en zone Abidjan avec cette
-                        présence structurée en régions.
-                    </p>
-                    <div style="margin-top: 26px;">
-                        <a href="{{ route('cible.reseau') }}" class="arrow-link">Voir le réseau complet</a>
-                    </div>
-                </div>
-                <div class="reveal reveal-right" data-delay="1">
-                    <div class="terrain-placeholder" style="aspect-ratio: 4/3;">
-                        <div>
-                            <strong>Carte réseau CI</strong>
-                            31 communes avec pins CIBLE
-                            <small>public/images/cible/carte-reseau.jpg</small>
-                        </div>
-                    </div>
-                    <div class="coverage-mini-stats">
-                        <div style="--c: var(--cible-jaune);"><span>180</span><small>panneaux<br>Abidjan · 14 communes</small></div>
-                        <div style="--c: var(--cible-vert);"><span>184</span><small>panneaux<br>Intérieur · 17 villes</small></div>
-                    </div>
-                </div>
-            </div>
+        <div class="mod rev" style="--c:var(--jaune)">
+            <div class="puce">02</div>
+            <h4>Publicité mobile</h4>
+            <p>Camions publicitaires, motos, taxis, habillage de véhicules, chevalets. Le message va chercher l'audience là où elle est captive.</p>
+            <a href="{{ route('cible.services') }}#mouvement">Explorer →</a>
         </div>
-    </section>
-
-    {{-- ═══════════════════ CLIENTS ═══════════════════ --}}
-    <section>
-        <div class="wrap">
-            <div class="reveal" style="text-align: center; max-width: 620px; margin: 0 auto 50px;">
-                <span class="eyebrow">Ils nous font confiance</span>
-                <h2 class="section-title">Des marques qui pèsent,<br><em>qui reviennent.</em></h2>
-            </div>
-
-            @php
-                // Set complet des partenaires — inclut les 6 principaux + 6 autres.
-                // Dupliqué 2× dans le track pour un défilement infini sans coupure.
-                $partners = [
-                    ['Danone',            'client-danone.png'],
-                    ['SIPRA',             'client-sipra.png'],
-                    ['Moov Africa',       'client-moov.png'],
-                    ['Banque Atlantique', 'client-banque-atlantique.png'],
-                    ['BGFIBank',          'client-bgfibank.png'],
-                    ['Rimco Motors',      'client-rimco.png'],
-                    ['Partenaire',        'client-autre-1.png'],
-                    ['Partenaire',        'client-autre-2.png'],
-                    ['Partenaire',        'client-autre-3.png'],
-                    ['Partenaire',        'client-autre-4.png'],
-                    ['Partenaire',        'client-autre-5.png'],
-                    ['Partenaire',        'client-autre-6.png'],
-                ];
-            @endphp
-            <div class="clients-marquee reveal reveal-fade" role="region" aria-label="Nos clients et partenaires">
-                <div class="clients-marquee-track">
-                    @for($rep = 0; $rep < 2; $rep++)
-                        @foreach($partners as [$nom, $file])
-                            <div class="client-logo-tile" title="{{ $nom }}" aria-hidden="{{ $rep === 1 ? 'true' : 'false' }}">
-                                <img src="{{ asset('images/cible/' . $file) }}" alt="{{ $nom }}" loading="lazy">
-                            </div>
-                        @endforeach
-                    @endfor
-                </div>
-            </div>
-
-            <div style="text-align: center; margin-top: 30px;">
-                <a href="{{ route('cible.references') }}" class="arrow-link">Voir toutes nos références</a>
-            </div>
+        <div class="mod rev" style="--c:var(--vert)">
+            <div class="puce">03</div>
+            <h4>Production audiovisuelle</h4>
+            <p>Films institutionnels, spots TV et radio, motion design, contenus de marque. Une même équipe, de la conception à la diffusion.</p>
+            <a href="{{ route('cible.services') }}#ecran">Explorer →</a>
         </div>
-    </section>
-
-    {{-- ═══════════════════ DISTINCTIONS ═══════════════════ --}}
-    <section style="background: var(--ink); color: #fff; border: none; position: relative; overflow: hidden;">
-        <span class="brand-blob b-jaune" style="top: 20%; left: -100px; opacity: 0.08;"></span>
-        <span class="brand-blob b-rouge" style="bottom: 10%; right: -100px; opacity: 0.06;"></span>
-        <div class="wrap" style="position: relative; z-index: 2;">
-            <div class="reveal" style="max-width: 720px; margin-bottom: 60px;">
-                <span class="eyebrow">Reconnaissances officielles</span>
-                <h2 class="section-title" style="color: #fff;">Trois distinctions<br><em>de l'État ivoirien.</em></h2>
-                <p class="body" style="color: rgba(255,255,255,0.7); font-size: 17px;">
-                    L'excellence de la régie et de sa direction, saluée à trois reprises
-                    par les institutions ivoiriennes de la communication et de la République.
-                </p>
-            </div>
-
-            <div class="honors-grid">
-                <div class="honor-card reveal" data-delay="1" style="--c: var(--cible-jaune);">
-                    <div class="honor-medal">2016</div>
-                    <h3>2ème prix<br>du meilleur publicitaire</h3>
-                    <p>Distinction professionnelle du secteur de la publicité ivoirienne.</p>
-                </div>
-                <div class="honor-card reveal" data-delay="2" style="--c: var(--cible-rouge);">
-                    <div class="honor-medal">2019</div>
-                    <h3>Chevalier<br>de l'Ordre du Mérite<br>de la Communication</h3>
-                    <p>Reconnaissance de la contribution à la structuration du métier.</p>
-                </div>
-                <div class="honor-card reveal" data-delay="3" style="--c: var(--cible-bleu);">
-                    <div class="honor-medal">2020</div>
-                    <h3>Officier<br>de l'Ordre du Mérite<br>National</h3>
-                    <p>Distinction républicaine pour services rendus au pays.</p>
-                </div>
-            </div>
+        <div class="mod rev" style="--c:var(--bleu)">
+            <div class="puce">04</div>
+            <h4>Communication digitale</h4>
+            <p>Social media ads, SEO/SEA, activations interactives, drive-to-store. Nous transformons l'exposition en interaction, puis en visite.</p>
+            <a href="{{ route('cible.services') }}#digital">Explorer →</a>
         </div>
-    </section>
-
-    {{-- ═══════════════════ WORKFLOW CLIENT ═══════════════════ --}}
-    <section class="bg-dots" style="background: var(--bg-cream);">
-        <div class="wrap">
-            <div class="reveal" style="max-width: 720px; margin-bottom: 60px;">
-                <span class="eyebrow">Notre méthode</span>
-                <h2 class="section-title">De la demande à l'affichage,<br><em>en 8 étapes.</em></h2>
-                <p class="body" style="font-size: 17px; color: var(--ink-3);">
-                    Un processus éprouvé, transparent, où l'annonceur voit ce qui se passe
-                    à chaque étape — jusqu'à recevoir la pige photo horodatée depuis le terrain.
-                </p>
-            </div>
-
-            <div class="workflow-grid">
-                @foreach([
-                    ['1', 'Demande client', 'Vous nous exposez votre besoin, votre cible, votre budget indicatif.'],
-                    ['2', 'Sélection des emplacements', 'Nous proposons les panneaux disponibles par zone, format et période.'],
-                    ['3', 'Proposition commerciale', 'Devis détaillé : panneaux, tarifs, calendrier, options.'],
-                    ['4', 'Validation client', 'Signature de l\'accord, réservation des panneaux confirmée.'],
-                    ['5', 'Planification de la pose', 'Les équipes terrain sont assignées, la logistique s\'organise.'],
-                    ['6', 'Pose des visuels', 'Nos techniciens interviennent sur site à date programmée.'],
-                    ['7', 'Pige photo', 'Preuve terrain horodatée : votre affichage est en place.'],
-                    ['8', 'Suivi de campagne', 'Espace client dédié en ligne pour suivre votre campagne.'],
-                ] as $i => [$n, $t, $d])
-                    <div class="wf-step reveal reveal-scale" data-delay="{{ min($i+1, 8) }}">
-                        <div class="wf-num">{{ $n }}</div>
-                        <h4>{{ $t }}</h4>
-                        <p>{{ $d }}</p>
-                    </div>
-                @endforeach
-            </div>
-
-            <div class="aside-note" style="max-width: 780px; margin: 40px auto 0;">
-                Chaque annonceur reçoit un espace de suivi personnalisé où il consulte
-                ses campagnes, télécharge ses piges d'affichage et ses factures en direct.
-            </div>
+        <div class="mod rev" style="--c:var(--violet)">
+            <div class="puce">05</div>
+            <h4>Street marketing &amp; brand experience</h4>
+            <p>Opérations terrain, pop-up stores, roadshows, stands expérientiels. Le dernier mètre — là où la marque devient rencontre.</p>
+            <a href="{{ route('cible.services') }}#terrain">Explorer →</a>
         </div>
-    </section>
-
-    {{-- ═══════════════════ CTA FINAL ═══════════════════ --}}
-    <section style="border: none; padding: 60px 0;">
-        <div class="wrap">
-            <div class="cta-block reveal reveal-scale">
-                <span class="eyebrow">Prochaine étape</span>
-                <h2 class="section-title" style="margin-bottom: 26px;">
-                    Votre campagne<br><em>commence ici.</em>
-                </h2>
-                <p class="lead" style="margin: 0 auto 36px; text-align: center;">
-                    Décrivez-nous votre besoin en 2 minutes. Notre équipe commerciale vous
-                    rappelle dans la journée ouvrée avec une proposition sur mesure.
-                </p>
-                <a href="{{ route('cible.contact') }}" class="btn btn-accent" style="font-size: 15px; padding: 17px 34px;">
-                    <span>Demander un devis</span>
-                </a>
-                <p style="margin-top: 24px; font-size: 13.5px; color: var(--ink-5);">
-                    Ou appelez directement le <a href="tel:+2250798496674" style="color: var(--ink-3); border-bottom: 1px solid var(--line);">07 98 49 66 74</a>
-                </p>
-            </div>
+        <div class="mod rev" style="--c:var(--noir)" style="background:var(--noir);color:#fff;border-color:var(--noir)">
+            <div class="puce" style="background:var(--jaune);color:var(--noir)">→</div>
+            <h4 style="color:#fff">Une campagne 360°&nbsp;?</h4>
+            <p style="color:rgba(255,255,255,.85)">Nous orchestrons tous ces leviers dans une stratégie unique, mesurée du premier affichage jusqu'à la visite en point de vente.</p>
+            <a href="{{ route('cible.contact') }}" style="color:var(--jaune);border-color:var(--jaune)">Nous consulter →</a>
         </div>
-    </section>
+    </div>
+</section>
 
-    @push('head')
-    <style>
-        .hero-grid {
-            display: grid;
-            grid-template-columns: 1.1fr 1fr;
-            gap: 70px;
-            align-items: center;
-        }
-        .hero-signature {
-            margin-top: 40px;
-            font-family: 'Inter', sans-serif;
-            font-weight: 700;
-            font-style: italic;
-            font-size: 20px;
-            color: var(--cible-jaune);
-            letter-spacing: 0.01em;
-        }
-        .hero-visual { position: relative; }
-        .hero-chip {
-            position: absolute;
-            bottom: -30px; left: -30px;
-            background: var(--ink);
-            color: #fff;
-            padding: 22px 26px;
-            border-radius: 4px;
-            box-shadow: 0 20px 40px -12px rgba(0,0,0,0.35);
-            display: flex; align-items: center; gap: 16px;
-            border-left: 4px solid var(--cible-jaune);
-        }
-        .hero-chip-num {
-            font-family: 'Inter', sans-serif;
-            font-size: 54px;
-            font-weight: 900;
-            color: var(--cible-jaune);
-            line-height: 0.9;
-            letter-spacing: -0.03em;
-        }
-        .hero-chip-lbl {
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            line-height: 1.4;
-            color: rgba(255,255,255,0.9);
-        }
-        @media (max-width: 900px) {
-            .hero-grid { grid-template-columns: 1fr; gap: 50px; }
-            .hero-chip { position: static; margin-top: 20px; }
-        }
+{{-- ═══ MARQUE TEASER ═══ --}}
+<section class="marque-teaser">
+    <div class="img">
+        <div class="slot">
+            Deux perroquets écarlates
+            <small>images/cible/perroquet-marque.jpg</small>
+        </div>
+    </div>
+    <div class="txt rev">
+        <span class="sur" style="opacity:.85">Notre histoire</span>
+        <h2 class="t1" style="margin-top:14px">Se faire remarquer, c'est un métier.</h2>
+        <p>Née dans l'affichage publicitaire en 1994, CIBLE s'est imposée en trente ans comme un pilier de la publicité extérieure en Côte d'Ivoire. Trente ans de terrain, fusionnés avec une exigence moderne de résultat.</p>
+        <p class="fort">Créer l'impact. Construire la notoriété. Livrer la preuve.</p>
+        <a href="{{ route('cible.qui') }}">Notre histoire complète →</a>
+    </div>
+</section>
 
-        /* Chiffres */
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 40px;
-        }
-        .metric-item {
-            border-top: 3px solid var(--c);
-            padding-top: 20px;
-        }
-        .metric-num {
-            display: block;
-            font-family: 'Inter', sans-serif;
-            font-size: 82px;
-            font-weight: 900;
-            color: var(--c);
-            line-height: 0.95;
-            margin-bottom: 14px;
-            letter-spacing: -0.04em;
-        }
-        .metric-num em { font-style: normal; color: rgba(255,255,255,0.9); }
-        .metric-label {
-            display: block;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
-            color: rgba(255,255,255,0.85);
-        }
-        @media (max-width: 720px) {
-            .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 30px; }
-            .metric-num { font-size: 64px; }
-        }
-
-        /* Piliers */
-        .pillars-grid-cible {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 30px;
-        }
-        .pillar-c {
-            display: block;
-            padding: 0;
-            color: inherit;
-            transition: transform 0.2s;
-            border-top: 4px solid var(--c);
-            padding-top: 22px;
-        }
-        .pillar-c:hover { transform: translateY(-4px); }
-        .pillar-c:hover .pillar-cta { color: var(--c); gap: 12px; }
-        .pillar-num {
-            display: inline-block;
-            font-family: 'Inter', sans-serif;
-            font-size: 12px;
-            color: var(--c);
-            font-weight: 800;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            margin-bottom: 12px;
-        }
-        .pillar-c h3 {
-            margin-bottom: 12px;
-        }
-        .pillar-c p {
-            font-size: 15px;
-            color: var(--ink-3);
-            line-height: 1.65;
-            margin-bottom: 16px;
-        }
-        .pillar-cta {
-            display: inline-flex; gap: 8px;
-            font-size: 13px;
-            font-weight: 800;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            color: var(--ink);
-            transition: color 0.2s, gap 0.2s;
-        }
-        @media (max-width: 900px) { .pillars-grid-cible { grid-template-columns: 1fr; } }
-
-        /* Couverture */
-        .coverage-mini-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-top: 20px;
-        }
-        .coverage-mini-stats > div {
-            background: #fff;
-            border: 1px solid var(--line);
-            border-top: 3px solid var(--c);
-            padding: 18px;
-            border-radius: 4px;
-            text-align: center;
-        }
-        .coverage-mini-stats span {
-            display: block;
-            font-family: 'Inter', sans-serif;
-            font-size: 40px;
-            font-weight: 900;
-            color: var(--c);
-            line-height: 1;
-            letter-spacing: -0.03em;
-        }
-        .coverage-mini-stats small {
-            display: block;
-            font-size: 11.5px;
-            color: var(--ink-4);
-            margin-top: 6px;
-            line-height: 1.4;
-            font-weight: 500;
-        }
-
-        /* Clients */
-        .clients-strip {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 12px;
-        }
-        .client-tile {
-            background: var(--bg-cream);
-            border: 1px solid var(--line);
-            padding: 24px 12px;
-            border-radius: 4px;
-            text-align: center;
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            aspect-ratio: 3 / 2;
-            transition: border-color 0.2s;
-        }
-        .client-tile:hover { border-color: var(--cible-jaune); }
-        .client-tile span {
-            font-family: 'Inter', sans-serif;
-            font-size: 15px;
-            font-weight: 800;
-            color: var(--ink);
-            letter-spacing: -0.01em;
-        }
-        .client-tile small {
-            font-size: 10px;
-            color: var(--ink-5);
-            margin-top: 6px;
-            font-family: monospace;
-        }
-        @media (max-width: 900px) { .clients-strip { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 560px) { .clients-strip { grid-template-columns: repeat(2, 1fr); } }
-
-        /* Distinctions */
-        .honors-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
-        }
-        .honor-card {
-            padding: 34px 28px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.10);
-            border-radius: 4px;
-            border-top: 3px solid var(--c);
-        }
-        .honor-medal {
-            display: inline-flex;
-            align-items: center; justify-content: center;
-            width: 60px; height: 60px;
-            border-radius: 50%;
-            border: 2px solid var(--c);
-            color: var(--c);
-            font-family: 'Inter', sans-serif;
-            font-weight: 800;
-            font-size: 14px;
-            margin-bottom: 20px;
-        }
-        .honor-card h3 {
-            font-family: 'Inter', sans-serif;
-            font-size: 19px;
-            font-weight: 800;
-            color: #fff;
-            line-height: 1.3;
-            margin-bottom: 12px;
-            letter-spacing: -0.01em;
-        }
-        .honor-card p {
-            font-size: 13.5px;
-            color: rgba(255,255,255,0.65);
-            line-height: 1.6;
-        }
-        @media (max-width: 900px) { .honors-grid { grid-template-columns: 1fr; } }
-
-        /* Workflow */
-        .workflow-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-        }
-        .wf-step {
-            padding: 22px;
-            background: #fff;
-            border: 1px solid var(--line);
-            border-radius: 4px;
-            border-top: 3px solid var(--cible-jaune);
-        }
-        .wf-num {
-            font-family: 'Inter', sans-serif;
-            font-size: 32px;
-            font-weight: 900;
-            color: var(--cible-jaune);
-            line-height: 1;
-            margin-bottom: 12px;
-            letter-spacing: -0.03em;
-        }
-        .wf-step h4 {
-            font-family: 'Inter', sans-serif;
-            font-size: 14px;
-            font-weight: 800;
-            color: var(--ink);
-            margin-bottom: 8px;
-            letter-spacing: -0.01em;
-        }
-        .wf-step p {
-            font-size: 13px;
-            color: var(--ink-4);
-            line-height: 1.55;
-        }
-        @media (max-width: 900px) { .workflow-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 560px) { .workflow-grid { grid-template-columns: 1fr; } }
-    </style>
-    @endpush
+{{-- ═══ CTA FINAL ═══ --}}
+<section class="cta-final">
+    <h2 class="t1">Un projet en tête&nbsp;?</h2>
+    <p>Décrivez-nous votre besoin en deux minutes. Notre équipe commerciale vous rappelle dans la journée ouvrée avec une proposition chiffrée.</p>
+    <a class="bouton b-rouge" href="{{ route('cible.contact') }}">Demander un devis</a>
+</section>
 
 @endsection

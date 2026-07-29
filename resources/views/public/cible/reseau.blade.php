@@ -1,275 +1,132 @@
 @extends('public.cible._layout', [
-    'seo_title'       => 'Le réseau — CIBLE CI · 364 panneaux dans 31 communes',
+    'seo_title'       => 'Notre réseau — CIBLE · 364 panneaux dans 31 communes',
     'seo_description' => 'Le réseau CIBLE : 364 panneaux publicitaires · 180 à Abidjan (14 communes) · 184 à l\'intérieur (17 villes) · Détail par commune.',
 ])
 
+@push('page-css')
+    .reseau-hero{background:var(--bleu);color:#fff;padding:clamp(60px,8vw,110px) var(--pad)}
+    .reseau-hero .sur{color:rgba(255,255,255,.85)}
+    .reseau-hero h1{margin-top:14px;color:#fff;max-width:22ch}
+    .reseau-hero p{margin-top:22px;max-width:56ch;color:rgba(255,255,255,.9);font-size:18px}
+    .stats{display:flex;gap:44px;flex-wrap:wrap;margin-top:44px}
+    .stats .v{font-family:var(--titre);font-weight:900;font-size:clamp(46px,6vw,80px);line-height:.86;letter-spacing:-.04em}
+    .stats .l{font-family:var(--titre);font-weight:600;font-size:13px;opacity:.9;margin-top:10px;text-transform:uppercase;letter-spacing:.08em}
+
+    .carte-section{padding:clamp(56px,8vw,100px) var(--pad)}
+    .carte-slot{aspect-ratio:16/10;border-radius:26px;overflow:hidden;background:var(--gris);position:relative}
+    .carte-slot .note{position:absolute;bottom:16px;left:16px;right:16px;background:rgba(255,255,255,.94);padding:12px 16px;border-radius:10px;font-size:13px;color:#666;font-family:var(--titre);font-weight:600}
+
+    .communes{padding:clamp(56px,8vw,100px) var(--pad);background:var(--gris)}
+    .communes .entete{max-width:600px;margin-bottom:40px}
+    .communes .sur{color:var(--vert)}
+    .communes-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,40px)}
+    @media(max-width:800px){.communes-grid{grid-template-columns:1fr}}
+    .zone{background:#fff;border-radius:16px;padding:32px;border-top:5px solid var(--c)}
+    .zone h3{font-family:var(--titre);font-weight:900;font-size:26px;color:var(--c);margin-bottom:6px}
+    .zone .zone-sub{font-family:var(--titre);font-weight:600;font-size:14px;color:#666;margin-bottom:20px}
+    .zone-list{list-style:none;display:grid;grid-template-columns:repeat(2,1fr);gap:8px 20px;font-size:14.5px;color:#333}
+    .zone-list li{padding:6px 0;border-bottom:1px dashed #E4E4E4;font-family:var(--titre);font-weight:600}
+
+    .qualite{padding:clamp(56px,8vw,100px) var(--pad)}
+    .qualite .entete{max-width:600px;margin-bottom:44px}
+    .qualite .sur{color:var(--rouge)}
+    .q-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(18px,3vw,32px)}
+    @media(max-width:900px){.q-grid{grid-template-columns:1fr}}
+    .qcard{padding:28px;background:#fff;border:1px solid var(--gris);border-radius:16px}
+    .qcard h4{font-family:var(--titre);font-weight:800;font-size:18px;margin-bottom:10px;color:var(--c)}
+    .qcard p{font-size:14.5px;color:#555;line-height:1.6}
+@endpush
+
 @section('content')
 
-    {{-- ═══════════════════ HERO ═══════════════════ --}}
-    <section style="padding-top: 100px; padding-bottom: 40px;">
-        <div class="wrap-narrow">
-            <span class="eyebrow reveal reveal-fade">Le réseau</span>
-            <h1 class="hero-title reveal" data-delay="1" style="font-size: clamp(38px, 5vw, 60px);">
-                364 panneaux.<br>
-                31 communes.<br>
-                <em>Toute la Côte d'Ivoire.</em>
-            </h1>
-            <p class="lead reveal" data-delay="2">
-                Notre patrimoine terrain n'est pas un slogan. Chaque panneau est référencé,
-                localisé, contrôlé — voici la répartition complète, par zone puis par commune.
-            </p>
+<section class="reseau-hero">
+    <div>
+        <span class="sur">La preuve terrain</span>
+        <h1 class="t1">Un réseau d'affichage en propre, à Abidjan et dans tout le pays.</h1>
+        <p>Une agence loue l'espace d'un tiers. Nous exploitons le nôtre : 364 panneaux répartis dans 31 communes, de Bouaké à San-Pédro. C'est ce qui nous permet de vous garantir un emplacement, une date de pose et une preuve photo — pas une estimation.</p>
+        <div class="stats">
+            <div><div class="v num" data-cible="364">0</div><div class="l">Panneaux au total<br>31 communes</div></div>
+            <div><div class="v num" data-cible="180">0</div><div class="l">Panneaux · Abidjan<br>14 communes</div></div>
+            <div><div class="v num" data-cible="184">0</div><div class="l">Panneaux · Intérieur<br>17 villes</div></div>
         </div>
-    </section>
+    </div>
+</section>
 
-    {{-- ═══════════════════ SPLIT CHIFFRES ═══════════════════ --}}
-    <section style="padding: 40px 0 80px; border: none;">
-        <div class="wrap">
-            <div class="split-chiffres">
-                <div class="split-block">
-                    <div class="split-num">180</div>
-                    <div class="split-lbl">panneaux · Zone Abidjan</div>
-                    <div class="split-sub">14 communes du District Autonome<br>+ pseudo-commune Autoroute du Nord</div>
-                </div>
-                <div class="split-sep"></div>
-                <div class="split-block">
-                    <div class="split-num">184</div>
-                    <div class="split-lbl">panneaux · Intérieur du pays</div>
-                    <div class="split-sub">17 villes de Bouaké à Adiaké,<br>en passant par Yamoussoukro, San-Pédro, Korhogo…</div>
-                </div>
-            </div>
+<section class="carte-section">
+    <div class="carte-slot rev">
+        <div class="slot slot--sombre">
+            Carte interactive du réseau CIBLE<br>
+            (implémentation Leaflet · pins par commune)
+            <small>À brancher sur la BDD Panora</small>
         </div>
-    </section>
+        <div class="note">💡 La carte interactive complète est disponible pour votre commercial sur demande.</div>
+    </div>
+</section>
 
-    {{-- ═══════════════════ ZONE ABIDJAN ═══════════════════ --}}
-    <section id="abidjan" style="background: var(--bg-cream);">
-        <div class="wrap">
-            <div style="max-width: 720px; margin-bottom: 40px;">
-                <span class="eyebrow reveal reveal-fade">Zone Abidjan · 180 panneaux</span>
-                <h2 class="section-title reveal" data-delay="1">14 communes couvertes<br><em>dans le Grand Abidjan.</em></h2>
-            </div>
-
-            <div class="reseau-table-wrap">
-                <table class="reseau-table">
-                    <thead>
-                        <tr>
-                            <th>Commune</th>
-                            <th class="num">Panneaux</th>
-                            <th class="bar">Répartition</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @php
-                            $abidjan = [
-                                ['Cocody', 30], ['Plateau', 28], ['Port-Bouët', 18], ['Yopougon', 15],
-                                ['Treichville', 12], ['Bingerville', 11], ['Adjamé', 10], ['Bassam', 7],
-                                ['Attecoubé', 6], ['Marcory', 4], ['Songon', 4], ['Assinie', 2],
-                                ['Koumassi', 2], ['Autoroute du Nord', 2],
-                            ];
-                            $maxA = 30;
-                        @endphp
-                        @foreach($abidjan as [$name, $count])
-                            <tr>
-                                <td>{{ $name }}</td>
-                                <td class="num">{{ $count }}</td>
-                                <td class="bar"><span class="bar-fill" style="width:{{ ($count/$maxA)*100 }}%"></span></td>
-                            </tr>
-                        @endforeach
-                        <tr class="tot">
-                            <td>Total Abidjan</td>
-                            <td class="num"><strong>180</strong></td>
-                            <td class="bar"></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+<section class="communes">
+    <div class="entete rev">
+        <span class="sur">Détail par zone</span>
+        <h2 class="t1">Là où votre marque peut apparaître.</h2>
+    </div>
+    <div class="communes-grid">
+        <div class="zone rev" style="--c:var(--rouge)">
+            <h3>Zone Abidjan</h3>
+            <div class="zone-sub">180 panneaux · 14 communes du Grand Abidjan</div>
+            <ul class="zone-list">
+                <li>Plateau</li><li>Cocody</li>
+                <li>Yopougon</li><li>Abobo</li>
+                <li>Marcory</li><li>Treichville</li>
+                <li>Koumassi</li><li>Port-Bouët</li>
+                <li>Attécoubé</li><li>Adjamé</li>
+                <li>Riviera</li><li>Angré</li>
+                <li>Bingerville</li><li>Songon</li>
+            </ul>
         </div>
-    </section>
-
-    {{-- ═══════════════════ ZONE INTÉRIEUR ═══════════════════ --}}
-    <section id="interieur">
-        <div class="wrap">
-            <div style="max-width: 720px; margin-bottom: 40px;">
-                <span class="eyebrow reveal reveal-fade">Zone Intérieur · 184 panneaux</span>
-                <h2 class="section-title reveal" data-delay="1">17 villes<br><em>à travers le pays.</em></h2>
-            </div>
-
-            <div class="reseau-table-wrap">
-                <table class="reseau-table">
-                    <thead>
-                        <tr>
-                            <th>Ville</th>
-                            <th class="num">Panneaux</th>
-                            <th class="bar">Répartition</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @php
-                            $interieur = [
-                                ['Bouaké', 54], ['Yamoussoukro', 30], ['Korhogo', 16], ['Daloa', 15],
-                                ['San-Pédro', 14], ['Gagnoa', 11], ['Odienné', 8], ['Bondoukou', 8],
-                                ['Abengourou', 6], ['Man', 5], ['Soubré', 5], ['Samo', 4],
-                                ['Ferké', 4], ['Bonoua', 2], ['Assinie (intérieur)', 2],
-                                ['Bouaflé', 1], ['Adiaké-Assinie', 1],
-                            ];
-                            $maxI = 54;
-                        @endphp
-                        @foreach($interieur as [$name, $count])
-                            <tr>
-                                <td>{{ $name }}</td>
-                                <td class="num">{{ $count }}</td>
-                                <td class="bar"><span class="bar-fill" style="width:{{ ($count/$maxI)*100 }}%"></span></td>
-                            </tr>
-                        @endforeach
-                        <tr class="tot">
-                            <td>Total Intérieur</td>
-                            <td class="num"><strong>184</strong></td>
-                            <td class="bar"></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+        <div class="zone rev" style="--c:var(--vert)">
+            <h3>Zone Intérieur</h3>
+            <div class="zone-sub">184 panneaux · 17 villes stratégiques du pays</div>
+            <ul class="zone-list">
+                <li>Bouaké</li><li>San-Pédro</li>
+                <li>Yamoussoukro</li><li>Korhogo</li>
+                <li>Man</li><li>Daloa</li>
+                <li>Gagnoa</li><li>Divo</li>
+                <li>Bondoukou</li><li>Odienné</li>
+                <li>Séguéla</li><li>Ferkessédougou</li>
+                <li>Dabou</li><li>Anyama</li>
+                <li>Grand-Bassam</li><li>Aboisso</li>
+                <li>Soubré</li>
+            </ul>
         </div>
-    </section>
+    </div>
+</section>
 
-    {{-- ═══════════════════ CARTE PLACEHOLDER ═══════════════════ --}}
-    <section style="background: var(--bg-cream);">
-        <div class="wrap">
-            <div style="max-width: 720px; margin-bottom: 40px;">
-                <span class="eyebrow reveal reveal-fade">Carte du réseau</span>
-                <h2 class="section-title reveal" data-delay="1">Visualisation <em>géographique.</em></h2>
-                <p class="body">
-                    Chaque pin représente un cluster de panneaux dans une commune. Zoom
-                    disponible pour identifier chaque emplacement individuel.
-                </p>
-            </div>
-            <div class="photo-tile reveal has-caption" style="aspect-ratio: 16/9; max-width: none;">
-                <img src="{{ asset('images/cible/hero-plateau-night.jpg') }}" alt="Panneau CIBLE Abidjan — extrait du réseau">
-                <div class="photo-caption">
-                    <strong>Carte interactive à venir</strong>
-                    <small>Coordonnées GPS des 364 panneaux · clustering par zoom (à intégrer avec Leaflet)</small>
-                </div>
-            </div>
+<section class="qualite">
+    <div class="entete rev">
+        <span class="sur">Ce qui distingue notre réseau</span>
+        <h2 class="t1">Un patrimoine géré, pas revendu.</h2>
+    </div>
+    <div class="q-grid">
+        <div class="qcard rev" style="--c:var(--rouge)">
+            <h4>Emplacements en propre</h4>
+            <p>Nous n'agrégeons pas des panneaux tiers : nous exploitons notre patrimoine. Vous savez exactement où votre affiche apparaîtra, dans quel angle, à quel moment.</p>
         </div>
-    </section>
-
-    {{-- ═══════════════════ CTA ═══════════════════ --}}
-    <section style="text-align: center; border: none;">
-        <div class="wrap-narrow">
-            <span class="eyebrow reveal reveal-fade">Un besoin ciblé ?</span>
-            <h2 class="section-title reveal" data-delay="1" style="margin-bottom: 26px;">
-                Choisissons <em>ensemble</em> vos emplacements.
-            </h2>
-            <p class="lead reveal" data-delay="2" style="margin: 0 auto 32px; text-align: center;">
-                Notre équipe commerciale connaît le terrain par cœur. Dites-nous votre cible,
-                votre budget, votre période — nous vous proposons les meilleurs emplacements.
-            </p>
-            <a href="{{ route('cible.contact') }}" class="btn btn-accent" style="font-size: 16px; padding: 17px 34px;">
-                Demander un devis
-            </a>
+        <div class="qcard rev" style="--c:var(--vert)">
+            <h4>Maintenance permanente</h4>
+            <p>Équipes de pose sur toutes les zones. Une affiche déchirée ou taguée est remplacée dans les 48h. La qualité de votre visibilité ne dépend pas d'un sous-traitant.</p>
         </div>
-    </section>
+        <div class="qcard rev" style="--c:var(--bleu)">
+            <h4>Preuve photo horodatée</h4>
+            <p>Chaque pose est documentée sur le terrain : photo, date, heure, GPS. Vous recevez le dossier complet à la fin de la campagne.</p>
+        </div>
+    </div>
+</section>
 
-    @push('head')
-    <style>
-        .split-chiffres {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr;
-            gap: 40px;
-            align-items: center;
-            padding: 40px;
-            background: linear-gradient(135deg, var(--bg-cream), #fff);
-            border: 1px solid var(--line);
-            border-radius: 8px;
-        }
-        .split-sep {
-            width: 1px;
-            height: 120px;
-            background: var(--line);
-        }
-        .split-num {
-            font-family: 'Inter', sans-serif;
-            font-size: 90px;
-            font-weight: 400;
-            color: var(--accent);
-            line-height: 0.95;
-            margin-bottom: 12px;
-            letter-spacing: -0.02em;
-        }
-        .split-lbl {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--ink);
-            letter-spacing: 0.02em;
-        }
-        .split-sub {
-            font-size: 13.5px;
-            color: var(--ink-4);
-            margin-top: 6px;
-            line-height: 1.55;
-        }
-        @media (max-width: 720px) {
-            .split-chiffres { grid-template-columns: 1fr; padding: 30px 24px; }
-            .split-sep { display: none; }
-            .split-num { font-size: 68px; }
-        }
-
-        .reseau-table-wrap { overflow-x: auto; }
-        .reseau-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #fff;
-            border-radius: 6px;
-            overflow: hidden;
-            border: 1px solid var(--line);
-        }
-        .reseau-table th {
-            padding: 16px 20px;
-            text-align: left;
-            font-family: 'Inter', sans-serif;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: var(--ink-4);
-            border-bottom: 2px solid var(--line);
-            background: var(--bg-cream);
-        }
-        .reseau-table th.num { text-align: right; width: 120px; }
-        .reseau-table th.bar { width: 45%; }
-        .reseau-table td {
-            padding: 14px 20px;
-            font-size: 15px;
-            color: var(--ink-2);
-            border-bottom: 1px solid var(--line-2);
-        }
-        .reseau-table td.num {
-            text-align: right;
-            font-family: 'Inter', sans-serif;
-            font-weight: 500;
-            font-size: 18px;
-            color: var(--accent);
-        }
-        .reseau-table td.bar { padding: 14px 20px; }
-        .bar-fill {
-            display: block;
-            height: 8px;
-            background: linear-gradient(90deg, var(--accent), var(--accent-2));
-            border-radius: 4px;
-            min-width: 4px;
-        }
-        .reseau-table tbody tr:hover td { background: rgba(232, 160, 32, 0.03); }
-        .reseau-table tr.tot td {
-            background: var(--ink);
-            color: #fff;
-            font-weight: 700;
-            border-bottom: none;
-        }
-        .reseau-table tr.tot td.num strong {
-            color: var(--accent);
-            font-family: 'Inter', sans-serif;
-            font-size: 22px;
-        }
-    </style>
-    @endpush
+<section style="padding:clamp(60px,8vw,100px) var(--pad);text-align:center">
+    <h2 class="t2">Envie de repérer les emplacements pour votre marque&nbsp;?</h2>
+    <p style="margin-top:16px;color:#666;max-width:56ch;margin-left:auto;margin-right:auto">Envoyez-nous vos critères (zone, format, période) — nous vous préparons une sélection dans la journée.</p>
+    <div style="margin-top:28px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <a class="bouton b-rouge" href="{{ route('cible.contact') }}">Demander une sélection</a>
+    </div>
+</section>
 
 @endsection

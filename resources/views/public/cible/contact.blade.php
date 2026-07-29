@@ -1,288 +1,184 @@
 @extends('public.cible._layout', [
-    'seo_title'       => 'Contact — CIBLE CI · Demande de devis',
-    'seo_description' => 'Contactez CIBLE CI : demande de devis, informations sur le réseau, opportunités de partenariat. Réponse dans la journée ouvrée.',
+    'seo_title'       => 'Contact — CIBLE · Demande de devis en 2 minutes',
+    'seo_description' => 'Contactez CIBLE : demande de devis, informations sur le réseau, opportunités de partenariat. Réponse dans la journée ouvrée.',
 ])
+
+@push('page-css')
+    .contact-wrap{padding:clamp(60px,8vw,110px) var(--pad);background:var(--jaune);color:var(--noir);position:relative;overflow:hidden;min-height:60vh}
+    .motif{position:absolute;inset:-10% -10%;background-image:var(--tuile);background-size:340px 340px;animation:motifDerive 60s linear infinite;pointer-events:none;z-index:0;opacity:.5}
+    @keyframes motifDerive{from{background-position:0 0}to{background-position:340px 340px}}
+    .contact-inner{position:relative;z-index:2;display:grid;grid-template-columns:1fr 1.2fr;gap:clamp(30px,5vw,80px);align-items:start}
+    @media(max-width:900px){.contact-inner{grid-template-columns:1fr}}
+    .contact-inner .intro .t1{max-width:16ch}
+    .contact-inner .intro p{margin-top:20px;max-width:44ch;font-size:clamp(16px,1.6vw,20px)}
+    .coord{margin-top:36px;background:var(--blanc);padding:22px 28px;border-radius:22px;font-family:var(--titre);font-weight:700;font-size:15px;display:flex;flex-direction:column;gap:8px}
+    .coord a:hover{color:var(--rouge)}
+    .coord .num{color:var(--rouge);font-size:19px}
+
+    /* formulaire */
+    .form-card{background:#fff;border-radius:24px;padding:clamp(28px,4vw,44px);box-shadow:0 20px 50px -20px rgba(0,0,0,.15)}
+    .form-card h2{font-family:var(--titre);font-weight:800;font-size:24px;margin-bottom:8px}
+    .form-card .sub{font-size:14px;color:#666;margin-bottom:28px}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+    @media(max-width:600px){.form-row{grid-template-columns:1fr}}
+    .form-field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+    .form-field label{font-family:var(--titre);font-weight:700;font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:#333}
+    .form-field label .req{color:var(--rouge)}
+    .form-field input,.form-field select,.form-field textarea{
+        border:1.5px solid var(--gris);border-radius:10px;padding:12px 14px;
+        font-family:var(--corps);font-size:15px;background:#fff;color:var(--noir);
+        transition:border-color .2s,box-shadow .2s
+    }
+    .form-field input:focus,.form-field select:focus,.form-field textarea:focus{
+        outline:none;border-color:var(--rouge);box-shadow:0 0 0 3px rgba(226,6,19,.12)
+    }
+    .form-field textarea{min-height:120px;resize:vertical}
+    .form-field.error input,.form-field.error select,.form-field.error textarea{border-color:var(--rouge);background:#fef2f2}
+    .form-field .err-msg{color:var(--rouge);font-size:13px;font-family:var(--titre);font-weight:600}
+    .honeypot{position:absolute;left:-9999px;visibility:hidden}
+    .form-submit{margin-top:20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .form-submit p{font-size:12.5px;color:#666;flex:1}
+
+    .success-msg{background:#dcfce7;border:2px solid #22c55e;color:#166534;padding:24px;border-radius:16px;text-align:center;font-family:var(--titre)}
+    .success-msg h3{font-size:24px;margin-bottom:8px;color:#15803d}
+    .success-msg p{font-weight:600}
+
+    .error-msg{background:#fee2e2;border:2px solid #ef4444;color:#991b1b;padding:20px;border-radius:12px;font-family:var(--titre);font-weight:600;margin-bottom:20px}
+@endpush
 
 @section('content')
 
-    {{-- ═══════════════════ HERO ═══════════════════ --}}
-    <section style="padding-top: 100px; padding-bottom: 40px;">
-        <div class="wrap-narrow" style="text-align: center;">
-            <span class="eyebrow reveal reveal-fade">Contact</span>
-            <h1 class="hero-title reveal" data-delay="1" style="font-size: clamp(38px, 5vw, 56px);">
-                Parlons de <em>votre campagne.</em>
-            </h1>
-            <p class="lead reveal" data-delay="2" style="margin: 0 auto;">
-                Décrivez votre besoin en quelques champs. Notre équipe commerciale vous
-                rappelle dans la journée ouvrée avec une proposition sur mesure.
-            </p>
-        </div>
-    </section>
+<section class="contact-wrap">
+    <div class="motif" aria-hidden="true"></div>
+    <div class="contact-inner">
 
-    {{-- ═══════════════════ FORMULAIRE + INFOS ═══════════════════ --}}
-    <section style="padding-top: 40px; border: none;">
-        <div class="wrap">
-            <div class="split-2" style="gap: 80px;">
-                {{-- Formulaire --}}
-                <div>
-                    @if(session('devis_sent'))
-                        <div style="padding: 40px; background: #f0f9f0; border: 1px solid #86e186; border-radius: 8px; text-align: center;">
-                            <div style="font-family: 'Inter', sans-serif; font-size: 32px; color: #1a7a1a; margin-bottom: 12px;">Bien reçu.</div>
-                            <p style="color: #2d5f2d; font-size: 15px; line-height: 1.6;">
-                                Votre demande est arrivée. Notre équipe commerciale vous
-                                recontacte dans la journée ouvrée à l'adresse fournie.
-                            </p>
-                        </div>
-                    @else
-                        @if(session('devis_error'))
-                            <div style="padding: 18px; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 6px; color: #991b1b; font-size: 14px; margin-bottom: 24px;">
-                                {{ session('devis_error') }}
-                            </div>
-                        @endif
-
-                        <form method="POST" action="{{ route('cible.devis.submit') }}" style="display: grid; gap: 20px;">
-                            @csrf
-
-                            {{-- Honeypot --}}
-                            <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0;" aria-hidden="true">
-
-                            <div class="form-row-2">
-                                <div>
-                                    <label for="f-nom">Votre nom *</label>
-                                    <input type="text" id="f-nom" name="nom" required maxlength="100" value="{{ old('nom') }}" placeholder="ex. Kouassi Aya">
-                                    @error('nom') <span class="err">{{ $message }}</span> @enderror
-                                </div>
-                                <div>
-                                    <label for="f-poste">Votre poste</label>
-                                    <input type="text" id="f-poste" name="poste" maxlength="100" value="{{ old('poste') }}" placeholder="ex. Directrice Marketing">
-                                </div>
-                            </div>
-
-                            <div>
-                                <label for="f-entreprise">Entreprise / Marque *</label>
-                                <input type="text" id="f-entreprise" name="entreprise" required maxlength="150" value="{{ old('entreprise') }}" placeholder="ex. Danone Côte d'Ivoire">
-                                @error('entreprise') <span class="err">{{ $message }}</span> @enderror
-                            </div>
-
-                            <div class="form-row-2">
-                                <div>
-                                    <label for="f-tel">Téléphone *</label>
-                                    <input type="tel" id="f-tel" name="tel" required maxlength="30" value="{{ old('tel') }}" placeholder="+225 07 XX XX XX XX">
-                                    @error('tel') <span class="err">{{ $message }}</span> @enderror
-                                </div>
-                                <div>
-                                    <label for="f-email">Email professionnel *</label>
-                                    <input type="email" id="f-email" name="email" required maxlength="150" value="{{ old('email') }}" placeholder="vous@votre-entreprise.ci">
-                                    @error('email') <span class="err">{{ $message }}</span> @enderror
-                                </div>
-                            </div>
-
-                            <div>
-                                <label for="f-besoin">Votre besoin *</label>
-                                <select id="f-besoin" name="besoin" required>
-                                    <option value="">— Choisir —</option>
-                                    <option value="affichage"  {{ old('besoin') === 'affichage' ? 'selected' : '' }}>Affichage publicitaire (panneaux)</option>
-                                    <option value="mobile"     {{ old('besoin') === 'mobile' ? 'selected' : '' }}>Communication mobile (camions, motos, branding)</option>
-                                    <option value="360"        {{ old('besoin') === '360' ? 'selected' : '' }}>Campagne 360° (création + digital + terrain)</option>
-                                    <option value="autre"      {{ old('besoin') === 'autre' ? 'selected' : '' }}>Autre / à préciser</option>
-                                </select>
-                                @error('besoin') <span class="err">{{ $message }}</span> @enderror
-                            </div>
-
-                            <div class="form-row-2">
-                                <div>
-                                    <label for="f-zone">Zone visée</label>
-                                    <select id="f-zone" name="zone">
-                                        <option value="">— Préférence —</option>
-                                        <option value="abidjan"   {{ old('zone') === 'abidjan' ? 'selected' : '' }}>Zone Abidjan uniquement</option>
-                                        <option value="interieur" {{ old('zone') === 'interieur' ? 'selected' : '' }}>Intérieur du pays</option>
-                                        <option value="national"  {{ old('zone') === 'national' ? 'selected' : '' }}>National (Abidjan + intérieur)</option>
-                                        <option value="autre"     {{ old('zone') === 'autre' ? 'selected' : '' }}>À définir ensemble</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label for="f-budget">Budget indicatif</label>
-                                    <select id="f-budget" name="budget">
-                                        <option value="">— Préférence —</option>
-                                        <option value="moins1M" {{ old('budget') === 'moins1M' ? 'selected' : '' }}>Moins de 1M FCFA</option>
-                                        <option value="1a5M"    {{ old('budget') === '1a5M' ? 'selected' : '' }}>1 à 5M FCFA</option>
-                                        <option value="5a20M"   {{ old('budget') === '5a20M' ? 'selected' : '' }}>5 à 20M FCFA</option>
-                                        <option value="plus20M" {{ old('budget') === 'plus20M' ? 'selected' : '' }}>Plus de 20M FCFA</option>
-                                        <option value="pas-sur" {{ old('budget') === 'pas-sur' ? 'selected' : '' }}>À évaluer ensemble</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label for="f-periode">Période souhaitée</label>
-                                <input type="text" id="f-periode" name="periode" maxlength="100" value="{{ old('periode') }}" placeholder="ex. Lancement produit octobre 2026 · 3 semaines">
-                            </div>
-
-                            <div>
-                                <label for="f-msg">Message / précisions</label>
-                                <textarea id="f-msg" name="message" rows="4" maxlength="2000" placeholder="ex. Nous préparons une campagne de notoriété autour d'un lancement produit. Grand public urbain, adultes 25-45 ans. Objectif : forte visibilité à Abidjan sur 3 semaines.">{{ old('message') }}</textarea>
-                            </div>
-
-                            <button type="submit" class="btn btn-accent" style="justify-content: center; font-size: 16px; padding: 17px 34px;">
-                                Envoyer ma demande
-                            </button>
-
-                            <p style="font-size: 12.5px; color: var(--ink-5); text-align: center; margin-top: -4px;">
-                                Réponse dans la journée ouvrée. Ni newsletter, ni prospection agressive.
-                            </p>
-                        </form>
-                    @endif
+        {{-- Colonne gauche : intro + coordonnées --}}
+        <div class="intro rev">
+            <span class="sur">Parlons de votre projet</span>
+            <h1 class="t1" style="margin-top:14px">Entrons en contact.</h1>
+            <p>Décrivez votre besoin en deux minutes. Notre équipe commerciale vous rappelle dans la <strong>journée ouvrée</strong> avec une proposition chiffrée.</p>
+            <div class="coord">
+                <a href="tel:+2250700780628" class="num">📞 +225 07 00 78 06 28</a>
+                <a href="mailto:commercial@cible-ci.com">✉ commercial@cible-ci.com</a>
+                <div style="font-weight:600;color:#666;font-size:13px;padding-top:6px;border-top:1px dashed #E4E4E4">
+                    Rue des Ambassadeurs<br>Riviera M'Badon<br>10 BP 1029 Abidjan 10
                 </div>
+            </div>
+        </div>
 
-                {{-- Coordonnées --}}
-                <div>
-                    <div style="position: sticky; top: 100px;">
-                        <span class="eyebrow reveal reveal-fade">Coordonnées</span>
-                        <h2 class="section-title reveal" data-delay="1" style="font-size: 30px; margin-bottom: 30px;">
-                            Ou appelez<br>directement.
-                        </h2>
+        {{-- Colonne droite : formulaire --}}
+        <div class="form-card rev">
+            @if(session('devis_sent'))
+                <div class="success-msg">
+                    <h3>✓ Message reçu !</h3>
+                    <p>Merci — notre équipe vous rappelle dans la journée ouvrée.</p>
+                </div>
+            @else
+                <h2>Demander un devis</h2>
+                <p class="sub">Toutes les demandes reçoivent une réponse chiffrée dans les 24h ouvrées.</p>
 
-                        <div class="coord-list">
-                            <div class="coord-item">
-                                <div class="coord-icon">📞</div>
-                                <div>
-                                    <div class="coord-label">Téléphone commercial</div>
-                                    <a href="tel:+2250798496674" class="coord-val">07 98 49 66 74</a>
-                                </div>
-                            </div>
-                            <div class="coord-item">
-                                <div class="coord-icon">✉️</div>
-                                <div>
-                                    <div class="coord-label">Email</div>
-                                    <a href="mailto:commercial@cible-ci.com" class="coord-val">commercial@cible-ci.com</a>
-                                </div>
-                            </div>
-                            <div class="coord-item">
-                                <div class="coord-icon">📍</div>
-                                <div>
-                                    <div class="coord-label">Notre siège</div>
-                                    <div class="coord-val">Rue des ambassadeurs<br>Riviera M'badon, Abidjan<br>Côte d'Ivoire</div>
-                                </div>
-                            </div>
+                @if(session('devis_error'))
+                    <div class="error-msg">⚠ {{ session('devis_error') }}</div>
+                @endif
+                @if($errors->any())
+                    <div class="error-msg">⚠ Merci de corriger les champs marqués en rouge ci-dessous.</div>
+                @endif
+
+                <form method="POST" action="{{ route('cible.devis.submit') }}" novalidate>
+                    @csrf
+
+                    {{-- Honeypot anti-bot --}}
+                    <div class="honeypot" aria-hidden="true">
+                        <label>Ne pas remplir <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field @error('nom') error @enderror">
+                            <label>Votre nom <span class="req">*</span></label>
+                            <input type="text" name="nom" value="{{ old('nom') }}" required maxlength="100" placeholder="Prénom Nom">
+                            @error('nom') <span class="err-msg">{{ $message }}</span> @enderror
                         </div>
-
-                        <div class="terrain-placeholder" style="aspect-ratio: 4/3; margin-top: 30px;">
-                            <div>
-                                <strong>Carte siège</strong>
-                                Riviera M'badon
-                                <small>Leaflet / OpenStreetMap</small>
-                            </div>
-                        </div>
-
-                        <div style="margin-top: 30px; padding: 22px; background: var(--bg-cream); border-radius: 4px; font-size: 13.5px; color: var(--ink-3); line-height: 1.6; border-left: 3px solid var(--accent);">
-                            <strong style="color: var(--ink); display: block; margin-bottom: 6px;">Horaires</strong>
-                            Lundi au vendredi · 8h30 – 17h30<br>
-                            Samedi matin sur rendez-vous
+                        <div class="form-field @error('entreprise') error @enderror">
+                            <label>Entreprise <span class="req">*</span></label>
+                            <input type="text" name="entreprise" value="{{ old('entreprise') }}" required maxlength="150" placeholder="Votre société">
+                            @error('entreprise') <span class="err-msg">{{ $message }}</span> @enderror
                         </div>
                     </div>
-                </div>
-            </div>
+
+                    <div class="form-row">
+                        <div class="form-field @error('email') error @enderror">
+                            <label>Email <span class="req">*</span></label>
+                            <input type="email" name="email" value="{{ old('email') }}" required maxlength="150" placeholder="vous@entreprise.ci">
+                            @error('email') <span class="err-msg">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="form-field @error('tel') error @enderror">
+                            <label>Téléphone <span class="req">*</span></label>
+                            <input type="tel" name="tel" value="{{ old('tel') }}" required maxlength="30" placeholder="+225 …">
+                            @error('tel') <span class="err-msg">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+
+                    <div class="form-field @error('poste') error @enderror">
+                        <label>Votre poste</label>
+                        <input type="text" name="poste" value="{{ old('poste') }}" maxlength="100" placeholder="Ex : Directeur Marketing">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field @error('besoin') error @enderror">
+                            <label>Type de besoin <span class="req">*</span></label>
+                            <select name="besoin" required>
+                                <option value="">— Choisir —</option>
+                                <option value="affichage" @selected(old('besoin')==='affichage')>Affichage grand format</option>
+                                <option value="mobile" @selected(old('besoin')==='mobile')>Publicité mobile (camion, taxis…)</option>
+                                <option value="360" @selected(old('besoin')==='360')>Campagne 360° (multi-canal)</option>
+                                <option value="autre" @selected(old('besoin')==='autre')>Autre / à définir</option>
+                            </select>
+                            @error('besoin') <span class="err-msg">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="form-field @error('zone') error @enderror">
+                            <label>Zone visée</label>
+                            <select name="zone">
+                                <option value="">— À préciser —</option>
+                                <option value="abidjan" @selected(old('zone')==='abidjan')>Abidjan</option>
+                                <option value="interieur" @selected(old('zone')==='interieur')>Intérieur du pays</option>
+                                <option value="national" @selected(old('zone')==='national')>National (Abidjan + intérieur)</option>
+                                <option value="autre" @selected(old('zone')==='autre')>Autre / à définir</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field @error('budget') error @enderror">
+                            <label>Budget indicatif</label>
+                            <select name="budget">
+                                <option value="">— Fourchette —</option>
+                                <option value="moins1M" @selected(old('budget')==='moins1M')>Moins de 1 M FCFA</option>
+                                <option value="1a5M" @selected(old('budget')==='1a5M')>1 à 5 M FCFA</option>
+                                <option value="5a20M" @selected(old('budget')==='5a20M')>5 à 20 M FCFA</option>
+                                <option value="plus20M" @selected(old('budget')==='plus20M')>Plus de 20 M FCFA</option>
+                                <option value="pas-sur" @selected(old('budget')==='pas-sur')>Pas encore défini</option>
+                            </select>
+                        </div>
+                        <div class="form-field @error('periode') error @enderror">
+                            <label>Période souhaitée</label>
+                            <input type="text" name="periode" value="{{ old('periode') }}" maxlength="100" placeholder="Ex : Novembre-Décembre 2026">
+                        </div>
+                    </div>
+
+                    <div class="form-field @error('message') error @enderror">
+                        <label>Décrivez votre projet</label>
+                        <textarea name="message" maxlength="2000" placeholder="En quelques lignes : objectif, cible, contexte, contraintes…">{{ old('message') }}</textarea>
+                        @error('message') <span class="err-msg">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="form-submit">
+                        <button type="submit" class="bouton b-rouge">Envoyer ma demande</button>
+                        <p>Vos données ne sont utilisées que pour vous répondre. Aucun démarchage tiers.</p>
+                    </div>
+                </form>
+            @endif
         </div>
-    </section>
-
-    {{-- ═══════════════════ RÉSEAUX ═══════════════════ --}}
-    <section style="text-align: center;">
-        <div class="wrap-narrow">
-            <span class="eyebrow reveal reveal-fade">Suivez-nous</span>
-            <h2 class="section-title reveal" data-delay="1" style="font-size: 30px; margin-bottom: 24px;">
-                Retrouvez-nous <em>sur les réseaux.</em>
-            </h2>
-            <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
-                <a href="https://facebook.com/cible.ci" target="_blank" rel="noopener" class="btn btn-outline">Facebook</a>
-                <a href="https://ci.linkedin.com/company/cible-ci" target="_blank" rel="noopener" class="btn btn-outline">LinkedIn</a>
-            </div>
-        </div>
-    </section>
-
-    @push('head')
-    <style>
-        .form-row-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 18px;
-        }
-        @media (max-width: 640px) { .form-row-2 { grid-template-columns: 1fr; } }
-
-        form label {
-            display: block;
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--ink-2);
-            margin-bottom: 8px;
-            letter-spacing: 0.01em;
-        }
-        form input[type="text"],
-        form input[type="tel"],
-        form input[type="email"],
-        form select,
-        form textarea {
-            width: 100%;
-            padding: 13px 15px;
-            border: 1.5px solid var(--line);
-            border-radius: 4px;
-            font-size: 15px;
-            font-family: 'Inter', sans-serif;
-            color: var(--ink);
-            background: #fff;
-            transition: border-color 0.15s ease, box-shadow 0.15s ease;
-        }
-        form input:focus, form select:focus, form textarea:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-soft);
-        }
-        form textarea { resize: vertical; min-height: 100px; font-family: 'Inter', sans-serif; }
-        form select {
-            appearance: none; -webkit-appearance: none;
-            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-            background-repeat: no-repeat; background-position: right 15px center;
-            padding-right: 40px;
-        }
-        form .err {
-            display: block;
-            margin-top: 6px;
-            font-size: 12.5px;
-            color: #dc2626;
-        }
-
-        .coord-list { display: flex; flex-direction: column; gap: 20px; }
-        .coord-item {
-            display: flex; gap: 16px; align-items: flex-start;
-            padding: 18px;
-            background: #fff;
-            border: 1px solid var(--line);
-            border-radius: 4px;
-        }
-        .coord-icon {
-            font-size: 22px;
-            width: 42px; height: 42px;
-            border-radius: 50%;
-            background: var(--accent-soft);
-            display: inline-flex; align-items: center; justify-content: center;
-            flex-shrink: 0;
-        }
-        .coord-label {
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: var(--ink-4);
-            margin-bottom: 4px;
-        }
-        .coord-val {
-            font-family: 'Inter', sans-serif;
-            font-size: 17px;
-            font-weight: 500;
-            color: var(--ink);
-            line-height: 1.4;
-        }
-        a.coord-val:hover { color: var(--accent); }
-    </style>
-    @endpush
+    </div>
+</section>
 
 @endsection

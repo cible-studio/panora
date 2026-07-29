@@ -1,246 +1,115 @@
 @extends('public.cible._layout', [
-    'seo_title'       => 'Qui sommes-nous — CIBLE CI · 30 ans de communication extérieure',
-    'seo_description' => 'CIBLE CI, régie publicitaire ivoirienne fondée en 1994. Trois décennies au service des marques, trois distinctions officielles de l\'État.',
+    'seo_title'       => 'Qui sommes-nous — CIBLE · 30 ans de communication extérieure',
+    'seo_description' => 'CIBLE, régie publicitaire ivoirienne fondée en 1994. Trois décennies au service des marques, trois distinctions officielles de l\'État.',
 ])
+
+@push('page-css')
+    .hero-qui{padding:clamp(60px,8vw,110px) var(--pad);text-align:center;background:linear-gradient(180deg,#fff 0%,#F9F9F5 100%)}
+    .hero-qui .sur{color:var(--violet)}
+    .hero-qui h1{margin-top:14px}
+    .hero-qui p{margin-top:24px;max-width:64ch;margin-left:auto;margin-right:auto;font-size:19px;color:#444}
+
+    .recit{padding:clamp(56px,8vw,100px) var(--pad)}
+    .recit-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(30px,5vw,80px);align-items:start}
+    @media(max-width:900px){.recit-grid{grid-template-columns:1fr}}
+    .recit article{padding:26px 0;border-bottom:1px solid #E4E4E4}
+    .recit article:last-child{border-bottom:0}
+    .recit article h3{font-family:var(--titre);font-weight:800;font-size:22px;margin-bottom:10px;color:var(--rouge)}
+    .recit article p{color:#444;line-height:1.7}
+
+    .distinctions{background:var(--gris);padding:clamp(56px,8vw,100px) var(--pad)}
+    .distinctions .entete{max-width:600px;margin-bottom:44px}
+    .distinctions .sur{color:var(--vert)}
+    .distinctions .t1{margin-top:12px}
+    .dist-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(18px,3vw,44px)}
+    @media(max-width:820px){.dist-grid{grid-template-columns:1fr}}
+    .dist{background:#fff;border-radius:16px;padding:28px 26px;border-top:6px solid var(--c)}
+    .dist .an{font-family:var(--titre);font-weight:900;font-size:34px;color:var(--c);line-height:1}
+    .dist h4{font-family:var(--titre);font-weight:800;font-size:17px;margin-top:8px;line-height:1.35}
+    .dist p{font-size:14px;color:#666;margin-top:10px;line-height:1.6}
+
+    .stats-qui{padding:clamp(56px,8vw,100px) var(--pad);background:var(--noir);color:#fff}
+    .stats-qui .entete{max-width:600px;margin-bottom:44px}
+    .stats-qui .sur{color:var(--jaune)}
+    .stats-qui .t1{color:#fff;margin-top:12px}
+    .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(20px,3vw,40px)}
+    @media(max-width:900px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+    .stat .v{font-family:var(--titre);font-weight:900;font-size:clamp(46px,6vw,80px);line-height:.86;letter-spacing:-.04em;color:var(--jaune)}
+    .stat .l{font-family:var(--titre);font-weight:600;font-size:13px;opacity:.85;margin-top:12px;text-transform:uppercase;letter-spacing:.08em}
+@endpush
 
 @section('content')
 
-    {{-- ═══════════════════ HERO ═══════════════════ --}}
-    <section style="padding-top: 100px; padding-bottom: 60px;">
-        <div class="wrap-narrow">
-            <span class="eyebrow reveal reveal-fade">Qui sommes-nous</span>
-            <h1 class="hero-title reveal" data-delay="1" style="font-size: clamp(38px, 5vw, 60px);">
-                Trois décennies<br>à porter la parole<br>des <em>marques ivoiriennes.</em>
-            </h1>
-            <p class="lead reveal" data-delay="2">
-                Fondée en 1994, CIBLE CI a grandi avec l'économie ivoirienne. Nous avons vu
-                les grandes marques nationales émerger, les enseignes internationales
-                s'installer, la publicité extérieure devenir une industrie. À chaque étape,
-                nous avons construit, maintenu et étendu le réseau d'affichage qui fait
-                aujourd'hui notre force.
-            </p>
+<section class="hero-qui">
+    <span class="sur">Depuis 1994</span>
+    <h1 class="t1">Trente ans à faire rayonner les marques.</h1>
+    <p>Née dans l'affichage publicitaire, CIBLE s'est imposée en trente ans comme un pilier de la publicité extérieure en Côte d'Ivoire. De l'artisanat du panneau grand format à la campagne 360° mesurée en temps réel, notre métier a évolué — notre exigence, jamais.</p>
+</section>
+
+<section class="recit">
+    <div class="recit-grid">
+        <article class="rev">
+            <h3>Notre origine — maîtres de la visibilité extérieure</h3>
+            <p>Née dans l'affichage publicitaire, CIBLE s'est imposée en trente ans comme un pilier de la publicité extérieure en Côte d'Ivoire : panneaux grand format, signalétique de carrefour, camions de parade, habillage de véhicules. Un patrimoine de 364 emplacements, construit un panneau à la fois, dans 31 communes du pays.</p>
+        </article>
+        <article class="rev">
+            <h3>Notre évolution — la visibilité devient mesurable</h3>
+            <p>Les usages ont changé, les attentes des annonceurs aussi. Le digital 360° ne remplace pas notre réseau : il le prolonge et le rend mesurable. Nous n'offrons plus seulement de la visibilité, mais une performance vérifiable, orientée résultats.</p>
+        </article>
+        <article class="rev">
+            <h3>Notre force — le terrain et la donnée</h3>
+            <p>Trente ans de connaissance du terrain ivoirien fusionnés avec une approche moderne et une exigence de résultat. Nous sommes la seule régie du pays à posséder à la fois son propre réseau et l'outil qui le pilote — de la commande à la preuve de pose.</p>
+        </article>
+        <article class="rev">
+            <h3>Notre engagement — la preuve, pas la promesse</h3>
+            <p>Chaque campagne se termine par un dossier de preuves : photos horodatées depuis le terrain, planning de pose, rapports de diffusion. Vous savez exactement où votre marque a été vue, quand, et par combien de personnes.</p>
+        </article>
+    </div>
+</section>
+
+<section class="stats-qui rev">
+    <div class="entete">
+        <span class="sur">En chiffres</span>
+        <h2 class="t1">Trente ans concentrés en quatre nombres.</h2>
+    </div>
+    <div class="stats-grid">
+        <div class="stat"><div class="v num" data-cible="30">0</div><div class="l">Ans d'expertise</div></div>
+        <div class="stat"><div class="v num" data-cible="364">0</div><div class="l">Panneaux en propre</div></div>
+        <div class="stat"><div class="v num" data-cible="31">0</div><div class="l">Communes couvertes</div></div>
+        <div class="stat"><div class="v num" data-cible="3">0</div><div class="l">Distinctions d'État</div></div>
+    </div>
+</section>
+
+<section class="distinctions">
+    <div class="entete rev">
+        <span class="sur">Reconnaissances officielles</span>
+        <h2 class="t1">Trois distinctions de l'État ivoirien.</h2>
+    </div>
+    <div class="dist-grid">
+        <div class="dist rev" style="--c:var(--jaune)">
+            <div class="an num">2016</div>
+            <h4>2ᵉ prix du meilleur publicitaire</h4>
+            <p>Distinction professionnelle du secteur de la publicité ivoirienne.</p>
         </div>
-    </section>
-
-    {{-- ═══════════════════ TIMELINE 30 ANS ═══════════════════ --}}
-    <section style="background: var(--bg-cream);">
-        <div class="wrap">
-            <div style="max-width: 720px; margin-bottom: 60px;">
-                <span class="eyebrow reveal reveal-fade">Notre histoire</span>
-                <h2 class="section-title reveal" data-delay="1">Trente ans, <em>une même vocation.</em></h2>
-            </div>
-
-            <div class="timeline">
-                <div class="tl-item">
-                    <div class="tl-year">1994</div>
-                    <div class="tl-content">
-                        <h3>Fondation</h3>
-                        <p>CIBLE est créée à Abidjan avec une conviction : la publicité extérieure
-                        peut être un métier structuré, professionnel, au service des marques ivoiriennes.</p>
-                    </div>
-                </div>
-                <div class="tl-item">
-                    <div class="tl-year">1994<br>—<br>2010</div>
-                    <div class="tl-content">
-                        <h3>Construction du patrimoine</h3>
-                        <p>Panneau après panneau, commune après commune. Nous bâtissons méthodiquement
-                        le réseau qui deviendra la première couverture publicitaire du pays.</p>
-                    </div>
-                </div>
-                <div class="tl-item">
-                    <div class="tl-year">2010<br>—<br>2016</div>
-                    <div class="tl-content">
-                        <h3>Extension à l'intérieur du pays</h3>
-                        <p>De Yamoussoukro à San-Pédro, de Bouaké à Korhogo, nous couvrons progressivement
-                        toutes les villes de plus de 100 000 habitants. Le réseau devient national.</p>
-                    </div>
-                </div>
-                <div class="tl-item is-honor">
-                    <div class="tl-year">2016</div>
-                    <div class="tl-content">
-                        <h3>🏆 2ème prix du meilleur publicitaire</h3>
-                        <p>Première reconnaissance professionnelle du secteur — la qualité de notre
-                        travail est saluée par les pairs.</p>
-                    </div>
-                </div>
-                <div class="tl-item is-honor">
-                    <div class="tl-year">2019</div>
-                    <div class="tl-content">
-                        <h3>🏅 Chevalier de l'Ordre du Mérite de la Communication</h3>
-                        <p>L'État ivoirien reconnaît la contribution de CIBLE à la structuration du
-                        métier de la publicité extérieure dans le pays.</p>
-                    </div>
-                </div>
-                <div class="tl-item is-honor">
-                    <div class="tl-year">2020</div>
-                    <div class="tl-content">
-                        <h3>🎖️ Officier de l'Ordre du Mérite National</h3>
-                        <p>Distinction républicaine remise en reconnaissance des services rendus
-                        au pays au fil de trois décennies.</p>
-                    </div>
-                </div>
-                <div class="tl-item">
-                    <div class="tl-year">Aujourd'hui</div>
-                    <div class="tl-content">
-                        <h3>Le premier réseau du pays</h3>
-                        <p>364 panneaux dans 31 communes. Trois pôles de service (régie, mobile, 360°).
-                        Une équipe complète, du commercial au technicien terrain. Et la plateforme
-                        numérique qui suit chaque campagne en temps réel.</p>
-                    </div>
-                </div>
-            </div>
+        <div class="dist rev" style="--c:var(--vert)">
+            <div class="an num">2019</div>
+            <h4>Chevalier de l'Ordre du Mérite de la Communication</h4>
+            <p>Reconnaissance de la contribution à la structuration du métier en Côte d'Ivoire.</p>
         </div>
-    </section>
-
-    {{-- ═══════════════════ DISTINCTIONS DÉTAILLÉES ═══════════════════ --}}
-    <section style="background: var(--ink); color: #fff; border: none;">
-        <div class="wrap">
-            <div class="split-2">
-                <div>
-                    <span class="eyebrow" style="color: var(--accent);">Reconnaissances</span>
-                    <h2 class="section-title reveal" data-delay="1" style="color: #fff;">
-                        Trois fois honorée<br>par <em>la République.</em>
-                    </h2>
-                    <p class="body" style="color: rgba(255,255,255,0.75); font-size: 17px;">
-                        Ces distinctions ne sont pas des trophées à afficher. Elles disent
-                        une chose simple : la manière dont CIBLE fait son métier a fait école,
-                        et sa contribution au tissu économique ivoirien a été reconnue au
-                        plus haut niveau.
-                    </p>
-                    <p class="body" style="color: rgba(255,255,255,0.75); font-size: 17px;">
-                        Pour un annonceur, ces reconnaissances sont un gage de sérieux et de
-                        pérennité — la garantie de traiter avec une régie qui a construit
-                        sa légitimité sur trois décennies.
-                    </p>
-                </div>
-                <div>
-                    <div class="terrain-placeholder" style="aspect-ratio: 3/4; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6);">
-                        <div>
-                            <strong style="color: rgba(255,255,255,0.85);">Photo cérémonie</strong>
-                            Remise décoration officielle
-                            <small style="color: rgba(255,255,255,0.4);">public/images/cible/decoration.jpg</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="dist rev" style="--c:var(--violet)">
+            <div class="an num">2020</div>
+            <h4>Officier de l'Ordre du Mérite National</h4>
+            <p>Distinction républicaine pour services rendus au pays.</p>
         </div>
-    </section>
+    </div>
+</section>
 
-    {{-- ═══════════════════ ÉQUIPE ═══════════════════ --}}
-    <section>
-        <div class="wrap">
-            <div style="max-width: 720px; margin-bottom: 60px;">
-                <span class="eyebrow reveal reveal-fade">L'équipe</span>
-                <h2 class="section-title reveal" data-delay="1">Chaque campagne mobilise <em>plusieurs métiers.</em></h2>
-                <p class="body" style="font-size: 17px; color: var(--ink-3);">
-                    De votre premier appel à la pose de votre affichage, sept métiers se
-                    coordonnent chez CIBLE pour que votre campagne soit livrée dans les
-                    règles. Voici qui vous accompagne.
-                </p>
-            </div>
-
-            <div class="team-grid">
-                @foreach([
-                    ['Direction', 'Vision, décisions stratégiques, relations partenaires institutionnels.'],
-                    ['Commerciaux', 'Votre interlocuteur unique. Écoute, proposition, négociation, suivi.'],
-                    ['Média-planners', 'Sélectionnent les emplacements optimaux selon votre cible et votre budget.'],
-                    ['Techniciens terrain', 'Interviennent sur les panneaux : pose, dépose, maintenance, contrôle.'],
-                    ['Afficheurs', 'Posent physiquement vos visuels dans les délais convenus.'],
-                    ['Studio création', 'Conçoivent vos visuels si vous n\'avez pas d\'agence — impact et lisibilité.'],
-                    ['Développement', 'Font vivre la plateforme numérique qui centralise le suivi de vos campagnes.'],
-                ] as [$role, $desc])
-                    <div class="team-card">
-                        <h4>{{ $role }}</h4>
-                        <p>{{ $desc }}</p>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-    </section>
-
-    {{-- ═══════════════════ CTA ═══════════════════ --}}
-    <section style="text-align: center; background: var(--bg-cream); border: none;">
-        <div class="wrap-narrow">
-            <h2 class="section-title reveal" data-delay="1" style="margin-bottom: 26px;">
-                Rejoignez les marques qui <em>nous font confiance.</em>
-            </h2>
-            <p class="lead reveal" data-delay="2" style="margin: 0 auto 32px; text-align: center;">
-                Danone, SIPRA, Moov Africa, les banques ivoiriennes — elles ont toutes
-                choisi CIBLE pour une raison : le sérieux du réseau et la clarté du suivi.
-            </p>
-            <a href="{{ route('cible.contact') }}" class="btn btn-accent" style="font-size: 16px; padding: 17px 34px;">
-                Demander un devis
-            </a>
-        </div>
-    </section>
-
-    @push('head')
-    <style>
-        .timeline {
-            display: grid;
-            gap: 30px;
-            max-width: 900px;
-        }
-        .tl-item {
-            display: grid;
-            grid-template-columns: 140px 1fr;
-            gap: 30px;
-            align-items: start;
-            padding: 24px 0;
-            border-bottom: 1px solid var(--line);
-        }
-        .tl-item:last-child { border-bottom: none; }
-        .tl-year {
-            font-family: 'Inter', sans-serif;
-            font-weight: 500;
-            font-size: 22px;
-            color: var(--accent);
-            line-height: 1.2;
-        }
-        .tl-content h3 {
-            font-family: 'Inter', sans-serif;
-            font-size: 22px;
-            font-weight: 500;
-            margin-bottom: 8px;
-            color: var(--ink);
-        }
-        .tl-content p {
-            font-size: 15.5px;
-            color: var(--ink-3);
-            line-height: 1.65;
-        }
-        .tl-item.is-honor .tl-content h3 { color: var(--accent); }
-
-        @media (max-width: 720px) {
-            .tl-item { grid-template-columns: 1fr; gap: 12px; }
-            .tl-year { font-size: 18px; }
-        }
-
-        .team-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 20px;
-        }
-        .team-card {
-            padding: 26px 24px;
-            background: #fff;
-            border: 1px solid var(--line);
-            border-radius: 4px;
-            border-left: 3px solid var(--accent);
-        }
-        .team-card h4 {
-            font-family: 'Inter', sans-serif;
-            font-size: 19px;
-            font-weight: 500;
-            color: var(--ink);
-            margin-bottom: 10px;
-        }
-        .team-card p {
-            font-size: 14px;
-            color: var(--ink-3);
-            line-height: 1.6;
-        }
-    </style>
-    @endpush
+<section style="padding:clamp(60px,8vw,100px) var(--pad);text-align:center">
+    <h2 class="t2">Prêt à écrire le prochain chapitre avec nous&nbsp;?</h2>
+    <div style="margin-top:28px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <a class="bouton b-rouge" href="{{ route('cible.contact') }}">Demander un devis</a>
+        <a class="bouton b-ligne" href="{{ route('cible.references') }}">Voir nos réalisations</a>
+    </div>
+</section>
 
 @endsection
