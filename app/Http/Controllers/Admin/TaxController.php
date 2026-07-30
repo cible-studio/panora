@@ -223,27 +223,41 @@ class TaxController extends Controller
             default => $year,
         };
 
-        // Récap filtres pour l'en-tête PDF
+        // Récap filtres pour l'en-tête PDF — structure lisible pour l'affichage
+        // « fiche synthétique » (labels FR) + chaîne compacte legacy conservée
+        // pour l'export Excel et l'ancien nom de fichier.
+        $filterMeta  = [];
         $filterParts = [];
         if (!empty($filters['commune_id'])) {
             $c = Commune::find($filters['commune_id']);
-            if ($c) $filterParts[] = "commune={$c->name}";
+            if ($c) {
+                $filterMeta[]  = ['label' => 'Commune',  'value' => $c->name];
+                $filterParts[] = "commune={$c->name}";
+            }
         }
         if (!empty($filters['client_id'])) {
             $cl = Client::find($filters['client_id']);
-            if ($cl) $filterParts[] = "client={$cl->name}";
+            if ($cl) {
+                $filterMeta[]  = ['label' => 'Client',   'value' => $cl->name];
+                $filterParts[] = "client={$cl->name}";
+            }
         }
         if (!empty($filters['campaign_id'])) {
             $cm = Campaign::find($filters['campaign_id']);
-            if ($cm) $filterParts[] = "campagne={$cm->name}";
+            if ($cm) {
+                $filterMeta[]  = ['label' => 'Campagne', 'value' => $cm->name];
+                $filterParts[] = "campagne={$cm->name}";
+            }
         }
         if (!empty($filters['type'])) {
+            $typeLabels = ['tm' => 'Taxe Municipale (TM)', 'odp' => 'Occupation Domaine Public (ODP)'];
+            $filterMeta[]  = ['label' => 'Nature',   'value' => $typeLabels[$filters['type']] ?? strtoupper($filters['type'])];
             $filterParts[] = "type=" . strtoupper($filters['type']);
         }
         $filterSummary = implode(' · ', $filterParts);
 
         $pdf = Pdf::loadView('pdf.taxes-details', compact(
-            'lines', 'totals', 'periodLabel', 'filterSummary'
+            'lines', 'totals', 'periodLabel', 'filterSummary', 'filterMeta'
         ))->setPaper('a4', 'landscape');
 
         $filename = 'taxes-details-' . str_replace(' ', '-', strtolower($periodLabel)) . '.pdf';
