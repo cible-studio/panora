@@ -47,21 +47,20 @@ class TaxCalculationServicePureTest extends TestCase
         $this->assertEquals(50.0,  $s['tm_total']);
     }
 
-    public function test_amount_formula_uses_months_divided_by_12_not_months(): void
+    public function test_amount_formula_uses_rate_applied_not_raw_rate(): void
     {
-        // Canari statique sur la source du service : si demain quelqu'un
-        // remet l'ancienne formule ×12, ce test pète.
+        // Canari statique — TX-9 (2026-07-29).
+        // Depuis TX-9, la formule utilise $rateApplied (qui vaut tarif_mensuel
+        // pour la TM, tarif_mensuel×3 pour l'ODP forfait trimestriel) et non
+        // le $unitRate brut. Si demain quelqu'un remet l'ancienne formule
+        // (× $unitRate direct), le calcul ODP sera 3× trop bas → régression.
         $source = file_get_contents(__DIR__ . '/../../app/Services/TaxCalculationService.php');
         $this->assertStringContainsString(
-            '$amount = round($unitRate * $surface * ($months / 12), 2);',
+            '$amount = round($rateApplied * $surface * $lineMonths, 2);',
             $source,
-            'BUG TX-1 EN COURS DE RÉGRESSION : la formule generateLines() ' .
-            'doit utiliser ($months / 12) et pas $months tout court.'
-        );
-        $this->assertStringNotContainsString(
-            '$amount = round($unitRate * $surface * $months, 2);',
-            $source,
-            'BUG TX-1 EN COURS DE RÉGRESSION : l\'ancienne formule ×12 est revenue.'
+            'RÉGRESSION TX-9 : la formule generateLines() doit utiliser ' .
+            '$rateApplied (tarif effectif) et non $unitRate direct. Sinon l\'ODP ' .
+            'trimestriel n\'est plus multiplié par 3.'
         );
     }
 

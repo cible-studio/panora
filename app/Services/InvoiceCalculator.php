@@ -45,7 +45,7 @@ use App\Models\InvoiceLine;
  */
 class InvoiceCalculator
 {
-    public function __construct()
+    public function __construct(protected TaxPeriodCalculator $period = new TaxPeriodCalculator())
     {
         // Lecture des taux depuis config/billing.php — chaque taux peut
         // être surchargé par ENV sans toucher au code.
@@ -62,13 +62,33 @@ class InvoiceCalculator
      * Calcule UNE ligne. Retourne un tableau prêt à être persisté ou
      * affiché — montant_ht_ligne, odp_ligne, tm_ligne.
      *
+     * ═══ RÈGLES DE CALCUL (mises à jour 2026-07-29 — TX-9) ═══
+     *
+     * Trois multiplicateurs distincts selon ce qu'on calcule :
+     *
+     *   LOYER PANNEAU : pu_ht_mensuel × quantite × duree_mois
+     *                    (duree_mois = négociation commerciale, saisie manuellement)
+     *
+     *   TM : tm_rate × surface × quantite × mois_TM
+     *        où mois_TM = "mois de date à date entamés strictement"
+     *        calculés depuis campaign_start → campaign_end SI fournies.
+     *        Sinon fallback sur duree_mois (compatibilité anciennes factures).
+     *
+     *   ODP : (odp_rate × 3) × surface × quantite × trimestres_ODP
+     *         où trimestres_ODP = nb trimestres calendaires touchés
+     *         par la campagne SI dates fournies. Sinon fallback
+     *         sur duree_mois (compatibilité).
+     *         Le ×3 vient de "tarif stocké mensuel → forfait trimestriel".
+     *
      * @param array{
      *   pu_ht_mensuel: float|int,
      *   quantite: int,
      *   duree_mois: float,
      *   dimension_m2: float,
      *   odp_rate_applique?: float,
-     *   tm_rate_applique?: float
+     *   tm_rate_applique?: float,
+     *   campaign_start?: string|\DateTimeInterface|null,
+     *   campaign_end?: string|\DateTimeInterface|null
      * } $line
      */
     public function calculateLine(array $line): array
@@ -90,9 +110,30 @@ class InvoiceCalculator
             ? (float) $tmRaw
             : $this->tmDefault;
 
+        // Le LOYER panneau utilise toujours duree_mois négocié.
         $montantHt = $pu * $qte * $duree;
-        $odp       = $odpRate * $m2 * $qte * $duree;
-        $tm        = $tmRate  * $m2 * $qte * $duree;
+
+        // TM et ODP : mode auto si dates campagne fournies, sinon fallback
+        // sur duree_mois (comportement historique — compat totale avec les
+        // factures FNE émises avant 2026-07-29).
+        $cs = $line['campaign_start'] ?? null;
+        $ce = $line['campaign_end']   ?? null;
+
+        if ($cs && $ce) {
+            $csDate = \Carbon\Carbon::parse($cs);
+            $ceDate = \Carbon\Carbon::parse($ce);
+
+            $moisTM         = $this->period->moisAnniversaireEntames($csDate, $ceDate);
+            $trimestresODP  = $this->period->trimestresCalendairesTouches($csDate, $ceDate);
+
+            $odp = ($odpRate * 3) * $m2 * $qte * $trimestresODP;   // forfait trimestriel ×3
+            $tm  = $tmRate       * $m2 * $qte * $moisTM;
+        } else {
+            // Compatibilité totale : ligne saisie sans dates → on utilise
+            // duree_mois (comme avant TX-9).
+            $odp = $odpRate * $m2 * $qte * $duree;
+            $tm  = $tmRate  * $m2 * $qte * $duree;
+        }
 
         // RÈGLE D'OR #4 — entiers FCFA. Pas de centimes en franc CFA.
         return [

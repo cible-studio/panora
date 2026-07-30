@@ -38,6 +38,10 @@ class QuoteBuilder
                 'dimension_m2'       => (float) $line->dimension_m2,
                 'odp_rate_applique'  => (float) $line->odp_rate_applique,
                 'tm_rate_applique'   => (float) $line->tm_rate_applique,
+                // TX-9 : dates campagne (fallback sur period_start/end du devis
+                // si les lignes ont été créées sans dates persistées).
+                'campaign_start'     => $line->campaign_start ?? $quote->period_start,
+                'campaign_end'       => $line->campaign_end   ?? $quote->period_end,
             ]);
             $line->forceFill([
                 'montant_ht_ligne' => $calc['montant_ht_ligne'],

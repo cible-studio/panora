@@ -152,6 +152,7 @@ class InvoiceFromCampaignBuilder
                     dureeMois: $dureeMois,
                     year: $year,
                     orderIdx: $orderIdx++,
+                    campaign: $campaign,
                 );
             }
 
@@ -168,6 +169,7 @@ class InvoiceFromCampaignBuilder
                     year: $year,
                     orderIdx: $orderIdx++,
                     isExternal: true,
+                    campaign: $campaign,
                 );
             }
 
@@ -190,6 +192,7 @@ class InvoiceFromCampaignBuilder
         int $year,
         int $orderIdx,
         bool $isExternal = false,
+        ?Campaign $campaign = null,
     ): InvoiceLine {
         $puHt = $negotiated[$pivotKey]
             ?? (float) ($panel->monthly_rate ?? 0);
@@ -217,6 +220,10 @@ class InvoiceFromCampaignBuilder
             'pu_ht_mensuel'         => $puHt,
             'quantite'              => 1,
             'duree_mois'            => $dureeMois,
+            // TX-9 (2026-07-29) — Dates campagne propagées pour calcul auto
+            // TM (mois anniversaire) + ODP (trimestres × forfait ×3).
+            'campaign_start'        => $campaign?->start_date,
+            'campaign_end'          => $campaign?->end_date,
             'odp_rate_applique'     => (float) $rates['odp'],
             'tm_rate_applique'      => (float) $rates['tm'],
             'order_index'           => $orderIdx,

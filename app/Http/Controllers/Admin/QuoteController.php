@@ -491,6 +491,12 @@ class QuoteController extends Controller
                 'pu_ht_mensuel'         => (int) round((float) $l['pu_ht_mensuel']),
                 'quantite'              => (int) $l['quantite'],
                 'duree_mois'            => (float) $l['duree_mois'],
+                // TX-9 (2026-07-29) — Propagation des dates campagne du devis
+                // vers chaque ligne. Permet à InvoiceCalculator/QuoteBuilder
+                // de calculer TM (mois anniversaire) et ODP (trimestres × 3)
+                // automatiquement au lieu d'utiliser duree_mois.
+                'campaign_start'        => $quote->period_start,
+                'campaign_end'          => $quote->period_end,
                 'odp_rate_applique'     => (int) $rates['odp'],
                 'tm_rate_applique'      => (int) $rates['tm'],
                 'order_index'           => $orderIdx++,

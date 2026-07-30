@@ -374,4 +374,82 @@ class InvoiceCalculatorTest extends TestCase
         $this->assertEqualsWithDelta(30000,  $totals['services_pose_depose'], 0.01);
         $this->assertEqualsWithDelta(322200, $totals['total_a_payer'],        0.01);
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // TX-9 (2026-07-29) — Mode "dates campagne fournies"
+    // TM = mois anniversaires · ODP = trimestres × (tarif × 3)
+    // ═══════════════════════════════════════════════════════════════════
+
+    public function test_tx9_avec_dates_campagne_courte_1_mois_1_trimestre(): void
+    {
+        $calc = new InvoiceCalculator();
+
+        // Campagne 01/03 → 05/03 (5 jours) : TM = 1 mois, ODP = 1 trimestre (T1)
+        $line = [
+            'pu_ht_mensuel'     => 100000,
+            'quantite'          => 1,
+            'duree_mois'        => 1,          // saisi par le commercial
+            'dimension_m2'      => 12,
+            'odp_rate_applique' => 4000,       // Adjamé
+            'tm_rate_applique'  => 1000,
+            'campaign_start'    => '2026-03-01',
+            'campaign_end'      => '2026-03-05',
+        ];
+
+        $c = $calc->calculateLine($line);
+
+        // Loyer = pu × qte × duree_mois négocié = 100000 × 1 × 1 = 100000
+        $this->assertEquals(100000, $c['montant_ht_ligne']);
+        // TM = 1000 × 12 × 1 mois anniv = 12 000
+        $this->assertEquals(12000, $c['tm_ligne']);
+        // ODP = (4000 × 3) × 12 × 1 trimestre = 144 000 (forfait T1 plein)
+        $this->assertEquals(144000, $c['odp_ligne']);
+    }
+
+    public function test_tx9_avec_dates_campagne_15mars_30avril_2_mois_2_trimestres(): void
+    {
+        $calc = new InvoiceCalculator();
+
+        // Campagne 15/03 → 30/04 : TM = 2 mois (anniv 15/04 dépassé),
+        // ODP = 2 trimestres (T1 + T2 touchés)
+        $line = [
+            'pu_ht_mensuel'     => 100000,
+            'quantite'          => 1,
+            'duree_mois'        => 2,
+            'dimension_m2'      => 12,
+            'odp_rate_applique' => 4000,
+            'tm_rate_applique'  => 1000,
+            'campaign_start'    => '2026-03-15',
+            'campaign_end'      => '2026-04-30',
+        ];
+
+        $c = $calc->calculateLine($line);
+
+        $this->assertEquals(200000, $c['montant_ht_ligne'], 'Loyer 2 mois négociés');
+        $this->assertEquals(24000,  $c['tm_ligne'],         'TM = 1000×12×2');
+        $this->assertEquals(288000, $c['odp_ligne'],        'ODP = 4000×3×12×2 trimestres');
+    }
+
+    public function test_tx9_sans_dates_campagne_fallback_ancien_comportement(): void
+    {
+        $calc = new InvoiceCalculator();
+
+        // Sans dates → fallback sur duree_mois pour TM et ODP
+        // (compatibilité totale avec les factures FNE émises avant TX-9)
+        $line = [
+            'pu_ht_mensuel'     => 100000,
+            'quantite'          => 1,
+            'duree_mois'        => 3,
+            'dimension_m2'      => 12,
+            'odp_rate_applique' => 4000,
+            'tm_rate_applique'  => 1000,
+            // campaign_start / campaign_end ABSENTS
+        ];
+
+        $c = $calc->calculateLine($line);
+
+        $this->assertEquals(300000, $c['montant_ht_ligne'], 'Loyer 3 mois');
+        $this->assertEquals(36000,  $c['tm_ligne'],         'TM ancien : 1000×12×3');
+        $this->assertEquals(144000, $c['odp_ligne'],        'ODP ancien : 4000×12×3 (PAS ×3 trimestriel)');
+    }
 }
