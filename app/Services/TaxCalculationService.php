@@ -43,6 +43,8 @@ class TaxCalculationService
     public const PERIOD_ANNUAL     = 'annuel';
     public const PERIOD_CUSTOM     = 'personnalise';
 
+    public function __construct(protected TaxPeriodCalculator $period = new TaxPeriodCalculator()) {}
+
     /**
      * Produit la liste détaillée des lignes de taxes pour une période
      * donnée — une ligne par (panneau × type taxe éligible). Source
@@ -125,36 +127,53 @@ class TaxCalculationService
                 // Convention officielle CIBLE CI documentée dans le seeder
                 // CommuneTaxRatesSeeder.
 
-                // FIX TX-7 (2026-06-26, validé par patronne) — Mois facturables
-                // PAR LIGNE (pas durée du filtre).
-                // Avant : on multipliait par $months (durée du filtre : 1 / 3 / 12)
-                // pour TOUTES les lignes → campagne d'1 mois sur T1 facturée × 3.
-                // Maintenant :
-                //   - TM  : nb de mois calendaires où la campagne occupait
-                //           le panneau dans la période filtre (intersection
-                //           [campagne, période]).
-                //   - ODP : nb de mois calendaires d'existence du panneau dans
-                //           la période (created_at / deleted_at pris en compte).
-                // Aligné avec calculTMCommune / calculODPCommune qui faisaient
-                // déjà ce prorata par panneau — la vue détail ne le faisait pas
-                // → totaux dashboard et détail désormais cohérents.
+                // ═══ RÈGLES MÉTIER VALIDÉES PAR ÉCRIT — 2026-07-29 ═══
+                //
+                // TM : nombre de "mois de date à date ENTAMÉS strictement"
+                //      depuis le début de la campagne, dans la période filtre.
+                //      Exemple : 15/03 → 30/04 = 2 mois (anniv 15/04 dépassé
+                //      strictement par 30/04).
+                //
+                // ODP : facturation par TRIMESTRE CALENDAIRE. 1 seul jour
+                //       dans le trimestre = trimestre entier compté.
+                //       Le tarif stocké est mensuel → on facture ×3 par
+                //       trimestre (tarif_mensuel × 3 = forfait_trimestriel).
+                //
+                // Historique : avant TX-9 (2026-07-29), la TM comptait les
+                // mois calendaires touchés (1 jour dans mars + 1 jour dans
+                // avril = 2 mois). L'ODP comptait aussi les mois. La nouvelle
+                // règle est plus juste comptablement et alignée avec la
+                // pratique terrain du MP (validée par la patronne).
                 if ($type === self::TYPE_TM
                     && !empty($assignment['campaign_start'])
                     && !empty($assignment['campaign_end'])) {
-                    $debutInter = $periodStart->copy()->max($assignment['campaign_start']);
-                    $finInter   = $periodEnd->copy()->min($assignment['campaign_end']);
-                    $lineMonths = $finInter->lessThan($debutInter)
-                        ? 0
-                        : $this->compteMoisCalendaires($debutInter, $finInter);
+                    $lineMonths = $this->period->moisTMDansPeriode(
+                        $assignment['campaign_start'],
+                        $assignment['campaign_end'],
+                        $periodStart,
+                        $periodEnd
+                    );
+                    $rateApplied = $unitRate;   // tarif mensuel appliqué
+                    $unitLabel   = 'mois';       // libellé pour l'affichage
                 } elseif ($type === self::TYPE_ODP) {
-                    $lineMonths = $this->moisExistencePanneau($panel, $periodStart, $periodEnd);
+                    $lineMonths = $this->period->trimestresODPDansPeriode(
+                        $panel->created_at ?? $periodStart,
+                        $panel->deleted_at,
+                        $periodStart,
+                        $periodEnd
+                    );
+                    // Forfait trimestriel = tarif_mensuel × 3
+                    $rateApplied = $unitRate * 3;
+                    $unitLabel   = 'trimestre';
                 } else {
                     // Garde-fou : si TM sans dates campagne connues (rare).
-                    $lineMonths = $months;
+                    $lineMonths  = $months;
+                    $rateApplied = $unitRate;
+                    $unitLabel   = 'mois';
                 }
 
                 if ($lineMonths === 0) continue;
-                $amount = round($unitRate * $surface * $lineMonths, 2);
+                $amount = round($rateApplied * $surface * $lineMonths, 2);
 
                 $lines->push([
                     'commune'        => $commune->name,
@@ -177,8 +196,10 @@ class TaxCalculationService
                     'campaign_end'   => $assignment['campaign_end']   ?? null,
                     'period_start'   => $periodStart,
                     'period_end'     => $periodEnd,
-                    'months'         => $lineMonths,
-                    'rate'           => $unitRate,
+                    'months'         => $lineMonths,        // Nb d'unités (mois pour TM, trimestres pour ODP)
+                    'unit'           => $unitLabel,         // 'mois' | 'trimestre' (pour l'affichage)
+                    'rate'           => $unitRate,          // Tarif mensuel stocké (référence)
+                    'rate_applied'   => $rateApplied,       // Tarif effectivement appliqué (=×3 pour ODP)
                     'amount'         => $amount,
                 ]);
             }

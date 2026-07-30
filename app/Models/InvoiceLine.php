@@ -26,6 +26,7 @@ class InvoiceLine extends Model implements Auditable
         'invoice_id', 'panel_id', 'external_panel_id', 'commune_id',
         'designation', 'snapshot_commune_name', 'dimension_m2',
         'pu_ht_mensuel', 'quantite', 'duree_mois',
+        'campaign_start', 'campaign_end',   // TX-9 (2026-07-29) — calcul auto TM/ODP
         'montant_ht_ligne',
         'odp_rate_applique', 'tm_rate_applique',
         'odp_ligne', 'tm_ligne',
@@ -42,6 +43,8 @@ class InvoiceLine extends Model implements Auditable
         'pu_ht_mensuel'     => 'integer',
         'quantite'          => 'integer',
         'duree_mois'        => 'decimal:2',
+        'campaign_start'    => 'date',
+        'campaign_end'      => 'date',
         'montant_ht_ligne'  => 'integer',
         'odp_rate_applique' => 'integer',
         'tm_rate_applique'  => 'integer',

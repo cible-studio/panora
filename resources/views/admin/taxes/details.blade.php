@@ -289,7 +289,14 @@
                             @endif
                         </td>
                         <td style="text-align:right;font-size:12px;color:var(--text2);">
-                            {{ number_format($row['rate'], 0, ',', ' ') }} × {{ rtrim(rtrim(number_format($row['surface'], 2), '0'), '.') }}m² × {{ $row['months'] }}m
+                            @php
+                                // TX-9 (2026-07-29) : affichage adapté au type
+                                //   TM  → tarif_mensuel × surface × Nm (mois anniversaires)
+                                //   ODP → (tarif_mensuel × 3) × surface × Nt (trimestres forfaitaires)
+                                $rateShown = $row['rate_applied'] ?? $row['rate'];
+                                $unitAbbr  = ($row['unit'] ?? 'mois') === 'trimestre' ? 't' : 'm';
+                            @endphp
+                            {{ number_format($rateShown, 0, ',', ' ') }} × {{ rtrim(rtrim(number_format($row['surface'], 2), '0'), '.') }}m² × {{ $row['months'] }}{{ $unitAbbr }}
                         </td>
                         <td style="text-align:right;font-weight:700;color:var(--accent);">
                             {{ number_format($row['amount'], 0, ',', ' ') }} FCFA
@@ -335,7 +342,10 @@
     </div>
 
     <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center;">
-        💡 Chaque montant est justifiable : tarif appliqué × surface du panneau × nombre de mois.
+        💡 <strong>TM</strong> : tarif mensuel × surface × <em>mois de date à date entamés</em>
+        (règle « anniversaire glissant »).<br>
+        💡 <strong>ODP</strong> : (tarif mensuel × 3) × surface × <em>trimestres calendaires touchés</em>
+        — 1 jour dans un trimestre = trimestre entier compté.<br>
         Les tarifs utilisent l'<strong>historique tarifaire</strong> de la commune (cohérence rétroactive).
     </div>
 
