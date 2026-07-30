@@ -4,50 +4,70 @@
     <meta charset="UTF-8">
     <title>Détail Taxes — {{ $periodLabel }}</title>
     <style>
-        /* FIX 2026-06-26 — Marges de page A4 paysage + centrage tableau.
-           Avant : pas de @page → le tableau collait aux bords physiques de la
-           page (effet "tableau désaligné"). Maintenant : marges 10mm uniformes
-           + width:100% du tableau → bien centré dans la zone imprimable. */
-        @page { size: A4 landscape; margin: 10mm 10mm 12mm 10mm; }
+        /* FIX 2026-07-30 — Marges de page A4 paysage revues pour aération.
+           Avant : 10mm + paddings internes non uniformes (header 18px,
+           kpi-grid 0 18px, table 0) → aspect "collé aux bords". Maintenant :
+           marges 14/16mm + tous les blocs héritent de la même largeur imprimable,
+           plus aucun padding latéral différencié. */
+        @page { size: A4 landscape; margin: 14mm 14mm 18mm 14mm; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'DejaVu Sans', sans-serif; font-size:9px; color:#1a1a2e; }
 
         .header {
             background:#0a0c10; color:white;
-            padding:14px 18px; margin-bottom:14px;
+            padding:16px 18px;
+            margin-bottom:14px;
+            border-bottom:3px solid #e8a020;
+            border-radius:4px;
         }
-        .logo { font-size:18px; font-weight:800; color:#e8a020; }
-        .logo-sub { font-size:9px; color:#8a90a2; }
-        .header-meta { margin-top:6px; font-size:10px; }
+        .logo { font-size:19px; font-weight:800; color:#e8a020; letter-spacing:.2px; }
+        .logo-sub { font-size:9.5px; color:#c9cdd6; margin-top:3px; letter-spacing:.3px; }
+        .header-issued { font-size:8.5px; color:#8a90a2; margin-top:2px; }
+        .header-period {
+            font-family:'DejaVu Serif', serif;
+            font-size:11.5px; font-weight:700; color:#f5f5f7;
+            letter-spacing:.3px;
+        }
 
-        /* FIX 2026-06-25 — display:flex non supporté par DomPDF (les KPI
-           se retrouvaient empilés verticalement). Remplacé par display:table
-           + table-cell qui rendent correctement les colonnes horizontales. */
-        .kpi-grid {
-            display:table; width:100%; padding:0 18px;
-            margin-bottom:14px; border-collapse:separate; border-spacing:6px 0;
+        /* Fiche synthétique — style « en-tête administratif ».
+           Deux colonnes label / valeur alignées, feuillet blanc bordé
+           d'un liseré doré pour lier au header. */
+        .synth {
+            display:table; width:100%;
+            margin-bottom:16px; padding:12px 18px;
+            background:#fbfbfd; border:1px solid #e5e7eb;
+            border-left:3px solid #e8a020; border-radius:4px;
         }
-        .kpi {
-            display:table-cell; padding:8px 10px; border-radius:6px;
-            background:#f8fafc; border-left:3px solid #e8a020;
-            vertical-align:top;
+        .synth-row { display:table-row; }
+        .synth-lbl, .synth-val {
+            display:table-cell; padding:3px 8px 3px 0;
+            font-size:9.5px; vertical-align:top;
         }
-        .kpi .lbl { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:#6b7280; }
-        .kpi .val { font-size:13px; font-weight:800; color:#0a0c10; margin-top:2px; }
+        .synth-lbl {
+            width:110px;
+            font-weight:700; color:#6b7280;
+            text-transform:uppercase; letter-spacing:.3px;
+            font-size:8.5px;
+        }
+        .synth-val {
+            font-weight:600; color:#0a0c10;
+        }
 
         table { width:100%; border-collapse:collapse; font-size:8.5px; }
         thead th {
             background:#0a0c10; color:#e8a020;
-            padding:7px 6px; text-align:left;
+            padding:8px 8px; text-align:left;
             font-size:8px; text-transform:uppercase; letter-spacing:.3px;
         }
-        tbody td { padding:6px; border-bottom:1px solid #e5e7eb; vertical-align:top; }
+        thead th:first-child { border-top-left-radius:4px; }
+        thead th:last-child  { border-top-right-radius:4px; }
+        tbody td { padding:7px 8px; border-bottom:1px solid #e5e7eb; vertical-align:top; }
         tbody tr:nth-child(even) td { background:#fafbfc; }
         .right { text-align:right; }
         .mono { font-family:'DejaVu Sans Mono', monospace; }
 
         .badge {
-            display:inline-block; padding:1px 6px;
+            display:inline-block; padding:2px 7px;
             border-radius:8px; font-size:8px; font-weight:700;
         }
         .badge-tm  { background:#dcfce7; color:#16a34a; }
@@ -56,56 +76,75 @@
 
         .total-row td {
             background:#0a0c10 !important;
-            color:#e8a020; font-weight:800; padding:10px 6px;
-            font-size:10px;
+            color:#e8a020; font-weight:800; padding:11px 8px;
+            font-size:10.5px;
+            border-bottom:none;
         }
+        .total-row td:first-child { border-bottom-left-radius:4px; }
+        .total-row td:last-child  { border-bottom-right-radius:4px; }
 
         .commune-group {
             background:#fef3c7; font-weight:800; font-size:10px;
-            padding:8px 6px !important; color:#92400e;
+            padding:9px 8px !important; color:#92400e;
+            border-left:3px solid #e8a020;
         }
 
         .footer {
-            position:fixed; bottom:8px; left:0; right:0;
+            position:fixed; bottom:6mm; left:14mm; right:14mm;
             font-size:8px; color:#9ca3af; text-align:center;
+            padding-top:6px; border-top:1px solid #e5e7eb;
         }
         .footer-note {
-            padding:10px 18px; margin-top:14px;
+            padding:11px 14px; margin-top:18px;
             background:#f8fafc; border-left:3px solid #e8a020;
-            font-size:8.5px; color:#475569;
+            border-radius:4px;
+            font-size:8.5px; color:#475569; line-height:1.5;
         }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-            @if(!empty($logoCibleDark))
-                <img src="{{ $logoCibleDark }}" alt="CIBLE CI" style="height:34px;margin-bottom:4px;">
-            @else
-                <div class="logo">CIBLE CI</div>
-            @endif
-            <div class="logo-sub">Détail des taxes communales · {{ $operatorName ?? 'CIBLE CI' }}</div>
-        </div>
-        <div style="text-align:right; font-size:9px;">
-            <div>{{ $periodLabel }}</div>
-            <div style="color:#8a90a2;">Édité le {{ now()->format('d/m/Y H:i') }}</div>
-        </div>
-    </div>
-    @if(!empty($filterSummary))
-    <div class="header-meta">
-        <strong>Filtres :</strong> {{ $filterSummary }}
-    </div>
-    @endif
+    <table style="width:100%; border-collapse:collapse;">
+        <tr>
+            <td style="vertical-align:middle;">
+                @if(!empty($logoCibleDark))
+                    <img src="{{ $logoCibleDark }}" alt="CIBLE CI" style="height:34px;margin-bottom:4px;">
+                @else
+                    <div class="logo">CIBLE CI</div>
+                @endif
+                <div class="logo-sub">Détail des taxes communales</div>
+            </td>
+            <td style="vertical-align:middle; text-align:right;">
+                <div class="header-period">{{ $periodLabel }}</div>
+                <div class="header-issued">Édité le {{ now()->format('d/m/Y') }} à {{ now()->format('H\hi') }}</div>
+            </td>
+        </tr>
+    </table>
 </div>
 
-<div class="kpi-grid">
-    <div class="kpi"><div class="lbl">Total</div><div class="val">{{ number_format($totals['total'], 0, ',', ' ') }} FCFA</div></div>
-    <div class="kpi"><div class="lbl">TM</div><div class="val">{{ number_format($totals['by_type']['tm']  ?? 0, 0, ',', ' ') }}</div></div>
-    <div class="kpi"><div class="lbl">ODP</div><div class="val">{{ number_format($totals['by_type']['odp'] ?? 0, 0, ',', ' ') }}</div></div>
-    <div class="kpi"><div class="lbl">Panneaux</div><div class="val">{{ $totals['panels_count'] }}</div></div>
-    <div class="kpi"><div class="lbl">Lignes</div><div class="val">{{ $totals['lines_count'] }}</div></div>
+{{-- Fiche synthétique — remplace la barre "Filtres :" et les cards KPI.
+     Présente les métadonnées du document (opérateur, période, éventuels
+     commune / nature / client / campagne) en style administratif. --}}
+<div class="synth">
+    <div class="synth-row">
+        <div class="synth-lbl">Opérateur</div>
+        <div class="synth-val">{{ $operatorName ?? 'CIBLE CI' }}</div>
+    </div>
+    <div class="synth-row">
+        <div class="synth-lbl">Période</div>
+        <div class="synth-val">{{ $periodLabel }}</div>
+    </div>
+    @foreach($filterMeta ?? [] as $row)
+        <div class="synth-row">
+            <div class="synth-lbl">{{ $row['label'] }}</div>
+            <div class="synth-val">{{ $row['value'] }}</div>
+        </div>
+    @endforeach
+    <div class="synth-row">
+        <div class="synth-lbl">Panneaux</div>
+        <div class="synth-val">{{ $totals['panels_count'] }} panneau{{ $totals['panels_count'] > 1 ? 'x' : '' }} · {{ $totals['lines_count'] }} ligne{{ $totals['lines_count'] > 1 ? 's' : '' }} de facturation</div>
+    </div>
 </div>
 
 <table>
