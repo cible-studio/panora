@@ -629,7 +629,7 @@
                             @if($isPriceModif)
                             <span class="text-xs bg-green-500/10 text-green-400 border border-green-500/20 px-1.5 py-0.5 rounded-md" title="Prix modifié">✓ négocié</span>
                             @endif
-                            @if($can['update'])
+                            @if($can['updatePrice'])
                             <button type="button" onclick="showPriceEdit({{ $panel->id }}, {{ $unitPrice }}, {{ $catalogue }})"
                                     class="ml-1 p-1 rounded-lg text-gray-600 hover:text-[#e8a020] hover:bg-[#e8a020]/10 transition-all" title="Modifier">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -638,7 +638,7 @@
                             </button>
                             @endif
                         </div>
-                        @if($can['update'])
+                        @if($can['updatePrice'])
                         <div id="price-edit-{{ $panel->id }}" class="hidden">
                             <form method="POST" action="{{ route('admin.reservations.panels.price', [$reservation, $panel]) }}"
                                   onsubmit="return validatePriceForm({{ $panel->id }})">
@@ -864,14 +864,14 @@
                                 {{ number_format($row['unit_price'], 0, ',', ' ') }} FCFA
                             </span>
                             @if($isPriceModif)<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(34,197,94,.1);color:#22c55e;border:1px solid rgba(34,197,94,.25)" title="Prix négocié">✓</span>@endif
-                            @if($can['update'])
+                            @if($can['updatePrice'])
                                 <button type="button" onclick="showPriceEdit('{{ $rowKey }}')"
                                         style="padding:3px;border:none;background:transparent;color:var(--text3);cursor:pointer;border-radius:4px" title="Modifier">
                                     <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                 </button>
                             @endif
                         </div>
-                        @if($can['update'])
+                        @if($can['updatePrice'])
                         <div id="price-edit-{{ $rowKey }}" style="display:none;margin-top:4px">
                             <form method="POST" action="{{ $row['edit_url'] }}" style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
                                 @csrf @method('PATCH')

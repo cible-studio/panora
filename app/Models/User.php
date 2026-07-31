@@ -128,6 +128,35 @@ class User extends Authenticatable
         return $this->role === UserRole::TECHNIQUE;
     }
 
+    public function isComptable(): bool
+    {
+        return $this->role === UserRole::COMPTABLE;
+    }
+
+    /**
+     * Peut ajuster les prix qui alimentent les futures factures :
+     * tarif catalogue panneau (monthly_rate), prix négocié en réservation
+     * ou campagne (unit_price pivot), lignes de devis, tarifs TM/ODP par
+     * commune, services impression/pose-dépose.
+     *
+     * Source unique de vérité — utilisée par toutes les policies
+     * concernées (Panel, Reservation, Campaign, Quote) et par le
+     * middleware des routes de tarifs communaux.
+     *
+     * Ne PAS confondre avec update() qui reste réservé au MP pour les
+     * champs non-prix (photos, GPS, dimensions, statut). Modifier un
+     * prix n'affecte JAMAIS rétroactivement une facture déjà émise
+     * (snapshots figés dans invoice_lines).
+     */
+    public function canEditPrices(): bool
+    {
+        return in_array($this->role, [
+            UserRole::ADMIN,
+            UserRole::MEDIAPLANNER,
+            UserRole::COMPTABLE,
+        ], true);
+    }
+
     // ── M1 Performance Commerciale (mission 2026-06-17) ──
     /** Scope : tous les users avec role='commercial' actifs. */
     public function scopeCommerciaux($query)

@@ -77,6 +77,34 @@ class ReservationPolicy
     }
 
     /**
+     * Modifier UNIQUEMENT les prix négociés (unit_price sur pivot
+     * reservation_panels, internes + externes). Cible : le Comptable
+     * qui coordonne les futures factures sans avoir à toucher aux
+     * panneaux, dates ou statut de la résa.
+     *
+     * Élargit update() : garde les droits MP + Commercial owner, ajoute
+     * le Comptable (User::canEditPrices()). Toujours borné par
+     * isEditable() — une résa terminée / annulée reste verrouillée.
+     */
+    public function updatePrice(User $user, Reservation $reservation): bool
+    {
+        if (!$reservation->isEditable()) return false;
+        if ($reservation->client?->trashed()) return false;
+
+        if ($user->canEditPrices()) return true;
+
+        // Commercial owner : mêmes règles que update()
+        if ($user->role === UserRole::COMMERCIAL) {
+            $uid = (int) $user->id;
+            return (int) ($reservation->commercial_user_id ?? 0) === $uid
+                || ($reservation->commercial_user_id === null
+                    && (int) ($reservation->user_id ?? 0) === $uid);
+        }
+
+        return false;
+    }
+
+    /**
      * Changer statut (Confirmer/Refuser) : ADMIN UNIQUEMENT.
      * Action de fallback exceptionnel quand le client ne peut pas
      * confirmer/refuser via le lien proposition. Le MP ne valide pas

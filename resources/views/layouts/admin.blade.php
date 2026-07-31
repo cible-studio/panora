@@ -133,6 +133,17 @@
                         <span class="nav-text">Taxes Communes</span>
                     </a>
                     @endif
+                    {{-- Programmation des tarifs communaux (ODP/TM futurs).
+                         Ouvert au comptable qui pilote l'anticipation
+                         tarifaire. Le tarif COURANT reste sous admin
+                         (page paramètres) pour éviter les changements
+                         rétroactifs accidentels. --}}
+                    @if($isAdmin || $isComptable)
+                    <a href="{{ route('admin.settings.communes.tariffs') }}" data-tooltip="Tarifs communes (programmer)" class="nav-item {{ request()->routeIs('admin.settings.communes.tariffs*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg></span>
+                        <span class="nav-text">Tarifs communes</span>
+                    </a>
+                    @endif
                     {{-- 2026-07-21 : Facturation ouvert au comptable + commercial
                          (émission, édition, envoi + saisie versements + relances). --}}
                     @if($isAdmin || $isComptable || $isCom)

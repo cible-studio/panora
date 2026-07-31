@@ -47,6 +47,18 @@ class PanelPolicy
         return $user->role === UserRole::MEDIAPLANNER;
     }
 
+    /**
+     * Éditer uniquement le tarif catalogue (monthly_rate) du panneau.
+     * Ouvert au Comptable pour qu'il coordonne les futures factures
+     * sans avoir besoin du MP (cf. User::canEditPrices()).
+     *
+     * update() reste MP-only pour photos, GPS, dimensions, statut.
+     */
+    public function updatePrice(User $user, Panel $panel): bool
+    {
+        return $user->canEditPrices();
+    }
+
     /** Changer manuellement le statut libre <-> maintenance : MP + Admin. */
     public function updateStatus(User $user, Panel $panel): bool
     {

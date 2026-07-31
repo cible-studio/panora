@@ -1232,7 +1232,7 @@
                         $isNegotiated   = $negotiatedRate !== null && abs($negotiatedRate - $catalogRate) > 0.01;
                         $deferKey       = 'int_' . $panel->id;
                         $deferredStart  = $deferredStartByPanel[$deferKey] ?? null;
-                        $canEditPrice   = $can['managePanel'];
+                        $canEditPrice   = $can['updatePrice'];
                     @endphp
                     <tr class="border-b transition-all group" data-panel-row style="border-color:var(--border)"
                         onmouseover="this.style.background='var(--surface2)'"
