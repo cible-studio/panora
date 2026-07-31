@@ -3,16 +3,16 @@
         <a href="{{ route('admin.quotes.index') }}" class="btn btn-ghost btn-sm">← Retour aux devis</a>
     </x-slot:topbarLeft>
     <x-slot:topbarActions>
-        <a href="{{ route('admin.quotes.pdf', $quote) }}" class="btn btn-ghost btn-sm">📄 <span class="btn-label">Télécharger PDF</span></a>
+        <a href="{{ route('admin.quotes.pdf', $quote) }}" class="btn btn-ghost btn-sm" title="Télécharger le PDF du devis">📄 <span class="btn-label">Télécharger PDF</span></a>
         @can('update', $quote)
-            <a href="{{ route('admin.quotes.edit', $quote) }}" class="btn btn-ghost btn-sm">✏️ <span class="btn-label">Modifier</span></a>
+            <a href="{{ route('admin.quotes.edit', $quote) }}" class="btn btn-ghost btn-sm" title="Modifier le devis">✏️ <span class="btn-label">Modifier</span></a>
         @endcan
         @can('updatePrice', $quote)
             @cannot('update', $quote)
                 {{-- Bouton dédié pour les rôles qui n'ont PAS accès à l'édition
                      complète (comptable) mais peuvent ajuster les prix. Le
                      commercial owner et l'admin passent par "Modifier". --}}
-                <button type="button" class="btn btn-ghost btn-sm"
+                <button type="button" class="btn btn-ghost btn-sm" title="Ajuster les prix du devis"
                         onclick="document.getElementById('quote-price-form').classList.toggle('is-open');window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})">
                     💰 <span class="btn-label">Ajuster les prix</span>
                 </button>
@@ -21,13 +21,13 @@
         @can('send', $quote)
             <form method="POST" action="{{ route('admin.quotes.send', $quote) }}" style="display:inline" onsubmit="return confirm('Envoyer ce devis au client ?')">
                 @csrf
-                <button type="submit" class="btn btn-primary btn-sm">📤 Envoyer au client</button>
+                <button type="submit" class="btn btn-primary btn-sm keep-label" title="Envoyer le devis au client">📤 <span class="btn-label">Envoyer au client</span></button>
             </form>
         @endcan
         @can('duplicate', $quote)
             <form method="POST" action="{{ route('admin.quotes.duplicate', $quote) }}" style="display:inline">
                 @csrf
-                <button type="submit" class="btn btn-ghost btn-sm" title="Dupliquer">📋 <span class="btn-label">Dupliquer</span></button>
+                <button type="submit" class="btn btn-ghost btn-sm" title="Dupliquer le devis">📋 <span class="btn-label">Dupliquer</span></button>
             </form>
         @endcan
     </x-slot:topbarActions>
