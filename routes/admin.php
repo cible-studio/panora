@@ -785,8 +785,19 @@ Route::prefix('admin')
                 Route::get('{quote}',            [\App\Http\Controllers\Admin\QuoteController::class, 'show'])->name('show')->whereNumber('quote');
                 Route::get('{quote}/pdf',        [\App\Http\Controllers\Admin\QuoteController::class, 'exportPdf'])->name('pdf')->whereNumber('quote');
             });
-            // Écriture réservée admin + commercial (les MP/comptable sont
-            // en lecture seule sur les devis — c'est un flux commercial).
+            // Édition ciblée des PRIX (lignes panneau + services) : ouverte
+            // au comptable en plus d'admin/commercial. Le comptable ne peut
+            // PAS modifier la structure (panneaux/période/remise/envoi) —
+            // uniquement les tarifs, pour coordonner l'anticipation de
+            // facturation. Autorisation fine via QuotePolicy::updatePrice.
+            Route::middleware('role:admin,commercial,comptable')->group(function () {
+                Route::post('{quote}/price', [\App\Http\Controllers\Admin\QuoteController::class, 'updatePrice'])
+                    ->name('price')->whereNumber('quote');
+            });
+
+            // Écriture (structure) réservée admin + commercial (les MP/comptable
+            // sont en lecture seule sur la structure — le prix passe par la
+            // route dédiée ci-dessus).
             Route::middleware('role:admin,commercial')->group(function () {
                 // AJAX — recherche panneaux (autocomplete Select2 dans le form devis)
                 // Doit rester AVANT create() pour ne pas être matché par {quote}.

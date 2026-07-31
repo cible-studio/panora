@@ -69,6 +69,29 @@ class QuotePolicy
         return false;
     }
 
+    /**
+     * Modifier UNIQUEMENT les prix (pu_ht_mensuel des lignes panneau
+     * + prix_ht des services) d'un devis modifiable. Ouvert au
+     * Comptable pour coordonner l'anticipation de facturation.
+     *
+     * Distinct de update() qui reste réservé au commercial owner
+     * pour la structure du devis (ajout/retrait panneaux, période,
+     * client, remise, envoi). updatePrice n'expose que le tarif.
+     */
+    public function updatePrice(User $user, Quote $quote): bool
+    {
+        if (!$quote->isEditable()) return false;
+
+        if ($user->canEditPrices()) return true;
+
+        // Commercial owner : mêmes règles que update()
+        if ($user->role === UserRole::COMMERCIAL) {
+            return $quote->belongsToCommercialUser((int) $user->id);
+        }
+
+        return false;
+    }
+
     /** Envoyer au client. */
     public function send(User $user, Quote $quote): bool
     {

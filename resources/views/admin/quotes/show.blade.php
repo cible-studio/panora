@@ -7,6 +7,17 @@
         @can('update', $quote)
             <a href="{{ route('admin.quotes.edit', $quote) }}" class="btn btn-ghost btn-sm">✏️ <span class="btn-label">Modifier</span></a>
         @endcan
+        @can('updatePrice', $quote)
+            @cannot('update', $quote)
+                {{-- Bouton dédié pour les rôles qui n'ont PAS accès à l'édition
+                     complète (comptable) mais peuvent ajuster les prix. Le
+                     commercial owner et l'admin passent par "Modifier". --}}
+                <button type="button" class="btn btn-ghost btn-sm"
+                        onclick="document.getElementById('quote-price-form').classList.toggle('is-open');window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})">
+                    💰 <span class="btn-label">Ajuster les prix</span>
+                </button>
+            @endcannot
+        @endcan
         @can('send', $quote)
             <form method="POST" action="{{ route('admin.quotes.send', $quote) }}" style="display:inline" onsubmit="return confirm('Envoyer ce devis au client ?')">
                 @csrf
@@ -175,4 +186,77 @@
             @endif
         </div>
     </div>
+
+    {{-- Formulaire d'ajustement des PRIX uniquement — dédié au Comptable.
+         Révélé par le bouton "💰 Ajuster les prix" du topbar. Poste vers
+         admin.quotes.price (QuoteController::updatePrice) qui n'accepte
+         QUE line_prices[id] et service_prices[id] — pas de modif possible
+         sur panneaux/dates/client/remise/statut. --}}
+    @can('updatePrice', $quote)
+        @cannot('update', $quote)
+            <div id="quote-price-form" style="display:none; margin-top:24px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+                    <h3 style="font-size:16px; font-weight:700; margin:0">💰 Ajuster les prix du devis</h3>
+                    <button type="button" onclick="document.getElementById('quote-price-form').classList.remove('is-open')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:20px">✕</button>
+                </div>
+                <form method="POST" action="{{ route('admin.quotes.price', $quote) }}">
+                    @csrf
+
+                    @if($quote->lines->count() > 0)
+                        <div style="margin-bottom:16px">
+                            <div style="font-weight:700; font-size:13px; margin-bottom:8px; color:var(--text2)">🪧 Lignes panneau — PU HT mensuel (FCFA)</div>
+                            <table style="width:100%; border-collapse:collapse">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left; padding:6px; font-size:11px; color:var(--text3)">Panneau</th>
+                                        <th style="text-align:right; padding:6px; font-size:11px; color:var(--text3)">Nouveau PU</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($quote->lines as $line)
+                                        <tr>
+                                            <td style="padding:6px; font-size:13px">{{ $line->designation }}</td>
+                                            <td style="padding:6px; text-align:right">
+                                                <input type="number" name="line_prices[{{ $line->id }}]" min="0" step="1"
+                                                       value="{{ (int) $line->pu_ht_mensuel }}"
+                                                       style="width:130px; padding:5px 8px; border:1px solid var(--border); border-radius:6px; text-align:right; font-weight:600">
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
+                    @if($quote->services->count() > 0)
+                        <div style="margin-bottom:16px">
+                            <div style="font-weight:700; font-size:13px; margin-bottom:8px; color:var(--text2)">🔧 Services annexes — Prix HT (FCFA)</div>
+                            <table style="width:100%; border-collapse:collapse">
+                                <tbody>
+                                    @foreach($quote->services as $svc)
+                                        <tr>
+                                            <td style="padding:6px; font-size:13px">{{ $svc->label }}</td>
+                                            <td style="padding:6px; text-align:right">
+                                                <input type="number" name="service_prices[{{ $svc->id }}]" min="0" step="1"
+                                                       value="{{ (int) $svc->prix_ht }}"
+                                                       style="width:130px; padding:5px 8px; border:1px solid var(--border); border-radius:6px; text-align:right; font-weight:600">
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:12px; border-top:1px solid var(--border)">
+                        <p style="font-size:11px; color:var(--text3); margin:0">
+                            Les nouveaux prix seront recalculés (HT / TVA / TTC / taxes / total) automatiquement.
+                        </p>
+                        <button type="submit" class="btn btn-primary btn-sm">💾 Enregistrer les prix</button>
+                    </div>
+                </form>
+                <style>#quote-price-form.is-open { display:block !important; }</style>
+            </div>
+        @endcannot
+    @endcan
 </x-admin-layout>

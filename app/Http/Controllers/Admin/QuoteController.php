@@ -244,6 +244,48 @@ class QuoteController extends Controller
         return view('admin.quotes.edit', compact('quote', 'clients', 'campaigns', 'communes', 'validDays'));
     }
 
+    /**
+     * Édition ciblée des prix d'un devis (lignes panneau + services).
+     * Ouverte au Comptable via QuotePolicy::updatePrice (User::canEditPrices())
+     * pour coordonner l'anticipation de facturation, sans qu'il puisse
+     * modifier la structure (panneaux ajoutés/retirés, période, remise,
+     * client, envoi, conversion — ces actions restent au commercial owner).
+     *
+     * Payload attendu :
+     *   line_prices[<quote_line_id>]    = pu_ht_mensuel (integer >= 0)
+     *   service_prices[<quote_service_id>] = prix_ht (integer >= 0)
+     * IDs doivent appartenir au devis (contrôle strict, ferme IDOR).
+     */
+    public function updatePrice(Request $request, Quote $quote, QuoteBuilder $builder)
+    {
+        $this->authorize('updatePrice', $quote);
+
+        $data = $request->validate([
+            'line_prices'          => 'array',
+            'line_prices.*'        => 'integer|min:0',
+            'service_prices'       => 'array',
+            'service_prices.*'     => 'integer|min:0',
+        ]);
+
+        $lineIds    = $quote->lines()->pluck('id')->all();
+        $serviceIds = $quote->services()->pluck('id')->all();
+
+        return DB::transaction(function () use ($quote, $data, $lineIds, $serviceIds, $builder) {
+            foreach ($data['line_prices'] ?? [] as $id => $price) {
+                if (!in_array((int) $id, $lineIds, true)) continue;
+                $quote->lines()->whereKey($id)->update(['pu_ht_mensuel' => (int) $price]);
+            }
+            foreach ($data['service_prices'] ?? [] as $id => $price) {
+                if (!in_array((int) $id, $serviceIds, true)) continue;
+                $quote->services()->whereKey($id)->update(['prix_ht' => (int) $price]);
+            }
+
+            $builder->recalculateAndPersist($quote->fresh());
+
+            return back()->with('success', 'Prix du devis mis à jour.');
+        });
+    }
+
     public function update(Request $request, Quote $quote, QuoteBuilder $builder)
     {
         $this->authorize('update', $quote);
