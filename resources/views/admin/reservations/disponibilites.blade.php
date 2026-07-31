@@ -88,8 +88,8 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-3 items-stretch">
 
                 {{-- ── GROUPE 1 : 📅 Période · Statut · Source · Régie ── --}}
-                <fieldset class="filter-group-box">
-                    <legend class="filter-group-title">📅 Période & Source</legend>
+                <details class="filter-group-box" open>
+                    <summary class="filter-group-title">📅 Période & Source</summary>
 
                     <div class="filter-field">
                         <label class="filter-label">Période</label>
@@ -133,11 +133,11 @@
                         </div>
                         <div class="ms-wrapper" data-key="agency_ids" data-placeholder="Toutes"></div>
                     </div>
-                </fieldset>
+                </details>
 
                 {{-- ── GROUPE 2 : 📍 Géographie (Commune + Zone) ── --}}
-                <fieldset class="filter-group-box">
-                    <legend class="filter-group-title">📍 Géographie</legend>
+                <details class="filter-group-box" open>
+                    <summary class="filter-group-title">📍 Géographie</summary>
 
                     <div class="filter-field">
                         <div class="flex items-center justify-between">
@@ -154,11 +154,11 @@
                         </div>
                         <div class="ms-wrapper" data-key="zone_ids" data-placeholder="Toutes"></div>
                     </div>
-                </fieldset>
+                </details>
 
                 {{-- ── GROUPE 3 : 📏 Caractéristiques panneau ── --}}
-                <fieldset class="filter-group-box">
-                    <legend class="filter-group-title">📏 Caractéristiques</legend>
+                <details class="filter-group-box" open>
+                    <summary class="filter-group-title">📏 Caractéristiques</summary>
 
                     <div class="filter-field">
                         <div class="flex items-center justify-between">
@@ -191,7 +191,7 @@
                             <option value="0">🌙 Non éclairé</option>
                         </select>
                     </div>
-                </fieldset>
+                </details>
             </div>
 
             {{-- ── Barre stats + actions globales ── --}}
@@ -278,7 +278,7 @@
             <div id="panels-grid"
                 style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px;"></div>
             <div id="panels-list" style="display:none;overflow-x:auto;">
-                <table style="width:100%;border-collapse:collapse;min-width:900px;">
+                <table style="width:100%;border-collapse:collapse;min-width:720px;">
                     <thead>
                         <tr style="border-bottom:2px solid var(--border);">
                             <th style="width:36px;padding:10px 8px;"></th>
@@ -777,11 +777,37 @@
             color: var(--accent);
             text-transform: uppercase;
             letter-spacing: .8px;
-            padding: 2px 10px;
+            padding: 4px 10px;
             background: var(--surface);
             border-radius: 6px;
             border: 1px solid var(--border);
             margin-bottom: 4px;
+            cursor: pointer;
+            list-style: none;
+            user-select: none;
+        }
+        /* Retire le marker natif ▶/▼ des <summary> — on utilise une flèche
+           custom qui pivote avec l'état ouvert. */
+        .filter-group-title::-webkit-details-marker { display: none; }
+        .filter-group-title::marker { content: ''; }
+        .filter-group-title::after {
+            content: '▼';
+            float: right;
+            font-size: 9px;
+            opacity: .6;
+            transition: transform .2s;
+        }
+        details.filter-group-box:not([open]) .filter-group-title::after {
+            transform: rotate(-90deg);
+        }
+        /* Sur mobile : filtres 2 & 3 collapsés par défaut pour libérer l'écran.
+           L'utilisateur peut les rouvrir en tapant sur le titre. */
+        @media (max-width: 640px) {
+            details.filter-group-box { min-height: auto; }
+            /* Les 2 derniers groupes (Géographie + Caractéristiques) collapsent
+               automatiquement en mobile — on ne peut pas retirer `open` en Blade
+               conditionnel côté serveur car on ignore la taille écran, donc on
+               force via CSS + tiny script en dessous. */
         }
         /* Chaque filtre = un mini-bloc (label + champ) regroupé. */
         .filter-group-box .filter-field {
@@ -1133,6 +1159,31 @@
     </style>
 
     @push('scripts')
+        {{-- Collapse auto des groupes de filtres 2 & 3 (Géographie +
+             Caractéristiques) sur mobile <640px pour libérer l'écran.
+             Le 1er groupe (Période & Source) reste ouvert car c'est
+             le filtre principal. --}}
+        <script>
+            (function () {
+                function applyMobileCollapse() {
+                    if (window.innerWidth > 640) return;
+                    var boxes = document.querySelectorAll('details.filter-group-box');
+                    // Collapse groupes 2 & 3 (index 1 et 2) au premier chargement mobile
+                    boxes.forEach(function (el, i) {
+                        if (i >= 1 && !el.dataset.mobileToggled) {
+                            el.open = false;
+                            el.dataset.mobileToggled = '1';
+                        }
+                    });
+                }
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', applyMobileCollapse);
+                } else {
+                    applyMobileCollapse();
+                }
+            })();
+        </script>
+
         {{-- ══════════════════════════════════════════════════════
      CLIENT PICKER — combobox custom + carte client sélectionné
      Remplace l'ancien Select2. Léger, contrôlé, sans dépendance jQuery.

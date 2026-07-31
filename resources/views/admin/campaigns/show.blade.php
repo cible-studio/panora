@@ -43,7 +43,7 @@
                       style="display:inline;"
                       onsubmit="return confirm({{ json_encode($confirmMsg) }});">
                     @csrf
-                    <button type="submit" class="btn btn-primary btn-sm">{{ $label }}</button>
+                    <button type="submit" class="btn btn-primary btn-sm keep-label" title="{{ $label }}">{{ $label }}</button>
                 </form>
             @endif
         @endif
@@ -66,13 +66,13 @@
         @endif
         @php $isTermineeTop = $campaign->status->value === 'termine'; @endphp
         @if($can['update'] && !$isTermineeTop)
-            <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn btn-ghost btn-sm">✏️ Modifier</a>
+            <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn btn-ghost btn-sm" title="Modifier la campagne">✏️ <span class="btn-label">Modifier</span></a>
         @elseif($can['managePanel'])
             {{-- Campagne terminée : édition complète bloquée (submit refusé par
                  update()), mais on permet de corriger le nom via un modal ciblé
                  (saisie d'historique). Affiché par STATUT, pas par permission,
                  car pour un admin $can['update'] reste vrai (bypass before()). --}}
-            <button type="button" onclick="openRenameModal()" class="btn btn-ghost btn-sm">✏️ Renommer</button>
+            <button type="button" onclick="openRenameModal()" class="btn btn-ghost btn-sm" title="Renommer la campagne">✏️ <span class="btn-label">Renommer</span></button>
         @endif
         @if($can['delete'])
             <button type="button"

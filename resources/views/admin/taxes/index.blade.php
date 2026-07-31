@@ -3,16 +3,16 @@
 
 <x-slot name="topbarActions">
     <a href="{{ route('admin.taxes.details', ['year' => $year, 'period_type' => $periodType, 'period_value' => $periodValue]) }}"
-       class="btn btn-primary btn-sm" title="Détail par panneau (justification commune par commune)">
-        🔍 Détail par panneau
+       class="btn btn-primary btn-sm keep-label" title="Détail par panneau (justification commune par commune)">
+        🔍 <span class="btn-label">Détail par panneau</span>
     </a>
     <a href="{{ route('admin.rapports.taxes') }}" class="btn btn-ghost btn-sm" title="Rapport agrégé matrice mois × commune">
-        📊 Rapport
+        📊 <span class="btn-label">Rapport</span>
     </a>
     <a href="{{ route('admin.taxes.historique') }}" class="btn btn-ghost btn-sm" title="Historique des écritures legacy">
-        📋 Historique
+        📋 <span class="btn-label">Historique</span>
     </a>
-    <a href="{{ route('admin.taxes.export.pdf') }}" class="btn btn-ghost btn-sm">📄 PDF</a>
+    <a href="{{ route('admin.taxes.export.pdf') }}" class="btn btn-ghost btn-sm" title="Télécharger le PDF de synthèse">📄 <span class="btn-label">PDF</span></a>
 </x-slot>
 
 {{-- ════ EN-TÊTE PÉRIODE ════ --}}

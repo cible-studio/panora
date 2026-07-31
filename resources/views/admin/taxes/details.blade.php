@@ -18,9 +18,9 @@
                 );
             @endphp
             <a href="{{ route('admin.taxes.details.excel', $exportParams) }}"
-               class="btn btn-ghost btn-sm">📊 Excel</a>
+               class="btn btn-ghost btn-sm" title="Télécharger l'export Excel">📊 <span class="btn-label">Excel</span></a>
             <a href="{{ route('admin.taxes.details.pdf', $exportParams) }}"
-               class="btn btn-primary btn-sm" target="_blank" rel="noopener">📄 PDF</a>
+               class="btn btn-primary btn-sm keep-label" target="_blank" rel="noopener" title="Ouvrir le PDF détaillé (transmissible aux mairies)">📄 <span class="btn-label">PDF</span></a>
         @endif
     </x-slot>
 

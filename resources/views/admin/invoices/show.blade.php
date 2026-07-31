@@ -35,36 +35,36 @@
 </x-slot>
 
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.invoices.pdf', $invoice) }}" class="btn btn-ghost btn-sm">
-        📄 Export PDF
+    <a href="{{ route('admin.invoices.pdf', $invoice) }}" class="btn btn-ghost btn-sm" title="Télécharger le PDF de la facture">
+        📄 <span class="btn-label">Export PDF</span>
     </a>
     {{-- Phase 7 cahier §13 — Consultation timeline d'audit --}}
     <a href="{{ route('admin.invoices.audit', $invoice) }}" class="btn btn-ghost btn-sm" title="Historique complet des modifications">
-        📋 Audit
+        📋 <span class="btn-label">Audit</span>
     </a>
     @if($invoice->status === 'brouillon')
     <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}">
         @csrf
         @method('PATCH')
-        <button type="submit" class="btn btn-blue btn-sm">📤 Envoyer au client</button>
+        <button type="submit" class="btn btn-blue btn-sm keep-label" title="Envoyer la facture au client">📤 <span class="btn-label">Envoyer au client</span></button>
     </form>
     @endif
     @if($invoice->status === 'envoyee')
     <form method="POST" action="{{ route('admin.invoices.pay', $invoice) }}">
         @csrf
         @method('PATCH')
-        <button type="submit" class="btn btn-success btn-sm">✅ Marquer soldée</button>
+        <button type="submit" class="btn btn-success btn-sm keep-label" title="Marquer la facture comme soldée">✅ <span class="btn-label">Marquer soldée</span></button>
     </form>
     @endif
     @if(in_array($invoice->status, ['envoyee', 'payee']))
     <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}"
           onsubmit="return confirm('Rebasculer en brouillon ? La date de paiement sera effacée.')">
         @csrf @method('PATCH')
-        <button type="submit" class="btn btn-ghost btn-sm" title="Rebasculer en brouillon">↩ Brouillon</button>
+        <button type="submit" class="btn btn-ghost btn-sm" title="Rebasculer en brouillon">↩ <span class="btn-label">Brouillon</span></button>
     </form>
     @endif
-    <a href="{{ route('admin.invoices.edit', $invoice) }}" class="btn btn-ghost btn-sm">
-        ✏️ Modifier
+    <a href="{{ route('admin.invoices.edit', $invoice) }}" class="btn btn-ghost btn-sm" title="Modifier la facture">
+        ✏️ <span class="btn-label">Modifier</span>
     </a>
 </x-slot>
 

@@ -7,13 +7,13 @@
          (1 client, 1 mois, 1 statut) au comptable. --}}
     <a href="{{ route('admin.invoices.export.pdf', request()->only(['client_id','status','date_from','date_to'])) }}"
        class="btn btn-ghost btn-sm" title="Export PDF du listing filtré">
-        📄 PDF
+        📄 <span class="btn-label">PDF</span>
     </a>
     <a href="{{ route('admin.invoices.export.excel', request()->only(['client_id','status','date_from','date_to'])) }}"
        class="btn btn-ghost btn-sm" title="Export Excel (.xlsx) du listing filtré">
-        📊 Excel
+        📊 <span class="btn-label">Excel</span>
     </a>
-    <a href="{{ route('admin.invoices.create') }}" class="btn btn-primary btn-sm">＋ Nouvelle facture</a>
+    <a href="{{ route('admin.invoices.create') }}" class="btn btn-primary btn-sm keep-label" title="Créer une nouvelle facture">＋ <span class="btn-label">Nouvelle facture</span></a>
 </x-slot>
 
 {{-- Bandeau contexte campagne (deeplinking depuis la fiche campagne :

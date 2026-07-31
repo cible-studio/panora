@@ -3,18 +3,18 @@
         {{-- Exports (préservent les filtres URL courants) --}}
         <a href="{{ route('admin.campaigns.export.excel', request()->query()) }}"
            class="btn btn-ghost btn-sm" title="Exporter la liste filtrée en Excel">
-            📊 Excel
+            📊 <span class="btn-label">Excel</span>
         </a>
         <a href="{{ route('admin.campaigns.export.pdf', request()->query()) }}"
            class="btn btn-ghost btn-sm" title="Exporter la liste filtrée en PDF">
-            📄 PDF
+            📄 <span class="btn-label">PDF</span>
         </a>
         @can('create', App\Models\Campaign::class)
         <a href="{{ route('admin.campaigns.import-pdf.form') }}" class="btn btn-ghost btn-sm" title="Importer une campagne depuis un PDF « Liste des panneaux commandes »">
-            📥 Import PDF
+            📥 <span class="btn-label">Import PDF</span>
         </a>
-        <a href="{{ route('admin.campaigns.create') }}" class="btn btn-primary btn-sm">
-            + Nouvelle campagne
+        <a href="{{ route('admin.campaigns.create') }}" class="btn btn-primary btn-sm keep-label" title="Créer une nouvelle campagne">
+            + <span class="btn-label">Nouvelle campagne</span>
         </a>
         @endcan
     </x-slot:topbarActions>

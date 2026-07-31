@@ -13,7 +13,7 @@
 <x-slot:topbarActions>
     @if($can['update'])
         <a href="{{ route('admin.reservations.edit', $reservation) }}"
-           class="btn btn-ghost text-sm">✏️ Modifier</a>
+           class="btn btn-ghost text-sm" title="Modifier la réservation">✏️ <span class="btn-label">Modifier</span></a>
     @endif
 
     {{-- Raccourci "Créer la facture" (2026-06-26).
@@ -22,9 +22,9 @@
          controller préremplit campagne + client si présents. --}}
     @if($reservation->status !== \App\Enums\ReservationStatus::ANNULE)
         <a href="{{ route('admin.reservations.create-invoice', $reservation) }}"
-           class="btn btn-primary text-sm"
+           class="btn btn-primary text-sm keep-label"
            title="Ouvrir le formulaire de facturation avec les infos de cette réservation préremplies">
-            🧾 Créer la facture
+            🧾 <span class="btn-label">Créer la facture</span>
         </a>
     @endif
 
@@ -33,7 +33,7 @@
               action="{{ route('admin.reservations.destroy', $reservation) }}"
               onsubmit="return confirm('Supprimer définitivement cette réservation ?')">
             @csrf @method('DELETE')
-            <button class="btn btn-danger text-sm">🗑️ Supprimer</button>
+            <button class="btn btn-danger text-sm" title="Supprimer définitivement la réservation">🗑️ <span class="btn-label">Supprimer</span></button>
         </form>
     @endif
 </x-slot>
