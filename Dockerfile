@@ -1,17 +1,22 @@
 FROM php:8.3-fpm-alpine
 
-RUN apk add --no-cache \
-        nodejs npm nginx git unzip curl \
-        autoconf gcc g++ make linux-headers \
-        freetype-dev libjpeg-turbo-dev libpng-dev \
-        libzip-dev zip libxml2-dev && \
-    docker-php-ext-configure gd \
-        --with-freetype --with-jpeg && \
-    docker-php-ext-install pdo pdo_mysql opcache gd zip xml && \
-    pecl install redis && \
-    docker-php-ext-enable redis && \
-    apk del autoconf gcc g++ make linux-headers && \
-    rm -rf /tmp/pear
+# ─────────────────────────────────────────────────────────────────────
+# Extensions PHP via mlocati/docker-php-extension-installer.
+#
+# Pourquoi ce changement (2026-07-31) : le build précédent compilait
+# PDO + PDO_MYSQL + OPcache+JIT + GD + ZIP + PECL redis avec gcc/g++
+# dans un seul RUN monolithique. Peak RAM ~1.5 Go → OOM killer du
+# kernel sur le container de build Coolify, exit 255 pile au démarrage
+# du compile de ext/zip (cf. log deployment-ctu0e72r4si6j5ps3kiorsk9,
+# étape #8 105.4). install-php-extensions installe des binaires
+# précompilés → 15 s au lieu de 2 min, peak RAM ~200 Mo au lieu de
+# 1.5 Go, plus de gcc/g++ résiduels dans l'image finale.
+# ─────────────────────────────────────────────────────────────────────
+RUN apk add --no-cache nodejs npm nginx git unzip curl zip && \
+    curl -sSLf -o /usr/local/bin/install-php-extensions \
+        https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions && \
+    chmod +x /usr/local/bin/install-php-extensions && \
+    install-php-extensions pdo_mysql opcache gd zip xml redis
 
 
 RUN echo "upload_max_filesize=35M" > /usr/local/etc/php/conf.d/uploads.ini && \
