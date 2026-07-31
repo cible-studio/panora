@@ -396,6 +396,14 @@ Route::prefix('admin')
             ->middleware('role:admin,mediaplanner')
             ->whereNumber('panel')->name('panels.status');
 
+        // Édition ciblée du tarif catalogue (monthly_rate) — ouverte au
+        // comptable en plus d'admin/MP pour qu'il puisse coordonner les
+        // futures factures sans devoir passer par le MP. Sécurisation fine
+        // via PanelPolicy::updatePrice + validation Request restrictive.
+        Route::post('panels/{panel}/price', [PanelController::class, 'updatePrice'])
+            ->middleware('role:admin,mediaplanner,comptable')
+            ->whereNumber('panel')->name('panels.price');
+
         // Création / modif / suppression / photos = admin + MP
         Route::middleware('role:admin,mediaplanner')->group(function () {
             // Saisie rapide des coordonnées GPS manquantes — page de bulk
@@ -545,23 +553,32 @@ Route::prefix('admin')
             // On garde uniquement create/store/update/destroy.
             Route::resource('zones',      ZoneController::class)->only(['create', 'store', 'update', 'destroy']);
             Route::resource('communes',   CommuneController::class)->only(['create', 'store', 'update', 'destroy']);
-
-            // Tarifs communaux (ODP/TM) — gestion dédiée admin :
-            //   - vue d'ensemble + historique + tarif programmé futur.
-            //   - L'observer CommuneObserver historise auto les changements
-            //     du tarif courant (édition commune). Cette page complète
-            //     en exposant l'historique et la programmation future.
-            Route::get('communes/tariffs',
-                [CommuneController::class, 'tariffs'])->name('communes.tariffs');
-            Route::get('communes/{commune}/tariffs/history',
-                [CommuneController::class, 'tariffHistory'])->name('communes.tariffs.history');
-            Route::post('communes/{commune}/tariffs/schedule',
-                [CommuneController::class, 'scheduleTariff'])->name('communes.tariffs.schedule');
-            Route::delete('communes/{commune}/tariffs/{entry}',
-                [CommuneController::class, 'deleteTariffEntry'])->name('communes.tariffs.delete');
             Route::resource('formats',    PanelFormatController::class)->only(['create', 'store', 'update', 'destroy']);
             Route::resource('categories', PanelCategoryController::class)->only(['create', 'store', 'update', 'destroy']);
         });
+
+        // Tarifs communaux (ODP/TM) — programmation + historique.
+        // Ouvert au COMPTABLE en plus de l'admin : c'est lui qui
+        // coordonne les futurs calculs de taxes sur factures. Il ne
+        // peut PAS renommer la commune ni modifier le tarif COURANT
+        // rétroactivement (ces routes restent sous role:admin dans le
+        // resource ci-dessus) — il programme un nouveau tarif à une
+        // date d'effet future via scheduleTariff, ou consulte l'historique.
+        // Cf. Commune::ratesAt($date) qui garantit qu'aucune facture
+        // déjà émise n'est impactée par un changement de tarif.
+        Route::middleware('role:admin,comptable')
+            ->prefix('settings')
+            ->name('settings.')
+            ->group(function () {
+                Route::get('communes/tariffs',
+                    [CommuneController::class, 'tariffs'])->name('communes.tariffs');
+                Route::get('communes/{commune}/tariffs/history',
+                    [CommuneController::class, 'tariffHistory'])->name('communes.tariffs.history');
+                Route::post('communes/{commune}/tariffs/schedule',
+                    [CommuneController::class, 'scheduleTariff'])->name('communes.tariffs.schedule');
+                Route::delete('communes/{commune}/tariffs/{entry}',
+                    [CommuneController::class, 'deleteTariffEntry'])->name('communes.tariffs.delete');
+            });
 
         // Utilisateurs (admin uniquement)
         Route::middleware('role:admin')->group(function () {
@@ -927,9 +944,14 @@ Route::prefix('admin')
         // ══════════════════════════════════════════════════════════
 
         // Prix panneaux dans une réservation (internes + externes) :
-        // admin + MP + commercial. Le commercial est limité à SES résas
-        // via la policy update() (vérifie commercial_user_id).
-        Route::middleware('role:admin,mediaplanner,commercial')->group(function () {
+        // admin + MP + commercial + comptable. Le commercial est limité
+        // à SES résas via la policy updatePrice() (vérifie
+        // commercial_user_id). Le comptable est ajouté pour coordonner
+        // les futures factures (cf. User::canEditPrices()). L'autorisation
+        // fine passe par ReservationPolicy::updatePrice — les 4 méthodes
+        // (updatePanelPrice, resetPanelPrice, update/resetExternalPanelPrice)
+        // appellent authorize('updatePrice', $reservation).
+        Route::middleware('role:admin,mediaplanner,commercial,comptable')->group(function () {
             Route::patch('reservations/{reservation}/panels/{panel}/price',
                 [ReservationController::class, 'updatePanelPrice'])->name('reservations.panels.price');
             Route::post('reservations/{reservation}/panels/{panel}/price/reset',
@@ -1319,14 +1341,6 @@ Route::prefix('admin')
             Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
                 ->whereNumber('campaign')->whereNumber('externalPanel')->name('campaigns.external-panels.remove');
 
-            // Modification du prix d'un panneau attaché à la campagne
-            // (prix négocié post-création ou correction). Met à jour le
-            // pivot reservation_panels de la résa liée et recalcule le total.
-            Route::patch('campaigns/{campaign}/panels/{panel}/price', [CampaignController::class, 'updatePanelPrice'])
-                ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.price');
-            Route::post('campaigns/{campaign}/panels/{panel}/price/reset', [CampaignController::class, 'resetPanelPrice'])
-                ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.price.reset');
-
             // Notifier manuellement le client des modifications (panneaux
             // ajoutés/retirés, prix négocié). Renvoie un récap actualisé.
             Route::post('campaigns/{campaign}/notify-client', [CampaignController::class, 'notifyClient'])
@@ -1342,6 +1356,17 @@ Route::prefix('admin')
             // + prix négociés + commercial, nouvelles dates).
             Route::post('campaigns/{campaign}/duplicate', [CampaignController::class, 'duplicate'])
                 ->whereNumber('campaign')->name('campaigns.duplicate');
+        });
+
+        // Prix négocié panneau dans campagne : admin + MP + comptable.
+        // Le Comptable coordonne les futures factures sans avoir accès
+        // à l'ajout/retrait de panneaux ni au changement de statut.
+        // Autorisation fine via CampaignPolicy::updatePrice (User::canEditPrices()).
+        Route::middleware('role:admin,mediaplanner,comptable')->group(function () {
+            Route::patch('campaigns/{campaign}/panels/{panel}/price', [CampaignController::class, 'updatePanelPrice'])
+                ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.price');
+            Route::post('campaigns/{campaign}/panels/{panel}/price/reset', [CampaignController::class, 'resetPanelPrice'])
+                ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.price.reset');
         });
 
         // Suppression campagne = admin uniquement (matrice CAMPAGNES)

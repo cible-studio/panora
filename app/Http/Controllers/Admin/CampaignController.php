@@ -224,10 +224,17 @@ class CampaignController extends Controller
         $canManagePanel = $user->can('managePanel', $campaign)
             && in_array($campaign->status->value, ['planifie', 'actif', 'termine']);
 
+        // updatePrice : droit d'ajuster uniquement le tarif d'un panneau
+        // sans avoir accès à l'ajout/retrait de panneaux. Ouvert au
+        // Comptable via CampaignPolicy::updatePrice (User::canEditPrices()).
+        $canUpdatePrice = $user->can('updatePrice', $campaign)
+            && in_array($campaign->status->value, ['planifie', 'actif', 'termine']);
+
         $can = [
             'update'       => $user->can('update', $campaign),
             'updateStatus' => $user->can('updateStatus', $campaign),
             'managePanel'  => $canManagePanel,
+            'updatePrice'  => $canUpdatePrice,
             'delete'       => $user->can('delete', $campaign),
         ];
 
@@ -1508,7 +1515,10 @@ class CampaignController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function updatePanelPrice(Request $request, Campaign $campaign, Panel $panel)
     {
-        $this->authorize('managePanel', $campaign);
+        // authorize('updatePrice') plutôt que 'managePanel' : le Comptable
+        // peut ajuster les prix (canEditPrices) sans avoir le droit
+        // d'ajouter/retirer des panneaux (managePanel reste MP-only).
+        $this->authorize('updatePrice', $campaign);
 
         $data = $request->validate([
             'unit_price' => 'required|numeric|min:0',
@@ -1589,7 +1599,7 @@ class CampaignController extends Controller
 
     public function resetPanelPrice(Campaign $campaign, Panel $panel)
     {
-        $this->authorize('managePanel', $campaign);
+        $this->authorize('updatePrice', $campaign);
 
         if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
             return back()->with('error', 'Campagne non modifiable.');

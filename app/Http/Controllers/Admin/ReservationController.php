@@ -2093,6 +2093,10 @@ class ReservationController extends Controller
         $user = auth()->user();
         $can = [
             'update' => $reservation->isEditable() && $user->can('update', $reservation),
+            // updatePrice : droit d'ajuster unit_price sur pivot reservation_panels
+            // sans avoir accès aux dates/panneaux/statut. Comptable ajouté ici
+            // via ReservationPolicy::updatePrice (User::canEditPrices()).
+            'updatePrice' => $reservation->isEditable() && $user->can('updatePrice', $reservation),
             'updateStatus' => $reservation->canChangeStatus() && $user->can('updateStatus', $reservation),
             'annuler' => $reservation->isCancellable() && $user->can('annuler', $reservation),
             'delete' => $reservation->isDeletable() && $user->can('delete', $reservation),
@@ -2971,7 +2975,7 @@ class ReservationController extends Controller
     {
         // Ownership : un commercial ne peut modifier QUE ses propres résas
         // (policy update vérifie commercial_user_id). Ferme l'IDOR.
-        $this->authorize('update', $reservation);
+        $this->authorize('updatePrice', $reservation);
 
         $request->validate([
             'unit_price' => 'required|numeric|min:0',
@@ -3001,7 +3005,7 @@ class ReservationController extends Controller
     // Pour réinitialiser au prix catalogue :
     public function resetPanelPrice(Reservation $reservation, Panel $panel)
     {
-        $this->authorize('update', $reservation);
+        $this->authorize('updatePrice', $reservation);
 
         $months = $this->monthsBetween(
             $reservation->start_date->format('Y-m-d'),
@@ -3021,7 +3025,7 @@ class ReservationController extends Controller
     // ── EXTERNES : prix négocié + reset (mêmes endpoints que internes) ──
     public function updateExternalPanelPrice(Request $request, Reservation $reservation, ExternalPanel $panel)
     {
-        $this->authorize('update', $reservation);
+        $this->authorize('updatePrice', $reservation);
         $request->validate(['unit_price' => 'required|numeric|min:0']);
         if (!$reservation->isEditable()) abort(403, 'Réservation non modifiable.');
 
@@ -3046,7 +3050,7 @@ class ReservationController extends Controller
 
     public function resetExternalPanelPrice(Reservation $reservation, ExternalPanel $panel)
     {
-        $this->authorize('update', $reservation);
+        $this->authorize('updatePrice', $reservation);
         if (!$reservation->isEditable()) abort(403, 'Réservation non modifiable.');
 
         $months = $this->monthsBetween(

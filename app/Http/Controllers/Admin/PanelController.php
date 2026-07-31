@@ -447,6 +447,27 @@ class PanelController extends Controller
         ));
     }
 
+    /**
+     * Édition ciblée du tarif catalogue (monthly_rate) uniquement.
+     * Ouvert au Comptable via PanelPolicy::updatePrice (User::canEditPrices()).
+     *
+     * Endpoint distinct de update() pour ne PAS lui donner accès aux
+     * photos / GPS / dimensions / statut. Zero impact rétroactif sur
+     * les factures existantes (invoice_lines gardent leur snapshot).
+     */
+    public function updatePrice(Request $request, Panel $panel)
+    {
+        $this->authorize('updatePrice', $panel);
+
+        $data = $request->validate([
+            'monthly_rate' => 'required|integer|min:0',
+        ]);
+
+        $panel->update(['monthly_rate' => $data['monthly_rate']]);
+
+        return back()->with('success', 'Tarif du panneau '.$panel->reference.' mis à jour : '.number_format($data['monthly_rate'], 0, ',', ' ').' FCFA/mois.');
+    }
+
     // ── METTRE À JOUR ──
     public function update(Request $request, Panel $panel)
     {

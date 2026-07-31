@@ -430,6 +430,12 @@
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">💰 Tarifs</div>
+                    @can('updatePrice', $panel)
+                        <button type="button" class="btn btn-ghost btn-sm"
+                                onclick="document.getElementById('panel-price-form-{{ $panel->id }}').classList.toggle('is-open')">
+                            ✏️ Ajuster
+                        </button>
+                    @endcan
                 </div>
                 <div class="card-body">
                     <div style="display:flex; flex-direction:column; gap:10px;">
@@ -452,6 +458,35 @@
                             </span>
                         </div>
                     </div>
+
+                    {{-- Mini-form dédié à l'ajustement du tarif catalogue.
+                         Utilisé par le comptable (qui n'a pas l'accès complet
+                         à l'édition du panneau) et par MP en raccourci.
+                         Route admin.panels.price → PanelController::updatePrice
+                         qui n'accepte QUE monthly_rate (safe). --}}
+                    @can('updatePrice', $panel)
+                        <form id="panel-price-form-{{ $panel->id }}"
+                              action="{{ route('admin.panels.price', $panel) }}"
+                              method="POST"
+                              style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); gap:8px;"
+                              class="panel-price-form">
+                            @csrf
+                            <label style="font-size:11px; color:var(--text3); display:block; margin-bottom:4px;">
+                                Nouveau tarif mensuel (FCFA)
+                            </label>
+                            <div style="display:flex; gap:6px;">
+                                <input type="number" name="monthly_rate" min="0" step="1"
+                                       value="{{ (int) $panel->monthly_rate }}"
+                                       required
+                                       style="flex:1; padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                                <button type="submit" class="btn btn-primary btn-sm">Enregistrer</button>
+                            </div>
+                            <p style="font-size:10.5px; color:var(--text3); margin-top:6px;">
+                                Le nouveau tarif s'applique aux futures factures uniquement — les factures existantes gardent leur snapshot.
+                            </p>
+                        </form>
+                        <style>.panel-price-form.is-open { display:block !important; }</style>
+                    @endcan
                 </div>
             </div>
 

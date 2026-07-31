@@ -81,6 +81,21 @@ class CampaignPolicy
         return $user->role === UserRole::MEDIAPLANNER;
     }
 
+    /**
+     * Modifier UNIQUEMENT les prix négociés des panneaux d'une campagne
+     * (unit_price sur le pivot reservation_panels de la résa liée).
+     * Ouvert au Comptable pour coordonner les futures factures.
+     *
+     * Distinct de managePanel qui autorise l'ajout/retrait de panneaux
+     * (structure de la campagne) — updatePrice touche uniquement le
+     * tarif appliqué. Zero impact sur les factures déjà émises.
+     */
+    public function updatePrice(User $user, Campaign $campaign): bool
+    {
+        if ($campaign->status === CampaignStatus::ANNULE) return false;
+        return $user->canEditPrices();
+    }
+
     /** Suppression : Admin uniquement (le before() ci-dessus capte). */
     public function delete(User $user, Campaign $campaign): bool
     {
