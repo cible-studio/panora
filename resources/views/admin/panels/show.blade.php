@@ -12,14 +12,16 @@
     </x-slot:topbarLeft>
 
     <x-slot name="topbarActions">
-        <a href="{{ route('admin.panels.pdf', $panel) }}" class="btn btn-ghost btn-sm">
-            📄 Export PDF
+        <a href="{{ route('admin.panels.pdf', $panel) }}" class="btn btn-ghost btn-sm" title="Télécharger la fiche PDF du panneau">
+            📄 <span class="btn-label">Export PDF</span>
         </a>
-        <a href="{{ route('admin.panels.edit', $panel) }}" class="btn btn-ghost btn-sm">
-            ✏️ Modifier
+        @can('update', $panel)
+        <a href="{{ route('admin.panels.edit', $panel) }}" class="btn btn-ghost btn-sm" title="Modifier le panneau">
+            ✏️ <span class="btn-label">Modifier</span>
         </a>
-        <a href="{{ route('admin.panels.availability', $panel) }}" class="btn btn-blue btn-sm">
-            📅 Disponibilités
+        @endcan
+        <a href="{{ route('admin.panels.availability', $panel) }}" class="btn btn-blue btn-sm keep-label" title="Voir le planning de disponibilité">
+            📅 <span class="btn-label">Disponibilités</span>
         </a>
     </x-slot>
 

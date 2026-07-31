@@ -1291,6 +1291,45 @@ button.kpi-card { width: 100%; }
   .grid.grid-cols-4 { grid-template-columns: 1fr !important; }
   .stat-card { padding: 14px; }
   .stat-card .stat-number { font-size: 18px; }
+
+  /* ─────────────────────────────────────────────────────────────
+     TOPBAR — icônes-seules par défaut sous 640px (refonte 2026-07-31).
+     Avant : opt-in par bouton via .action-icon-only-mobile (jamais
+     appliqué → tous les boutons débordaient en mobile). Après : tous
+     les .topbar-actions .btn deviennent des icônes 40×40 avec le
+     libellé masqué. Le texte doit être dans <span class="btn-label">.
+     Escape hatch : .keep-label garde le libellé (pour bouton
+     primaire "Nouveau/Confirmer").
+     Le title="…" natif fait office de tooltip mobile (appui long).
+     ───────────────────────────────────────────────────────────── */
+  .topbar-actions .btn .btn-label { display: none; }
+  .topbar-actions .btn,
+  .topbar-actions button.btn,
+  .topbar-actions a.btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .topbar-actions .btn svg { width: 16px; height: 16px; }
+  .topbar-actions .btn .fl { width: 12px; height: 12px; }
+
+  /* Escape hatch : bouton primaire garde son libellé. Ex :
+     <a class="btn btn-primary keep-label">+ <span class="btn-label">Nouvelle campagne</span></a> */
+  .topbar-actions .btn.keep-label {
+    width: auto;
+    height: auto;
+    padding: 6px 12px;
+  }
+  .topbar-actions .btn.keep-label .btn-label { display: inline; }
+
+  /* Le formulaire (POST inline) qui contient un bouton doit aussi
+     être compact — sinon padding parasite */
+  .topbar-actions form { display: inline-flex; margin: 0; }
 }
 
 /* ═══════════════════════════════════════════════
