@@ -12,7 +12,7 @@
          sur les pages d'auth alors que /admin avait bien le logo). --}}
     <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
     <link rel="icon" href="{{ asset('images/favicond.png') }}" media="(prefers-color-scheme: dark)">
-    <link rel="apple-touch-icon" href="{{ asset('images/faviconl.png') }}">
+    @include('partials.pwa-meta')
 
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 
