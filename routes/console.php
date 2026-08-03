@@ -74,9 +74,16 @@ Schedule::command('campaigns:notify-ending', ['--days' => 7])
 
 // 10. Alertes opérationnelles internes (admin / comptable / équipe terrain).
 //     Idempotent via AdminAlertNotifier::dedupKey (cooldown 30 min).
-Schedule::command('decap:notify-overdue', ['--days' => 7])
-    ->dailyAt('08:30')
-    ->withoutOverlapping();
+//
+// ⚠ decap:notify-overdue DÉSACTIVÉ le 2026-08-03 (demande patronne :
+//   « sa en fait trop »). Tant qu'une campagne terminée a des panneaux
+//   non décapés depuis plus de 7j, le job renvoyait l'alerte chaque
+//   matin → boîte mail saturée. Le suivi passe désormais uniquement
+//   par le rapport /admin/rapports#tab-decap consulté à la demande.
+//   Pour réactiver : décommenter les 3 lignes ci-dessous.
+// Schedule::command('decap:notify-overdue', ['--days' => 7])
+//     ->dailyAt('08:30')
+//     ->withoutOverlapping();
 Schedule::command('taxes:notify-due-soon', ['--days' => 15])
     ->dailyAt('08:45')
     ->withoutOverlapping();
