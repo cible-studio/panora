@@ -506,23 +506,49 @@
                         if ($serviceLines->isEmpty()) {
                             $tmp = collect();
                             if ((float) $invoice->services_impression > 0) {
-                                $tmp->push((object) ['label' => "Frais d'impression", 'prix_ht' => (float) $invoice->services_impression]);
+                                // Objet fictif AVEC tva_applicable = true pour
+                                // matcher le comportement historique legacy.
+                                $tmp->push((object) [
+                                    'label' => "Frais d'impression",
+                                    'prix_ht' => (float) $invoice->services_impression,
+                                    'tva_applicable' => true,
+                                ]);
                             }
                             if ((float) $invoice->services_pose_depose > 0) {
-                                $tmp->push((object) ['label' => 'Frais de pose et dépose', 'prix_ht' => (float) $invoice->services_pose_depose]);
+                                $tmp->push((object) [
+                                    'label' => 'Frais de pose et dépose',
+                                    'prix_ht' => (float) $invoice->services_pose_depose,
+                                    'tva_applicable' => true,
+                                ]);
                             }
                             $serviceLines = $tmp;
                         }
+                        $tvaRate     = (float) $invoice->tva;
                         $servicesHt  = $serviceLines->sum('prix_ht');
-                        $servicesTtc = $servicesHt * (1 + (float) $invoice->tva / 100);
+                        // 2026-08-03 : respect du flag tva_applicable par service.
+                        $servicesTtc = 0.0;
+                        foreach ($serviceLines as $svc) {
+                            $apply = property_exists($svc, 'tva_applicable')
+                                ? (bool) $svc->tva_applicable
+                                : true;
+                            $servicesTtc += $apply
+                                ? (float) $svc->prix_ht * (1 + $tvaRate / 100)
+                                : (float) $svc->prix_ht;
+                        }
                     @endphp
 
                     @if($autres > 0)
                         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">
                             <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Autres taxes</div>
                             @if($invoice->tsp_amount > 0)
+                                @php
+                                    // Taux TSP effectif — override facture ou défaut config.
+                                    $tspRateEff = $invoice->tsp_rate_override !== null
+                                        ? (float) $invoice->tsp_rate_override
+                                        : (float) config('billing.tsp_rate', 3);
+                                @endphp
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
-                                    <span>TSP — Taxe de Soutien à la Production (3 %)</span>
+                                    <span>TSP — Taxe de Soutien à la Production ({{ rtrim(rtrim(number_format($tspRateEff, 2, ',', ''), '0'), ',') }} %)</span>
                                     <span>{{ $fmt($invoice->tsp_amount) }}</span>
                                 </div>
                             @endif
@@ -551,13 +577,25 @@
                                 Services annexes ({{ $serviceLines->count() }})
                             </div>
                             @foreach($serviceLines as $svc)
+                                @php
+                                    $svcHasTva = property_exists($svc, 'tva_applicable')
+                                        ? (bool) $svc->tva_applicable
+                                        : true;
+                                @endphp
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
-                                    <span>{{ $svc->label }} <span style="color:var(--text3);font-size:10.5px">(HT)</span></span>
+                                    <span>
+                                        {{ $svc->label }}
+                                        @if($svcHasTva)
+                                            <span style="color:var(--text3);font-size:10.5px">(HT)</span>
+                                        @else
+                                            <span style="background:rgba(59,130,246,.12);color:#1d4ed8;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;margin-left:3px">HT strict</span>
+                                        @endif
+                                    </span>
                                     <span>{{ $fmt($svc->prix_ht) }}</span>
                                 </div>
                             @endforeach
                             <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding-top:6px;border-top:1px dashed var(--border);margin-top:6px">
-                                <span>Sous-total services TTC (TVA 18 %)</span>
+                                <span>Sous-total services TTC</span>
                                 <span>{{ $fmt($servicesTtc) }} FCFA</span>
                             </div>
                         </div>

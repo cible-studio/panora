@@ -30,30 +30,42 @@
                         ->sortBy([['snapshot_commune_name', 'asc'], ['designation', 'asc']])
                         ->values()
                         ->map(fn($l) => [
-                            'designation'       => $l->designation,
-                            'commune_id'        => $l->commune_id,
-                            'dimension_m2'      => (float) $l->dimension_m2,
-                            'pu_ht_mensuel'     => (int) $l->pu_ht_mensuel,
-                            'quantite'          => (int) $l->quantite,
-                            'duree_mois'        => (float) $l->duree_mois,
-                            'odp_rate_applique' => (int) $l->odp_rate_applique,
-                            'tm_rate_applique'  => (int) $l->tm_rate_applique,
+                            'designation'         => $l->designation,
+                            'commune_id'          => $l->commune_id,
+                            'dimension_m2'        => (float) $l->dimension_m2,
+                            'pu_ht_mensuel'       => (int) $l->pu_ht_mensuel,
+                            'quantite'            => (int) $l->quantite,
+                            'duree_mois'          => (float) $l->duree_mois,
+                            'odp_rate_applique'   => (int) $l->odp_rate_applique,
+                            'tm_rate_applique'    => (int) $l->tm_rate_applique,
+                            // Overrides taxes par ligne (2026-08-03) — NULL = auto
+                            'odp_amount_override' => $l->odp_amount_override,
+                            'tm_amount_override'  => $l->tm_amount_override,
                             // Bug 3a (2026-07-16) : conserver le lien panneau pour
                             // validation d'unicité en édition (sinon un update
                             // enlèverait le panel_id sur les lignes existantes).
-                            'panel_id'          => $l->panel_id ?? null,
-                            'external_panel_id' => $l->external_panel_id ?? null,
+                            'panel_id'            => $l->panel_id ?? null,
+                            'external_panel_id'   => $l->external_panel_id ?? null,
                         ])->all()
                     : [
                         // ligne vide par défaut en create
                         ['designation' => '', 'dimension_m2' => 0, 'pu_ht_mensuel' => 0,
                          'quantite' => 1, 'duree_mois' => 1, 'odp_rate_applique' => 0, 'tm_rate_applique' => 1000,
+                         'odp_amount_override' => null, 'tm_amount_override' => null,
                          'panel_id' => null, 'external_panel_id' => null],
                     ]);
     $communes  = \App\Models\Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate']);
+    // Défauts config — servent de "fallback si l'utilisateur laisse vide"
+    // dans les champs Taxes globales de la facture (2026-08-03).
     $tvaRate   = (float) config('billing.tva_rate', 18);
     $tspRate   = (float) config('billing.tsp_rate', 3);
     $tmDefault = (float) config('billing.tm_default', 1000);
+    // Valeurs actuellement stockées sur la facture (ou défaut config
+    // en création). Réinjectées dans les inputs Taxes globales.
+    $invTva    = $isEdit && $invoice->tva !== null ? (float) $invoice->tva : $tvaRate;
+    $invTsp    = $isEdit && $invoice->tsp_rate_override !== null
+                    ? (float) $invoice->tsp_rate_override
+                    : null;  // null = suit le défaut config, laisser l'input vide
 @endphp
 
 @if($errors->any())
@@ -175,6 +187,11 @@
                         <th class="num">Qté</th>
                         <th class="num">Mois</th>
                         <th class="num">Total HT</th>
+                        {{-- 2026-08-03 : montants ODP/TM éditables (patronne).
+                             Placeholder = calcul auto ; si l'admin saisit une
+                             valeur (même 0), ça devient l'override. --}}
+                        <th class="num" title="Montant final ODP (vide = calcul auto)">ODP</th>
+                        <th class="num" title="Montant final TM (vide = calcul auto)">TM</th>
                         <th class="act"></th>
                     </tr>
                 </thead>
@@ -238,6 +255,24 @@
                                        value="{{ is_numeric($l['duree_mois']) ? (float) $l['duree_mois'] : 1 }}">
                             </td>
                             <td class="num col-total line-total" data-label="Total HT">0 FCFA</td>
+                            {{-- Override ODP montant (2026-08-03) : NULL = calcul auto,
+                                 valeur = force ce montant final. Placeholder mis à jour
+                                 dynamiquement par recompute() avec le calcul auto courant
+                                 pour que le comptable voie ce qu'il va écraser. --}}
+                            <td class="num col-odp-override" data-label="ODP (auto si vide)">
+                                <input type="text" name="lines[{{ $i }}][odp_amount_override]"
+                                       class="line-odp-override"
+                                       inputmode="numeric" pattern="[0-9]*"
+                                       placeholder="auto"
+                                       value="{{ isset($l['odp_amount_override']) && $l['odp_amount_override'] !== null && $l['odp_amount_override'] !== '' ? (int) $l['odp_amount_override'] : '' }}">
+                            </td>
+                            <td class="num col-tm-override" data-label="TM (auto si vide)">
+                                <input type="text" name="lines[{{ $i }}][tm_amount_override]"
+                                       class="line-tm-override"
+                                       inputmode="numeric" pattern="[0-9]*"
+                                       placeholder="auto"
+                                       value="{{ isset($l['tm_amount_override']) && $l['tm_amount_override'] !== null && $l['tm_amount_override'] !== '' ? (int) $l['tm_amount_override'] : '' }}">
+                            </td>
                             <td class="act">
                                 <button type="button" class="btn-line-remove line-remove" title="Supprimer la ligne" aria-label="Supprimer cette ligne">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -259,24 +294,52 @@
         @endif
     </div>
 
-    {{-- ════ REMISE GLOBALE ════ --}}
+    {{-- ════ REMISE & TAXES GLOBALES ════
+         2026-08-03 : la comptable doit pouvoir ajuster TVA / TSP par facture.
+         Cas métier : parfois la TSP n'est pas due, ou la TVA doit être à 0 %
+         (client exonéré). Défaut = config globale (18 % TVA / 3 % TSP).
+    ══════════════════════════════════════════════════════════════════ --}}
     <div class="fne-section">
         <div class="fne-section-head">
             <div class="fne-section-icon" style="background:rgba(245,158,11,.10)">⚙</div>
             <div>
-                <h3 class="fne-section-title">Remise globale</h3>
-                <p class="fne-section-sub">S'applique au TOTAL HT des lignes panneaux uniquement (pas sur les services annexes).</p>
+                <h3 class="fne-section-title">Remise &amp; taxes globales</h3>
+                <p class="fne-section-sub">Remise sur le HT panneaux ; TVA et TSP appliquées à toute la facture (défaut : 18 % / 3 %).</p>
             </div>
         </div>
         <div class="fne-section-body">
-            <div class="mfg" style="max-width:280px">
-                <label>Pourcentage de remise (%)</label>
-                <div style="position:relative">
-                    <input type="number" name="remise_pct" id="remise_pct" min="0" max="100" step="0.5"
-                           value="{{ old('remise_pct', $isEdit ? $invoice->remise_pct : 0) }}"
-                           {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
-                           style="text-align:right;padding-right:32px">
-                    <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-weight:700;font-size:13px;pointer-events:none">%</span>
+            <div class="form-3col">
+                <div class="mfg">
+                    <label>Remise sur HT panneaux (%)</label>
+                    <div style="position:relative">
+                        <input type="number" name="remise_pct" id="remise_pct" min="0" max="100" step="0.5"
+                               value="{{ old('remise_pct', $isEdit ? $invoice->remise_pct : 0) }}"
+                               {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
+                               style="text-align:right;padding-right:32px">
+                        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-weight:700;font-size:13px;pointer-events:none">%</span>
+                    </div>
+                </div>
+                <div class="mfg">
+                    <label>TVA (%) <span style="font-size:10px;color:var(--text3);font-weight:500">défaut {{ rtrim(rtrim(number_format($tvaRate, 2, ',', ''), '0'), ',') }}</span></label>
+                    <div style="position:relative">
+                        <input type="number" name="tva_rate" id="tva_rate" min="0" max="100" step="0.01"
+                               value="{{ old('tva_rate', $invTva) }}"
+                               {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
+                               placeholder="{{ $tvaRate }}"
+                               style="text-align:right;padding-right:32px">
+                        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-weight:700;font-size:13px;pointer-events:none">%</span>
+                    </div>
+                </div>
+                <div class="mfg">
+                    <label>TSP (%) <span style="font-size:10px;color:var(--text3);font-weight:500">0 = désactiver</span></label>
+                    <div style="position:relative">
+                        <input type="number" name="tsp_rate" id="tsp_rate" min="0" max="100" step="0.01"
+                               value="{{ old('tsp_rate', $invTsp !== null ? $invTsp : '') }}"
+                               {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
+                               placeholder="{{ $tspRate }}"
+                               style="text-align:right;padding-right:32px">
+                        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-weight:700;font-size:13px;pointer-events:none">%</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -289,17 +352,21 @@
     --}}
     @php
         $existingServices = $isEdit && $invoice->services
-            ? $invoice->services->map(fn($s) => ['label' => $s->label, 'prix_ht' => (float) $s->prix_ht])->all()
+            ? $invoice->services->map(fn($s) => [
+                'label'          => $s->label,
+                'prix_ht'        => (float) $s->prix_ht,
+                'tva_applicable' => (bool) $s->tva_applicable,
+              ])->all()
             : [];
         // Si edit + pas de services modernes + valeurs legacy > 0, on
         // prépopule à partir des 2 champs legacy (sera saved en modernes
-        // dès la 1ère modif via syncServices).
+        // dès la 1ère modif via syncServices). TVA active par défaut.
         if ($isEdit && empty($existingServices)) {
             if ((float) $invoice->services_impression > 0) {
-                $existingServices[] = ['label' => "Frais d'impression", 'prix_ht' => (float) $invoice->services_impression];
+                $existingServices[] = ['label' => "Frais d'impression",       'prix_ht' => (float) $invoice->services_impression,  'tva_applicable' => true];
             }
             if ((float) $invoice->services_pose_depose > 0) {
-                $existingServices[] = ['label' => 'Frais de pose et dépose', 'prix_ht' => (float) $invoice->services_pose_depose];
+                $existingServices[] = ['label' => 'Frais de pose et dépose', 'prix_ht' => (float) $invoice->services_pose_depose, 'tva_applicable' => true];
             }
         }
         // Si old() après erreur, on prend ça en priorité
@@ -340,7 +407,15 @@
             <div id="services-table" style="display:{{ empty($renderedServices) ? 'none' : 'block' }}">
                 <div id="services-tbody" style="display:flex;flex-direction:column;gap:8px">
                     @foreach($renderedServices as $i => $s)
-                    <div class="service-row svc-card" data-idx="{{ $i }}">
+                    @php
+                        // TVA applicable : true par défaut si non fourni (rétro-compat).
+                        // Filtrage boolean : old() retourne parfois '0'/'1' string.
+                        $tvaAppl = array_key_exists('tva_applicable', $s)
+                            ? filter_var($s['tva_applicable'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+                            : true;
+                        if ($tvaAppl === null) $tvaAppl = true;
+                    @endphp
+                    <div class="service-row svc-card" data-idx="{{ $i }}" data-tva-applicable="{{ $tvaAppl ? '1' : '0' }}">
                         <div class="svc-card-num">{{ $i + 1 }}</div>
                         <div class="svc-card-fields">
                             <div class="svc-card-field svc-card-field-label">
@@ -360,8 +435,26 @@
                                     <span class="svc-prix-suffix">F</span>
                                 </div>
                             </div>
+                            {{-- Checkbox TVA applicable (2026-08-03 — patronne).
+                                 Cas métier : frais annexes déjà TTC côté fournisseur
+                                 externe (impression prépayée) qu'on refacture au
+                                 client sans re-appliquer la TVA. Le hidden "0"
+                                 qui précède garantit qu'un décochage envoie bien
+                                 "0" (sinon PHP ne reçoit rien = interprété comme
+                                 valeur absente = défaut true — bug métier). --}}
+                            <div class="svc-card-field svc-card-field-tva">
+                                <label>TVA applicable</label>
+                                <label class="svc-tva-toggle">
+                                    <input type="hidden" name="services[{{ $i }}][tva_applicable]" value="0">
+                                    <input type="checkbox" name="services[{{ $i }}][tva_applicable]" value="1"
+                                           class="svc-tva-applicable"
+                                           {{ $tvaAppl ? 'checked' : '' }}
+                                           {{ $locked ? 'disabled' : '' }}>
+                                    <span class="svc-tva-label">Appliquer TVA</span>
+                                </label>
+                            </div>
                             <div class="svc-card-field svc-card-field-ttc">
-                                <label>TTC (TVA 18 %)</label>
+                                <label>TTC</label>
                                 <div class="svc-ttc-display"><span class="svc-ttc">—</span></div>
                             </div>
                         </div>
@@ -754,12 +847,56 @@
     .svc-card-fields {
         flex: 1;
         display: grid;
-        grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1fr);
+        /* 4 colonnes : libellé (large), prix, tva check, ttc affichage. */
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr);
         gap: 12px;
         min-width: 0;
     }
-    @media (max-width: 720px) {
+    @media (max-width: 900px) {
+        .svc-card-fields { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 560px) {
         .svc-card-fields { grid-template-columns: 1fr; }
+    }
+
+    /* ── Checkbox TVA applicable (per service, 2026-08-03) ─────────
+       Toggle discret dans la card service ; état non coché =
+       service HT strict facturé sans TVA (frais externe déjà taxé). */
+    .svc-tva-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 36px;
+        padding: 0 12px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        cursor: pointer;
+        user-select: none;
+    }
+    .svc-tva-toggle input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        cursor: pointer;
+        accent-color: var(--accent);
+    }
+    .svc-tva-toggle .svc-tva-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text2);
+    }
+    .svc-tva-toggle:hover { border-color: var(--text3); }
+    /* Card ayant TVA désactivée = visuellement distincte pour rappeler
+       au comptable que ce service est facturé HT strict. */
+    .svc-card[data-tva-applicable="0"] {
+        background: linear-gradient(180deg, var(--surface) 0%, rgba(59,130,246,.03) 100%);
+        border-left: 3px solid rgba(59,130,246,.4);
+    }
+    .svc-card[data-tva-applicable="0"] .svc-ttc-display {
+        background: rgba(59,130,246,.04);
+        border-color: rgba(59,130,246,.2);
+        color: #1d4ed8;
     }
     .svc-card-field { display: flex; flex-direction: column; min-width: 0; }
     .svc-card-field label {
@@ -1027,7 +1164,8 @@
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
-        min-width: 960px;
+        /* 2 colonnes ODP/TM ajoutées 2026-08-03 → +200px environ. */
+        min-width: 1140px;
     }
     .lines-table thead tr {
         background: var(--surface2);
@@ -1064,19 +1202,33 @@
     .lines-table td.col-num { width: 44px; text-align: center; padding-left: 16px; }
 
     /* Largeurs colonnes — généreuses */
-    .lines-table .col-designation { min-width: 300px; }
-    .lines-table .col-commune     { min-width: 180px; }
-    .lines-table .col-m2          { width: 95px; }
-    .lines-table .col-pu          { width: 140px; }
-    .lines-table .col-qte         { width: 80px; }
-    .lines-table .col-mois        { width: 90px; }
+    .lines-table .col-designation { min-width: 260px; }
+    .lines-table .col-commune     { min-width: 160px; }
+    .lines-table .col-m2          { width: 85px; }
+    .lines-table .col-pu          { width: 130px; }
+    .lines-table .col-qte         { width: 75px; }
+    .lines-table .col-mois        { width: 85px; }
     .lines-table .col-total {
-        width: 140px;
+        width: 130px;
         font-weight: 800;
         color: var(--accent);
         font-size: 13.5px;
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
+    }
+    /* Colonnes overrides taxes (2026-08-03). Compactes + placeholder
+       "auto" en italique gris pour signaler que vide = calcul auto. */
+    .lines-table .col-odp-override,
+    .lines-table .col-tm-override { width: 100px; }
+    .lines-table .col-odp-override input,
+    .lines-table .col-tm-override input {
+        font-size: 12px !important;
+        color: var(--text) !important;
+    }
+    .lines-table .col-odp-override input::placeholder,
+    .lines-table .col-tm-override input::placeholder {
+        color: var(--text3);
+        font-style: italic;
     }
 
     /* Numéro de ligne — pastille ronde */
@@ -1333,7 +1485,8 @@
         }
 
         /* Layout de la card ligne — grid avec zones nommées.
-           M², QTÉ, MOIS côte à côte (chiffres courts → gain d'espace). */
+           M², QTÉ, MOIS côte à côte (chiffres courts → gain d'espace).
+           ODP / TM overrides sur la même ligne (facultatifs). */
         .lines-table tbody tr {
             display: grid !important;
             grid-template-columns: repeat(3, 1fr);
@@ -1344,18 +1497,21 @@
                 "m2   qte  mois"
                 "pu   pu   pu"
                 "total total total"
+                "odp  odp  tm"
                 "act  act  act";
             gap: 4px 10px;
         }
-        .lines-table td.col-num         { grid-area: num; }
-        .lines-table td.col-designation { grid-area: designation; }
-        .lines-table td.col-commune     { grid-area: commune; }
-        .lines-table td.col-m2          { grid-area: m2; }
-        .lines-table td.col-qte         { grid-area: qte; }
-        .lines-table td.col-mois        { grid-area: mois; }
-        .lines-table td.col-pu          { grid-area: pu; }
-        .lines-table td.col-total       { grid-area: total; }
-        .lines-table td.act             { grid-area: act; }
+        .lines-table td.col-num          { grid-area: num; }
+        .lines-table td.col-designation  { grid-area: designation; }
+        .lines-table td.col-commune      { grid-area: commune; }
+        .lines-table td.col-m2           { grid-area: m2; }
+        .lines-table td.col-qte          { grid-area: qte; }
+        .lines-table td.col-mois         { grid-area: mois; }
+        .lines-table td.col-pu           { grid-area: pu; }
+        .lines-table td.col-total        { grid-area: total; }
+        .lines-table td.col-odp-override { grid-area: odp; }
+        .lines-table td.col-tm-override  { grid-area: tm; }
+        .lines-table td.act              { grid-area: act; }
     }
 
     /* Encore plus dense sous 560px (téléphones) : hero mode empilé */
@@ -1372,8 +1528,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 <script>
 (function () {
-    const TVA = {{ $tvaRate }};
-    const TSP = {{ $tspRate }};
+    // Taux par défaut (config). Les vrais taux appliqués proviennent
+    // des inputs #tva_rate / #tsp_rate (2026-08-03 — override facture).
+    const TVA_DEFAULT = {{ $tvaRate }};
+    const TSP_DEFAULT = {{ $tspRate }};
     const TM_DEFAULT = {{ $tmDefault }};
     const LOOKUP_PANELS_URL = "{{ route('admin.invoices.lookup.panels') }}";
 
@@ -1743,7 +1901,23 @@
         }
     }
 
+    // Résout le taux TVA / TSP effectif à partir des inputs override
+    // (2026-08-03). Vide → défaut config, 0 explicite = taxe désactivée.
+    function currentTva() {
+        const el = document.getElementById('tva_rate');
+        const v = el?.value?.trim();
+        return (v === '' || v == null) ? TVA_DEFAULT : Math.max(0, parseFloat(v) || 0);
+    }
+    function currentTsp() {
+        const el = document.getElementById('tsp_rate');
+        const v = el?.value?.trim();
+        return (v === '' || v == null) ? TSP_DEFAULT : Math.max(0, parseFloat(v) || 0);
+    }
+
     function recompute() {
+        const TVA = currentTva();
+        const TSP = currentTsp();
+
         let htBrut = 0, totalTm = 0, totalOdp = 0;
         tbody.querySelectorAll('.line-row').forEach(row => {
             const pu  = parseFloat(row.querySelector('.line-pu')?.value)   || 0;
@@ -1756,8 +1930,26 @@
             const tm  = parseFloat(opt?.dataset.tm)  || TM_DEFAULT;
             const lineHt = pu * qte * mois;
             htBrut    += lineHt;
-            totalOdp  += odp * m2 * qte * mois;
-            totalTm   += tm  * m2 * qte * mois;
+
+            // ODP / TM : calcul auto ligne (côté client = même formule
+            // que InvoiceCalculator.calculateLine SANS dates campagne,
+            // suffisant pour l'aperçu du récap). Écrasé si override saisi.
+            const odpAuto = odp * m2 * qte * mois;
+            const tmAuto  = tm  * m2 * qte * mois;
+            const odpInpt = row.querySelector('.line-odp-override');
+            const tmInpt  = row.querySelector('.line-tm-override');
+            const odpOv = odpInpt?.value?.trim();
+            const tmOv  = tmInpt?.value?.trim();
+            const odpFinal = (odpOv === '' || odpOv == null) ? odpAuto : (parseFloat(odpOv) || 0);
+            const tmFinal  = (tmOv  === '' || tmOv  == null) ? tmAuto  : (parseFloat(tmOv)  || 0);
+            totalOdp  += odpFinal;
+            totalTm   += tmFinal;
+
+            // Placeholder : montre la valeur auto pour signaler au comptable
+            // ce qu'il va écraser s'il saisit un override.
+            if (odpInpt) odpInpt.placeholder = odpAuto > 0 ? Math.round(odpAuto).toLocaleString('fr-FR') : 'auto';
+            if (tmInpt)  tmInpt.placeholder  = tmAuto  > 0 ? Math.round(tmAuto).toLocaleString('fr-FR')  : 'auto';
+
             const cell = row.querySelector('.line-total');
             if (cell) cell.textContent = fmt(lineHt);
         });
@@ -1767,19 +1959,31 @@
         // ── Services annexes libres (N lignes) ──
         // 2026-06-22 — En + du calcul du total, on construit aussi le détail
         // pour le récap (1 ligne par service avec son label et son TTC).
-        let svcHt = 0;
+        // 2026-08-03 — Chaque service porte tva_applicable ; si décoché,
+        // prix_ht = TTC direct (pas de TVA re-appliquée).
+        let svcHt = 0, svcTtc = 0;
         const svcDetailRows = [];
         document.querySelectorAll('#services-tbody .service-row').forEach(row => {
             const prix  = parseFloat(row.querySelector('.svc-prix')?.value) || 0;
             const label = (row.querySelector('.svc-label')?.value || '').trim();
+            const chk   = row.querySelector('.svc-tva-applicable');
+            const tvaAppl = chk ? chk.checked : true;
+            row.dataset.tvaApplicable = tvaAppl ? '1' : '0';
             svcHt += prix;
+            const svcTtcLine = tvaAppl ? prix * (1 + TVA/100) : prix;
+            svcTtc += svcTtcLine;
             const ttcCell = row.querySelector('.svc-ttc');
-            if (ttcCell) ttcCell.textContent = prix > 0 ? fmt(prix * (1 + TVA/100)) : '—';
-            // On n'affiche dans le détail que les services > 0 (ignore les rows vides).
+            if (ttcCell) {
+                ttcCell.textContent = prix > 0 ? fmt(svcTtcLine) : '—';
+                ttcCell.title = tvaAppl
+                    ? 'HT ' + fmt(prix) + ' + TVA ' + TVA + '%'
+                    : 'HT strict (TVA non applicable)';
+            }
             if (prix > 0) {
                 svcDetailRows.push({
                     label: label || '(sans libellé)',
-                    ttc:   prix * (1 + TVA/100),
+                    ttc:   svcTtcLine,
+                    tvaAppl: tvaAppl,
                 });
             }
         });
@@ -1788,7 +1992,6 @@
         const tvaAmt   = netHt * TVA / 100;
         const tspAmt   = netHt * TSP / 100;
         const ttc      = netHt + tvaAmt;
-        const svcTtc   = svcHt * (1 + TVA / 100);
         const total    = ttc + tspAmt + totalTm + totalOdp + svcTtc;
 
         const svcSub = document.getElementById('services-subtotal');
@@ -1805,8 +2008,18 @@
         document.getElementById('rec-svc').textContent    = fmt(svcTtc);
         document.getElementById('rec-total').textContent  = fmt(total);
 
+        // Rafraîchit aussi les libellés TVA/TSP dans le récap (le user
+        // peut changer ces taux ; sinon le libellé reste figé à 18/3 %).
+        const fmtRate = r => r.toString().replace('.', ',');
+        const tvaLbl = document.querySelector('#rec-tva')?.parentElement?.querySelector('.lbl');
+        if (tvaLbl) tvaLbl.textContent = 'TVA (' + fmtRate(TVA) + ' %)';
+        const tspLbl = document.querySelector('#rec-tsp')?.parentElement?.querySelector('.lbl');
+        if (tspLbl) tspLbl.textContent = 'TSP (' + fmtRate(TSP) + ' %)';
+
         // 2026-06-22 — Détail des services dans le récap (1 ligne par service).
         // Si aucun service : message en italique. Sinon : liste avec label + TTC.
+        // 2026-08-03 : petit badge "HT" quand tva_applicable=false pour
+        // signaler visuellement les services facturés hors TVA.
         const svcDetailEl = document.getElementById('rec-svc-detail');
         if (svcDetailEl) {
             if (svcDetailRows.length === 0) {
@@ -1814,7 +2027,9 @@
             } else {
                 svcDetailEl.innerHTML = svcDetailRows.map(s => `
                     <div class="fne-recap-row fne-recap-small" style="padding:1px 0">
-                        <span class="lbl" style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%" title="${s.label.replace(/"/g, '&quot;')}">${s.label}</span>
+                        <span class="lbl" style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%" title="${s.label.replace(/"/g, '&quot;')}">
+                            ${s.label}${s.tvaAppl ? '' : ' <span style="background:rgba(59,130,246,.12);color:#1d4ed8;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;margin-left:3px">HT</span>'}
+                        </span>
                         <span class="val" style="font-size:11px;font-weight:600">${fmt(s.ttc)}</span>
                     </div>
                 `).join('');
@@ -1850,6 +2065,10 @@
         const card = document.createElement('div');
         card.className = 'service-row svc-card';
         card.dataset.idx = idx;
+        card.dataset.tvaApplicable = '1';
+        // Le hidden "0" garantit que si l'utilisateur décoche la checkbox,
+        // PHP reçoit bien "0" (services[idx][tva_applicable] = "0") plutôt
+        // que rien du tout (qui serait interprété comme "défaut = true").
         card.innerHTML = `
             <div class="svc-card-num">${idx + 1}</div>
             <div class="svc-card-fields">
@@ -1866,8 +2085,17 @@
                         <span class="svc-prix-suffix">F</span>
                     </div>
                 </div>
+                <div class="svc-card-field svc-card-field-tva">
+                    <label>TVA applicable</label>
+                    <label class="svc-tva-toggle">
+                        <input type="hidden" name="services[${idx}][tva_applicable]" value="0">
+                        <input type="checkbox" name="services[${idx}][tva_applicable]" value="1"
+                               class="svc-tva-applicable" checked>
+                        <span class="svc-tva-label">Appliquer TVA</span>
+                    </label>
+                </div>
                 <div class="svc-card-field svc-card-field-ttc">
-                    <label>TTC (TVA 18 %)</label>
+                    <label>TTC</label>
                     <div class="svc-ttc-display"><span class="svc-ttc">—</span></div>
                 </div>
             </div>
@@ -1880,6 +2108,7 @@
         table.style.display = 'block';
         card.querySelector('.svc-label')?.focus();
         card.querySelector('.svc-prix')?.addEventListener('input', recompute);
+        card.querySelector('.svc-tva-applicable')?.addEventListener('change', recompute);
         reindexServices();
         recompute();
     };
@@ -1900,6 +2129,11 @@
             row.dataset.idx = i;
             row.querySelector('.svc-label').name = `services[${i}][label]`;
             row.querySelector('.svc-prix').name  = `services[${i}][prix_ht]`;
+            // Renomme les 2 inputs tva_applicable (hidden 0 + checkbox 1) —
+            // sinon PHP reçoit les mauvais index après réordonnancement.
+            row.querySelectorAll('input[name*="[tva_applicable]"]').forEach(el => {
+                el.name = `services[${i}][tva_applicable]`;
+            });
             // Re-numérote la pastille (1, 2, 3…)
             const num = row.querySelector('.svc-card-num');
             if (num) num.textContent = i + 1;
@@ -1907,8 +2141,9 @@
     }
 
     function bindRow(row) {
-        // Inputs natifs (m², PU, qté, mois) → recompute live
-        row.querySelectorAll('input.line-m2, input.line-pu, input.line-qte, input.line-mois').forEach(el => {
+        // Inputs natifs (m², PU, qté, mois + overrides ODP/TM 2026-08-03)
+        // → recompute live du récap.
+        row.querySelectorAll('input.line-m2, input.line-pu, input.line-qte, input.line-mois, input.line-odp-override, input.line-tm-override').forEach(el => {
             el.addEventListener('input', recompute);
         });
         // Select2 (désignation, commune) sont initialisés via initLineSelect2
@@ -2019,12 +2254,17 @@
         console.log('[FORM-FNE] guard boot a corrigé ' + guardFixCount + ' champ(s) vide(s)');
     }
 
-    ['remise_pct'].forEach(id => {
+    // Remise + taxes globales (TVA / TSP override 2026-08-03).
+    ['remise_pct', 'tva_rate', 'tsp_rate'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', recompute);
     });
     // Services annexes existants : binding initial sur les .svc-prix
+    // ET sur la checkbox .svc-tva-applicable (2026-08-03).
     document.querySelectorAll('#services-tbody .svc-prix').forEach(el => {
         el.addEventListener('input', recompute);
+    });
+    document.querySelectorAll('#services-tbody .svc-tva-applicable').forEach(el => {
+        el.addEventListener('change', recompute);
     });
 
     // Filtre panneaux déjà sélectionnés — mise à jour après chaque changement

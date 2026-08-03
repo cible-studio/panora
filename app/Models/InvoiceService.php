@@ -8,8 +8,14 @@ use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
 
 /**
- * Service annexe d'une facture — libellé libre + prix HT.
- * Chaque service est soumis à TVA 18 %.
+ * Service annexe d'une facture — libellé libre + prix HT + flag TVA.
+ *
+ * Par défaut chaque service est soumis à TVA 18 % (comportement
+ * historique). Depuis 2026-08-03 (demande patronne) : le comptable
+ * peut décocher `tva_applicable` sur un service donné — le service
+ * est alors facturé HT strict (prix_ht = TTC), cas typique des
+ * frais annexes refacturés sans TVA re-appliquée (impression
+ * fournisseur externe déjà taxée, etc.).
  *
  * Ex : "Frais d'impression", "Frais de pose et dépose", "Conception
  * créa", "Reportage photo livraison", etc.
@@ -20,12 +26,13 @@ class InvoiceService extends Model implements Auditable
     protected $auditExclude = ['updated_at'];
 
     protected $fillable = [
-        'invoice_id', 'label', 'prix_ht', 'order_index',
+        'invoice_id', 'label', 'prix_ht', 'tva_applicable', 'order_index',
     ];
 
     protected $casts = [
-        'prix_ht'     => 'integer',
-        'order_index' => 'integer',
+        'prix_ht'        => 'integer',
+        'tva_applicable' => 'boolean',
+        'order_index'    => 'integer',
     ];
 
     public function invoice(): BelongsTo

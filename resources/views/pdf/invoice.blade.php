@@ -102,12 +102,25 @@
     $tspAmount     = (int) $invoice->tsp_amount;
     $tmTotal       = (int) $invoice->tm_total;
     $odpTotal      = (int) $invoice->odp_total;
-    $servicesHtTot = (int) $invoice->services->sum('prix_ht');
+    $tvaRate       = (float) $invoice->tva;
+
+    // Services annexes : depuis 2026-08-03, chaque service porte un
+    // flag `tva_applicable`. On sépare le HT en 2 sous-totaux pour ne
+    // taxer que ceux qui l'exigent (les autres restent en HT strict).
+    $servicesWithTva = $invoice->services->filter(fn($s) => (bool) $s->tva_applicable);
+    $servicesNoTva   = $invoice->services->filter(fn($s) => !(bool) $s->tva_applicable);
+    $servicesHtTot   = (int) $invoice->services->sum('prix_ht');
+    $servicesHtWithTva = (int) $servicesWithTva->sum('prix_ht');
+    $servicesHtNoTva   = (int) $servicesNoTva->sum('prix_ht');
+    $servicesTvaAmount = (int) round($servicesHtWithTva * ($tvaRate / 100));
+    $servicesTtcTot    = $servicesHtWithTva + $servicesTvaAmount + $servicesHtNoTva;
+
     $autresTaxes   = $tspAmount + $tmTotal + $odpTotal;
     $totalAPayer   = (int) $invoice->total_a_payer;
 
-    // Base et taux du bloc "ODP+TM+TSP" du résumé
-    $autresBase = $totalTtc + (int) round($servicesHtTot * (1 + ((float) $invoice->tva) / 100));
+    // Base et taux du bloc "ODP+TM+TSP" du résumé — TTC panneaux + TTC
+    // services (HT+TVA pour les taxés, HT seul pour les autres).
+    $autresBase = $totalTtc + $servicesTtcTot;
     $autresRate = $autresBase > 0 ? round(($autresTaxes / $autresBase) * 100, 5) : 0;
 
     // Helper format entier (espaces + arrondi FCFA — pas de décimales)
@@ -512,7 +525,7 @@
                         <td class="num">{{ $fmt($line->pu_ht_mensuel) }}</td>
                         <td class="center">{{ $line->quantite }}</td>
                         <td class="center">m²</td>
-                        <td class="center">TVA ({{ (int) $invoice->tva }})</td>
+                        <td class="center">TVA ({{ (int) $tvaRate }})</td>
                         <td class="num">{{ $invoice->remise_pct > 0 ? number_format($invoice->remise_pct, 2, ',', '') : '0' }}</td>
                         <td class="num">{{ $fmt($line->montant_ht_ligne) }}</td>
                     </tr>
@@ -524,14 +537,15 @@
                     $ref = str_contains(mb_strtolower($svc->label), 'impression') ? 'IMP'
                          : (str_contains(mb_strtolower($svc->label), 'pose') ? 'FP'
                          : (str_contains(mb_strtolower($svc->label), 'électricité') || str_contains(mb_strtolower($svc->label), 'electricite') ? 'ELEC' : 'SRV'));
+                    $svcHasTva = (bool) $svc->tva_applicable;
                 @endphp
                 <tr>
                     <td class="ref">{{ $ref }}</td>
-                    <td>{{ $svc->label }}</td>
+                    <td>{{ $svc->label }}{{ $svcHasTva ? '' : ' (HT strict)' }}</td>
                     <td class="num">{{ $fmt($svc->prix_ht) }}</td>
                     <td class="center">1</td>
                     <td class="center">—</td>
-                    <td class="center">TVA ({{ (int) $invoice->tva }})</td>
+                    <td class="center">{{ $svcHasTva ? 'TVA (' . (int) $tvaRate . ')' : '—' }}</td>
                     <td class="num">0</td>
                     <td class="num">{{ $fmt($svc->prix_ht) }}</td>
                 </tr>
@@ -565,11 +579,11 @@
             @endif
             <tr>
                 <td class="lbl-tot">TVA</td>
-                <td class="val-tot">{{ $fmt($tvaAmount + (int) round($servicesHtTot * ((float) $invoice->tva / 100))) }}</td>
+                <td class="val-tot">{{ $fmt($tvaAmount + $servicesTvaAmount) }}</td>
             </tr>
             <tr>
                 <td class="lbl-tot">TOTAL TTC</td>
-                <td class="val-tot">{{ $fmt($totalTtc + (int) round($servicesHtTot * (1 + (float) $invoice->tva / 100))) }}</td>
+                <td class="val-tot">{{ $fmt($totalTtc + $servicesTtcTot) }}</td>
             </tr>
             <tr>
                 <td class="lbl-tot">AUTRES TAXES</td>
@@ -595,11 +609,19 @@
         </thead>
         <tbody>
             <tr>
-                <td>TVA normal - TVA sur HT {{ number_format((float) $invoice->tva, 2, ',', '') }}% - A</td>
-                <td class="num">{{ $fmt($netHt + $servicesHtTot) }}</td>
-                <td class="num">{{ (int) $invoice->tva }}%</td>
-                <td class="num">{{ $fmt($tvaAmount + (int) round($servicesHtTot * ((float) $invoice->tva / 100))) }}</td>
+                <td>TVA normal - TVA sur HT {{ number_format($tvaRate, 2, ',', '') }}% - A</td>
+                <td class="num">{{ $fmt($netHt + $servicesHtWithTva) }}</td>
+                <td class="num">{{ (int) $tvaRate }}%</td>
+                <td class="num">{{ $fmt($tvaAmount + $servicesTvaAmount) }}</td>
             </tr>
+            @if($servicesHtNoTva > 0)
+            <tr>
+                <td>Services HT strict (non soumis TVA)</td>
+                <td class="num">{{ $fmt($servicesHtNoTva) }}</td>
+                <td class="num">0%</td>
+                <td class="num">0</td>
+            </tr>
+            @endif
             <tr>
                 <td>ODP+TM+TSP</td>
                 <td class="num">{{ $fmt($autresBase) }}</td>

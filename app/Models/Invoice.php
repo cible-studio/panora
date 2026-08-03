@@ -45,6 +45,9 @@ class Invoice extends Model implements Auditable
         'remise_pct',
         'amount', 'net_ht',
         'tva', 'tva_amount', 'tsp_amount',
+        // Override TSP par facture (ajout 2026-08-03) — cf. migration
+        // add_tax_overrides_to_invoices. NULL = défaut config, 0 = TSP off.
+        'tsp_rate_override',
         'tm_total', 'odp_total',
         'services_impression', 'services_pose_depose',
         'amount_ttc', 'total_a_payer',
@@ -69,6 +72,7 @@ class Invoice extends Model implements Auditable
         'tva'                  => 'decimal:2',
         'tva_amount'           => 'integer',
         'tsp_amount'           => 'integer',
+        'tsp_rate_override'    => 'decimal:2',
         'tm_total'             => 'integer',
         'odp_total'            => 'integer',
         'services_impression'  => 'integer',
