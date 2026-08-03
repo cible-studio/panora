@@ -32,12 +32,15 @@
                         ->map(fn($l) => [
                             'designation'         => $l->designation,
                             'commune_id'          => $l->commune_id,
-                            'dimension_m2'        => (float) $l->dimension_m2,
-                            'pu_ht_mensuel'       => (int) $l->pu_ht_mensuel,
-                            'quantite'            => (int) $l->quantite,
-                            'duree_mois'          => (float) $l->duree_mois,
-                            'odp_rate_applique'   => (int) $l->odp_rate_applique,
-                            'tm_rate_applique'    => (int) $l->tm_rate_applique,
+                            // Fallback ?? défensif : si la BDD contient NULL
+                            // (lignes historiques mal migrées), on tombe sur
+                            // 0/1 plutôt que d'afficher une case vide.
+                            'dimension_m2'        => (float) ($l->dimension_m2 ?? 0),
+                            'pu_ht_mensuel'       => (int)   ($l->pu_ht_mensuel ?? 0),
+                            'quantite'            => (int)   ($l->quantite ?? 1),
+                            'duree_mois'          => (float) ($l->duree_mois ?? 1),
+                            'odp_rate_applique'   => (int)   ($l->odp_rate_applique ?? 0),
+                            'tm_rate_applique'    => (int)   ($l->tm_rate_applique ?? 1000),
                             // Overrides taxes par ligne (2026-08-03) — NULL = auto
                             'odp_amount_override' => $l->odp_amount_override,
                             'tm_amount_override'  => $l->tm_amount_override,
@@ -412,15 +415,16 @@
                                     <span class="svc-prix-suffix">F</span>
                                 </div>
                             </div>
-                            {{-- Toggle switch TVA applicable (2026-08-03 — patronne).
-                                 Cas métier : frais annexes déjà TTC côté fournisseur
-                                 externe (impression prépayée) qu'on refacture au
-                                 client sans re-appliquer la TVA. Le hidden "0"
-                                 qui précède garantit qu'un décochage envoie bien
-                                 "0" (sinon PHP ne reçoit rien = interprété comme
-                                 valeur absente = défaut true — bug métier). --}}
+                            {{-- Toggle switch TVA applicable (2026-08-03bis — refonte).
+                                 Libellé compact "TVA" / "HT", taux affiché dans le
+                                 label sup. Cas métier : frais annexes déjà TTC côté
+                                 fournisseur externe (impression prépayée) qu'on
+                                 refacture au client sans re-appliquer la TVA. Le
+                                 hidden "0" qui précède garantit qu'un décochage
+                                 envoie bien "0" (sinon PHP ne reçoit rien =
+                                 interprété comme valeur absente = défaut true). --}}
                             <div class="svc-card-field svc-card-field-tva">
-                                <label>TVA appliquée</label>
+                                <label>TVA <span style="font-weight:500;color:var(--text3);font-size:9px">({{ rtrim(rtrim(number_format($invTva, 2, ',', ''), '0'), ',') }} %)</span></label>
                                 <label class="svc-tva-toggle {{ $tvaAppl ? 'is-on' : 'is-off' }}">
                                     <input type="hidden" name="services[{{ $i }}][tva_applicable]" value="0">
                                     <input type="checkbox" name="services[{{ $i }}][tva_applicable]" value="1"
@@ -428,7 +432,7 @@
                                            {{ $tvaAppl ? 'checked' : '' }}
                                            {{ $locked ? 'disabled' : '' }}>
                                     <span class="svc-tva-switch"></span>
-                                    <span class="svc-tva-text">{{ $tvaAppl ? 'Oui — TVA' : 'Non — HT strict' }}</span>
+                                    <span class="svc-tva-text">{{ $tvaAppl ? 'TVA' : 'HT' }}</span>
                                 </label>
                             </div>
                             <div class="svc-card-field svc-card-field-ttc">
@@ -837,17 +841,15 @@
         .svc-card-fields { grid-template-columns: 1fr; }
     }
 
-    /* ── Toggle switch TVA applicable (per service, 2026-08-03) ────
-       Refonte 2026-08-03bis : switch OUI/NON visible et sans ambiguïté
-       (le checkbox natif était trop discret + le label se coupait sur
-       2 lignes dans les grid étroits). Vert = TVA active, gris = HT
-       strict. Le vrai <input type="checkbox"> reste caché mais focusable. */
+    /* ── Toggle switch TVA applicable (per service, 2026-08-03bis) ──
+       Compact + libellé court "TVA"/"HT" + bordure gauche colorée sur
+       la card entière (vert = TVA active, gris = HT strict). */
     .svc-tva-toggle {
         display: inline-flex;
         align-items: center;
-        gap: 10px;
-        height: 36px;
-        padding: 0 12px 0 6px;
+        gap: 6px;
+        height: 32px;
+        padding: 0 8px 0 4px;
         background: var(--surface2);
         border: 1px solid var(--border);
         border-radius: 999px;
@@ -867,8 +869,8 @@
     /* Rail du switch */
     .svc-tva-toggle .svc-tva-switch {
         position: relative;
-        width: 34px;
-        height: 20px;
+        width: 30px;
+        height: 18px;
         background: #cbd5e1;
         border-radius: 999px;
         flex-shrink: 0;
@@ -879,21 +881,24 @@
         content: '';
         position: absolute;
         top: 2px; left: 2px;
-        width: 16px; height: 16px;
+        width: 14px; height: 14px;
         background: #fff;
         border-radius: 50%;
-        box-shadow: 0 1px 3px rgba(0,0,0,.2);
+        box-shadow: 0 1px 2px rgba(0,0,0,.2);
         transition: transform .2s;
     }
     .svc-tva-toggle.is-on .svc-tva-switch { background: #16a34a; }
-    .svc-tva-toggle.is-on .svc-tva-switch::after { transform: translateX(14px); }
+    .svc-tva-toggle.is-on .svc-tva-switch::after { transform: translateX(12px); }
     .svc-tva-toggle.is-off .svc-tva-switch { background: #94a3b8; }
 
-    /* Texte à droite du switch — change selon l'état */
+    /* Texte court à droite du switch : "TVA" quand actif, "HT" sinon */
     .svc-tva-toggle .svc-tva-text {
-        font-size: 12px;
-        font-weight: 700;
+        font-size: 11px;
+        font-weight: 800;
         line-height: 1;
+        letter-spacing: .3px;
+        min-width: 24px;
+        text-align: center;
     }
     .svc-tva-toggle.is-on  .svc-tva-text { color: #15803d; }
     .svc-tva-toggle.is-off .svc-tva-text { color: #475569; }
@@ -903,16 +908,21 @@
         box-shadow: 0 0 0 3px rgba(232, 160, 32, .35);
     }
 
-    /* Card ayant TVA désactivée = visuellement distincte pour rappeler
+    /* Card avec TVA active = liseré vert (visuel positif).
+       Card avec TVA désactivée = liseré gris + léger fondu pour rappeler
        au comptable que ce service est facturé HT strict. */
+    .svc-card[data-tva-applicable="1"] {
+        border-left: 3px solid #16a34a;
+    }
     .svc-card[data-tva-applicable="0"] {
-        background: linear-gradient(180deg, var(--surface) 0%, rgba(59,130,246,.03) 100%);
-        border-left: 3px solid rgba(59,130,246,.4);
+        border-left: 3px solid #94a3b8;
+        background: var(--surface);
+        opacity: .92;
     }
     .svc-card[data-tva-applicable="0"] .svc-ttc-display {
-        background: rgba(59,130,246,.04);
-        border-color: rgba(59,130,246,.2);
-        color: #1d4ed8;
+        background: linear-gradient(180deg, rgba(148,163,184,.06), rgba(148,163,184,.02));
+        border-color: rgba(148,163,184,.3);
+        color: var(--text2);
     }
     .svc-card-field { display: flex; flex-direction: column; min-width: 0; }
     .svc-card-field label {
@@ -1216,14 +1226,14 @@
     .lines-table td.act { text-align: center; width: 56px; }
     .lines-table td.col-num { width: 44px; text-align: center; padding-left: 16px; }
 
-    /* Largeurs colonnes — élargies 2026-08-03 pour éviter troncature
-       des gros nombres (750 000, etc.) dans les inputs. */
+    /* Largeurs colonnes — élargies 2026-08-03bis pour que les nombres
+       (m², qté, PU 750 000, etc.) ne soient jamais tronqués. */
     .lines-table .col-designation { min-width: 280px; }
     .lines-table .col-commune     { min-width: 170px; }
-    .lines-table .col-m2          { width: 90px; }
+    .lines-table .col-m2          { width: 120px; min-width: 100px; }
     .lines-table .col-pu          { width: 150px; }
-    .lines-table .col-qte         { width: 80px; }
-    .lines-table .col-mois        { width: 95px; }
+    .lines-table .col-qte         { width: 100px; min-width: 80px; }
+    .lines-table .col-mois        { width: 110px; min-width: 90px; }
     .lines-table .col-total {
         width: 160px;
         font-weight: 800;
@@ -1248,7 +1258,9 @@
         transition: background .12s, color .12s, border-color .12s;
     }
 
-    /* Inputs natifs dans le tableau — 40px (cohérent avec hors-tableau) */
+    /* Inputs natifs dans le tableau — 40px (cohérent avec hors-tableau).
+       font-weight 600 + 13.5px = les chiffres restent lisibles même
+       serrés (fix M²/QTÉ apparaissant vides 2026-08-03bis). */
     .lines-table input[type="number"],
     .lines-table input[type="text"] {
         height: 40px !important;
@@ -1257,7 +1269,8 @@
         border: 1px solid var(--border) !important;
         border-radius: 8px !important;
         background: var(--surface) !important;
-        font-size: 13px !important;
+        font-size: 13.5px !important;
+        font-weight: 600 !important;
         text-align: right !important;
         color: var(--text) !important;
         font-variant-numeric: tabular-nums;
@@ -1954,13 +1967,13 @@
 
             // Sync visuel du toggle switch : la classe is-on / is-off
             // pilote la couleur (vert/gris) et la position du curseur.
-            // Le texte affiché change aussi ("Oui — TVA" vs "Non — HT strict").
+            // Le texte affiché change entre "TVA" et "HT" (2026-08-03bis).
             const toggle = row.querySelector('.svc-tva-toggle');
             if (toggle) {
                 toggle.classList.toggle('is-on', tvaAppl);
                 toggle.classList.toggle('is-off', !tvaAppl);
                 const txt = toggle.querySelector('.svc-tva-text');
-                if (txt) txt.textContent = tvaAppl ? 'Oui — TVA' : 'Non — HT strict';
+                if (txt) txt.textContent = tvaAppl ? 'TVA' : 'HT';
             }
 
             svcHt += prix;
@@ -2080,13 +2093,13 @@
                     </div>
                 </div>
                 <div class="svc-card-field svc-card-field-tva">
-                    <label>TVA appliquée</label>
+                    <label>TVA <span style="font-weight:500;color:var(--text3);font-size:9px">({{ rtrim(rtrim(number_format($invTva, 2, ',', ''), '0'), ',') }} %)</span></label>
                     <label class="svc-tva-toggle is-on">
                         <input type="hidden" name="services[${idx}][tva_applicable]" value="0">
                         <input type="checkbox" name="services[${idx}][tva_applicable]" value="1"
                                class="svc-tva-applicable" checked>
                         <span class="svc-tva-switch"></span>
-                        <span class="svc-tva-text">Oui — TVA</span>
+                        <span class="svc-tva-text">TVA</span>
                     </label>
                 </div>
                 <div class="svc-card-field svc-card-field-ttc">
