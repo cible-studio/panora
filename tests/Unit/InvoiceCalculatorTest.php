@@ -452,4 +452,119 @@ class InvoiceCalculatorTest extends TestCase
         $this->assertEquals(36000,  $c['tm_ligne'],         'TM ancien : 1000×12×3');
         $this->assertEquals(144000, $c['odp_ligne'],        'ODP ancien : 4000×12×3 (PAS ×3 trimestriel)');
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Overrides taxes (2026-08-03) — patronne comptable
+    // - odp_amount_override / tm_amount_override : forcer montant final ligne
+    // - opts.tva_rate / opts.tsp_rate : override par facture (0 = désactiver)
+    // - service.tva_applicable = false : service HT strict
+    // ═══════════════════════════════════════════════════════════════════
+
+    public function test_override_odp_amount_ecrase_calcul_auto(): void
+    {
+        // Ligne calculée → ODP auto = 15000 × 12 × 1 × 2 = 360 000
+        // Override 100 000 → doit être respecté tel quel.
+        $calc = new InvoiceCalculator();
+        $c = $calc->calculateLine([
+            'pu_ht_mensuel'       => 100000,
+            'quantite'            => 1,
+            'duree_mois'          => 2,
+            'dimension_m2'        => 12,
+            'odp_rate_applique'   => 15000,
+            'tm_rate_applique'    => 1000,
+            'odp_amount_override' => 100000,
+        ]);
+        $this->assertEquals(100000, $c['odp_ligne'], 'ODP forcé par override');
+        // TM reste en auto : 1000 × 12 × 1 × 2 = 24 000
+        $this->assertEquals(24000, $c['tm_ligne']);
+    }
+
+    public function test_override_tm_amount_a_zero_desactive_tm_pour_cette_ligne(): void
+    {
+        // Cas patronne : négociation exceptionnelle avec la commune,
+        // TM ramenée à 0 pour cette ligne.
+        $calc = new InvoiceCalculator();
+        $c = $calc->calculateLine([
+            'pu_ht_mensuel'      => 100000,
+            'quantite'           => 1,
+            'duree_mois'         => 1,
+            'dimension_m2'       => 10,
+            'odp_rate_applique'  => 1000,
+            'tm_rate_applique'   => 1000,
+            'tm_amount_override' => 0,
+        ]);
+        $this->assertEquals(0, $c['tm_ligne'], 'TM override à 0 respecté');
+        // ODP auto : 1000 × 10 × 1 × 1 = 10 000
+        $this->assertEquals(10000, $c['odp_ligne']);
+    }
+
+    public function test_override_tva_rate_facture_a_zero_annule_tva(): void
+    {
+        $calc = new InvoiceCalculator();
+        $totals = $calc->calculateInvoice([[
+            'pu_ht_mensuel'     => 100000,
+            'quantite'          => 1,
+            'duree_mois'        => 1,
+            'dimension_m2'      => 5,
+            'odp_rate_applique' => 1000,
+            'tm_rate_applique'  => 1000,
+        ]], ['tva_rate' => 0]);
+
+        $this->assertEqualsWithDelta(0,       $totals['tva_amount'],  0.01, 'TVA désactivée');
+        $this->assertEqualsWithDelta(100000,  $totals['amount_ttc'],  0.01, 'TTC = HT quand TVA=0');
+        $this->assertEqualsWithDelta(0,       (float) $totals['tva'], 0.01, 'Le taux persisté est bien 0');
+    }
+
+    public function test_override_tsp_rate_a_zero_annule_tsp(): void
+    {
+        $calc = new InvoiceCalculator();
+        $totals = $calc->calculateInvoice([[
+            'pu_ht_mensuel'     => 100000,
+            'quantite'          => 1,
+            'duree_mois'        => 1,
+            'dimension_m2'      => 5,
+            'odp_rate_applique' => 1000,
+            'tm_rate_applique'  => 1000,
+        ]], ['tsp_rate' => 0]);
+
+        $this->assertEqualsWithDelta(0, $totals['tsp_amount'], 0.01, 'TSP désactivée');
+        // TVA / TM / ODP inchangés (18k + 5k + 5k)
+        $this->assertEqualsWithDelta(18000, $totals['tva_amount'], 0.01);
+        $this->assertEqualsWithDelta(5000,  $totals['tm_total'],   0.01);
+        $this->assertEqualsWithDelta(5000,  $totals['odp_total'],  0.01);
+    }
+
+    public function test_service_tva_non_applicable_est_facture_ht_strict(): void
+    {
+        // 2 services : impression 50k (avec TVA) + reportage 30k (sans TVA
+        // — le fournisseur externe l'a déjà taxée).
+        //   svc1 TTC = 50000 × 1,18 = 59 000
+        //   svc2 TTC = 30 000 (HT strict = TTC direct)
+        //   Total services TTC = 89 000
+        $calc = new InvoiceCalculator();
+        $totals = $calc->calculateInvoice([], [
+            'services' => [
+                ['label' => "Frais d'impression", 'prix_ht' => 50000, 'tva_applicable' => true],
+                ['label' => 'Reportage photo',    'prix_ht' => 30000, 'tva_applicable' => false],
+            ],
+        ]);
+
+        $this->assertEqualsWithDelta(80000, $totals['services_ht_total'],  0.01);
+        $this->assertEqualsWithDelta(89000, $totals['services_ttc_total'], 0.01);
+        $this->assertEqualsWithDelta(89000, $totals['total_a_payer'],      0.01);
+    }
+
+    public function test_service_sans_flag_tva_applicable_defaut_true(): void
+    {
+        // Rétro-compat : un service sans clé tva_applicable = défaut true
+        // (comportement historique avant 2026-08-03).
+        $calc = new InvoiceCalculator();
+        $totals = $calc->calculateInvoice([], [
+            'services' => [
+                ['label' => "Frais d'impression", 'prix_ht' => 100000],
+            ],
+        ]);
+        // 100k × 1,18 = 118 000
+        $this->assertEqualsWithDelta(118000, $totals['services_ttc_total'], 0.01);
+    }
 }

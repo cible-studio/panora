@@ -13,16 +13,18 @@ use App\Models\InvoiceLine;
  *   Par ligne :
  *     Montant HT = PU × quantité × durée
  *     ODP        = odp_rate × m² × quantité × durée
+ *                  (OU odp_amount_override si présent — ajout 2026-08-03)
  *     TM         = tm_rate (1000) × m² × quantité × durée
+ *                  (OU tm_amount_override si présent — ajout 2026-08-03)
  *
  *   Facture :
  *     Total HT brut = Σ Montant HT
  *     Net HT        = Total HT brut × (1 - remise%)
- *     TVA           = Net HT × tva%
- *     TSP           = Net HT × tsp%       (Taxe Soutien Production, 3 %)
+ *     TVA           = Net HT × tva%   (tva% peut être overridé par facture)
+ *     TSP           = Net HT × tsp%   (tsp% peut être overridé par facture)
  *     Total TM      = Σ TM lignes
  *     Total ODP     = Σ ODP lignes
- *     Services TTC  = (impression + pose-dépose) × (1 + tva/100)
+ *     Services TTC  = Σ (prix_ht × (tva_applicable ? 1 + tva/100 : 1))
  *
  *   Total à payer (FNE) =
  *     Net HT + TVA + TSP + Total TM + Total ODP + Services TTC
@@ -33,6 +35,14 @@ use App\Models\InvoiceLine;
  *     TOTAL TTC     = Net HT + TVA
  *     AUTRES TAXES  = TSP + Total TM + Total ODP
  *     TOTAL À PAYER = TOTAL TTC + AUTRES TAXES + Services TTC
+ *
+ * Overrides taxes (ajout 2026-08-03, demande patronne) :
+ *   - opts.tva_rate : % TVA pour cette facture (défaut config)
+ *   - opts.tsp_rate : % TSP pour cette facture (défaut config, 0 = off)
+ *   - line.odp_amount_override / tm_amount_override : montants finaux FCFA
+ *     par ligne (remplace le calcul auto rate × m² × qty × durée).
+ *   - service.tva_applicable = false : le service n'est PAS soumis à TVA
+ *     (prix_ht = TTC direct).
  *
  * Test de référence (Treichville, 1 panneau 4 mois 12 m², PU 130k) :
  *   HT = 520 000, TVA = 93 600, TTC = 613 600,
@@ -80,6 +90,12 @@ class InvoiceCalculator
      *         sur duree_mois (compatibilité).
      *         Le ×3 vient de "tarif stocké mensuel → forfait trimestriel".
      *
+     * ═══ OVERRIDES par ligne (ajout 2026-08-03) ═══
+     * Si `odp_amount_override` ou `tm_amount_override` sont fournis
+     * (non-null), ils remplacent le calcul automatique. Utile quand
+     * l'admin/comptable négocie ponctuellement un forfait taxe avec
+     * la commune ou corrige manuellement une facture.
+     *
      * @param array{
      *   pu_ht_mensuel: float|int,
      *   quantite: int,
@@ -87,6 +103,8 @@ class InvoiceCalculator
      *   dimension_m2: float,
      *   odp_rate_applique?: float,
      *   tm_rate_applique?: float,
+     *   odp_amount_override?: int|null,
+     *   tm_amount_override?: int|null,
      *   campaign_start?: string|\DateTimeInterface|null,
      *   campaign_end?: string|\DateTimeInterface|null
      * } $line
@@ -126,14 +144,29 @@ class InvoiceCalculator
             $moisTM         = $this->period->moisAnniversaireEntames($csDate, $ceDate);
             $trimestresODP  = $this->period->trimestresCalendairesTouches($csDate, $ceDate);
 
-            $odp = ($odpRate * 3) * $m2 * $qte * $trimestresODP;   // forfait trimestriel ×3
-            $tm  = $tmRate       * $m2 * $qte * $moisTM;
+            $odpAuto = ($odpRate * 3) * $m2 * $qte * $trimestresODP;   // forfait trimestriel ×3
+            $tmAuto  = $tmRate       * $m2 * $qte * $moisTM;
         } else {
             // Compatibilité totale : ligne saisie sans dates → on utilise
             // duree_mois (comme avant TX-9).
-            $odp = $odpRate * $m2 * $qte * $duree;
-            $tm  = $tmRate  * $m2 * $qte * $duree;
+            $odpAuto = $odpRate * $m2 * $qte * $duree;
+            $tmAuto  = $tmRate  * $m2 * $qte * $duree;
         }
+
+        // Override manuel du MONTANT FINAL (2026-08-03). Le comptable
+        // peut saisir directement le montant FCFA négocié pour cette
+        // ligne (utile en cas d'accord ponctuel avec la commune). Une
+        // valeur explicite (même 0) écrase le calcul auto.
+        $odpOverride = $line['odp_amount_override'] ?? null;
+        $tmOverride  = $line['tm_amount_override']  ?? null;
+
+        $odp = ($odpOverride !== null && $odpOverride !== '')
+            ? (float) $odpOverride
+            : $odpAuto;
+
+        $tm  = ($tmOverride !== null && $tmOverride !== '')
+            ? (float) $tmOverride
+            : $tmAuto;
 
         // RÈGLE D'OR #4 — entiers FCFA. Pas de centimes en franc CFA.
         return [
@@ -148,8 +181,11 @@ class InvoiceCalculator
      * lignes (déjà calculées par calculateLine OU bruts).
      *
      * Services annexes (prompt v2) : N lignes libres avec libellé + prix HT.
+     * Chaque service porte un flag `tva_applicable` (défaut true). Si
+     * false, le prix_ht est facturé tel quel (pas de TVA re-appliquée).
+     *
      * On accepte :
-     *   - opts.services = [['label' => '...', 'prix_ht' => 50000], ...]  (forme moderne)
+     *   - opts.services = [['label' => '...', 'prix_ht' => 50000, 'tva_applicable' => true], ...]
      *   - opts.services_impression / services_pose_depose : LEGACY, agrégés en
      *     2 pseudo-services s'ils sont fournis (pour ne pas casser les tests
      *     existants et les vieilles factures non-migrées).
@@ -157,7 +193,9 @@ class InvoiceCalculator
      * @param array<int, array> $lines Lignes (avec ou sans pré-calcul)
      * @param array{
      *   remise_pct?: float,
-     *   services?: array<int, array{label?: string, prix_ht?: float}>,
+     *   tva_rate?: float|null,
+     *   tsp_rate?: float|null,
+     *   services?: array<int, array{label?: string, prix_ht?: float, tva_applicable?: bool}>,
      *   services_impression?: float,
      *   services_pose_depose?: float
      * } $opts
@@ -171,6 +209,16 @@ class InvoiceCalculator
     {
         $remisePct = max(0.0, min(100.0, (float) ($opts['remise_pct'] ?? 0)));
 
+        // ── Overrides taxes par facture (2026-08-03) ──
+        // NULL / absent = défaut config. 0 explicite = taxe désactivée
+        // (cas patronne : ne pas appliquer la TSP sur cette facture).
+        $tvaRate = (isset($opts['tva_rate']) && $opts['tva_rate'] !== null && $opts['tva_rate'] !== '')
+            ? max(0.0, (float) $opts['tva_rate'])
+            : $this->tvaRate;
+        $tspRate = (isset($opts['tsp_rate']) && $opts['tsp_rate'] !== null && $opts['tsp_rate'] !== '')
+            ? max(0.0, (float) $opts['tsp_rate'])
+            : $this->tspRate;
+
         // ── Résolution services annexes ──
         // Priorité : opts.services (forme libre N lignes).
         // Sinon : LEGACY opts.services_impression + services_pose_depose
@@ -181,15 +229,20 @@ class InvoiceCalculator
                 $prix = (float) ($s['prix_ht'] ?? 0);
                 if ($prix <= 0) continue;
                 $svcLines[] = [
-                    'label'   => (string) ($s['label'] ?? 'Service'),
-                    'prix_ht' => $prix,
+                    'label'          => (string) ($s['label'] ?? 'Service'),
+                    'prix_ht'        => $prix,
+                    // Défaut = true (rétro-compat toutes factures avant
+                    // 2026-08-03 : toujours soumises à TVA).
+                    'tva_applicable' => array_key_exists('tva_applicable', $s)
+                        ? (bool) $s['tva_applicable']
+                        : true,
                 ];
             }
         } else {
             $legacyPrint = max(0.0, (float) ($opts['services_impression']  ?? 0));
             $legacyPose  = max(0.0, (float) ($opts['services_pose_depose'] ?? 0));
-            if ($legacyPrint > 0) $svcLines[] = ['label' => "Frais d'impression",       'prix_ht' => $legacyPrint];
-            if ($legacyPose  > 0) $svcLines[] = ['label' => 'Frais de pose et dépose', 'prix_ht' => $legacyPose];
+            if ($legacyPrint > 0) $svcLines[] = ['label' => "Frais d'impression",       'prix_ht' => $legacyPrint, 'tva_applicable' => true];
+            if ($legacyPose  > 0) $svcLines[] = ['label' => 'Frais de pose et dépose', 'prix_ht' => $legacyPose,  'tva_applicable' => true];
         }
 
         $totalHtBrut = 0.0;
@@ -203,19 +256,38 @@ class InvoiceCalculator
                 $totalTm     += $calc['tm_ligne'];
                 $totalOdp    += $calc['odp_ligne'];
             } else {
+                // Lignes déjà pré-calculées : on respecte quand même les
+                // overrides s'ils sont fournis en même temps (cas où le
+                // recalcul intègre une correction manuelle).
                 $totalHtBrut += (float) $l['montant_ht_ligne'];
-                $totalTm     += (float) ($l['tm_ligne']  ?? 0);
-                $totalOdp    += (float) ($l['odp_ligne'] ?? 0);
+
+                $odpOverride = $l['odp_amount_override'] ?? null;
+                $tmOverride  = $l['tm_amount_override']  ?? null;
+                $odpVal = ($odpOverride !== null && $odpOverride !== '')
+                    ? (float) $odpOverride
+                    : (float) ($l['odp_ligne'] ?? 0);
+                $tmVal  = ($tmOverride !== null && $tmOverride !== '')
+                    ? (float) $tmOverride
+                    : (float) ($l['tm_ligne']  ?? 0);
+                $totalOdp += $odpVal;
+                $totalTm  += $tmVal;
             }
         }
 
         $netHt      = $totalHtBrut * (1 - $remisePct / 100);
-        $tvaAmount  = $netHt * $this->tvaRate / 100;
-        $tspAmount  = $netHt * $this->tspRate / 100;
+        $tvaAmount  = $netHt * $tvaRate / 100;
+        $tspAmount  = $netHt * $tspRate / 100;
         $amountTtc  = $netHt + $tvaAmount;
 
+        // Services annexes : chaque service applique (ou pas) la TVA
+        // selon son flag tva_applicable.
         $servicesHt  = array_sum(array_column($svcLines, 'prix_ht'));
-        $servicesTtc = $servicesHt * (1 + $this->tvaRate / 100);
+        $servicesTtc = 0.0;
+        foreach ($svcLines as $s) {
+            $servicesTtc += $s['tva_applicable']
+                ? $s['prix_ht'] * (1 + $tvaRate / 100)
+                : $s['prix_ht'];
+        }
 
         // Rétro-compat pour les champs invoices.services_impression /
         // services_pose_depose : on les remplit avec les 2 premières
@@ -238,7 +310,10 @@ class InvoiceCalculator
             'amount'               => (int) round($totalHtBrut),
             'remise_pct'           => round($remisePct, 2),
             'net_ht'               => (int) round($netHt),
-            'tva'                  => round($this->tvaRate, 2),
+            'tva'                  => round($tvaRate, 2),
+            'tsp_rate_override'    => (isset($opts['tsp_rate']) && $opts['tsp_rate'] !== null && $opts['tsp_rate'] !== '')
+                ? round((float) $opts['tsp_rate'], 2)
+                : null,
             'tva_amount'           => (int) round($tvaAmount),
             'tsp_amount'           => (int) round($tspAmount),
             'tm_total'             => (int) round($totalTm),
@@ -274,12 +349,22 @@ class InvoiceCalculator
         $invoice->loadMissing(['lines', 'services']);
         $linesArr = $invoice->lines->map(fn(InvoiceLine $l) => $l->toArray())->all();
         $svcArr   = $invoice->services->map(fn($s) => [
-            'label'   => $s->label,
-            'prix_ht' => (float) $s->prix_ht,
+            'label'          => $s->label,
+            'prix_ht'        => (float) $s->prix_ht,
+            'tva_applicable' => (bool) $s->tva_applicable,
         ])->all();
+
+        // Taux facture : on relit ce qui est déjà stocké (saisis au store/
+        // update par InvoiceController). NULL = défaut config.
+        $tvaOverride = $invoice->tva !== null ? (float) $invoice->tva : null;
+        $tspOverride = $invoice->tsp_rate_override !== null
+            ? (float) $invoice->tsp_rate_override
+            : null;
 
         $totals = $this->calculateInvoice($linesArr, [
             'remise_pct' => (float) $invoice->remise_pct,
+            'tva_rate'   => $tvaOverride,
+            'tsp_rate'   => $tspOverride,
             // Forme moderne (N services libres). Si vide, le calculator
             // fallback automatiquement sur les 2 champs legacy de la
             // facture (rétro-compat pour les factures non-migrées).

@@ -398,12 +398,18 @@ class InvoiceController extends Controller
             'issued_at'                    => 'required|date',
             'notes_client'                 => 'nullable|string|max:2000',
             'remise_pct'                   => 'nullable|numeric|min:0|max:100',
+            // Overrides taxes globales (2026-08-03 — patronne). NULL = défaut
+            // config, 0 = taxe désactivée (ex : facture sans TSP / sans TVA).
+            'tva_rate'                     => 'nullable|numeric|min:0|max:100',
+            'tsp_rate'                     => 'nullable|numeric|min:0|max:100',
             // Services annexes libres (prompt v2). Champs LEGACY conservés
             // pour rétrocompat (factures historiques) mais ignorés si on
             // reçoit le tableau moderne 'services'.
             'services'                     => 'nullable|array|max:30',
             'services.*.label'             => 'required_with:services|string|max:200',
             'services.*.prix_ht'           => 'required_with:services|numeric|min:0',
+            // Flag TVA par service (2026-08-03). Absent = true (défaut).
+            'services.*.tva_applicable'    => 'nullable|boolean',
             'services_impression'          => 'nullable|numeric|min:0',
             'services_pose_depose'         => 'nullable|numeric|min:0',
             'lines'                        => 'required|array|min:1',
@@ -413,6 +419,10 @@ class InvoiceController extends Controller
             'lines.*.pu_ht_mensuel'        => 'required|numeric|min:0',
             'lines.*.quantite'             => 'required|integer|min:1',
             'lines.*.duree_mois'           => 'required|numeric|min:0.5',
+            // Overrides ODP/TM par ligne (2026-08-03 — patronne). Montant
+            // FCFA final : si présent, remplace le calcul auto habituel.
+            'lines.*.odp_amount_override'  => 'nullable|numeric|min:0',
+            'lines.*.tm_amount_override'   => 'nullable|numeric|min:0',
             // Bug 3a — panel_id / external_panel_id transmis pour validation
             // d'unicité. Nullable pour rétrocompat avec les lignes libres
             // (saisie en tag Select2 sans panneau matché).
@@ -465,6 +475,16 @@ class InvoiceController extends Controller
                                   ?? auth()->id();
             }
 
+            // Overrides taxes globales (2026-08-03) : la valeur est
+            // persistée telle quelle. NULL/absent = défaut config repris
+            // par le calculator.
+            $tvaOverride = (isset($data['tva_rate']) && $data['tva_rate'] !== null && $data['tva_rate'] !== '')
+                ? (float) $data['tva_rate']
+                : $calculator->tvaRate();
+            $tspOverride = (isset($data['tsp_rate']) && $data['tsp_rate'] !== null && $data['tsp_rate'] !== '')
+                ? (float) $data['tsp_rate']
+                : null;
+
             $invoice = Invoice::create([
                 'reference'            => $data['reference'],
                 'client_id'            => $clientId,
@@ -473,7 +493,8 @@ class InvoiceController extends Controller
                 'created_by'           => auth()->id(),
                 'issued_at'            => $data['issued_at'],
                 'status'               => 'brouillon',
-                'tva'                  => $calculator->tvaRate(),
+                'tva'                  => $tvaOverride,
+                'tsp_rate_override'    => $tspOverride,
                 'remise_pct'           => (float) ($data['remise_pct'] ?? 0),
                 // Champs legacy : 0 si on a la forme moderne 'services',
                 // sinon copie pour rétrocompat (entiers FCFA).
@@ -505,10 +526,19 @@ class InvoiceController extends Controller
             $label = trim((string) ($s['label'] ?? ''));
             $prix  = (float) ($s['prix_ht'] ?? 0);
             if ($label === '' || $prix <= 0) continue;
+            // tva_applicable : défaut true si absent (rétro-compat toutes
+            // les factures antérieures à 2026-08-03). Le checkbox HTML
+            // n'envoie rien quand décoché → absent = TVA active ; on
+            // s'appuie sur un hidden preceding "0" pour distinguer
+            // "case décochée" (false) de "champ absent" (true, défaut).
+            $tvaFlag = array_key_exists('tva_applicable', $s)
+                ? (bool) filter_var($s['tva_applicable'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+                : true;
             $invoice->services()->create([
-                'label'       => $label,
-                'prix_ht'     => $prix,
-                'order_index' => $idx++,
+                'label'          => $label,
+                'prix_ht'        => $prix,
+                'tva_applicable' => $tvaFlag,
+                'order_index'    => $idx++,
             ]);
         }
     }
@@ -526,6 +556,15 @@ class InvoiceController extends Controller
             $commune = \App\Models\Commune::find($l['commune_id']);
             $rates = $commune?->ratesAt($issuedDate) ?? ['odp' => 0, 'tm' => 1000];
 
+            // Overrides ODP/TM par ligne (2026-08-03) : montant FCFA final.
+            // Chaîne vide OU absente = NULL (calcul auto), 0 explicite = 0.
+            $odpOverride = (isset($l['odp_amount_override']) && $l['odp_amount_override'] !== '' && $l['odp_amount_override'] !== null)
+                ? (int) round((float) $l['odp_amount_override'])
+                : null;
+            $tmOverride  = (isset($l['tm_amount_override']) && $l['tm_amount_override'] !== '' && $l['tm_amount_override'] !== null)
+                ? (int) round((float) $l['tm_amount_override'])
+                : null;
+
             $lineData = [
                 'designation'           => $l['designation'],
                 'commune_id'            => $commune?->id,
@@ -536,6 +575,8 @@ class InvoiceController extends Controller
                 'duree_mois'            => (float) $l['duree_mois'],
                 'odp_rate_applique'     => (float) $rates['odp'],
                 'tm_rate_applique'      => (float) $rates['tm'],
+                'odp_amount_override'   => $odpOverride,
+                'tm_amount_override'    => $tmOverride,
                 'order_index'           => $orderIdx++,
                 // Bug 3a (2026-07-16) : lien vers le panneau physique
                 // (interne ou externe). Permet la validation d'unicité
@@ -544,7 +585,9 @@ class InvoiceController extends Controller
                 'external_panel_id'     => !empty($l['external_panel_id']) ? (int) $l['external_panel_id'] : null,
             ];
 
-            // Pré-calcul des totaux ligne (montant_ht, odp, tm)
+            // Pré-calcul des totaux ligne (montant_ht, odp, tm). Le
+            // calculator lit odp_amount_override / tm_amount_override
+            // et court-circuite le calcul auto si nécessaire.
             $calc = $calculator->calculateLine($lineData);
             $lineData = array_merge($lineData, $calc);
 
@@ -740,10 +783,14 @@ class InvoiceController extends Controller
             'issued_at'                    => 'required|date',
             'notes_client'                 => 'nullable|string|max:2000',
             'remise_pct'                   => 'nullable|numeric|min:0|max:100',
+            // Overrides taxes globales (2026-08-03 — patronne).
+            'tva_rate'                     => 'nullable|numeric|min:0|max:100',
+            'tsp_rate'                     => 'nullable|numeric|min:0|max:100',
             // Services annexes libres (prompt v2)
             'services'                     => 'nullable|array|max:30',
             'services.*.label'             => 'required_with:services|string|max:200',
             'services.*.prix_ht'           => 'required_with:services|numeric|min:0',
+            'services.*.tva_applicable'    => 'nullable|boolean',
             // Legacy : conservés pour rétrocompat factures historiques
             'services_impression'          => 'nullable|numeric|min:0',
             'services_pose_depose'         => 'nullable|numeric|min:0',
@@ -754,6 +801,9 @@ class InvoiceController extends Controller
             'lines.*.pu_ht_mensuel'        => 'required|numeric|min:0',
             'lines.*.quantite'             => 'required|integer|min:1',
             'lines.*.duree_mois'           => 'required|numeric|min:0.5',
+            // Overrides ODP/TM par ligne (2026-08-03 — patronne).
+            'lines.*.odp_amount_override'  => 'nullable|numeric|min:0',
+            'lines.*.tm_amount_override'   => 'nullable|numeric|min:0',
             // Bug 3a — panel_id / external_panel_id transmis pour validation d'unicité
             'lines.*.panel_id'             => 'nullable|exists:panels,id',
             'lines.*.external_panel_id'    => 'nullable|exists:external_panels,id',
@@ -791,12 +841,24 @@ class InvoiceController extends Controller
         $issuedAt = \Carbon\Carbon::parse($data['issued_at']);
 
         return \Illuminate\Support\Facades\DB::transaction(function () use ($data, $invoice, $clientId, $issuedAt, $calculator) {
+            // Overrides taxes globales (2026-08-03) — cf. store().
+            // NULL/absent => on remet la valeur défaut config (tva) ou
+            // NULL (tsp_rate_override = calcul auto).
+            $tvaOverride = (isset($data['tva_rate']) && $data['tva_rate'] !== null && $data['tva_rate'] !== '')
+                ? (float) $data['tva_rate']
+                : $calculator->tvaRate();
+            $tspOverride = (isset($data['tsp_rate']) && $data['tsp_rate'] !== null && $data['tsp_rate'] !== '')
+                ? (float) $data['tsp_rate']
+                : null;
+
             $invoice->update([
                 'reference'            => $data['reference'],
                 'client_id'            => $clientId,
                 'campaign_id'          => $data['campaign_id'] ?? null,
                 'issued_at'            => $data['issued_at'],
                 'remise_pct'           => (float) ($data['remise_pct'] ?? 0),
+                'tva'                  => $tvaOverride,
+                'tsp_rate_override'    => $tspOverride,
                 'services_impression'  => !empty($data['services']) ? 0 : (float) ($data['services_impression'] ?? 0),
                 'services_pose_depose' => !empty($data['services']) ? 0 : (float) ($data['services_pose_depose'] ?? 0),
                 'notes_client'         => $data['notes_client'] ?? null,

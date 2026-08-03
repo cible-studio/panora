@@ -30,6 +30,9 @@ class InvoiceLine extends Model implements Auditable
         'montant_ht_ligne',
         'odp_rate_applique', 'tm_rate_applique',
         'odp_ligne', 'tm_ligne',
+        // Overrides montant total ODP/TM par ligne (ajout 2026-08-03).
+        // Si présents, remplacent la valeur auto-calculée. NULL = auto.
+        'odp_amount_override', 'tm_amount_override',
         'order_index',
     ];
 
@@ -50,6 +53,8 @@ class InvoiceLine extends Model implements Auditable
         'tm_rate_applique'  => 'integer',
         'odp_ligne'         => 'integer',
         'tm_ligne'          => 'integer',
+        'odp_amount_override' => 'integer',
+        'tm_amount_override'  => 'integer',
         'order_index'       => 'integer',
     ];
 
