@@ -932,7 +932,11 @@
         color: #1d4ed8;
     }
     .svc-card-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-    .svc-card-field label {
+    /* :not(.svc-tva-toggle) — sinon la règle écrase le display: inline-flex
+       du <label class="svc-tva-toggle"> qui contient le switch, et le
+       toggle devient un block avec text-transform:uppercase (bug visuel
+       observé 2026-08-03ter : "TV" écrit par-dessus le switch). */
+    .svc-card-field label:not(.svc-tva-toggle) {
         font-size: 10px;
         font-weight: 700;
         color: var(--text3);
