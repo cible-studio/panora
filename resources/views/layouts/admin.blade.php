@@ -412,7 +412,15 @@
                             {{ $unreadCount > 99 ? '99+' : $unreadCount }}
                         </span>
                     </a>
-                    {{ $topbarActions ?? '' }}
+                    {{-- Boutons custom de la page (Excel, PDF, Modifier, +Nouveau…).
+                         Wrapper dédié pour permettre le décrochage sous 640px
+                         (voir CSS .topbar-actions-page dans app.css) : sur
+                         mobile, cette zone sort de la topbar et s'affiche en
+                         dessous avec les libellés visibles + scroll horizontal
+                         si nombreux. La topbar principale ne conserve que
+                         burger + retour + titre + theme + cloche → titre plus
+                         jamais tronqué en mobile. --}}
+                    <div class="topbar-actions-page">{{ $topbarActions ?? '' }}</div>
                 </div>
             </header>
 
