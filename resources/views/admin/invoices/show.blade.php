@@ -429,20 +429,38 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($invoice->lines as $l)
-                                    <tr style="border-top:1px solid var(--border)">
-                                        <td style="padding:8px 10px">
-                                            <div style="font-weight:600">{{ $l->designation }}</div>
-                                            @if($l->snapshot_commune_name)
-                                                <div style="font-size:10px;color:var(--text3);margin-top:1px">📍 {{ $l->snapshot_commune_name }}</div>
-                                            @endif
+                                {{-- Regroupement par commune (demande 2026-08-03) :
+                                     les lignes de la même commune sont affichées
+                                     ensemble, chaque bloc préfixé d'un séparateur
+                                     visuel avec pin + nom + sous-total commune.
+                                     Facilite la lecture d'une facture multi-communes. --}}
+                                @php
+                                    $groupedLines = $invoice->lines
+                                        ->sortBy([['snapshot_commune_name', 'asc'], ['designation', 'asc']])
+                                        ->groupBy(fn($l) => $l->snapshot_commune_name ?: '—');
+                                @endphp
+                                @foreach($groupedLines as $communeName => $groupLines)
+                                    @php $subTotal = $groupLines->sum('montant_ht_ligne'); @endphp
+                                    <tr style="background:var(--surface2);border-top:1px solid var(--border)">
+                                        <td colspan="5" style="padding:6px 10px;font-size:10.5px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.4px">
+                                            📍 {{ $communeName }} <span style="color:var(--text3);font-weight:600;text-transform:none;letter-spacing:0">· {{ $groupLines->count() }} panneau{{ $groupLines->count() > 1 ? 'x' : '' }}</span>
                                         </td>
-                                        <td style="padding:8px 10px;text-align:right;">{{ $fmt($l->pu_ht_mensuel) }}</td>
-                                        <td style="padding:8px 10px;text-align:center">{{ $l->quantite }}</td>
-                                        <td style="padding:8px 10px;text-align:center">{{ rtrim(rtrim(number_format($l->duree_mois, 2, ',', ''), '0'), ',') }}</td>
-                                        <td style="padding:8px 10px;text-align:center">{{ rtrim(rtrim(number_format($l->dimension_m2, 2, ',', ''), '0'), ',') }}</td>
-                                        <td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--accent)">{{ $fmt($l->montant_ht_ligne) }}</td>
+                                        <td style="padding:6px 10px;text-align:right;font-size:10.5px;font-weight:800;color:var(--accent)">
+                                            {{ $fmt($subTotal) }}
+                                        </td>
                                     </tr>
+                                    @foreach($groupLines as $l)
+                                        <tr style="border-top:1px solid var(--border)">
+                                            <td style="padding:8px 10px">
+                                                <div style="font-weight:600">{{ $l->designation }}</div>
+                                            </td>
+                                            <td style="padding:8px 10px;text-align:right;">{{ $fmt($l->pu_ht_mensuel) }}</td>
+                                            <td style="padding:8px 10px;text-align:center">{{ $l->quantite }}</td>
+                                            <td style="padding:8px 10px;text-align:center">{{ rtrim(rtrim(number_format($l->duree_mois, 2, ',', ''), '0'), ',') }}</td>
+                                            <td style="padding:8px 10px;text-align:center">{{ rtrim(rtrim(number_format($l->dimension_m2, 2, ',', ''), '0'), ',') }}</td>
+                                            <td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--accent)">{{ $fmt($l->montant_ht_ligne) }}</td>
+                                        </tr>
+                                    @endforeach
                                 @endforeach
                             </tbody>
                         </table>
