@@ -2268,10 +2268,85 @@
                          e.target.classList.contains('line-panel-id') ||
                          e.target.classList.contains('line-external-panel-id'))) {
             refreshTakenPanelsCache();
+            refreshAddLineButtonVisibility();
         }
     });
     // Init cache à l'ouverture
     refreshTakenPanelsCache();
+
+    // ── Bouton "Ajouter une ligne" : masqué quand tous les panneaux de
+    // la campagne courante sont déjà pris (2026-08-03 — demande patronne).
+    // ─────────────────────────────────────────────────────────────────
+    // Le total est ramené depuis l'endpoint lookup-panels (nouveau champ
+    // campaign_total, calculé côté serveur avant filtre texte). On garde
+    // le résultat en cache local par campaign_id pour ne pas re-appeler
+    // l'API à chaque ajout/suppression.
+    window.campaignPanelsTotalCache = window.campaignPanelsTotalCache || {};
+    async function getCampaignPanelsTotal() {
+        const cid = campaignSel?.value || '';
+        if (!cid) return null; // pas de campagne → pas de blocage
+        if (window.campaignPanelsTotalCache[cid] !== undefined) {
+            return window.campaignPanelsTotalCache[cid];
+        }
+        try {
+            const url = LOOKUP_PANELS_URL + '?campaign_id=' + encodeURIComponent(cid) + '&page=1';
+            const res = await fetch(url, { headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'} });
+            if (!res.ok) return null;
+            const data = await res.json();
+            const total = typeof data.campaign_total === 'number' ? data.campaign_total : null;
+            if (total !== null) window.campaignPanelsTotalCache[cid] = total;
+            return total;
+        } catch (e) {
+            console.warn('[FORM-FNE] getCampaignPanelsTotal failed', e);
+            return null;
+        }
+    }
+    async function refreshAddLineButtonVisibility() {
+        if (!addBtn) return;
+        const total = await getCampaignPanelsTotal();
+        if (total === null) {
+            // Pas de campagne ou API down → on garde le bouton visible
+            // (comportement historique — l'admin peut toujours taper des
+            // désignations libres via le tag Select2).
+            addBtn.style.display = '';
+            addBtn.removeAttribute('data-locked');
+            return;
+        }
+        const taken = (window.takenPanelsCache?.int?.size || 0)
+                    + (window.takenPanelsCache?.ext?.size || 0);
+        if (taken >= total && total > 0) {
+            addBtn.style.display = 'none';
+            addBtn.setAttribute('data-locked', 'all-taken');
+            // Message discret pour expliquer pourquoi le bouton disparaît
+            let hint = document.getElementById('lines-all-taken-hint');
+            if (!hint) {
+                hint = document.createElement('div');
+                hint.id = 'lines-all-taken-hint';
+                hint.style.cssText = 'padding:10px 14px;font-size:12px;color:var(--text3);text-align:center;font-style:italic';
+                hint.textContent = '✓ Tous les panneaux de cette campagne (' + total + ') sont facturés — plus rien à ajouter.';
+                addBtn.parentElement?.appendChild(hint);
+            } else {
+                hint.style.display = '';
+            }
+        } else {
+            addBtn.style.display = '';
+            addBtn.removeAttribute('data-locked');
+            const hint = document.getElementById('lines-all-taken-hint');
+            if (hint) hint.style.display = 'none';
+        }
+    }
+
+    // Reset le cache campagne quand l'utilisateur change de campagne
+    // (le total peut être différent). Puis re-check la visibilité.
+    $campaign.on('change', () => {
+        // On force la relecture au prochain appel (invalidation cache)
+        const cid = campaignSel?.value || '';
+        if (cid) delete window.campaignPanelsTotalCache[cid];
+        refreshAddLineButtonVisibility();
+    });
+
+    // Check initial à l'ouverture de la page
+    refreshAddLineButtonVisibility();
 
     recompute();
 })();
