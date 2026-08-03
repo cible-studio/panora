@@ -485,17 +485,38 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($invoice->lines as $line)
-                <tr>
-                    <td class="ref">LP</td>
-                    <td>{{ $line->designation }}</td>
-                    <td class="num">{{ $fmt($line->pu_ht_mensuel) }}</td>
-                    <td class="center">{{ $line->quantite }}</td>
-                    <td class="center">m²</td>
-                    <td class="center">TVA ({{ (int) $invoice->tva }})</td>
-                    <td class="num">{{ $invoice->remise_pct > 0 ? number_format($invoice->remise_pct, 2, ',', '') : '0' }}</td>
-                    <td class="num">{{ $fmt($line->montant_ht_ligne) }}</td>
-                </tr>
+            {{-- Regroupement par commune (demande 2026-08-03) : les lignes
+                 de la même commune sont affichées ensemble. Séparateur
+                 discret ligne fine avec pin + nom, pour ne pas alourdir
+                 le PDF officiel FNE. Sous-total commune non exposé ici
+                 (le total général reste la source d'autorité). --}}
+            @php
+                $groupedLinesPdf = $invoice->lines
+                    ->sortBy([['snapshot_commune_name', 'asc'], ['designation', 'asc']])
+                    ->groupBy(fn($l) => $l->snapshot_commune_name ?: '—');
+            @endphp
+            @foreach($groupedLinesPdf as $communeName => $groupLines)
+                @if($groupedLinesPdf->count() > 1)
+                    {{-- On n'affiche le séparateur que si multi-communes.
+                         Facture mono-commune = liste simple, plus propre. --}}
+                    <tr>
+                        <td colspan="8" style="background:#f8fafc;padding:4px 8px;font-size:8.5px;font-weight:700;color:#475569;border-top:1px solid #e5e7eb">
+                            📍 {{ $communeName }}
+                        </td>
+                    </tr>
+                @endif
+                @foreach($groupLines as $line)
+                    <tr>
+                        <td class="ref">LP</td>
+                        <td>{{ $line->designation }}</td>
+                        <td class="num">{{ $fmt($line->pu_ht_mensuel) }}</td>
+                        <td class="center">{{ $line->quantite }}</td>
+                        <td class="center">m²</td>
+                        <td class="center">TVA ({{ (int) $invoice->tva }})</td>
+                        <td class="num">{{ $invoice->remise_pct > 0 ? number_format($invoice->remise_pct, 2, ',', '') : '0' }}</td>
+                        <td class="num">{{ $fmt($line->montant_ht_ligne) }}</td>
+                    </tr>
+                @endforeach
             @endforeach
 
             @foreach($invoice->services as $svc)

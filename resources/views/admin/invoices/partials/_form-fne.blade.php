@@ -17,22 +17,33 @@
 @php
     $isEdit    = isset($invoice) && $invoice !== null;
     $oldLines  = old('lines');
+    // Tri des lignes par commune puis par désignation en mode édition —
+    // demandé 2026-08-03 pour regrouper visuellement les panneaux d'une
+    // même commune (facilite la lecture + édition ciblée). old() est
+    // respecté tel quel (n'est présent qu'après un échec de validation,
+    // là on doit garder l'ordre saisi par l'utilisateur).
+    // Cast explicite (float)/(int) : le cast Eloquent `decimal:2` renvoie
+    // parfois un objet Decimal dont le __toString peut casser value=""
+    // sur type="number" (bug 2026-08-03 : M²/QTÉ vides visuellement).
     $lines     = $oldLines ?: ($isEdit && $invoice->lines->count() > 0
-                    ? $invoice->lines->map(fn($l) => [
-                        'designation'       => $l->designation,
-                        'commune_id'        => $l->commune_id,
-                        'dimension_m2'      => $l->dimension_m2,
-                        'pu_ht_mensuel'     => $l->pu_ht_mensuel,
-                        'quantite'          => $l->quantite,
-                        'duree_mois'        => $l->duree_mois,
-                        'odp_rate_applique' => $l->odp_rate_applique,
-                        'tm_rate_applique'  => $l->tm_rate_applique,
-                        // Bug 3a (2026-07-16) : conserver le lien panneau pour
-                        // validation d'unicité en édition (sinon un update
-                        // enlèverait le panel_id sur les lignes existantes).
-                        'panel_id'          => $l->panel_id ?? null,
-                        'external_panel_id' => $l->external_panel_id ?? null,
-                    ])->all()
+                    ? $invoice->lines
+                        ->sortBy([['snapshot_commune_name', 'asc'], ['designation', 'asc']])
+                        ->values()
+                        ->map(fn($l) => [
+                            'designation'       => $l->designation,
+                            'commune_id'        => $l->commune_id,
+                            'dimension_m2'      => (float) $l->dimension_m2,
+                            'pu_ht_mensuel'     => (int) $l->pu_ht_mensuel,
+                            'quantite'          => (int) $l->quantite,
+                            'duree_mois'        => (float) $l->duree_mois,
+                            'odp_rate_applique' => (int) $l->odp_rate_applique,
+                            'tm_rate_applique'  => (int) $l->tm_rate_applique,
+                            // Bug 3a (2026-07-16) : conserver le lien panneau pour
+                            // validation d'unicité en édition (sinon un update
+                            // enlèverait le panel_id sur les lignes existantes).
+                            'panel_id'          => $l->panel_id ?? null,
+                            'external_panel_id' => $l->external_panel_id ?? null,
+                        ])->all()
                     : [
                         // ligne vide par défaut en create
                         ['designation' => '', 'dimension_m2' => 0, 'pu_ht_mensuel' => 0,
@@ -199,8 +210,12 @@
                             <td class="num col-m2" data-label="m²">
                                 {{-- ?: (pas ??) — bouclier contre old() qui renvoie
                                      une string vide après un échec de validation :
-                                     "" n'est pas null, donc ?? ne fallback pas. --}}
+                                     "" n'est pas null, donc ?? ne fallback pas.
+                                     placeholder + inputmode : filet si la value
+                                     rendue est vide (bug 2026-08-03 sur objets
+                                     Decimal), l'utilisateur voit au moins "0" en gris. --}}
                                 <input type="number" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required
+                                       inputmode="decimal" placeholder="0"
                                        value="{{ $l['dimension_m2'] ?: 0 }}" min="0" step="0.01">
                             </td>
                             <td class="num col-pu" data-label="PU HT/mois">
@@ -208,14 +223,17 @@
                                      l'ancien step="1000" rejetait les prix négociés non
                                      arrondis (ex. 435 600). --}}
                                 <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
+                                       inputmode="numeric" placeholder="0"
                                        value="{{ $l['pu_ht_mensuel'] ?: 0 }}" min="0" step="1">
                             </td>
                             <td class="num col-qte" data-label="Qté">
                                 <input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required
+                                       inputmode="numeric" placeholder="1"
                                        value="{{ $l['quantite'] ?: 1 }}" min="1" step="1">
                             </td>
                             <td class="num col-mois" data-label="Mois">
                                 <input type="number" name="lines[{{ $i }}][duree_mois]" class="line-mois" required
+                                       inputmode="decimal" placeholder="1"
                                        value="{{ $l['duree_mois'] ?: 1 }}" min="0.5" step="0.5">
                             </td>
                             <td class="num col-total line-total" data-label="Total HT">0 FCFA</td>
