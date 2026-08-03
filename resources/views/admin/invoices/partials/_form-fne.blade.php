@@ -187,11 +187,6 @@
                         <th class="num">Qté</th>
                         <th class="num">Mois</th>
                         <th class="num">Total HT</th>
-                        {{-- 2026-08-03 : montants ODP/TM éditables (patronne).
-                             Placeholder = calcul auto ; si l'admin saisit une
-                             valeur (même 0), ça devient l'override. --}}
-                        <th class="num" title="Montant final ODP (vide = calcul auto)">ODP</th>
-                        <th class="num" title="Montant final TM (vide = calcul auto)">TM</th>
                         <th class="act"></th>
                     </tr>
                 </thead>
@@ -255,24 +250,6 @@
                                        value="{{ is_numeric($l['duree_mois']) ? (float) $l['duree_mois'] : 1 }}">
                             </td>
                             <td class="num col-total line-total" data-label="Total HT">0 FCFA</td>
-                            {{-- Override ODP montant (2026-08-03) : NULL = calcul auto,
-                                 valeur = force ce montant final. Placeholder mis à jour
-                                 dynamiquement par recompute() avec le calcul auto courant
-                                 pour que le comptable voie ce qu'il va écraser. --}}
-                            <td class="num col-odp-override" data-label="ODP (auto si vide)">
-                                <input type="text" name="lines[{{ $i }}][odp_amount_override]"
-                                       class="line-odp-override"
-                                       inputmode="numeric" pattern="[0-9]*"
-                                       placeholder="auto"
-                                       value="{{ isset($l['odp_amount_override']) && $l['odp_amount_override'] !== null && $l['odp_amount_override'] !== '' ? (int) $l['odp_amount_override'] : '' }}">
-                            </td>
-                            <td class="num col-tm-override" data-label="TM (auto si vide)">
-                                <input type="text" name="lines[{{ $i }}][tm_amount_override]"
-                                       class="line-tm-override"
-                                       inputmode="numeric" pattern="[0-9]*"
-                                       placeholder="auto"
-                                       value="{{ isset($l['tm_amount_override']) && $l['tm_amount_override'] !== null && $l['tm_amount_override'] !== '' ? (int) $l['tm_amount_override'] : '' }}">
-                            </td>
                             <td class="act">
                                 <button type="button" class="btn-line-remove line-remove" title="Supprimer la ligne" aria-label="Supprimer cette ligne">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -435,7 +412,7 @@
                                     <span class="svc-prix-suffix">F</span>
                                 </div>
                             </div>
-                            {{-- Checkbox TVA applicable (2026-08-03 — patronne).
+                            {{-- Toggle switch TVA applicable (2026-08-03 — patronne).
                                  Cas métier : frais annexes déjà TTC côté fournisseur
                                  externe (impression prépayée) qu'on refacture au
                                  client sans re-appliquer la TVA. Le hidden "0"
@@ -443,14 +420,15 @@
                                  "0" (sinon PHP ne reçoit rien = interprété comme
                                  valeur absente = défaut true — bug métier). --}}
                             <div class="svc-card-field svc-card-field-tva">
-                                <label>TVA applicable</label>
-                                <label class="svc-tva-toggle">
+                                <label>TVA appliquée</label>
+                                <label class="svc-tva-toggle {{ $tvaAppl ? 'is-on' : 'is-off' }}">
                                     <input type="hidden" name="services[{{ $i }}][tva_applicable]" value="0">
                                     <input type="checkbox" name="services[{{ $i }}][tva_applicable]" value="1"
                                            class="svc-tva-applicable"
                                            {{ $tvaAppl ? 'checked' : '' }}
                                            {{ $locked ? 'disabled' : '' }}>
-                                    <span class="svc-tva-label">Appliquer TVA</span>
+                                    <span class="svc-tva-switch"></span>
+                                    <span class="svc-tva-text">{{ $tvaAppl ? 'Oui — TVA' : 'Non — HT strict' }}</span>
                                 </label>
                             </div>
                             <div class="svc-card-field svc-card-field-ttc">
@@ -859,34 +837,72 @@
         .svc-card-fields { grid-template-columns: 1fr; }
     }
 
-    /* ── Checkbox TVA applicable (per service, 2026-08-03) ─────────
-       Toggle discret dans la card service ; état non coché =
-       service HT strict facturé sans TVA (frais externe déjà taxé). */
+    /* ── Toggle switch TVA applicable (per service, 2026-08-03) ────
+       Refonte 2026-08-03bis : switch OUI/NON visible et sans ambiguïté
+       (le checkbox natif était trop discret + le label se coupait sur
+       2 lignes dans les grid étroits). Vert = TVA active, gris = HT
+       strict. Le vrai <input type="checkbox"> reste caché mais focusable. */
     .svc-tva-toggle {
-        display: flex;
+        display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
         height: 36px;
-        padding: 0 12px;
+        padding: 0 12px 0 6px;
         background: var(--surface2);
         border: 1px solid var(--border);
-        border-radius: 8px;
+        border-radius: 999px;
         cursor: pointer;
         user-select: none;
-    }
-    .svc-tva-toggle input[type="checkbox"] {
-        width: 16px;
-        height: 16px;
-        margin: 0;
-        cursor: pointer;
-        accent-color: var(--accent);
-    }
-    .svc-tva-toggle .svc-tva-label {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--text2);
+        transition: background .18s, border-color .18s;
+        white-space: nowrap;
     }
     .svc-tva-toggle:hover { border-color: var(--text3); }
+    /* Cache le checkbox natif tout en le gardant accessible clavier */
+    .svc-tva-toggle input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+        width: 0; height: 0;
+    }
+    /* Rail du switch */
+    .svc-tva-toggle .svc-tva-switch {
+        position: relative;
+        width: 34px;
+        height: 20px;
+        background: #cbd5e1;
+        border-radius: 999px;
+        flex-shrink: 0;
+        transition: background .2s;
+    }
+    /* Curseur (rond blanc) — glisse à droite quand coché */
+    .svc-tva-toggle .svc-tva-switch::after {
+        content: '';
+        position: absolute;
+        top: 2px; left: 2px;
+        width: 16px; height: 16px;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,.2);
+        transition: transform .2s;
+    }
+    .svc-tva-toggle.is-on .svc-tva-switch { background: #16a34a; }
+    .svc-tva-toggle.is-on .svc-tva-switch::after { transform: translateX(14px); }
+    .svc-tva-toggle.is-off .svc-tva-switch { background: #94a3b8; }
+
+    /* Texte à droite du switch — change selon l'état */
+    .svc-tva-toggle .svc-tva-text {
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+    }
+    .svc-tva-toggle.is-on  .svc-tva-text { color: #15803d; }
+    .svc-tva-toggle.is-off .svc-tva-text { color: #475569; }
+
+    /* Focus clavier — on met le focus sur le rail pour rester visible */
+    .svc-tva-toggle input[type="checkbox"]:focus-visible + .svc-tva-switch {
+        box-shadow: 0 0 0 3px rgba(232, 160, 32, .35);
+    }
+
     /* Card ayant TVA désactivée = visuellement distincte pour rappeler
        au comptable que ce service est facturé HT strict. */
     .svc-card[data-tva-applicable="0"] {
@@ -1164,8 +1180,7 @@
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
-        /* 2 colonnes ODP/TM ajoutées 2026-08-03 → +200px environ. */
-        min-width: 1140px;
+        min-width: 960px;
     }
     .lines-table thead tr {
         background: var(--surface2);
@@ -1201,34 +1216,21 @@
     .lines-table td.act { text-align: center; width: 56px; }
     .lines-table td.col-num { width: 44px; text-align: center; padding-left: 16px; }
 
-    /* Largeurs colonnes — généreuses */
-    .lines-table .col-designation { min-width: 260px; }
-    .lines-table .col-commune     { min-width: 160px; }
-    .lines-table .col-m2          { width: 85px; }
-    .lines-table .col-pu          { width: 130px; }
-    .lines-table .col-qte         { width: 75px; }
-    .lines-table .col-mois        { width: 85px; }
+    /* Largeurs colonnes — élargies 2026-08-03 pour éviter troncature
+       des gros nombres (750 000, etc.) dans les inputs. */
+    .lines-table .col-designation { min-width: 280px; }
+    .lines-table .col-commune     { min-width: 170px; }
+    .lines-table .col-m2          { width: 90px; }
+    .lines-table .col-pu          { width: 150px; }
+    .lines-table .col-qte         { width: 80px; }
+    .lines-table .col-mois        { width: 95px; }
     .lines-table .col-total {
-        width: 130px;
+        width: 160px;
         font-weight: 800;
         color: var(--accent);
         font-size: 13.5px;
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
-    }
-    /* Colonnes overrides taxes (2026-08-03). Compactes + placeholder
-       "auto" en italique gris pour signaler que vide = calcul auto. */
-    .lines-table .col-odp-override,
-    .lines-table .col-tm-override { width: 100px; }
-    .lines-table .col-odp-override input,
-    .lines-table .col-tm-override input {
-        font-size: 12px !important;
-        color: var(--text) !important;
-    }
-    .lines-table .col-odp-override input::placeholder,
-    .lines-table .col-tm-override input::placeholder {
-        color: var(--text3);
-        font-style: italic;
     }
 
     /* Numéro de ligne — pastille ronde */
@@ -1485,8 +1487,7 @@
         }
 
         /* Layout de la card ligne — grid avec zones nommées.
-           M², QTÉ, MOIS côte à côte (chiffres courts → gain d'espace).
-           ODP / TM overrides sur la même ligne (facultatifs). */
+           M², QTÉ, MOIS côte à côte (chiffres courts → gain d'espace). */
         .lines-table tbody tr {
             display: grid !important;
             grid-template-columns: repeat(3, 1fr);
@@ -1497,21 +1498,18 @@
                 "m2   qte  mois"
                 "pu   pu   pu"
                 "total total total"
-                "odp  odp  tm"
                 "act  act  act";
             gap: 4px 10px;
         }
-        .lines-table td.col-num          { grid-area: num; }
-        .lines-table td.col-designation  { grid-area: designation; }
-        .lines-table td.col-commune      { grid-area: commune; }
-        .lines-table td.col-m2           { grid-area: m2; }
-        .lines-table td.col-qte          { grid-area: qte; }
-        .lines-table td.col-mois         { grid-area: mois; }
-        .lines-table td.col-pu           { grid-area: pu; }
-        .lines-table td.col-total        { grid-area: total; }
-        .lines-table td.col-odp-override { grid-area: odp; }
-        .lines-table td.col-tm-override  { grid-area: tm; }
-        .lines-table td.act              { grid-area: act; }
+        .lines-table td.col-num         { grid-area: num; }
+        .lines-table td.col-designation { grid-area: designation; }
+        .lines-table td.col-commune     { grid-area: commune; }
+        .lines-table td.col-m2          { grid-area: m2; }
+        .lines-table td.col-qte         { grid-area: qte; }
+        .lines-table td.col-mois        { grid-area: mois; }
+        .lines-table td.col-pu          { grid-area: pu; }
+        .lines-table td.col-total       { grid-area: total; }
+        .lines-table td.act             { grid-area: act; }
     }
 
     /* Encore plus dense sous 560px (téléphones) : hero mode empilé */
@@ -1931,24 +1929,8 @@
             const lineHt = pu * qte * mois;
             htBrut    += lineHt;
 
-            // ODP / TM : calcul auto ligne (côté client = même formule
-            // que InvoiceCalculator.calculateLine SANS dates campagne,
-            // suffisant pour l'aperçu du récap). Écrasé si override saisi.
-            const odpAuto = odp * m2 * qte * mois;
-            const tmAuto  = tm  * m2 * qte * mois;
-            const odpInpt = row.querySelector('.line-odp-override');
-            const tmInpt  = row.querySelector('.line-tm-override');
-            const odpOv = odpInpt?.value?.trim();
-            const tmOv  = tmInpt?.value?.trim();
-            const odpFinal = (odpOv === '' || odpOv == null) ? odpAuto : (parseFloat(odpOv) || 0);
-            const tmFinal  = (tmOv  === '' || tmOv  == null) ? tmAuto  : (parseFloat(tmOv)  || 0);
-            totalOdp  += odpFinal;
-            totalTm   += tmFinal;
-
-            // Placeholder : montre la valeur auto pour signaler au comptable
-            // ce qu'il va écraser s'il saisit un override.
-            if (odpInpt) odpInpt.placeholder = odpAuto > 0 ? Math.round(odpAuto).toLocaleString('fr-FR') : 'auto';
-            if (tmInpt)  tmInpt.placeholder  = tmAuto  > 0 ? Math.round(tmAuto).toLocaleString('fr-FR')  : 'auto';
+            totalOdp  += odp * m2 * qte * mois;
+            totalTm   += tm  * m2 * qte * mois;
 
             const cell = row.querySelector('.line-total');
             if (cell) cell.textContent = fmt(lineHt);
@@ -1969,6 +1951,18 @@
             const chk   = row.querySelector('.svc-tva-applicable');
             const tvaAppl = chk ? chk.checked : true;
             row.dataset.tvaApplicable = tvaAppl ? '1' : '0';
+
+            // Sync visuel du toggle switch : la classe is-on / is-off
+            // pilote la couleur (vert/gris) et la position du curseur.
+            // Le texte affiché change aussi ("Oui — TVA" vs "Non — HT strict").
+            const toggle = row.querySelector('.svc-tva-toggle');
+            if (toggle) {
+                toggle.classList.toggle('is-on', tvaAppl);
+                toggle.classList.toggle('is-off', !tvaAppl);
+                const txt = toggle.querySelector('.svc-tva-text');
+                if (txt) txt.textContent = tvaAppl ? 'Oui — TVA' : 'Non — HT strict';
+            }
+
             svcHt += prix;
             const svcTtcLine = tvaAppl ? prix * (1 + TVA/100) : prix;
             svcTtc += svcTtcLine;
@@ -2086,12 +2080,13 @@
                     </div>
                 </div>
                 <div class="svc-card-field svc-card-field-tva">
-                    <label>TVA applicable</label>
-                    <label class="svc-tva-toggle">
+                    <label>TVA appliquée</label>
+                    <label class="svc-tva-toggle is-on">
                         <input type="hidden" name="services[${idx}][tva_applicable]" value="0">
                         <input type="checkbox" name="services[${idx}][tva_applicable]" value="1"
                                class="svc-tva-applicable" checked>
-                        <span class="svc-tva-label">Appliquer TVA</span>
+                        <span class="svc-tva-switch"></span>
+                        <span class="svc-tva-text">Oui — TVA</span>
                     </label>
                 </div>
                 <div class="svc-card-field svc-card-field-ttc">
@@ -2141,9 +2136,8 @@
     }
 
     function bindRow(row) {
-        // Inputs natifs (m², PU, qté, mois + overrides ODP/TM 2026-08-03)
-        // → recompute live du récap.
-        row.querySelectorAll('input.line-m2, input.line-pu, input.line-qte, input.line-mois, input.line-odp-override, input.line-tm-override').forEach(el => {
+        // Inputs natifs (m², PU, qté, mois) → recompute live du récap.
+        row.querySelectorAll('input.line-m2, input.line-pu, input.line-qte, input.line-mois').forEach(el => {
             el.addEventListener('input', recompute);
         });
         // Select2 (désignation, commune) sont initialisés via initLineSelect2
