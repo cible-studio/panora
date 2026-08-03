@@ -208,33 +208,34 @@
                                 </select>
                             </td>
                             <td class="num col-m2" data-label="m²">
-                                {{-- ?: (pas ??) — bouclier contre old() qui renvoie
-                                     une string vide après un échec de validation :
-                                     "" n'est pas null, donc ?? ne fallback pas.
-                                     placeholder + inputmode : filet si la value
-                                     rendue est vide (bug 2026-08-03 sur objets
-                                     Decimal), l'utilisateur voit au moins "0" en gris. --}}
-                                <input type="number" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required
-                                       inputmode="decimal" placeholder="0"
-                                       value="{{ $l['dimension_m2'] ?: 0 }}" min="0" step="0.01">
+                                {{-- type="text" au lieu de "number" — bug 2026-08-03
+                                     persistant : le cast Eloquent decimal:2 renvoyait
+                                     parfois "0" ou une string que Chrome/Firefox
+                                     n'affichaient pas dans type="number".
+                                     text + inputmode="decimal" = clavier numérique
+                                     mobile + la value s'affiche TOUJOURS telle quelle.
+                                     Validation numérique côté serveur (Request rule). --}}
+                                <input type="text" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required
+                                       inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" placeholder="0"
+                                       value="{{ is_numeric($l['dimension_m2']) ? (float) $l['dimension_m2'] : 0 }}">
                             </td>
                             <td class="num col-pu" data-label="PU HT/mois">
-                                {{-- step="1" (FCFA entier, pas de centimes) — 2026-06-18 :
-                                     l'ancien step="1000" rejetait les prix négociés non
-                                     arrondis (ex. 435 600). --}}
-                                <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
-                                       inputmode="numeric" placeholder="0"
-                                       value="{{ $l['pu_ht_mensuel'] ?: 0 }}" min="0" step="1">
+                                {{-- text pour même raison — les gros nombres (7-8 chiffres)
+                                     déclenchaient parfois un affichage vide en type=number
+                                     selon le locale du navigateur. --}}
+                                <input type="text" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
+                                       inputmode="numeric" pattern="[0-9]*" placeholder="0"
+                                       value="{{ is_numeric($l['pu_ht_mensuel']) ? (int) $l['pu_ht_mensuel'] : 0 }}">
                             </td>
                             <td class="num col-qte" data-label="Qté">
-                                <input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required
-                                       inputmode="numeric" placeholder="1"
-                                       value="{{ $l['quantite'] ?: 1 }}" min="1" step="1">
+                                <input type="text" name="lines[{{ $i }}][quantite]" class="line-qte" required
+                                       inputmode="numeric" pattern="[0-9]+" placeholder="1"
+                                       value="{{ is_numeric($l['quantite']) ? (int) $l['quantite'] : 1 }}">
                             </td>
                             <td class="num col-mois" data-label="Mois">
-                                <input type="number" name="lines[{{ $i }}][duree_mois]" class="line-mois" required
-                                       inputmode="decimal" placeholder="1"
-                                       value="{{ $l['duree_mois'] ?: 1 }}" min="0.5" step="0.5">
+                                <input type="text" name="lines[{{ $i }}][duree_mois]" class="line-mois" required
+                                       inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" placeholder="1"
+                                       value="{{ is_numeric($l['duree_mois']) ? (float) $l['duree_mois'] : 1 }}">
                             </td>
                             <td class="num col-total line-total" data-label="Total HT">0 FCFA</td>
                             <td class="act">
