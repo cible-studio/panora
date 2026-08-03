@@ -174,7 +174,26 @@ body {
   will-change: left;
 }
 
-.topbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Topbar actions : nowrap partout (2026-08-03).
+   Avant : flex-wrap: wrap + .topbar height:52px fixe → sur desktop
+   les boutons qui débordaient passaient à la ligne 2 mais sortaient
+   visuellement du container (coupés en haut/bas). Après : les
+   boutons restent sur UNE ligne, scroll horizontal discret si
+   la barre est vraiment surchargée. La topbar reste propre sur
+   toute la gamme de viewports. */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.topbar-actions::-webkit-scrollbar { display: none; }
+.topbar-actions > * { flex-shrink: 0; }
 
 /* Hamburger — intégré au topbar, visible < 768px uniquement */
 .sidebar-toggle {
