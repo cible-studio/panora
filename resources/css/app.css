@@ -195,6 +195,21 @@ body {
 .topbar-actions::-webkit-scrollbar { display: none; }
 .topbar-actions > * { flex-shrink: 0; }
 
+/* Wrapper introduit par la refonte responsive (commit 846df7a) pour
+   pouvoir décrocher les boutons page sous la topbar en mobile.
+   Sur desktop il doit se comporter comme un container flex neutre
+   sinon ses enfants (boutons) s'empilent en block et débordent hors
+   de la topbar 52px (bug visible sur /admin/invoices/{id} :
+   Export PDF/Audit coupés en haut, Modifier en bas). */
+.topbar-actions-page {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.topbar-actions-page > * { flex-shrink: 0; }
+
 /* Hamburger — intégré au topbar, visible < 768px uniquement */
 .sidebar-toggle {
   display: none;
