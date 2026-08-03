@@ -297,6 +297,12 @@ class InvoiceController extends Controller
             $all->push($this->panelToOption($p, 'ext', $negotiated['ext_' . $p->id] ?? null));
         }
 
+        // Total campagne AVANT filtre texte — sert au front à masquer le
+        // bouton "Ajouter une ligne" quand tous les panneaux sont pris
+        // (2026-08-03 : demande patronne, plus de sens d'ajouter une ligne
+        // vide si la campagne n'a plus rien à facturer).
+        $campaignTotal = $all->count();
+
         // Filtre texte côté collection (volumes raisonnables : 1 campagne)
         if ($q !== '') {
             $needle = mb_strtolower($q);
@@ -306,8 +312,9 @@ class InvoiceController extends Controller
         $items = $all->forPage($page, $perPage)->values();
 
         return response()->json([
-            'results'    => $items,
-            'pagination' => ['more' => $total > $page * $perPage],
+            'results'         => $items,
+            'pagination'      => ['more' => $total > $page * $perPage],
+            'campaign_total'  => $campaignTotal, // nb total panneaux campagne (avant filtre q)
         ]);
     }
 
