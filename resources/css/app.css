@@ -1293,42 +1293,81 @@ button.kpi-card { width: 100%; }
   .stat-card .stat-number { font-size: 18px; }
 
   /* ─────────────────────────────────────────────────────────────
-     TOPBAR — icônes-seules par défaut sous 640px (refonte 2026-07-31).
-     Avant : opt-in par bouton via .action-icon-only-mobile (jamais
-     appliqué → tous les boutons débordaient en mobile). Après : tous
-     les .topbar-actions .btn deviennent des icônes 40×40 avec le
-     libellé masqué. Le texte doit être dans <span class="btn-label">.
-     Escape hatch : .keep-label garde le libellé (pour bouton
-     primaire "Nouveau/Confirmer").
-     Le title="…" natif fait office de tooltip mobile (appui long).
+     TOPBAR — décrochage des boutons page sous 640px (refonte 2026-08-01).
+     Historique : d'abord tenté icônes-seules dans la topbar (2026-07-31),
+     insuffisant → titre encore tronqué + boutons serrés. Refonte : les
+     boutons custom de chaque page sortent complètement de la topbar,
+     s'affichent en dessous sur une ligne dédiée, scrollable
+     horizontalement, libellés visibles. La topbar principale ne garde
+     que : burger + retour + titre + theme + cloche (+ Landing pour admin).
      ───────────────────────────────────────────────────────────── */
-  .topbar-actions .btn .btn-label { display: none; }
-  .topbar-actions .btn,
-  .topbar-actions button.btn,
-  .topbar-actions a.btn {
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    min-width: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .topbar-actions .btn svg { width: 16px; height: 16px; }
-  .topbar-actions .btn .fl { width: 12px; height: 12px; }
 
-  /* Escape hatch : bouton primaire garde son libellé. Ex :
-     <a class="btn btn-primary keep-label">+ <span class="btn-label">Nouvelle campagne</span></a> */
-  .topbar-actions .btn.keep-label {
+  /* La barre d'actions page sort de la topbar : position absolute sous
+     la topbar, prend toute la largeur, background surface avec ombre. */
+  .topbar-actions-page:not(:empty) {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    width: 100%;
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    z-index: 9;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .04);
+  }
+  .topbar-actions-page::-webkit-scrollbar { display: none; }
+  .topbar-actions-page > * { flex-shrink: 0; }
+
+  /* Les boutons de la barre d'actions page restent normaux (libellés
+     visibles) — c'est le décrochage qui libère la place, pas la
+     compaction en icônes. */
+  .topbar-actions-page .btn {
     width: auto;
     height: auto;
     padding: 6px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
   }
-  .topbar-actions .btn.keep-label .btn-label { display: inline; }
+  .topbar-actions-page .btn .btn-label { display: inline; }
+  .topbar-actions-page form { display: inline-flex; margin: 0; }
 
-  /* Le formulaire (POST inline) qui contient un bouton doit aussi
-     être compact — sinon padding parasite */
+  /* Input recherche du dashboard : largeur fluide pour occuper la
+     barre décrochée sans déborder. */
+  .topbar-actions-page input[type="text"] {
+    width: auto !important;
+    min-width: 180px;
+    max-width: none;
+    flex: 1;
+  }
+
+  /* Compenser la hauteur de la barre décrochée : le spacer sous la
+     topbar (avant 8px) grandit à 56px quand la page a des boutons.
+     :has() ciblé sur .topbar-actions-page:not(:empty) — supporté par
+     tous les navigateurs modernes (Chrome 105+, Safari 15.4+, FF 121+).
+     Fallback : sans :has(), le spacer reste 8px et la barre absolute
+     chevauche 48px de contenu (dégradé acceptable). */
+  .app-layout:has(.topbar-actions-page:not(:empty)) .topbar-spacer {
+    height: 56px;
+  }
+
+  /* La topbar-actions (parent) : garde theme + cloche + Landing en
+     icônes compactes. On garde la règle héritée pour ceux-ci mais on
+     ne l'applique PLUS aux boutons page (déjà sortis via
+     .topbar-actions-page). */
+  .topbar-actions > .btn:not(.topbar-actions-page .btn) {
+    /* Le theme/cloche/Landing gardent leur padding normal ici. */
+  }
+
+  /* Le formulaire (POST inline) hors barre décrochée reste compact */
   .topbar-actions form { display: inline-flex; margin: 0; }
 }
 
