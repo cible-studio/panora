@@ -355,37 +355,29 @@
         $locked = $isEdit && $invoice->isLocked();
     @endphp
     <div class="fne-section">
-        <div class="fne-section-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
-            <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:240px">
-                <div class="fne-section-icon" style="background:rgba(180,83,9,.10)">🧾</div>
-                <div>
-                    <h3 class="fne-section-title">Services annexes</h3>
-                    <p class="fne-section-sub">Impression, pose, créa, photographe… N lignes libres, chacune avec TVA 18 %.</p>
-                </div>
+        <div class="fne-section-head">
+            <div class="fne-section-icon" style="background:rgba(180,83,9,.10)">🧾</div>
+            <div>
+                <h3 class="fne-section-title">Services annexes</h3>
+                <p class="fne-section-sub">Impression, pose, créa, photographe… N lignes libres, TVA optionnelle par service.</p>
             </div>
-            @unless($locked)
-                <button type="button" class="fne-btn-add-svc" onclick="addService()">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Ajouter un service
-                </button>
-            @endunless
         </div>
         <div class="fne-section-body">
             {{-- ═══ ÉTAT VIDE — design soigné ═══ --}}
             <div id="services-empty" style="padding:26px 18px;text-align:center;background:linear-gradient(180deg,var(--surface2) 0%,var(--surface) 100%);border:1.5px dashed var(--border2);border-radius:12px;display:{{ empty($renderedServices) ? 'block' : 'none' }}">
                 <div style="font-size:32px;margin-bottom:8px;opacity:.4">🧾</div>
                 <div style="font-size:13px;color:var(--text2);font-weight:700;margin-bottom:3px">Aucun service annexe</div>
-                <div style="font-size:11.5px;color:var(--text3);line-height:1.5">Clique <strong>+ Ajouter un service</strong> ci-dessus pour facturer<br>un libellé libre (avec TVA 18 % automatique).</div>
+                <div style="font-size:11.5px;color:var(--text3);line-height:1.5">Clique <strong>+ Ajouter un service</strong> ci-dessous pour facturer<br>un libellé libre (avec TVA optionnelle).</div>
             </div>
 
-            {{-- ═══ LISTE DES SERVICES — design en cards flex ═══
+            {{-- ═══ LISTE DES SERVICES — design en cards flex (maquette 2026-08-03ter) ═══
                  Chaque service = une card avec libellé à gauche, montant
                  saisissable + TTC calculé live + bouton suppression à droite.
                  Le hidden #services-table garde les classes attendues par le
                  JS recompute (.service-row, .svc-label, .svc-prix, .svc-ttc).
             ═══════════════════════════════════════════════════════════ --}}
             <div id="services-table" style="display:{{ empty($renderedServices) ? 'none' : 'block' }}">
-                <div id="services-tbody" style="display:flex;flex-direction:column;gap:8px">
+                <div id="services-tbody" style="display:flex;flex-direction:column;gap:12px">
                     @foreach($renderedServices as $i => $s)
                     @php
                         // TVA applicable : true par défaut si non fourni (rétro-compat).
@@ -399,9 +391,9 @@
                         <div class="svc-card-num">{{ $i + 1 }}</div>
                         <div class="svc-card-fields">
                             <div class="svc-card-field svc-card-field-label">
-                                <label>Libellé du service</label>
+                                <label>Libellé</label>
                                 <input type="text" name="services[{{ $i }}][label]" value="{{ $s['label'] ?? '' }}"
-                                       placeholder="Ex: Frais d'impression, Reportage photo…"
+                                       placeholder="Ex: Impression, photo…"
                                        maxlength="200" required {{ $locked ? 'readonly' : '' }}
                                        class="svc-label">
                             </div>
@@ -415,7 +407,7 @@
                                     <span class="svc-prix-suffix">F</span>
                                 </div>
                             </div>
-                            {{-- Toggle switch TVA applicable (2026-08-03bis — refonte).
+                            {{-- Toggle switch TVA applicable (2026-08-03ter — maquette).
                                  Libellé compact "TVA" / "HT", taux affiché dans le
                                  label sup. Cas métier : frais annexes déjà TTC côté
                                  fournisseur externe (impression prépayée) qu'on
@@ -424,7 +416,7 @@
                                  envoie bien "0" (sinon PHP ne reçoit rien =
                                  interprété comme valeur absente = défaut true). --}}
                             <div class="svc-card-field svc-card-field-tva">
-                                <label>TVA <span style="font-weight:500;color:var(--text3);font-size:9px">({{ rtrim(rtrim(number_format($invTva, 2, ',', ''), '0'), ',') }} %)</span></label>
+                                <label>TVA <span style="font-weight:400;color:var(--text3);font-size:9px">{{ rtrim(rtrim(number_format($invTva, 2, ',', ''), '0'), ',') }}%</span></label>
                                 <label class="svc-tva-toggle {{ $tvaAppl ? 'is-on' : 'is-off' }}">
                                     <input type="hidden" name="services[{{ $i }}][tva_applicable]" value="0">
                                     <input type="checkbox" name="services[{{ $i }}][tva_applicable]" value="1"
@@ -451,13 +443,19 @@
 
                 {{-- Sous-total footer --}}
                 <div class="svc-subtotal-bar">
-                    <span class="svc-subtotal-label">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg>
-                        Sous-total services TTC
-                    </span>
+                    <span class="svc-subtotal-label">🧾 Sous-total services TTC</span>
                     <span class="svc-subtotal-val" id="services-subtotal">0 FCFA</span>
                 </div>
             </div>
+
+            {{-- ═══ Bouton "Ajouter un service" — sous la liste (maquette 2026-08-03ter) ═══ --}}
+            @unless($locked)
+                <div style="margin-top:14px">
+                    <button type="button" class="fne-btn-add-svc" onclick="addService()">
+                        ＋ Ajouter un service
+                    </button>
+                </div>
+            @endunless
         </div>
     </div>
 
@@ -806,21 +804,25 @@
         display: flex;
         align-items: stretch;
         gap: 14px;
-        padding: 18px 20px;
+        padding: 16px 18px;
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: 14px;
-        box-shadow: 0 4px 20px rgba(0,0,0,.06);
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.04);
         /* Liseré gauche dépend de l'état TVA (défini plus bas). */
         border-left: 4px solid #16a34a;
-        transition: border-color .2s, box-shadow .2s, opacity .2s;
+        transition: box-shadow .2s, border-color .2s, opacity .2s;
+    }
+    .svc-card:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,.08);
     }
     .svc-card:focus-within {
         box-shadow: 0 6px 24px rgba(232,160,32,.15);
     }
+    /* Pastille numéro — RONDE (maquette 2026-08-03ter) */
     .svc-card-num {
         width: 32px; height: 32px;
-        border-radius: 10px;
+        border-radius: 50%;
         background: rgba(232,160,32,.12);
         color: var(--accent-dark);
         font-weight: 800;
@@ -832,13 +834,15 @@
     .svc-card-fields {
         flex: 1;
         display: grid;
-        /* 4 colonnes : libellé (2fr), prix (1fr), tva check (0.8fr), ttc (1fr) */
-        grid-template-columns: minmax(160px, 2fr) minmax(120px, 1fr) minmax(100px, 0.8fr) minmax(100px, 1fr);
+        /* Grid simplifié maquette : 2fr / 1fr / 0.8fr / 1fr, sans minmax
+           (le min-width vient de min-width:0 sur les items pour laisser
+           les inputs se réduire proprement). */
+        grid-template-columns: 2fr 1fr 0.8fr 1fr;
         gap: 14px;
         align-items: end;
         min-width: 0;
     }
-    @media (max-width: 900px) {
+    @media (max-width: 700px) {
         .svc-card { flex-wrap: wrap; }
         .svc-card-fields { grid-template-columns: 1fr 1fr; gap: 10px; }
     }
@@ -2081,8 +2085,8 @@
             <div class="svc-card-num">${idx + 1}</div>
             <div class="svc-card-fields">
                 <div class="svc-card-field svc-card-field-label">
-                    <label>Libellé du service</label>
-                    <input type="text" name="services[${idx}][label]" placeholder="Ex: Frais d'impression, Reportage photo…"
+                    <label>Libellé</label>
+                    <input type="text" name="services[${idx}][label]" placeholder="Ex: Impression, photo…"
                            maxlength="200" required class="svc-label">
                 </div>
                 <div class="svc-card-field svc-card-field-prix">
@@ -2094,7 +2098,7 @@
                     </div>
                 </div>
                 <div class="svc-card-field svc-card-field-tva">
-                    <label>TVA <span style="font-weight:500;color:var(--text3);font-size:9px">({{ rtrim(rtrim(number_format($invTva, 2, ',', ''), '0'), ',') }} %)</span></label>
+                    <label>TVA <span style="font-weight:400;color:var(--text3);font-size:9px">{{ rtrim(rtrim(number_format($invTva, 2, ',', ''), '0'), ',') }}%</span></label>
                     <label class="svc-tva-toggle is-on">
                         <input type="hidden" name="services[${idx}][tva_applicable]" value="0">
                         <input type="checkbox" name="services[${idx}][tva_applicable]" value="1"
