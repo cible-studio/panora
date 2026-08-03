@@ -656,26 +656,28 @@
     }
     .fne-section-body { padding: 18px 20px; }
 
-    /* ── BOUTON "AJOUTER UN SERVICE" ─────────────────────────── */
+    /* ── BOUTON "AJOUTER UN SERVICE" — pilule dorée pleine (maquette) ─── */
     .fne-btn-add-svc {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        background: linear-gradient(135deg, rgba(232,160,32,.10), rgba(180,83,9,.08));
-        border: 1px solid rgba(232,160,32,.30);
-        color: var(--accent-dark);
-        padding: 7px 14px;
-        border-radius: 9px;
-        font-size: 12px;
+        background: var(--accent);
+        border: 0;
+        color: #fff;
+        padding: 8px 20px;
+        border-radius: 999px;
+        font-size: 13px;
         font-weight: 700;
         cursor: pointer;
-        transition: background .15s, transform .12s, box-shadow .15s;
+        box-shadow: 0 4px 12px rgba(232,160,32,.3);
+        transition: transform .12s, box-shadow .15s, filter .15s;
     }
     .fne-btn-add-svc:hover {
-        background: linear-gradient(135deg, rgba(232,160,32,.18), rgba(180,83,9,.14));
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(232,160,32,.18);
+        box-shadow: 0 6px 16px rgba(232,160,32,.4);
+        filter: brightness(1.05);
     }
+    .fne-btn-add-svc:active { transform: translateY(0); }
 
     /* ── RÉCAPITULATIF FNE STICKY ────────────────────────────── */
     .fne-recap {
@@ -803,25 +805,26 @@
     .svc-card {
         display: flex;
         align-items: stretch;
-        gap: 12px;
-        padding: 12px 14px;
+        gap: 14px;
+        padding: 18px 20px;
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: 11px;
-        transition: border-color .15s, box-shadow .15s, transform .12s;
+        border-radius: 14px;
+        box-shadow: 0 4px 20px rgba(0,0,0,.06);
+        /* Liseré gauche dépend de l'état TVA (défini plus bas). */
+        border-left: 4px solid #16a34a;
+        transition: border-color .2s, box-shadow .2s, opacity .2s;
     }
-    .svc-card:hover { border-color: var(--border2); box-shadow: 0 4px 12px -6px rgba(0,0,0,.08); }
     .svc-card:focus-within {
-        border-color: rgba(232,160,32,.45);
-        box-shadow: 0 0 0 3px rgba(232,160,32,.10);
+        box-shadow: 0 6px 24px rgba(232,160,32,.15);
     }
     .svc-card-num {
-        width: 26px; height: 26px;
-        border-radius: 8px;
-        background: linear-gradient(135deg, rgba(232,160,32,.14), rgba(180,83,9,.10));
+        width: 32px; height: 32px;
+        border-radius: 10px;
+        background: rgba(232,160,32,.12);
         color: var(--accent-dark);
         font-weight: 800;
-        font-size: 11.5px;
+        font-size: 13px;
         display: flex; align-items: center; justify-content: center;
         flex-shrink: 0;
         align-self: center;
@@ -829,33 +832,35 @@
     .svc-card-fields {
         flex: 1;
         display: grid;
-        /* 4 colonnes : libellé (large), prix, tva check, ttc affichage. */
-        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr);
-        gap: 12px;
+        /* 4 colonnes : libellé (2fr), prix (1fr), tva check (0.8fr), ttc (1fr) */
+        grid-template-columns: minmax(160px, 2fr) minmax(120px, 1fr) minmax(100px, 0.8fr) minmax(100px, 1fr);
+        gap: 14px;
+        align-items: end;
         min-width: 0;
     }
     @media (max-width: 900px) {
-        .svc-card-fields { grid-template-columns: 1fr 1fr; }
+        .svc-card { flex-wrap: wrap; }
+        .svc-card-fields { grid-template-columns: 1fr 1fr; gap: 10px; }
     }
-    @media (max-width: 560px) {
+    @media (max-width: 500px) {
         .svc-card-fields { grid-template-columns: 1fr; }
     }
 
-    /* ── Toggle switch TVA applicable (per service, 2026-08-03bis) ──
-       Compact + libellé court "TVA"/"HT" + bordure gauche colorée sur
-       la card entière (vert = TVA active, gris = HT strict). */
+    /* ── Toggle switch TVA applicable (per service, 2026-08-03ter) ──
+       Aligné sur la maquette patronne : 38px de haut, switch 34×20 avec
+       curseur 16×16. Libellé court "TVA"/"HT" à droite. */
     .svc-tva-toggle {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        height: 32px;
-        padding: 0 8px 0 4px;
+        gap: 8px;
+        height: 38px;
+        padding: 0 12px 0 4px;
         background: var(--surface2);
         border: 1px solid var(--border);
         border-radius: 999px;
         cursor: pointer;
         user-select: none;
-        transition: background .18s, border-color .18s;
+        transition: background .2s, border-color .2s;
         white-space: nowrap;
     }
     .svc-tva-toggle:hover { border-color: var(--text3); }
@@ -866,42 +871,41 @@
         pointer-events: none;
         width: 0; height: 0;
     }
-    /* Rail du switch */
+    /* Rail du switch — 34×20 */
     .svc-tva-toggle .svc-tva-switch {
         position: relative;
-        width: 30px;
-        height: 18px;
-        background: #cbd5e1;
+        width: 34px;
+        height: 20px;
+        background: #94a3b8;
         border-radius: 999px;
         flex-shrink: 0;
         transition: background .2s;
     }
-    /* Curseur (rond blanc) — glisse à droite quand coché */
+    /* Curseur (rond blanc) 16×16 — glisse à droite quand coché */
     .svc-tva-toggle .svc-tva-switch::after {
         content: '';
         position: absolute;
         top: 2px; left: 2px;
-        width: 14px; height: 14px;
+        width: 16px; height: 16px;
         background: #fff;
         border-radius: 50%;
-        box-shadow: 0 1px 2px rgba(0,0,0,.2);
+        box-shadow: 0 1px 3px rgba(0,0,0,.2);
         transition: transform .2s;
     }
     .svc-tva-toggle.is-on .svc-tva-switch { background: #16a34a; }
-    .svc-tva-toggle.is-on .svc-tva-switch::after { transform: translateX(12px); }
+    .svc-tva-toggle.is-on .svc-tva-switch::after { transform: translateX(14px); }
     .svc-tva-toggle.is-off .svc-tva-switch { background: #94a3b8; }
 
     /* Texte court à droite du switch : "TVA" quand actif, "HT" sinon */
     .svc-tva-toggle .svc-tva-text {
-        font-size: 11px;
-        font-weight: 800;
+        font-size: 12px;
+        font-weight: 700;
         line-height: 1;
-        letter-spacing: .3px;
-        min-width: 24px;
+        min-width: 30px;
         text-align: center;
     }
-    .svc-tva-toggle.is-on  .svc-tva-text { color: #15803d; }
-    .svc-tva-toggle.is-off .svc-tva-text { color: #475569; }
+    .svc-tva-toggle.is-on  .svc-tva-text { color: #16a34a; }
+    .svc-tva-toggle.is-off .svc-tva-text { color: var(--text3); }
 
     /* Focus clavier — on met le focus sur le rail pour rester visible */
     .svc-tva-toggle input[type="checkbox"]:focus-visible + .svc-tva-switch {
@@ -909,34 +913,32 @@
     }
 
     /* Card avec TVA active = liseré vert (visuel positif).
-       Card avec TVA désactivée = liseré gris + léger fondu pour rappeler
-       au comptable que ce service est facturé HT strict. */
+       Card avec TVA désactivée = liseré gris + léger fondu (TTC en bleu
+       froid pour distinguer visuellement un service HT strict). */
     .svc-card[data-tva-applicable="1"] {
-        border-left: 3px solid #16a34a;
+        border-left-color: #16a34a;
     }
     .svc-card[data-tva-applicable="0"] {
-        border-left: 3px solid #94a3b8;
-        background: var(--surface);
-        opacity: .92;
+        border-left-color: #94a3b8;
+        opacity: .85;
     }
     .svc-card[data-tva-applicable="0"] .svc-ttc-display {
-        background: linear-gradient(180deg, rgba(148,163,184,.06), rgba(148,163,184,.02));
-        border-color: rgba(148,163,184,.3);
-        color: var(--text2);
+        background: rgba(59, 130, 246, .04);
+        border-color: rgba(59, 130, 246, .2);
+        color: #1d4ed8;
     }
-    .svc-card-field { display: flex; flex-direction: column; min-width: 0; }
+    .svc-card-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
     .svc-card-field label {
-        font-size: 9.5px;
-        font-weight: 800;
+        font-size: 10px;
+        font-weight: 700;
         color: var(--text3);
         text-transform: uppercase;
         letter-spacing: .4px;
-        margin-bottom: 3px;
         display: block;
     }
     .svc-card-field input {
         width: 100%;
-        height: 36px;
+        height: 38px;
         padding: 0 12px;
         background: var(--surface2);
         border: 1px solid var(--border);
@@ -949,13 +951,13 @@
     }
     .svc-card-field input:focus {
         border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(232,160,32,.14);
+        box-shadow: 0 0 0 3px rgba(232,160,32,.15);
         background: var(--surface);
     }
     .svc-card-field-prix .svc-prix-wrap { position: relative; }
     .svc-card-field-prix .svc-prix {
         text-align: right;
-        padding-right: 24px;
+        padding-right: 28px;
         font-variant-numeric: tabular-nums;
     }
     .svc-card-field-prix .svc-prix-suffix {
@@ -969,22 +971,22 @@
         pointer-events: none;
     }
     .svc-card-field-ttc .svc-ttc-display {
-        height: 36px;
+        height: 38px;
         display: flex;
         align-items: center;
         justify-content: flex-end;
-        padding: 0 12px;
+        padding: 0 14px;
         background: linear-gradient(180deg, rgba(232,160,32,.06), rgba(232,160,32,.02));
         border: 1px dashed rgba(232,160,32,.30);
         border-radius: 8px;
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 800;
         color: var(--accent-dark);
         font-variant-numeric: tabular-nums;
     }
     .svc-card-remove {
         align-self: center;
-        width: 32px; height: 32px;
+        width: 34px; height: 34px;
         border-radius: 8px;
         border: 1px solid var(--border);
         background: var(--surface);
@@ -992,21 +994,20 @@
         cursor: pointer;
         display: flex; align-items: center; justify-content: center;
         flex-shrink: 0;
-        transition: background .15s, border-color .15s, transform .12s;
+        transition: background .15s, border-color .15s;
     }
     .svc-card-remove:hover {
         background: rgba(239,68,68,.08);
         border-color: rgba(239,68,68,.30);
-        transform: scale(1.04);
     }
 
-    /* Sous-total services en bandeau --------------------------------- */
+    /* Sous-total services en bandeau (aligné maquette 2026-08-03ter) */
     .svc-subtotal-bar {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 11px 16px;
-        margin-top: 10px;
+        padding: 12px 16px;
+        margin-top: 18px;
         background: linear-gradient(135deg, rgba(232,160,32,.08), rgba(180,83,9,.05));
         border: 1px solid rgba(232,160,32,.20);
         border-radius: 11px;
@@ -1015,12 +1016,12 @@
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 700;
         color: var(--text2);
     }
     .svc-subtotal-val {
-        font-size: 14px;
+        font-size: 15px;
         font-weight: 800;
         color: var(--accent-dark);
         font-variant-numeric: tabular-nums;
@@ -2165,8 +2166,11 @@
             row.remove();
             renumberLines();
             // Le panneau qui était dans cette ligne redevient disponible
-            // dans le dropdown des autres lignes (2026-07-16).
+            // dans le dropdown des autres lignes (2026-07-16). Et le bouton
+            // "Ajouter une ligne" peut réapparaître si un panneau vient
+            // d'être libéré (fix 2026-08-03ter — bouton restait caché).
             if (typeof refreshTakenPanelsCache === 'function') refreshTakenPanelsCache();
+            if (typeof refreshAddLineButtonVisibility === 'function') refreshAddLineButtonVisibility();
             recompute();
         });
     }
