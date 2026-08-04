@@ -181,6 +181,33 @@ class PoseTask extends Model
             // garde la responsabilité du choix.
         });
 
+        // ═══ Multi-poses (2026-08-04ter) — Rollback du chaînage à la
+        //     suppression d'un rechange. Si l'admin supprime une
+        //     PoseTask qui pointait vers une pose antérieure via
+        //     replaces_pose_task_id, on doit RÉ-OUVRIR la pose source
+        //     (retirer son replaced_at) — sinon le badge « remplacée »
+        //     reste affiché à tort et le bouton « Nouvelle pose »
+        //     disparaît définitivement.
+        //
+        //     Bug observé 2026-08-04 : user a créé un rechange puis
+        //     supprimé, la pose initiale restait marquée "remplacée le X".
+        //
+        //     forceFill + saveQuietly : on ne veut pas re-déclencher
+        //     saved() (notif tech) sur la source qui elle n'a pas
+        //     changé de contenu métier — juste son statut de chaîne.
+        static::deleting(function (PoseTask $task) {
+            if ($task->replaces_pose_task_id) {
+                $source = PoseTask::find($task->replaces_pose_task_id);
+                if ($source && $source->replaced_at) {
+                    $source->forceFill(['replaced_at' => null])->saveQuietly();
+                    \Illuminate\Support\Facades\Log::info('pose_task.rechange_rollback', [
+                        'deleted_task_id' => $task->id,
+                        'source_id'       => $source->id,
+                    ]);
+                }
+            }
+        });
+
         // SM2c B3 — Notifie le tech au moment où une PoseTask lui est
         // assignée (création OU update qui pose assigned_user_id pour la
         // 1re fois). Utilise saved() pour avoir l'ID + relation panel.
