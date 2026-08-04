@@ -79,6 +79,11 @@ class PoseTask extends Model
         'arrived_at',  // 2026-07-06 : posé au palier 50% "Arrivé sur place"
         'whatsapp_sent_at',
         'public_token',
+        // Multi-poses (ajout 2026-08-04) — cf. migration
+        // add_rechange_support_to_pose_tasks + enum PoseTaskKind.
+        'pose_kind',
+        'replaces_pose_task_id',
+        'replaced_at',
     ];
 
     protected $casts = [
@@ -88,6 +93,7 @@ class PoseTask extends Model
         'arrived_at'          => 'datetime',
         'whatsapp_sent_at'    => 'datetime',
         'tech_name_self_at'   => 'datetime',
+        'replaced_at'         => 'datetime',
         'progress_percent'    => 'integer',
         'estimated_minutes'   => 'integer',
         'real_minutes'        => 'integer',
@@ -229,14 +235,73 @@ class PoseTask extends Model
     }
 
     /**
-     * ══ NOUVEAU — Piges liées à cette tâche (même panneau + campagne)
-     * Permet d'utiliser withCount(['piges', 'piges as pige_verifie_count' => ...])
-     * dans PoseController::index() sans requête N+1.
-    */
+     * ══ Piges liées à cette tâche (mise à jour 2026-08-04)
+     *
+     * Multi-poses : depuis qu'on autorise plusieurs PoseTask par
+     * (panel, campaign), on ne peut PLUS regrouper les piges via
+     * (panel_id, campaign_id) sinon toutes les poses de la campagne
+     * verraient TOUTES les piges du panneau.
+     *
+     * Stratégie : matcher via `pose_task_id` (FK directe ajoutée par
+     * migration 2026-05-13) EN PRIORITÉ. Si la pige a été créée avant
+     * l'existence de cette FK (legacy) ET qu'elle appartient bien à
+     * cette paire (panel + campaign), elle est aussi retournée —
+     * assure la rétrocompat totale des campagnes anciennes.
+     *
+     * Concrètement : piges.pose_task_id = X OU (pose_task_id IS NULL
+     * AND panel_id + campaign_id matchent).
+     */
     public function piges(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Pige::class, 'panel_id', 'panel_id')
-            ->when($this->campaign_id, fn($q) => $q->where('campaign_id', $this->campaign_id));
+            ->where(function ($q) {
+                $q->where('pose_task_id', $this->id)
+                  ->orWhere(function ($qq) {
+                      $qq->whereNull('pose_task_id')
+                         ->where('panel_id', $this->panel_id)
+                         ->when($this->campaign_id, fn($qqq) => $qqq->where('campaign_id', $this->campaign_id));
+                  });
+            });
+    }
+
+    // ══ Chaînage des poses (multi-poses, ajout 2026-08-04) ══════════
+
+    /**
+     * Kind sous forme d'enum typé (défaut INITIAL si NULL en BDD).
+     */
+    public function kind(): \App\Enums\PoseTaskKind
+    {
+        return \App\Enums\PoseTaskKind::tryFrom($this->pose_kind ?? 'initial')
+            ?? \App\Enums\PoseTaskKind::INITIAL;
+    }
+
+    /**
+     * Pose PRÉCÉDENTE que celle-ci remplace (NULL pour une pose initiale).
+     */
+    public function replaces(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(PoseTask::class, 'replaces_pose_task_id');
+    }
+
+    /**
+     * Pose SUIVANTE qui a remplacé celle-ci (NULL tant que pas remplacée).
+     * Relation inverse de replaces() — dans les faits une pose ne devrait
+     * être remplacée que par UNE nouvelle (chaîne linéaire), mais on
+     * expose HasMany pour tolérer les cas edge (2 rechanges créés en
+     * parallèle par erreur — les rapports pourront les détecter).
+     */
+    public function replacedBy(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PoseTask::class, 'replaces_pose_task_id');
+    }
+
+    /**
+     * True si cette pose a été remplacée par une nouvelle (rechange).
+     * L'ancienne affiche a implicitement été retirée.
+     */
+    public function isReplaced(): bool
+    {
+        return $this->replaced_at !== null;
     }
 
     public function actions(): \Illuminate\Database\Eloquent\Relations\HasMany
