@@ -301,9 +301,37 @@ class TechSpaceController extends Controller
 
         // Piges du tech, tout temps : permet le compteur du bouton "Mes piges"
         // (peut être 0, on n'affiche le badge que si > 0). Même filtre robuste.
+        // pigesTotal n'est PAS filtré sur le statut campagne — c'est un
+        // historique global consultable même sur campagnes terminées.
         $pigesTotal = \App\Models\Pige::query()->tap($pigesForTech)->count();
-        $pigesRejected = \App\Models\Pige::query()->tap($pigesForTech)
-            ->where('status', 'rejete')->count();
+
+        // Réutilisable : sous-requête "campagne opérable" pour les piges
+        // → même règle que PoseTask::scopeOnOperableCampaign, appliquée
+        // via une jointure sur campaigns car Pige n'a pas de relation
+        // directe (juste campaign_id nullable).
+        $onOperableCampaign = function ($q) {
+            $q->whereExists(function ($sub) {
+                $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->from('campaigns')
+                    ->whereColumn('campaigns.id', 'piges.campaign_id')
+                    ->whereNotIn('campaigns.status', [
+                        \App\Enums\CampaignStatus::TERMINE->value,
+                        \App\Enums\CampaignStatus::ANNULE->value,
+                    ])
+                    ->whereNull('campaigns.deleted_at');
+            });
+        };
+
+        // pigesRejected (compteur badge "à refaire") : uniquement les
+        // piges rejetées ACTIONNABLES. Une pige rejetée dont la campagne
+        // est terminée ne peut plus être refaite → on l'ignore du badge
+        // pour éviter le message trompeur "Va dans Mes photos" (fix
+        // 2026-08-04 après signalement patronne).
+        $pigesRejected = \App\Models\Pige::query()
+            ->tap($pigesForTech)
+            ->tap($onOperableCampaign)
+            ->where('status', 'rejete')
+            ->count();
 
         // SM2a Lot 5.2 — Liste des piges refusées en cours (pas encore
         // refaites). Source unique pour le drawer T9 "À refaire". Filtre
@@ -311,8 +339,12 @@ class TechSpaceController extends Controller
         // on exclut les piges qui ont une successeure plus récente sur le
         // même (panel, campagne). Cap 20 pour éviter le bourrage DOM si
         // un tech a un parc historique chargé.
+        // Ajout 2026-08-04 : exclut les piges des campagnes terminées —
+        // sinon le bouton "Refaire la photo" pointe vers une pose qui
+        // n'est plus dans le carnet (elle a été filtrée par onOperableCampaign).
         $rejectedPiges = \App\Models\Pige::query()
             ->tap($pigesForTech)
+            ->tap($onOperableCampaign)
             ->where('piges.status', 'rejete')
             ->whereNotExists(function ($sub) {
                 $sub->from('piges as p2')
@@ -1165,12 +1197,28 @@ class TechSpaceController extends Controller
                    });
             });
         };
+        // Heartbeat pige : même règle que buildPayload — pigesRejected
+        // ne compte QUE les piges actionnables (campagne opérable). Sinon
+        // le badge "à refaire" restait allumé pour des piges non-refaisables.
+        $onOperableCampaignHb = function ($q) {
+            $q->whereExists(function ($sub) {
+                $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->from('campaigns')
+                    ->whereColumn('campaigns.id', 'piges.campaign_id')
+                    ->whereNotIn('campaigns.status', [
+                        \App\Enums\CampaignStatus::TERMINE->value,
+                        \App\Enums\CampaignStatus::ANNULE->value,
+                    ])
+                    ->whereNull('campaigns.deleted_at');
+            });
+        };
         $pigesSentToday = \App\Models\Pige::query()->tap($pigesForTech)
             ->whereBetween('taken_at', [$startOfDay, $endOfDay])->count();
         $pigesTotal     = \App\Models\Pige::query()->tap($pigesForTech)->count();
         $pigesPending   = \App\Models\Pige::query()->tap($pigesForTech)->where('status', 'en_attente')->count();
         $pigesVerified  = \App\Models\Pige::query()->tap($pigesForTech)->where('status', 'verifie')->count();
-        $pigesRejected  = \App\Models\Pige::query()->tap($pigesForTech)->where('status', 'rejete')->count();
+        $pigesRejected  = \App\Models\Pige::query()->tap($pigesForTech)->tap($onOperableCampaignHb)
+            ->where('status', 'rejete')->count();
 
         // Zones couvertes aujourd'hui (poses faites + poses du jour restantes)
         $zonesTodayCount = PoseTask::where('assigned_user_id', $tech->id)
