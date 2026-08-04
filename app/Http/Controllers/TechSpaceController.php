@@ -325,12 +325,24 @@ class TechSpaceController extends Controller
         // pigesRejected (compteur badge "à refaire") : uniquement les
         // piges rejetées ACTIONNABLES. Une pige rejetée dont la campagne
         // est terminée ne peut plus être refaite → on l'ignore du badge
-        // pour éviter le message trompeur "Va dans Mes photos" (fix
-        // 2026-08-04 après signalement patronne).
+        // pour éviter le message trompeur "Va dans Mes photos".
+        //
+        // Fix 2026-08-04bis : on applique AUSSI le whereNotExists "pas
+        // de successeure plus récente" pour rester cohérent avec la
+        // liste $rejectedPiges affichée dans le drawer T9. Sinon le
+        // count restait à 2 pendant que la liste était vide (le tech
+        // a re-uploadé, la 2e pige remplace l'ancienne rejetée).
         $pigesRejected = \App\Models\Pige::query()
             ->tap($pigesForTech)
             ->tap($onOperableCampaign)
-            ->where('status', 'rejete')
+            ->where('piges.status', 'rejete')
+            ->whereNotExists(function ($sub) {
+                $sub->from('piges as p2')
+                    ->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->whereColumn('p2.panel_id',    'piges.panel_id')
+                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
+                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
+            })
             ->count();
 
         // SM2a Lot 5.2 — Liste des piges refusées en cours (pas encore
@@ -1217,8 +1229,20 @@ class TechSpaceController extends Controller
         $pigesTotal     = \App\Models\Pige::query()->tap($pigesForTech)->count();
         $pigesPending   = \App\Models\Pige::query()->tap($pigesForTech)->where('status', 'en_attente')->count();
         $pigesVerified  = \App\Models\Pige::query()->tap($pigesForTech)->where('status', 'verifie')->count();
+        // Même logique que le SSR (buildPayload) : whereNotExists pour
+        // exclure les piges déjà refaites (successeure plus récente sur
+        // même panel+campaign). Sinon le chip badge reste à 2 alors que
+        // le drawer est vide.
         $pigesRejected  = \App\Models\Pige::query()->tap($pigesForTech)->tap($onOperableCampaignHb)
-            ->where('status', 'rejete')->count();
+            ->where('piges.status', 'rejete')
+            ->whereNotExists(function ($sub) {
+                $sub->from('piges as p2')
+                    ->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->whereColumn('p2.panel_id',    'piges.panel_id')
+                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
+                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
+            })
+            ->count();
 
         // Zones couvertes aujourd'hui (poses faites + poses du jour restantes)
         $zonesTodayCount = PoseTask::where('assigned_user_id', $tech->id)
