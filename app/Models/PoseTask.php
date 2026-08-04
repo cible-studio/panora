@@ -408,6 +408,31 @@ class PoseTask extends Model
         return $q->where('campaign_id', $campaignId);
     }
 
+    /**
+     * Restreint aux poses dont la campagne est "opérable" — c'est-à-dire
+     * ni terminée, ni annulée, ni soft-deleted.
+     *
+     * Défense en profondeur (2026-08-04) : même si le cleanup
+     * `CampaignService::cancelPendingPoseTasks` rate un statut (bug
+     * historique EN_ROUTE, ou statut futur oublié), les listings
+     * techniciens ne montrent JAMAIS de pose orpheline. Le tech ne
+     * peut agir que sur les poses réellement actionnables.
+     *
+     * Utilisé par TechSpaceController (payload, feuille de route, map,
+     * heartbeat…). Le hasWhereHas gère bien les campagnes NULL (le
+     * closure passe uniquement sur les rows qui matchent).
+     */
+    public function scopeOnOperableCampaign(\Illuminate\Database\Eloquent\Builder $q): \Illuminate\Database\Eloquent\Builder
+    {
+        return $q->whereHas('campaign', function ($qq) {
+            $qq->whereNotIn('status', [
+                    \App\Enums\CampaignStatus::TERMINE->value,
+                    \App\Enums\CampaignStatus::ANNULE->value,
+                ])
+                ->whereNull('deleted_at');
+        });
+    }
+
 
 
     /**

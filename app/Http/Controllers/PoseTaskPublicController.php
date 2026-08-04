@@ -70,6 +70,7 @@ class PoseTaskPublicController extends Controller
                 'message' => 'Cette tâche est déjà clôturée. Aucune modification possible.',
             ], 422);
         }
+        if ($resp = $this->assertCampaignOperable($task)) return $resp;
 
         $request->validate([
             'progress'  => 'required|integer|min:0|max:100',
@@ -144,6 +145,7 @@ class PoseTaskPublicController extends Controller
                 'status'  => $task->status,
             ], 422);
         }
+        if ($resp = $this->assertCampaignOperable($task)) return $resp;
 
         $request->validate([
             'status'    => 'required|string|in:en_route,en_cours,realisee,annulee',
@@ -235,6 +237,7 @@ class PoseTaskPublicController extends Controller
                 'status'  => $task->status,
             ], 422);
         }
+        if ($resp = $this->assertCampaignOperable($task)) return $resp;
 
         $request->validate(['tech_name' => 'nullable|string|max:100']);
         $task->captureSelfTechName($request->input('tech_name'), $request->ip());
@@ -378,6 +381,7 @@ class PoseTaskPublicController extends Controller
                 'message' => 'Tâche annulée — uploads désactivés.',
             ], 422);
         }
+        if ($resp = $this->assertCampaignOperable($task)) return $resp;
 
         $data = $request->validate([
             'photo'       => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'],
@@ -478,6 +482,7 @@ class PoseTaskPublicController extends Controller
                 'message' => 'Tâche annulée — remplacement désactivé.',
             ], 422);
         }
+        if ($resp = $this->assertCampaignOperable($task)) return $resp;
 
         $pige = Pige::where('id', $pigeId)
             ->where('panel_id', $task->panel_id)
@@ -577,6 +582,7 @@ class PoseTaskPublicController extends Controller
                 'message' => 'Tâche annulée — suppression désactivée.',
             ], 422);
         }
+        if ($resp = $this->assertCampaignOperable($task)) return $resp;
 
         $pige = Pige::where('id', $pigeId)
             ->where('panel_id', $task->panel_id)
@@ -640,5 +646,50 @@ class PoseTaskPublicController extends Controller
         }
 
         return $task;
+    }
+
+    /**
+     * Refuse toute action (upload pige, changement statut, marquer réalisée…)
+     * si la campagne de la pose est terminée, annulée ou supprimée.
+     *
+     * Ajout 2026-08-04 — bug fix identifié : sans cette garde, un
+     * technicien avec un vieux lien WhatsApp pouvait continuer à
+     * uploader/agir après clôture campagne, polluant KPI + facturation.
+     * Les endpoints admin protégeaient déjà via `resolveCampaignBlocker`
+     * du PoseService, les endpoints publics étaient trouées.
+     *
+     * Retourne null si tout est OK, sinon une JsonResponse 422 à retourner.
+     * Pattern d'appel :
+     *     if ($resp = $this->assertCampaignOperable($task)) return $resp;
+     */
+    private function assertCampaignOperable(PoseTask $task): ?\Illuminate\Http\JsonResponse
+    {
+        $task->loadMissing('campaign');
+        $campaign = $task->campaign;
+
+        // Pas de campagne rattachée → on laisse passer (cas edge admin
+        // qui a créé une pose libre — c'est déjà couvert par isLocked).
+        if (!$campaign) {
+            return null;
+        }
+
+        $status = $campaign->status?->value ?? (string) $campaign->status;
+        $isTerminal = in_array($status, [
+            \App\Enums\CampaignStatus::TERMINE->value,
+            \App\Enums\CampaignStatus::ANNULE->value,
+        ], true);
+
+        if ($isTerminal || $campaign->deleted_at !== null) {
+            $label = $status === \App\Enums\CampaignStatus::ANNULE->value
+                ? 'annulée'
+                : ($status === \App\Enums\CampaignStatus::TERMINE->value ? 'terminée' : 'supprimée');
+            return response()->json([
+                'ok'      => false,
+                'message' => "Campagne {$label} — aucune action possible sur cette pose. Contacte l'admin si besoin.",
+                'status'  => $task->status,
+            ], 422);
+        }
+
+        return null;
     }
 }

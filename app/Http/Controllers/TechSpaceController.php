@@ -75,6 +75,7 @@ class TechSpaceController extends Controller
         // Blade rendait des poses "sur place" fantômes malgré l'update.
         $activeIdsOrdered = PoseTask::where('assigned_user_id', $tech->id)
             ->whereIn('status', [PoseTaskStatus::EN_ROUTE->value, PoseTaskStatus::IN_PROGRESS->value])
+            ->onOperableCampaign()
             ->orderByRaw('CASE WHEN arrived_at IS NOT NULL THEN 1 ELSE 0 END DESC')
             ->orderByDesc('arrived_at')
             ->orderByDesc('started_at')
@@ -136,6 +137,10 @@ class TechSpaceController extends Controller
                 PoseTaskStatus::COMPLETED->value,
                 PoseTaskStatus::CANCELLED->value,
             ])
+            // Défense en profondeur 2026-08-04 : si le cleanup campagne
+            // rate une pose, elle ne remonte plus ici. Le tech ne voit
+            // que les poses des campagnes réellement actives.
+            ->onOperableCampaign()
             ->orderBy('scheduled_at')
             ->get();
 
@@ -466,7 +471,8 @@ class TechSpaceController extends Controller
             ->whereNotIn('status', [
                 PoseTaskStatus::COMPLETED->value,
                 PoseTaskStatus::CANCELLED->value,
-            ]);
+            ])
+            ->onOperableCampaign();
 
         if ($status !== '') {
             $base->where('status', $status);
@@ -600,6 +606,7 @@ class TechSpaceController extends Controller
                 PoseTaskStatus::COMPLETED->value,
                 PoseTaskStatus::CANCELLED->value,
             ])
+            ->onOperableCampaign()
             ->orderBy('scheduled_at')
             ->get();
 
@@ -665,6 +672,7 @@ class TechSpaceController extends Controller
                 PoseTaskStatus::COMPLETED->value,
                 PoseTaskStatus::CANCELLED->value,
             ])
+            ->onOperableCampaign()
             ->orderBy('scheduled_at')
             ->get();
 
@@ -1125,6 +1133,7 @@ class TechSpaceController extends Controller
         $totalActive = PoseTask::where('assigned_user_id', $tech->id)
             ->whereNotNull('panel_id')->whereNotNull('campaign_id')
             ->whereNotIn('status', [PoseTaskStatus::COMPLETED->value, PoseTaskStatus::CANCELLED->value])
+            ->onOperableCampaign()
             ->count();
         $totalDone = PoseTask::where('assigned_user_id', $tech->id)
             ->where('status', PoseTaskStatus::COMPLETED->value)->count();
@@ -1140,6 +1149,7 @@ class TechSpaceController extends Controller
         $activeToday = PoseTask::where('assigned_user_id', $tech->id)
             ->whereNotIn('status', [PoseTaskStatus::COMPLETED->value, PoseTaskStatus::CANCELLED->value])
             ->whereNotNull('panel_id')->whereNotNull('campaign_id')
+            ->onOperableCampaign()
             ->whereBetween('scheduled_at', [$startOfDay, $endOfDay])
             ->count();
 
