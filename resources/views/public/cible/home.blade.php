@@ -35,112 +35,104 @@
     @keyframes zoom{to{opacity:1;transform:none}}
     @media(max-width:920px){.hero-visuel{border-radius:28px;aspect-ratio:4/3}}
 
-    /* ───── marque — timeline verticale storytelling (2026-08-04) ─────
-       Refonte : abandon layout image+bloc violet. Nouveau format
-       éditorial "30 ans d'histoire" avec trait vertical central
-       coloré + 3 étapes alternées gauche/droite. Chaque étape a
-       une pastille numérotée sur le trait + une card blanche. */
+    /* ───── marque — image + bloc violet (refonte v3 2026-08-04) ─────
+       Retour au layout image ronde + bloc violet avec améliorations :
+       - Halo doré subtil autour de la photo (glow radial)
+       - Pastilles numérotées 01/02/03 devant chaque h3 (couleurs palette)
+       - Séparateurs élégants entre articles (trait dégradé)
+       - Signature finale imposante avec accent visuel */
     .marque{
-        background:#FAF9F7;
-        padding:clamp(60px,8vw,110px) var(--pad);
+        display:grid;
+        grid-template-columns:0.85fr 1.15fr;
+        align-items:center;
+        gap:0;
+        min-height:min(80vh,700px);
+        background:var(--violet);
         position:relative;
         overflow:hidden;
     }
-    .marque-head{max-width:640px;margin:0 auto clamp(50px,7vw,80px);text-align:center;position:relative;z-index:2}
-    .marque-head .sur{color:var(--rouge)}
-    .marque-head .t1{margin-top:14px}
-    .marque-head .intro{
-        margin-top:22px;color:#555;
-        font-size:clamp(16px,1.5vw,18px);line-height:1.6;
-    }
+    @media(max-width:900px){.marque{grid-template-columns:1fr;min-height:auto}}
 
-    /* Container timeline avec trait vertical dégradé au centre */
-    .timeline{
-        position:relative;max-width:1000px;margin:0 auto;
-        padding:20px 0;
+    /* Wrapper image avec halo doré via ::before (glow radial ambient) */
+    .marque-img{
+        position:relative;
+        aspect-ratio:1/1;
+        max-width:min(88%,540px);
+        margin:clamp(30px,4vw,60px) auto;
+        z-index:2;
     }
-    .timeline::before{
+    .marque-img::before{
         content:"";position:absolute;
-        left:50%;top:0;bottom:0;width:4px;
-        background:linear-gradient(180deg,var(--rouge) 0%,var(--jaune) 50%,var(--violet) 100%);
-        border-radius:2px;transform:translateX(-50%);
-        z-index:1;
+        inset:-8%;border-radius:50%;
+        background:radial-gradient(circle,rgba(250,184,11,.45) 0%,rgba(250,184,11,0) 65%);
+        z-index:0;pointer-events:none;
+        animation:halo 8s ease-in-out infinite alternate;
     }
-    @media(max-width:800px){
-        .timeline::before{left:24px}
+    @keyframes halo{
+        from{transform:scale(1);opacity:.9}
+        to{transform:scale(1.08);opacity:1}
+    }
+    .marque-img-inner{
+        position:relative;z-index:1;
+        aspect-ratio:1/1;border-radius:50%;
+        overflow:hidden;background:var(--gris);
+        box-shadow:0 30px 70px -15px rgba(0,0,0,.55),
+                   0 0 0 6px rgba(255,255,255,.08);
+    }
+    @media(max-width:900px){.marque-img{max-width:min(72%,340px);margin:clamp(40px,6vw,60px) auto 20px}}
+
+    /* Bloc texte violet — respire, hiérarchie renforcée */
+    .marque-txt{
+        color:var(--blanc);
+        padding:clamp(40px,5vw,80px) clamp(30px,5vw,80px);
+        display:flex;flex-direction:column;justify-content:center;
+        position:relative;overflow:hidden;
+    }
+    .marque-txt > .rev{position:relative;z-index:2}
+    .marque-txt .sur{color:var(--jaune);opacity:.95}
+    .marque-txt .intro-p{
+        margin-top:18px;max-width:52ch;
+        font-size:clamp(15px,1.4vw,17px);line-height:1.65;
+        opacity:.88;font-weight:500;
     }
 
-    /* Chaque étape = grille 2 cols avec la pastille au milieu */
-    .timeline-step{
-        display:grid;grid-template-columns:1fr auto 1fr;
-        align-items:center;gap:clamp(20px,3vw,40px);
-        margin-bottom:clamp(40px,5vw,64px);
-        position:relative;z-index:2;
+    /* Récit avec numéros décoratifs 01/02/03 devant chaque article */
+    .recit{margin-top:36px;display:flex;flex-direction:column;gap:0}
+    .recit article{
+        padding:22px 0;position:relative;
+        border-top:1px solid rgba(255,255,255,.14);
     }
-    .timeline-step:last-child{margin-bottom:0}
-    @media(max-width:800px){
-        .timeline-step{
-            grid-template-columns:48px 1fr;
-            gap:20px;align-items:start;
-        }
-    }
-
-    /* Pastille numérotée sur le trait */
-    .timeline-badge{
-        width:56px;height:56px;border-radius:50%;
-        background:var(--c);color:#fff;
-        display:flex;align-items:center;justify-content:center;
-        font-family:var(--titre);font-weight:900;font-size:18px;
-        box-shadow:0 6px 20px -4px var(--c),0 0 0 4px #FAF9F7;
-        flex-shrink:0;z-index:3;
-    }
-    @media(max-width:800px){.timeline-badge{width:48px;height:48px;font-size:16px}}
-
-    /* Card storytelling — alternance gauche/droite */
-    .timeline-card{
-        background:#fff;border-radius:16px;
-        padding:clamp(20px,2.6vw,32px);
-        box-shadow:0 10px 30px -12px rgba(0,0,0,.12);
-        border-top:4px solid var(--c);
-        transition:transform .25s cubic-bezier(.2,.8,.3,1),box-shadow .25s;
-    }
-    .timeline-card:hover{
-        transform:translateY(-4px);
-        box-shadow:0 20px 40px -12px rgba(0,0,0,.18);
-    }
-    .timeline-card h3{
+    .recit article:first-child{border-top:0;padding-top:0}
+    .recit article h3{
         font-family:var(--titre);font-weight:800;
-        font-size:clamp(17px,1.9vw,22px);
-        color:var(--c);margin-bottom:10px;line-height:1.25;
+        font-size:clamp(15px,1.6vw,18px);
+        color:var(--jaune);margin-bottom:8px;
+        display:flex;align-items:baseline;gap:12px;line-height:1.3;
     }
-    .timeline-card p{
-        margin:0;font-size:14.5px;color:#333;line-height:1.65;
+    .recit article h3::before{
+        content:attr(data-num);
+        font-family:var(--titre);font-weight:900;font-size:11px;
+        color:rgba(255,255,255,.35);letter-spacing:.15em;
+        padding:3px 8px;border:1px solid rgba(255,255,255,.2);
+        border-radius:999px;flex-shrink:0;
+        text-transform:uppercase;
     }
-    /* Alternance : step 1 texte à gauche (col 1) / step 2 à droite (col 3) */
-    .timeline-step .timeline-card{grid-column:1}
-    .timeline-step .timeline-badge{grid-column:2}
-    .timeline-step .timeline-spacer{grid-column:3}
-    .timeline-step.right .timeline-card{grid-column:3}
-    .timeline-step.right .timeline-spacer{grid-column:1}
-    @media(max-width:800px){
-        .timeline-step .timeline-card,
-        .timeline-step.right .timeline-card{grid-column:2}
-        .timeline-step .timeline-badge,
-        .timeline-step.right .timeline-badge{grid-column:1}
-        .timeline-step .timeline-spacer{display:none}
+    .recit article p{
+        margin:0;font-size:14.5px;opacity:.9;
+        max-width:52ch;line-height:1.65;
     }
 
-    /* Signature en bas — call-out fort */
+    /* Signature finale — call-out imposant avec accent visuel */
     .marque-signature{
-        margin-top:clamp(50px,6vw,72px);text-align:center;
-        max-width:600px;margin-left:auto;margin-right:auto;
-        font-family:var(--titre);font-weight:800;
-        font-size:clamp(18px,2vw,24px);
-        color:var(--noir);line-height:1.4;
-        padding-top:28px;
-        border-top:2px solid #E8E4DC;
+        margin-top:32px;padding-top:24px;
+        border-top:2px solid var(--jaune);
+        font-family:var(--titre);font-weight:900;
+        font-size:clamp(18px,2.1vw,24px);
+        line-height:1.35;color:#fff;
     }
-    .marque-signature em{color:var(--rouge);font-style:normal}
+    .marque-signature em{
+        color:var(--jaune);font-style:normal;
+    }
 
     /* ───── territoires (onglets) ───── */
     .territoires{padding:clamp(56px,8vw,100px) var(--pad) 0}
@@ -308,48 +300,43 @@
     </div>
 </div>
 
-{{-- ═══ MARQUE — Timeline storytelling 30 ans (refonte 2026-08-04) ═══
-     3 étapes alternées gauche/droite reliées par un trait vertical
-     dégradé rouge→jaune→violet. Chaque étape a sa pastille numérotée
-     colorée et sa card blanche. Fin par une signature forte. --}}
+{{-- ═══ MARQUE — image parrots + bloc violet (v3 2026-08-04) ═══
+     Retour au layout demandé + améliorations : halo doré autour de
+     la photo, pastilles numérotées 01/02/03 devant chaque h3,
+     séparateurs entre articles, signature finale imposante. --}}
 <section class="marque" id="marque">
-    <div class="marque-head rev">
-        <span class="sur">Opération plume rouge</span>
-        <h2 class="t1">Se faire remarquer, c'est un métier.</h2>
-        <p class="intro">Trente ans à imposer les marques dans le paysage ivoirien — de l'affiche peinte à la campagne 360° mesurée en temps réel.</p>
-    </div>
-
-    <div class="timeline">
-        <div class="timeline-step rev" style="--c:var(--rouge)">
-            <div class="timeline-card">
-                <h3>Notre origine — maîtres de la visibilité extérieure</h3>
-                <p>Née dans l'affichage publicitaire, CIBLE s'est imposée en trente ans comme un pilier de la publicité extérieure en Côte d'Ivoire : panneaux grand format, signalétique de carrefour, camions de parade, habillage de véhicules. Un patrimoine de 364 emplacements, construit un panneau à la fois.</p>
-            </div>
-            <div class="timeline-badge">01</div>
-            <div class="timeline-spacer"></div>
-        </div>
-
-        <div class="timeline-step right rev" style="--c:var(--jaune)">
-            <div class="timeline-spacer"></div>
-            <div class="timeline-badge">02</div>
-            <div class="timeline-card">
-                <h3>Notre évolution — la visibilité devient mesurable</h3>
-                <p>Les usages ont changé, les attentes des annonceurs aussi. Le digital 360° ne remplace pas notre réseau : il le prolonge et le rend mesurable. Nous n'offrons plus seulement de la visibilité, mais une performance vérifiable, orientée résultats.</p>
-            </div>
-        </div>
-
-        <div class="timeline-step rev" style="--c:var(--violet)">
-            <div class="timeline-card">
-                <h3>Notre force — le terrain et la donnée</h3>
-                <p>Trente ans de connaissance du terrain ivoirien fusionnés avec une approche moderne et une exigence de résultat. Nous sommes la seule régie du pays à posséder à la fois son réseau et l'outil qui le pilote.</p>
-            </div>
-            <div class="timeline-badge">03</div>
-            <div class="timeline-spacer"></div>
+    <div class="marque-img rev">
+        <div class="marque-img-inner">
+            <img class="photo" src="{{ asset('images/perroquet-cible.jpg') }}" alt="Perroquet écarlate — identité visuelle CIBLE" style="object-position:62% 38%">
         </div>
     </div>
-
-    <div class="marque-signature rev">
-        Créer l'impact. <em>Construire la notoriété.</em>
+    <div class="marque-txt">
+        <div class="couche">
+            <span class="fleche" style="--c:#fff;--op:.10;top:8%;right:8%;width:140px;--r:16deg;--dur:26s;--del:.2s"><svg viewBox="0 0 204 442"><use href="#plume"/></svg></span>
+            <span class="fleche" style="--c:#fff;--op:.10;bottom:6%;left:6%;width:100px;--r:-14deg;--dur:22s;--del:.4s"><svg viewBox="0 0 202 286"><use href="#fh-droite"/></svg></span>
+        </div>
+        <div class="rev">
+            <span class="sur">Opération plume rouge</span>
+            <h2 class="t1" style="margin-top:12px">Se faire remarquer, c'est un métier.</h2>
+            <p class="intro-p">Trente ans à imposer les marques dans le paysage ivoirien — de l'affiche peinte à la campagne 360° mesurée en temps réel.</p>
+            <div class="recit">
+                <article>
+                    <h3 data-num="01">Notre origine — maîtres de la visibilité extérieure</h3>
+                    <p>Née dans l'affichage publicitaire, CIBLE s'est imposée en trente ans comme un pilier de la publicité extérieure en Côte d'Ivoire : panneaux grand format, signalétique de carrefour, camions de parade, habillage de véhicules. Un patrimoine de 364 emplacements, construit un panneau à la fois.</p>
+                </article>
+                <article>
+                    <h3 data-num="02">Notre évolution — la visibilité devient mesurable</h3>
+                    <p>Les usages ont changé, les attentes des annonceurs aussi. Le digital 360° ne remplace pas notre réseau : il le prolonge et le rend mesurable. Nous n'offrons plus seulement de la visibilité, mais une performance vérifiable, orientée résultats.</p>
+                </article>
+                <article>
+                    <h3 data-num="03">Notre force — le terrain et la donnée</h3>
+                    <p>Trente ans de connaissance du terrain ivoirien fusionnés avec une approche moderne et une exigence de résultat. Nous sommes la seule régie du pays à posséder à la fois son réseau et l'outil qui le pilote.</p>
+                </article>
+            </div>
+            <div class="marque-signature">
+                Créer l'impact. <em>Construire la notoriété.</em>
+            </div>
+        </div>
     </div>
 </section>
 
