@@ -79,13 +79,12 @@
 
     /* ───── territoires (onglets) ───── */
     .territoires{padding:clamp(56px,8vw,100px) var(--pad) 0}
-    /* Centrage + max-width élargi 2026-08-04ter : titre "Cinq territoires
-       de visibilité, une seule audience" (51 chars) doit tenir sur 1-2
-       lignes, pas 4. On descend aussi font-size au niveau .t2 pour
-       éviter que le clamp(86px) casse tout sur desktop. */
+    /* Centrage 2026-08-04ter : la font-size hérite maintenant du .t1
+       global unifié (clamp 32-64px). Plus d'override ici — cohérence
+       avec tous les autres titres de section du site. */
     .entete{max-width:900px;position:relative;z-index:2;text-align:center;margin-left:auto;margin-right:auto}
     .entete .sur{color:var(--bleu)}
-    .entete .t1{margin-top:14px;font-size:clamp(28px,3.8vw,52px)}
+    .entete .t1{margin-top:14px}
     .entete p{margin-top:18px;color:#444;max-width:60ch;margin-left:auto;margin-right:auto}
     .onglets{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:38px;position:relative;z-index:2}
     .onglet{display:flex;flex-direction:column;align-items:center;gap:10px;background:none;border:0;padding:0;cursor:pointer;font-family:var(--titre);font-weight:800;font-size:14px;color:#9A9A9A;transition:color .25s}
@@ -256,7 +255,7 @@
         </div>
         <div class="rev" style="position:relative;z-index:2">
             <span class="sur" style="opacity:.85">Opération plume rouge</span>
-            <h2 class="t1" style="margin-top:12px;font-size:clamp(30px,4vw,54px)">Se faire remarquer, c'est un métier.</h2>
+            <h2 class="t1" style="margin-top:12px">Se faire remarquer, c'est un métier.</h2>
             <div class="recit">
                 <article>
                     <h3>Notre origine — maîtres de la visibilité extérieure</h3>

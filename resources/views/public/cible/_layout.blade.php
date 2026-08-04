@@ -60,12 +60,16 @@
     section{position:relative;overflow:hidden}
 
     .num{font-family:var(--titre);font-variant-numeric:tabular-nums}
-    /* line-height 2026-08-04 : .95 → 1.05 pour éviter la superposition
-       des ascendantes/descendantes du Poppins 900 sur les titres
-       multi-lignes ("distinctions", "l'État ivoirien" — les d/l/t
-       débordaient). Reste impactful sans se marcher dessus. */
-    .t1{font-family:var(--titre);font-weight:900;line-height:1.05;letter-spacing:-.028em;font-size:clamp(38px,6.2vw,86px)}
-    .t2{font-family:var(--titre);font-weight:800;line-height:1.08;letter-spacing:-.02em;font-size:clamp(26px,3.4vw,44px)}
+    /* Titres 2026-08-04ter — refonte échelle globale :
+       - line-height 1.05 pour éviter la superposition Poppins 900
+       - .t1 ramené de clamp(38,6.2,86) → clamp(32,4.8vw,64) :
+         l'ancienne taille faisait déborder les titres de section sur
+         3-4 lignes ("Cinq territoires...", "Trois distinctions...").
+         La nouvelle taille tient sur 1-2 lignes sur desktop et reste
+         impactful. C'est LA taille unifiée pour tous les titres de
+         section du site (h1 hero + h2 sections). */
+    .t1{font-family:var(--titre);font-weight:900;line-height:1.05;letter-spacing:-.028em;font-size:clamp(32px,4.8vw,64px)}
+    .t2{font-family:var(--titre);font-weight:800;line-height:1.08;letter-spacing:-.02em;font-size:clamp(24px,3vw,38px)}
     .sur{font-family:var(--titre);font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.2em}
 
     /* ═══ nav ═══ */
