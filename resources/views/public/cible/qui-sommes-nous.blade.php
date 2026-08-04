@@ -30,8 +30,9 @@
     .dist p{font-size:14px;color:#666;margin-top:10px;line-height:1.6}
 
     .stats-qui{padding:clamp(56px,8vw,100px) var(--pad);background:var(--noir);color:#fff;text-align:center}
-    /* Centrage 2026-08-04 : le titre "Trente ans concentrés..." débordait */
-    .stats-qui .entete{max-width:22ch;margin:0 auto 48px}
+    /* Centrage 2026-08-04 (max-width élargi 22→40ch : 22 forçait 3
+       lignes serrées avec superposition, 40ch tient sur 1-2 lignes propres) */
+    .stats-qui .entete{max-width:40ch;margin:0 auto 48px}
     .stats-qui .sur{color:var(--jaune)}
     .stats-qui .t1{color:#fff;margin-top:12px}
     .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(20px,3vw,40px)}

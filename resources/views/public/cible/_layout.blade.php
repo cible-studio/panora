@@ -60,8 +60,12 @@
     section{position:relative;overflow:hidden}
 
     .num{font-family:var(--titre);font-variant-numeric:tabular-nums}
-    .t1{font-family:var(--titre);font-weight:900;line-height:.95;letter-spacing:-.028em;font-size:clamp(38px,6.2vw,86px)}
-    .t2{font-family:var(--titre);font-weight:800;line-height:1.04;letter-spacing:-.02em;font-size:clamp(26px,3.4vw,44px)}
+    /* line-height 2026-08-04 : .95 → 1.05 pour éviter la superposition
+       des ascendantes/descendantes du Poppins 900 sur les titres
+       multi-lignes ("distinctions", "l'État ivoirien" — les d/l/t
+       débordaient). Reste impactful sans se marcher dessus. */
+    .t1{font-family:var(--titre);font-weight:900;line-height:1.05;letter-spacing:-.028em;font-size:clamp(38px,6.2vw,86px)}
+    .t2{font-family:var(--titre);font-weight:800;line-height:1.08;letter-spacing:-.02em;font-size:clamp(26px,3.4vw,44px)}
     .sur{font-family:var(--titre);font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.2em}
 
     /* ═══ nav ═══ */

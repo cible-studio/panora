@@ -158,7 +158,9 @@
     /* ───── distinctions ───── */
     .dist-sec{padding:clamp(50px,7vw,90px) var(--pad);text-align:center}
     .dist-sec .sur{color:var(--vert)}
-    .dist-sec .t2{max-width:24ch;margin-left:auto;margin-right:auto}
+    /* max-width élargi 24ch→38ch (2026-08-04) — évite la cassure serrée
+       "Trois distinctions de / l'État ivoirien" avec letters qui touchent. */
+    .dist-sec .t2{max-width:38ch;margin-left:auto;margin-right:auto}
     .dist-grille{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(18px,3vw,44px);margin-top:40px;text-align:left}
     @media(max-width:820px){.dist-grille{grid-template-columns:1fr}}
     .dist{border-top:6px solid var(--c);padding-top:16px}
