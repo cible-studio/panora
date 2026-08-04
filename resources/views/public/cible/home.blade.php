@@ -35,35 +35,56 @@
     @keyframes zoom{to{opacity:1;transform:none}}
     @media(max-width:920px){.hero-visuel{border-radius:28px;aspect-ratio:4/3}}
 
-    /* ───── bande 5 panneaux ───── */
-    .bande{display:flex;gap:10px;align-items:flex-end;padding:clamp(26px,4vw,46px) var(--pad) 0;position:relative;z-index:2}
-    .bande div{flex:1;height:clamp(26px,4vw,52px);border-radius:46% 46% 8px 8px / 55% 55% 8px 8px;transform-origin:bottom;transform:scaleY(.12);animation:pousse .7s cubic-bezier(.2,.9,.3,1) forwards}
-    .bande div:nth-child(1){animation-delay:.55s}
-    .bande div:nth-child(2){animation-delay:.64s}
-    .bande div:nth-child(3){animation-delay:.73s}
-    .bande div:nth-child(4){animation-delay:.82s}
-    .bande div:nth-child(5){animation-delay:.91s}
-    @keyframes pousse{to{transform:scaleY(1)}}
-
-    /* ───── marque (violet, 3 blocs récit) ───── */
-    .marque{display:grid;grid-template-columns:1fr 1fr;align-items:stretch;min-height:min(78vh,620px)}
-    @media(max-width:900px){.marque{grid-template-columns:1fr}}
-    .marque-img{border-radius:0 999px 999px 0;overflow:hidden;background:var(--gris)}
-    @media(max-width:900px){.marque-img{border-radius:0 0 220px 220px;aspect-ratio:4/3}}
-    .marque-txt{background:var(--violet);color:var(--blanc);padding:clamp(34px,5vw,80px);display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
-    .marque-txt p{margin-top:20px;max-width:44ch;opacity:.95}
-    .marque-txt .fort{margin-top:26px;font-family:var(--titre);font-weight:800;font-size:clamp(17px,2vw,22px)}
-    .recit{margin-top:26px;display:grid;gap:20px}
-    .recit article h3{font-family:var(--titre);font-weight:800;font-size:clamp(16px,1.7vw,19px);margin-bottom:6px}
-    .recit article p{margin:0;font-size:15px;opacity:.94;max-width:46ch}
+    /* ───── marque (violet, 3 blocs récit) — refonte 2026-08-04 ─────
+       Ancienne version : 2 cols 50/50, image bord-arrondi à droite
+       collée au texte. Problème observé : les 2 éléments ne s'alignaient
+       pas verticalement (texte trop haut, image trop grande).
+       Nouvelle version : image ronde à gauche (ratio 40/60), plus petite
+       et centrée verticalement ; le bloc texte respire mieux. */
+    .marque{
+        display:grid;
+        grid-template-columns:0.85fr 1.15fr;
+        align-items:center;
+        gap:0;
+        min-height:min(70vh,560px);
+        background:var(--violet);
+    }
+    @media(max-width:900px){.marque{grid-template-columns:1fr;min-height:auto}}
+    .marque-img{
+        position:relative;
+        aspect-ratio:1/1;
+        max-width:min(90%,520px);
+        margin:clamp(30px,4vw,60px) auto;
+        border-radius:50%;
+        overflow:hidden;
+        background:var(--gris);
+        box-shadow:0 30px 60px -20px rgba(0,0,0,.4);
+    }
+    @media(max-width:900px){.marque-img{max-width:min(75%,360px);margin:clamp(30px,5vw,50px) auto 0}}
+    .marque-txt{
+        color:var(--blanc);
+        padding:clamp(30px,4vw,60px) clamp(30px,5vw,70px);
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+        position:relative;
+        overflow:hidden;
+    }
+    .marque-txt > .rev {position:relative;z-index:2}
+    .marque-txt p{margin-top:16px;max-width:52ch;opacity:.95}
+    .marque-txt .fort{margin-top:24px;font-family:var(--titre);font-weight:800;font-size:clamp(17px,1.9vw,22px);border-top:1px solid rgba(255,255,255,.2);padding-top:20px}
+    .recit{margin-top:22px;display:grid;gap:18px}
+    .recit article h3{font-family:var(--titre);font-weight:800;font-size:clamp(15px,1.6vw,18px);margin-bottom:5px;color:var(--jaune)}
+    .recit article p{margin:0;font-size:14.5px;opacity:.92;max-width:50ch;line-height:1.6}
 
     /* ───── territoires (onglets) ───── */
     .territoires{padding:clamp(56px,8vw,100px) var(--pad) 0}
-    .entete{max-width:60ch;position:relative;z-index:2}
+    /* Centrage 2026-08-04 : trop d'espace vide à droite avant */
+    .entete{max-width:64ch;position:relative;z-index:2;text-align:center;margin-left:auto;margin-right:auto}
     .entete .sur{color:var(--bleu)}
     .entete .t1{margin-top:14px}
     .entete p{margin-top:18px;color:#444}
-    .onglets{display:flex;flex-wrap:wrap;gap:10px;margin-top:38px;position:relative;z-index:2}
+    .onglets{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:38px;position:relative;z-index:2}
     .onglet{display:flex;flex-direction:column;align-items:center;gap:10px;background:none;border:0;padding:0;cursor:pointer;font-family:var(--titre);font-weight:800;font-size:14px;color:#9A9A9A;transition:color .25s}
     .onglet .forme{width:clamp(56px,7vw,88px);height:clamp(22px,3vw,30px);background:currentColor;opacity:.3;border-radius:46% 46% 6px 6px / 60% 60% 6px 6px;transition:opacity .3s,height .35s cubic-bezier(.2,.9,.3,1)}
     .onglet:hover .forme{opacity:.6}
@@ -135,9 +156,10 @@
     .note{margin-top:14px;font-size:13px;opacity:.9}
 
     /* ───── distinctions ───── */
-    .dist-sec{padding:clamp(50px,7vw,90px) var(--pad)}
+    .dist-sec{padding:clamp(50px,7vw,90px) var(--pad);text-align:center}
     .dist-sec .sur{color:var(--vert)}
-    .dist-grille{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(18px,3vw,44px);margin-top:32px}
+    .dist-sec .t2{max-width:24ch;margin-left:auto;margin-right:auto}
+    .dist-grille{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(18px,3vw,44px);margin-top:40px;text-align:left}
     @media(max-width:820px){.dist-grille{grid-template-columns:1fr}}
     .dist{border-top:6px solid var(--c);padding-top:16px}
     .dist .an{font-family:var(--titre);font-weight:900;font-size:32px;color:var(--c)}
@@ -194,13 +216,9 @@
         </div>
     </div>
 
-    <div class="bande" aria-hidden="true">
-        <div style="background:var(--rouge)"></div>
-        <div style="background:var(--jaune)"></div>
-        <div style="background:var(--vert)"></div>
-        <div style="background:var(--violet)"></div>
-        <div style="background:var(--bleu)"></div>
-    </div>
+    {{-- Bande 5 couleurs retirée 2026-08-04 — les couleurs étaient
+         redondantes avec le ticker qui suit immédiatement + section
+         territoires plus bas. Trop bruyant visuellement en début de page. --}}
 </section>
 
 {{-- ═══ TICKER ═══ --}}
@@ -233,7 +251,7 @@
         </div>
         <div class="rev" style="position:relative;z-index:2">
             <span class="sur" style="opacity:.85">Opération plume rouge</span>
-            <h2 class="t1" style="margin-top:14px">Se faire remarquer, c'est un métier.</h2>
+            <h2 class="t1" style="margin-top:12px;font-size:clamp(30px,4vw,54px)">Se faire remarquer, c'est un métier.</h2>
             <div class="recit">
                 <article>
                     <h3>Notre origine — maîtres de la visibilité extérieure</h3>

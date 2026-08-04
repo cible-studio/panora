@@ -60,11 +60,12 @@
 
     /* Workflow */
     .workflow{background:var(--noir);color:#fff;padding:clamp(60px,8vw,110px) var(--pad)}
-    .workflow .entete{max-width:720px;margin-bottom:60px}
+    /* Centrage 2026-08-04 : cohérence avec les autres entêtes du site */
+    .workflow .entete{max-width:720px;margin:0 auto 60px;text-align:center}
     .workflow .sur{color:var(--jaune)}
     .workflow h2{font-family:var(--titre);font-weight:900;font-size:clamp(28px,3.8vw,50px);line-height:1.05;letter-spacing:-.025em;color:#fff;margin-top:12px}
     .workflow h2 em{color:var(--jaune);font-style:normal}
-    .workflow p{margin-top:20px;color:rgba(255,255,255,.75);font-size:17px;max-width:56ch}
+    .workflow p{margin-top:20px;color:rgba(255,255,255,.75);font-size:17px;max-width:56ch;margin-left:auto;margin-right:auto}
     .workflow-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
     @media(max-width:900px){.workflow-grid{grid-template-columns:repeat(2,1fr)}}
     @media(max-width:500px){.workflow-grid{grid-template-columns:1fr}}

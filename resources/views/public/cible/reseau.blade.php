@@ -17,7 +17,7 @@
     .carte-slot .note{position:absolute;bottom:16px;left:16px;right:16px;background:rgba(255,255,255,.94);padding:12px 16px;border-radius:10px;font-size:13px;color:#666;font-family:var(--titre);font-weight:600}
 
     .communes{padding:clamp(56px,8vw,100px) var(--pad);background:var(--gris)}
-    .communes .entete{max-width:600px;margin-bottom:40px}
+    .communes .entete{max-width:640px;margin:0 auto 44px;text-align:center}
     .communes .sur{color:var(--vert)}
     .communes-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,40px)}
     @media(max-width:800px){.communes-grid{grid-template-columns:1fr}}
@@ -28,7 +28,7 @@
     .zone-list li{padding:6px 0;border-bottom:1px dashed #E4E4E4;font-family:var(--titre);font-weight:600}
 
     .qualite{padding:clamp(56px,8vw,100px) var(--pad)}
-    .qualite .entete{max-width:600px;margin-bottom:44px}
+    .qualite .entete{max-width:640px;margin:0 auto 48px;text-align:center}
     .qualite .sur{color:var(--rouge)}
     .q-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(18px,3vw,32px)}
     @media(max-width:900px){.q-grid{grid-template-columns:1fr}}

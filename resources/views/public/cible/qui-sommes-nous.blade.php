@@ -18,7 +18,8 @@
     .recit article p{color:#444;line-height:1.7}
 
     .distinctions{background:var(--gris);padding:clamp(56px,8vw,100px) var(--pad)}
-    .distinctions .entete{max-width:600px;margin-bottom:44px}
+    /* Centrage 2026-08-04 : trop d'espace vide à droite */
+    .distinctions .entete{max-width:640px;margin:0 auto 48px;text-align:center}
     .distinctions .sur{color:var(--vert)}
     .distinctions .t1{margin-top:12px}
     .dist-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(18px,3vw,44px)}
@@ -28,12 +29,14 @@
     .dist h4{font-family:var(--titre);font-weight:800;font-size:17px;margin-top:8px;line-height:1.35}
     .dist p{font-size:14px;color:#666;margin-top:10px;line-height:1.6}
 
-    .stats-qui{padding:clamp(56px,8vw,100px) var(--pad);background:var(--noir);color:#fff}
-    .stats-qui .entete{max-width:600px;margin-bottom:44px}
+    .stats-qui{padding:clamp(56px,8vw,100px) var(--pad);background:var(--noir);color:#fff;text-align:center}
+    /* Centrage 2026-08-04 : le titre "Trente ans concentrés..." débordait */
+    .stats-qui .entete{max-width:22ch;margin:0 auto 48px}
     .stats-qui .sur{color:var(--jaune)}
     .stats-qui .t1{color:#fff;margin-top:12px}
     .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(20px,3vw,40px)}
     @media(max-width:900px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+    .stat{text-align:center}
     .stat .v{font-family:var(--titre);font-weight:900;font-size:clamp(46px,6vw,80px);line-height:.86;letter-spacing:-.04em;color:var(--jaune)}
     .stat .l{font-family:var(--titre);font-weight:600;font-size:13px;opacity:.85;margin-top:12px;text-transform:uppercase;letter-spacing:.08em}
 @endpush

@@ -23,7 +23,8 @@
     .pastille{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--c)}
 
     .clients-band{padding:clamp(56px,8vw,100px) var(--pad);background:var(--gris)}
-    .clients-band .entete{max-width:600px;margin-bottom:40px}
+    /* Centrage 2026-08-04 */
+    .clients-band .entete{max-width:640px;margin:0 auto 44px;text-align:center}
     .clients-band .sur{color:var(--vert)}
     .clients-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;align-items:center}
     @media(max-width:900px){.clients-grid{grid-template-columns:repeat(3,1fr)}}

@@ -68,9 +68,7 @@
     header.site{position:sticky;top:0;z-index:80;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid #E4E4E4}
     .nav{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:12px var(--pad)}
     .logo-w{display:flex;align-items:center;gap:12px;text-decoration:none}
-    .logo-w img{height:48px;width:auto;display:block}
-    .logo-w-base{display:none;font-family:var(--corps);font-weight:700;font-size:10px;color:#666;letter-spacing:.14em;text-transform:uppercase;border-left:1px solid #E4E4E4;padding-left:12px;line-height:1.35}
-    @media(min-width:640px){.logo-w-base{display:block}}
+    .logo-w img{height:52px;width:auto;display:block}
     .liens{display:flex;gap:22px;font-family:var(--titre);font-weight:700;font-size:13px}
     .liens a{position:relative;padding:6px 0}
     .liens a::after{content:"";position:absolute;left:0;right:100%;bottom:0;height:3px;background:var(--c,var(--rouge));transition:right .28s cubic-bezier(.2,.8,.3,1)}
@@ -124,8 +122,7 @@
     footer.site li{list-style:none;margin-bottom:9px;font-size:14px;opacity:.82;line-height:1.55}
     footer.site li a:hover{color:var(--jaune);opacity:1}
     footer.site .slogan{margin-top:16px;opacity:.7;max-width:32ch;font-size:14px}
-    footer.site .logo-foot img{height:60px;width:auto;display:block;margin-bottom:14px}
-    footer.site .logo-foot .base{font-family:var(--corps);font-weight:700;font-size:11px;color:var(--jaune);letter-spacing:.18em;text-transform:uppercase}
+    footer.site .logo-foot img{height:64px;width:auto;display:block;margin-bottom:14px}
     .copy{position:relative;z-index:2;margin-top:40px;padding-top:20px;border-top:1px solid rgba(255,255,255,.16);font-size:13px;opacity:.55;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 
     /* ═══ révélation scroll ═══ */
@@ -156,9 +153,10 @@
 
 <header class="site">
     <nav class="nav">
+        {{-- Slogan "Vous visez juste" retiré 2026-08-04 : déjà inclus
+             dans le logo image → doublon visuel. --}}
         <a href="{{ route('cible.home') }}" class="logo-w" aria-label="CIBLE, accueil">
-            <img src="{{ asset('images/logol.png') }}" alt="CIBLE">
-            <span class="logo-w-base">Vous visez<br>juste</span>
+            <img src="{{ asset('images/logol.png') }}" alt="CIBLE — Vous visez juste">
         </a>
         <div class="liens" id="site-links">
             <a href="{{ route('cible.qui') }}" {{ $current==='qui' ? 'aria-current=page' : '' }}>Qui sommes-nous</a>
@@ -181,9 +179,9 @@
 <footer class="site">
     <div class="pied">
         <div>
+            {{-- "Vous visez juste" retiré 2026-08-04 : déjà dans le logo. --}}
             <div class="logo-foot">
                 <img src="{{ asset('images/logon.png') }}" alt="CIBLE — Vous visez juste">
-                <div class="base">Vous visez juste</div>
             </div>
             <p class="slogan">Régie publicitaire et studio créatif. 30 ans à rendre les marques visibles en Côte d'Ivoire.</p>
         </div>
@@ -215,7 +213,7 @@
     </div>
     <div class="copy">
         <span class="num">© {{ date('Y') }} CIBLE · Tous droits réservés</span>
-        <span>Vous visez juste</span>
+        <span>Régie publicitaire · Côte d'Ivoire</span>
     </div>
 </footer>
 
