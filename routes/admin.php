@@ -496,6 +496,9 @@ Route::prefix('admin')
             Route::get('/{poseTask}/edit', [PoseController::class, 'edit'])->name('edit');
             Route::put('/{poseTask}',      [PoseController::class, 'update'])->name('update');
             Route::delete('/{poseTask}',   [PoseController::class, 'destroy'])->name('destroy');
+            // Rechange / retouche (2026-08-04) — nouvelle pose chaînée à
+            // une pose existante déjà réalisée. Cf. PoseService::createRechange.
+            Route::post('/{poseTask}/rechange', [PoseController::class, 'rechange'])->name('rechange');
         });
         
         // ── Pose : alias + notify (admin + MP only) ───────────────────

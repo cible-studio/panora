@@ -428,8 +428,53 @@ class PoseController extends Controller
     // ══════════════════════════════════════════════════════════════
     // STORE — utilise PoseTaskRequest (messages FR)
     // ══════════════════════════════════════════════════════════════
+    /**
+     * Crée un RECHANGE (nouvelle pose) à partir d'une pose déjà réalisée
+     * sur le même panneau × campagne. Cf. `PoseService::createRechange`.
+     *
+     * Route : POST /admin/pose-tasks/{poseTask}/rechange
+     * Déclenchée depuis le bouton "🔄 Nouvelle pose sur ce panneau" de la
+     * page show, via un modal simple (scheduled_at + tech optionnel + notes).
+     */
+    public function rechange(Request $request, PoseTask $poseTask)
+    {
+        $validated = $request->validate([
+            'scheduled_at'     => 'required|date',
+            'assigned_user_id' => 'nullable|exists:users,id',
+            'team_name'        => 'nullable|string|max:100',
+            'notes'            => 'nullable|string|max:1000',
+            'pose_kind'        => 'nullable|in:rechange,retouche',
+        ], [
+            'scheduled_at.required'   => 'La date et heure du rechange sont obligatoires.',
+            'scheduled_at.date'       => 'La date et heure du rechange sont invalides.',
+            'assigned_user_id.exists' => 'Le technicien sélectionné est introuvable.',
+            'team_name.max'           => "Le nom d'équipe ne doit pas dépasser 100 caractères.",
+            'notes.max'               => 'Les notes ne doivent pas dépasser 1000 caractères.',
+            'pose_kind.in'            => 'Type invalide. Rechange ou retouche uniquement.',
+        ]);
+
+        $result = $this->poseService->createRechange($poseTask, $validated, auth()->user());
+        if (!$result['ok']) {
+            return back()->with('error', $result['error']);
+        }
+
+        // Alerte + redirection sur la nouvelle pose (l'admin veut suivre
+        // celle qui vient d'être créée, pas repartir sur l'ancienne).
+        AlertService::create(
+            'pose',
+            'info',
+            '🔄 Rechange créé — panneau ' . ($poseTask->panel?->reference ?? '#'.$poseTask->panel_id),
+            auth()->user()->name . ' a planifié un rechange sur ce panneau.',
+            null
+        );
+
+        return redirect()
+            ->route('admin.pose-tasks.show', $result['task'])
+            ->with('success', 'Rechange planifié. Le technicien est notifié.');
+    }
+
     public function store(Request $request)
-    {   
+    {
         $request->merge([
             'panel_ids' => array_values(array_filter(
                 (array) $request->input('panel_ids', []),

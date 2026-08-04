@@ -135,6 +135,111 @@ class PoseService
     }
 
     // ══════════════════════════════════════════════════════════════
+    // CREATE RECHANGE — Nouvelle pose sur un panneau déjà posé
+    //
+    // Contexte métier (2026-08-04) : sur une campagne longue, le
+    // client change de créa périodiquement. À chaque changement, une
+    // nouvelle pose physique doit être réalisée sur le même panneau.
+    // Cette méthode :
+    //   1. crée une nouvelle PoseTask liée au même (panel, campaign)
+    //      que $sourcePose, avec pose_kind = 'rechange' et
+    //      replaces_pose_task_id = sourcePose.id
+    //   2. marque sourcePose.replaced_at = now() — décapage
+    //      intermédiaire implicite (l'ancienne affiche a bien été
+    //      retirée avant que la nouvelle soit posée)
+    //   3. laisse sourcePose.status = 'realisee' (audit préservé —
+    //      la pose initiale A ÉTÉ réalisée, seule sa durée de vie
+    //      est bornée par replaced_at)
+    //
+    // Contrainte : la pose source doit être 'realisee'. Un rechange
+    // sur une pose encore planifiée n'a pas de sens métier (on modifie
+    // la pose planifiée à la place).
+    //
+    // Ne passe PAS par createBatch (qui bloque explicitement les
+    // poses en doublon) — c'est le point clé.
+    //
+    // @param PoseTask $sourcePose  Pose à remplacer (doit être realisee)
+    // @param array{scheduled_at:string, assigned_user_id?:int, team_name?:string, notes?:string, pose_kind?:string} $data
+    // @param User $creator  Admin qui déclenche le rechange
+    // @return array{ok:bool, task?:PoseTask, error?:string}
+    // ══════════════════════════════════════════════════════════════
+    public function createRechange(PoseTask $sourcePose, array $data, User $creator): array
+    {
+        if ($sourcePose->status !== PoseTaskStatus::COMPLETED->value) {
+            return $this->error(
+                "La pose source doit être réalisée avant de créer un rechange. "
+                . "Statut actuel : {$sourcePose->status}."
+            );
+        }
+
+        if ($sourcePose->isReplaced()) {
+            return $this->error(
+                "Cette pose a déjà été remplacée le "
+                . $sourcePose->replaced_at?->format('d/m/Y H:i')
+                . ". Créez un rechange à partir de la pose active la plus récente."
+            );
+        }
+
+        // Vérif campagne active — un rechange sur une campagne terminée
+        // ou annulée n'a pas de sens (le panneau attend son décapage).
+        $campaign = $sourcePose->campaign_id
+            ? Campaign::withTrashed()->find($sourcePose->campaign_id)
+            : null;
+        $blocker = $this->resolveCampaignBlocker($campaign);
+        if ($blocker) {
+            return $this->error($blocker);
+        }
+
+        $kind = \App\Enums\PoseTaskKind::tryFrom($data['pose_kind'] ?? 'rechange')
+             ?? \App\Enums\PoseTaskKind::RECHANGE;
+
+        return DB::transaction(function () use ($sourcePose, $data, $kind, $creator) {
+            // 1. Créer la nouvelle pose (chaînée à la source)
+            $newTask = PoseTask::create([
+                'panel_id'              => $sourcePose->panel_id,
+                'campaign_id'           => $sourcePose->campaign_id,
+                'assigned_user_id'      => $data['assigned_user_id'] ?? null,
+                'team_name'             => $data['team_name'] ?? null,
+                'scheduled_at'          => $data['scheduled_at'],
+                'status'                => PoseTaskStatus::PLANNED->value,
+                'notes'                 => $data['notes'] ?? null,
+                'pose_kind'             => $kind->value,
+                'replaces_pose_task_id' => $sourcePose->id,
+            ]);
+            $newTask->ensurePublicToken();
+
+            // 2. Marquer l'ancienne comme remplacée SI le kind
+            //    supersède (rechange = oui, retouche = non car l'ancienne
+            //    affiche reste en place, on la répare simplement).
+            if ($kind->supersedesPrevious()) {
+                $sourcePose->forceFill(['replaced_at' => now()])->save();
+            }
+
+            Log::info('pose_task.rechange_created', [
+                'source_task_id' => $sourcePose->id,
+                'new_task_id'    => $newTask->id,
+                'panel_id'       => $sourcePose->panel_id,
+                'campaign_id'    => $sourcePose->campaign_id,
+                'kind'           => $kind->value,
+                'created_by'     => $creator->id,
+            ]);
+
+            // 3. Notif WhatsApp technicien (mêmes règles que la pose
+            //    initiale — le tech doit être prévenu de l'intervention).
+            try {
+                $newTask->load(['panel:id,reference,name,adresse,quartier,commune_id', 'panel.commune:id,name', 'technicien:id,name,whatsapp_number']);
+                $this->notifyTechnicianOnWhatsApp($newTask);
+            } catch (\Throwable $e) {
+                Log::warning('pose_task.rechange.notify_failed', [
+                    'task_id' => $newTask->id, 'err' => $e->getMessage(),
+                ]);
+            }
+
+            return ['ok' => true, 'task' => $newTask];
+        });
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // UPDATE
     // ══════════════════════════════════════════════════════════════
     public function update(PoseTask $task, array $data, User $updater): array

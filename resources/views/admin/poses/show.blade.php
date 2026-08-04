@@ -14,6 +14,25 @@
     </button>
     <form id="form-complete" method="POST" action="{{ route('admin.pose.complete', $poseTask) }}" style="display:none">@csrf</form>
     @endif
+
+    {{-- ═══ Nouvelle pose (rechange) — 2026-08-04 ═══
+         Visible uniquement si la pose actuelle est réalisée ET pas
+         encore remplacée par une autre. Ouvre un modal avec le
+         formulaire minimal (date + tech + type). --}}
+    @php
+        $canRechange = $poseTask->status === 'realisee'
+            && !$poseTask->isReplaced()
+            && $poseTask->campaign
+            && !in_array($poseTask->campaign->status?->value ?? '', ['annule','termine']);
+    @endphp
+    @if($canRechange)
+    <button type="button"
+            onclick="document.getElementById('rechange-modal').style.display='flex'"
+            class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px;background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.30);color:#b45309">
+        <span style="font-size:14px">🔄</span>
+        Nouvelle pose
+    </button>
+    @endif
 </x-slot:topbarActions>
 
 <x-slot:topbarLeft>
@@ -145,6 +164,83 @@ $sIconLg = match($poseTask->status) {
                 </div>
                 @endforeach
             </div>
+
+            {{-- ═══ Timeline poses (2026-08-04) — reconstitue la chaîne
+                     initial → rechange 1 → rechange 2 → ... pour ce couple
+                     (panneau × campagne). N'affichée que s'il existe une
+                     chaîne (> 1 pose). Ordonnées par done_at ou created_at. --}}
+            @php
+                $chainQuery = \App\Models\PoseTask::where('panel_id', $poseTask->panel_id)
+                    ->when($poseTask->campaign_id, fn($q) => $q->where('campaign_id', $poseTask->campaign_id))
+                    ->orderBy('scheduled_at');
+                $chain = $chainQuery->get();
+                $hasChain = $chain->count() > 1;
+            @endphp
+            @if($hasChain)
+            <div style="margin:0 18px 18px;border-top:1px solid var(--border);padding-top:14px">
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    HISTORIQUE DES POSES SUR CE PANNEAU × CAMPAGNE
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                    @foreach($chain as $step)
+                        @php
+                            $kind = \App\Enums\PoseTaskKind::tryFrom($step->pose_kind ?? 'initial')
+                                 ?? \App\Enums\PoseTaskKind::INITIAL;
+                            $isCurrent = $step->id === $poseTask->id;
+                            $stepStatusCfg = match($step->status) {
+                                'planifiee' => '#e8a020', 'en_cours' => '#3b82f6',
+                                'realisee'  => '#22c55e', 'annulee'  => '#ef4444',
+                                default     => '#6b7280',
+                            };
+                        @endphp
+                        <a href="{{ $isCurrent ? '#' : route('admin.pose-tasks.show', $step) }}"
+                           style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:{{ $isCurrent ? 'rgba(232,160,32,.08)' : 'var(--surface2)' }};border:1px solid {{ $isCurrent ? 'rgba(232,160,32,.35)' : 'var(--border)' }};border-radius:8px;text-decoration:none;color:var(--text)">
+                            <span style="font-size:14px">{{ $kind->icon() }}</span>
+                            <div style="flex:1;min-width:0">
+                                <div style="font-size:12.5px;font-weight:700;color:var(--text)">
+                                    {{ $kind->label() }} #{{ $step->id }}
+                                    @if($isCurrent)
+                                        <span style="background:rgba(232,160,32,.2);color:var(--accent-dark);font-size:9px;font-weight:800;padding:1px 6px;border-radius:4px;margin-left:4px">ACTUELLE</span>
+                                    @endif
+                                    @if($step->replaced_at)
+                                        <span style="background:rgba(107,114,128,.15);color:var(--text3);font-size:9px;font-weight:800;padding:1px 6px;border-radius:4px;margin-left:4px">Remplacée</span>
+                                    @endif
+                                </div>
+                                <div style="font-size:11px;color:var(--text3);margin-top:1px">
+                                    Planifiée {{ $step->scheduled_at?->format('d/m/Y') ?? '—' }}
+                                    @if($step->done_at) · Réalisée {{ $step->done_at->format('d/m/Y') }} @endif
+                                    @if($step->replaced_at) · Remplacée {{ $step->replaced_at->format('d/m/Y') }} @endif
+                                </div>
+                            </div>
+                            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;color:{{ $stepStatusCfg }};background:{{ $stepStatusCfg }}22;flex-shrink:0">
+                                {{ ucfirst($step->status) }}
+                            </span>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
+            {{-- Badge type de pose (2026-08-04) --}}
+            @php
+                $currentKind = \App\Enums\PoseTaskKind::tryFrom($poseTask->pose_kind ?? 'initial')
+                            ?? \App\Enums\PoseTaskKind::INITIAL;
+            @endphp
+            @if($currentKind !== \App\Enums\PoseTaskKind::INITIAL || $poseTask->isReplaced())
+            <div style="margin:0 18px 18px;padding:10px 12px;background:{{ $poseTask->isReplaced() ? 'rgba(107,114,128,.06)' : 'rgba(245,158,11,.06)' }};border:1px solid {{ $poseTask->isReplaced() ? 'rgba(107,114,128,.2)' : 'rgba(245,158,11,.2)' }};border-radius:8px;display:flex;align-items:center;gap:10px">
+                <span style="font-size:16px">{{ $currentKind->icon() }}</span>
+                <div style="flex:1;font-size:12.5px;color:var(--text2);line-height:1.5">
+                    <strong style="color:{{ $currentKind->color() }}">{{ $currentKind->label() }}</strong>
+                    @if($poseTask->replaces)
+                        — remplace la pose <a href="{{ route('admin.pose-tasks.show', $poseTask->replaces) }}" style="color:var(--accent);font-weight:600">#{{ $poseTask->replaces->id }}</a>
+                    @endif
+                    @if($poseTask->isReplaced())
+                        · <em style="color:var(--text3)">Cette pose a été remplacée le {{ $poseTask->replaced_at->format('d/m/Y') }}</em>
+                    @endif
+                </div>
+            </div>
+            @endif
 
             @if($poseTask->notes)
             <div style="padding:0 18px 18px">
@@ -570,4 +666,90 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') Confirm.cancel(
 })();
 </script>
 @endpush
+
+{{-- ═══════════════════════════════════════════════════════════════════
+     MODAL RECHANGE (2026-08-04) — Crée une nouvelle pose sur ce même
+     panneau × campagne. Affiché sur clic du bouton "🔄 Nouvelle pose"
+     dans la topbar. Utilise le service PoseService::createRechange.
+════════════════════════════════════════════════════════════════════ --}}
+@if(isset($canRechange) && $canRechange)
+<div id="rechange-modal"
+     style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:16px"
+     onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">
+        <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(245,158,11,.12);display:flex;align-items:center;justify-content:center;font-size:18px">🔄</div>
+            <div style="flex:1">
+                <h3 style="margin:0;font-size:15px;font-weight:800;color:var(--text)">Nouvelle pose sur ce panneau</h3>
+                <p style="margin:2px 0 0;font-size:12px;color:var(--text3)">
+                    Panneau <strong>{{ $poseTask->panel?->reference ?? '—' }}</strong>
+                    · Campagne <strong>{{ $poseTask->campaign?->name ?? '—' }}</strong>
+                </p>
+            </div>
+            <button type="button" onclick="document.getElementById('rechange-modal').style.display='none'"
+                    style="background:transparent;border:0;color:var(--text3);cursor:pointer;padding:4px;line-height:0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <form method="POST" action="{{ route('admin.pose-tasks.rechange', $poseTask) }}" style="padding:20px 22px">
+            @csrf
+            <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.5">
+                💡 La pose actuelle (réalisée le {{ $poseTask->done_at?->format('d/m/Y') }}) restera dans l'historique,
+                marquée « remplacée ». Une nouvelle pose sera créée pour le tech.
+            </div>
+
+            <div style="margin-bottom:14px">
+                <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Type</label>
+                <select name="pose_kind" required
+                        style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                    <option value="rechange" selected>🔄 Rechange affiche (nouveau visuel)</option>
+                    <option value="retouche">🔧 Retouche (réparation, nettoyage)</option>
+                </select>
+                <small style="display:block;margin-top:4px;font-size:11px;color:var(--text3)">
+                    Rechange = ancienne affiche retirée. Retouche = ancienne affiche reste en place.
+                </small>
+            </div>
+
+            <div style="margin-bottom:14px">
+                <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Date &amp; heure prévues <span style="color:#ef4444">*</span></label>
+                <input type="datetime-local" name="scheduled_at" required
+                       value="{{ now()->addDay()->format('Y-m-d\TH:i') }}"
+                       style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+            </div>
+
+            <div style="margin-bottom:14px">
+                <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Technicien assigné</label>
+                @php
+                    $techs = \App\Models\User::where('role', 'technique')->orderBy('name')->get(['id','name']);
+                @endphp
+                <select name="assigned_user_id"
+                        style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                    <option value="">— Non assigné (à définir plus tard) —</option>
+                    @foreach($techs as $t)
+                        <option value="{{ $t->id }}" {{ $poseTask->assigned_user_id === $t->id ? 'selected' : '' }}>{{ $t->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div style="margin-bottom:20px">
+                <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Notes (facultatif)</label>
+                <textarea name="notes" rows="2" maxlength="1000"
+                          placeholder="Ex: nouveau visuel campagne mars — bâche fournie au dépôt"
+                          style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);resize:vertical"></textarea>
+            </div>
+
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+                <button type="button" onclick="document.getElementById('rechange-modal').style.display='none'"
+                        style="padding:9px 16px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
+                    Annuler
+                </button>
+                <button type="submit"
+                        style="padding:9px 18px;background:linear-gradient(135deg,#f59e0b,#b45309);color:#fff;border:0;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(245,158,11,.3)">
+                    Créer la nouvelle pose
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
 </x-admin-layout>
