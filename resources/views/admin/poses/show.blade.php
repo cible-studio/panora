@@ -135,9 +135,27 @@ $sIconLg = match($poseTask->status) {
                         Panneau <span style="font-family:monospace;color:var(--accent);font-weight:700">{{ $poseTask->panel?->reference }}</span>
                     </div>
                 </div>
-                <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;background:{{ $sCfg['bg'] }};color:{{ $sCfg['c'] }};border:1px solid {{ $sCfg['bd'] }}">
-                    {!! $sIconLg !!} {{ $sCfg['l'] }}
-                </span>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    @php
+                        $headKind = \App\Enums\PoseTaskKind::tryFrom($poseTask->pose_kind ?? 'initial')
+                                 ?? \App\Enums\PoseTaskKind::INITIAL;
+                    @endphp
+                    {{-- Pill "type de pose" — visible seulement si rechange/retouche (initial = évident, on n'encombre pas) --}}
+                    @if($headKind !== \App\Enums\PoseTaskKind::INITIAL)
+                        <span title="{{ $headKind->label() }}" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;font-size:11px;font-weight:700;background:{{ $headKind->color() }}22;color:{{ $headKind->color() }};border:1px solid {{ $headKind->color() }}55">
+                            {{ $headKind->icon() }} {{ $headKind->label() }}
+                        </span>
+                    @endif
+                    {{-- Pill "remplacée" — pour signaler qu'une nouvelle pose a pris le relais --}}
+                    @if($poseTask->isReplaced())
+                        <span title="Remplacée le {{ $poseTask->replaced_at->format('d/m/Y') }}" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(107,114,128,.12);color:var(--text3);border:1px solid rgba(107,114,128,.3)">
+                            🗑️ Remplacée
+                        </span>
+                    @endif
+                    <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;background:{{ $sCfg['bg'] }};color:{{ $sCfg['c'] }};border:1px solid {{ $sCfg['bd'] }}">
+                        {!! $sIconLg !!} {{ $sCfg['l'] }}
+                    </span>
+                </div>
             </div>
 
             <div style="padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -165,79 +183,50 @@ $sIconLg = match($poseTask->status) {
                 @endforeach
             </div>
 
-            {{-- ═══ Timeline poses (2026-08-04) — reconstitue la chaîne
-                     initial → rechange 1 → rechange 2 → ... pour ce couple
-                     (panneau × campagne). N'affichée que s'il existe une
-                     chaîne (> 1 pose). Ordonnées par done_at ou created_at. --}}
+            {{-- ═══ Timeline poses (refonte 2026-08-04ter — plus compact)
+                 Une seule ligne visuelle qui liste toutes les poses du
+                 couple (panneau × campagne). Cachée si 1 seule pose et
+                 qu'elle est initiale non remplacée (cas défaut = pas de
+                 valeur ajoutée à afficher). --}}
             @php
-                $chainQuery = \App\Models\PoseTask::where('panel_id', $poseTask->panel_id)
+                $chain = \App\Models\PoseTask::where('panel_id', $poseTask->panel_id)
                     ->when($poseTask->campaign_id, fn($q) => $q->where('campaign_id', $poseTask->campaign_id))
-                    ->orderBy('scheduled_at');
-                $chain = $chainQuery->get();
-                $hasChain = $chain->count() > 1;
-            @endphp
-            @if($hasChain)
-            <div style="margin:0 18px 18px;border-top:1px solid var(--border);padding-top:14px">
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:10px;display:flex;align-items:center;gap:6px">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    HISTORIQUE DES POSES SUR CE PANNEAU × CAMPAGNE
-                </div>
-                <div style="display:flex;flex-direction:column;gap:6px">
-                    @foreach($chain as $step)
-                        @php
-                            $kind = \App\Enums\PoseTaskKind::tryFrom($step->pose_kind ?? 'initial')
-                                 ?? \App\Enums\PoseTaskKind::INITIAL;
-                            $isCurrent = $step->id === $poseTask->id;
-                            $stepStatusCfg = match($step->status) {
-                                'planifiee' => '#e8a020', 'en_cours' => '#3b82f6',
-                                'realisee'  => '#22c55e', 'annulee'  => '#ef4444',
-                                default     => '#6b7280',
-                            };
-                        @endphp
-                        <a href="{{ $isCurrent ? '#' : route('admin.pose-tasks.show', $step) }}"
-                           style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:{{ $isCurrent ? 'rgba(232,160,32,.08)' : 'var(--surface2)' }};border:1px solid {{ $isCurrent ? 'rgba(232,160,32,.35)' : 'var(--border)' }};border-radius:8px;text-decoration:none;color:var(--text)">
-                            <span style="font-size:14px">{{ $kind->icon() }}</span>
-                            <div style="flex:1;min-width:0">
-                                <div style="font-size:12.5px;font-weight:700;color:var(--text)">
-                                    {{ $kind->label() }} #{{ $step->id }}
-                                    @if($isCurrent)
-                                        <span style="background:rgba(232,160,32,.2);color:var(--accent-dark);font-size:9px;font-weight:800;padding:1px 6px;border-radius:4px;margin-left:4px">ACTUELLE</span>
-                                    @endif
-                                    @if($step->replaced_at)
-                                        <span style="background:rgba(107,114,128,.15);color:var(--text3);font-size:9px;font-weight:800;padding:1px 6px;border-radius:4px;margin-left:4px">Remplacée</span>
-                                    @endif
-                                </div>
-                                <div style="font-size:11px;color:var(--text3);margin-top:1px">
-                                    Planifiée {{ $step->scheduled_at?->format('d/m/Y') ?? '—' }}
-                                    @if($step->done_at) · Réalisée {{ $step->done_at->format('d/m/Y') }} @endif
-                                    @if($step->replaced_at) · Remplacée {{ $step->replaced_at->format('d/m/Y') }} @endif
-                                </div>
-                            </div>
-                            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;color:{{ $stepStatusCfg }};background:{{ $stepStatusCfg }}22;flex-shrink:0">
-                                {{ ucfirst($step->status) }}
-                            </span>
-                        </a>
-                    @endforeach
-                </div>
-            </div>
-            @endif
-
-            {{-- Badge type de pose (2026-08-04) --}}
-            @php
+                    ->orderBy('scheduled_at')
+                    ->get();
                 $currentKind = \App\Enums\PoseTaskKind::tryFrom($poseTask->pose_kind ?? 'initial')
                             ?? \App\Enums\PoseTaskKind::INITIAL;
+                $hasChain = $chain->count() > 1
+                    || $currentKind !== \App\Enums\PoseTaskKind::INITIAL
+                    || $poseTask->isReplaced();
             @endphp
-            @if($currentKind !== \App\Enums\PoseTaskKind::INITIAL || $poseTask->isReplaced())
-            <div style="margin:0 18px 18px;padding:10px 12px;background:{{ $poseTask->isReplaced() ? 'rgba(107,114,128,.06)' : 'rgba(245,158,11,.06)' }};border:1px solid {{ $poseTask->isReplaced() ? 'rgba(107,114,128,.2)' : 'rgba(245,158,11,.2)' }};border-radius:8px;display:flex;align-items:center;gap:10px">
-                <span style="font-size:16px">{{ $currentKind->icon() }}</span>
-                <div style="flex:1;font-size:12.5px;color:var(--text2);line-height:1.5">
-                    <strong style="color:{{ $currentKind->color() }}">{{ $currentKind->label() }}</strong>
-                    @if($poseTask->replaces)
-                        — remplace la pose <a href="{{ route('admin.pose-tasks.show', $poseTask->replaces) }}" style="color:var(--accent);font-weight:600">#{{ $poseTask->replaces->id }}</a>
-                    @endif
-                    @if($poseTask->isReplaced())
-                        · <em style="color:var(--text3)">Cette pose a été remplacée le {{ $poseTask->replaced_at->format('d/m/Y') }}</em>
-                    @endif
+            @if($hasChain)
+            <div style="margin:0 18px 18px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:10px">
+                    Historique des poses ({{ $chain->count() }})
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                    @foreach($chain as $idx => $step)
+                        @php
+                            $stepKind = \App\Enums\PoseTaskKind::tryFrom($step->pose_kind ?? 'initial')
+                                     ?? \App\Enums\PoseTaskKind::INITIAL;
+                            $isCurrent = $step->id === $poseTask->id;
+                        @endphp
+                        <a href="{{ $isCurrent ? '#' : route('admin.pose-tasks.show', $step) }}"
+                           style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:{{ $isCurrent ? 'var(--surface)' : 'transparent' }};border:1px solid {{ $isCurrent ? 'rgba(232,160,32,.35)' : 'transparent' }};border-radius:7px;text-decoration:none;color:var(--text);transition:background .12s"
+                           onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='{{ $isCurrent ? 'var(--surface)' : 'transparent' }}'">
+                            <span style="font-size:15px;line-height:1">{{ $stepKind->icon() }}</span>
+                            <div style="flex:1;min-width:0;font-size:12px;color:var(--text2);line-height:1.4">
+                                <strong style="color:var(--text)">{{ $stepKind->label() }}</strong>
+                                @if($step->done_at) · <span style="color:#22c55e">réalisée {{ $step->done_at->format('d/m') }}</span>
+                                @elseif($step->scheduled_at) · prévue {{ $step->scheduled_at->format('d/m') }}
+                                @endif
+                                @if($step->replaced_at) · <span style="color:var(--text3)">remplacée {{ $step->replaced_at->format('d/m') }}</span>@endif
+                            </div>
+                            @if($isCurrent)
+                                <span style="font-size:9px;font-weight:800;color:var(--accent-dark);background:rgba(232,160,32,.15);padding:2px 7px;border-radius:10px;flex-shrink:0">ACTUELLE</span>
+                            @endif
+                        </a>
+                    @endforeach
                 </div>
             </div>
             @endif
