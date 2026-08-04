@@ -96,30 +96,46 @@
         opacity:.88;font-weight:500;
     }
 
-    /* Récit avec numéros décoratifs 01/02/03 devant chaque article */
-    .recit{margin-top:36px;display:flex;flex-direction:column;gap:0}
+    /* Récit — cards distinctes (v4 2026-08-04) : chaque article dans
+       son propre bloc blanc translucide avec bordure gauche jaune,
+       hover surbrillance. Plus "bloc" que la version séparateurs. */
+    .recit{margin-top:32px;display:flex;flex-direction:column;gap:14px}
     .recit article{
-        padding:22px 0;position:relative;
-        border-top:1px solid rgba(255,255,255,.14);
+        position:relative;
+        padding:20px 22px 20px 24px;
+        background:rgba(255,255,255,.06);
+        border:1px solid rgba(255,255,255,.10);
+        border-left:3px solid var(--jaune);
+        border-radius:14px;
+        backdrop-filter:blur(4px);
+        transition:background .25s cubic-bezier(.2,.8,.3,1),
+                   transform .25s cubic-bezier(.2,.8,.3,1),
+                   border-left-width .2s;
     }
-    .recit article:first-child{border-top:0;padding-top:0}
+    .recit article:hover{
+        background:rgba(255,255,255,.11);
+        transform:translateX(4px);
+        border-left-width:5px;
+    }
     .recit article h3{
         font-family:var(--titre);font-weight:800;
         font-size:clamp(15px,1.6vw,18px);
-        color:var(--jaune);margin-bottom:8px;
-        display:flex;align-items:baseline;gap:12px;line-height:1.3;
+        color:var(--jaune);margin-bottom:10px;
+        display:flex;align-items:center;gap:12px;line-height:1.3;
     }
+    /* Badge numéroté rond plein (au lieu de outlined) : plus présent */
     .recit article h3::before{
         content:attr(data-num);
-        font-family:var(--titre);font-weight:900;font-size:11px;
-        color:rgba(255,255,255,.35);letter-spacing:.15em;
-        padding:3px 8px;border:1px solid rgba(255,255,255,.2);
-        border-radius:999px;flex-shrink:0;
-        text-transform:uppercase;
+        font-family:var(--titre);font-weight:900;font-size:12px;
+        color:var(--violet);background:var(--jaune);
+        width:28px;height:28px;border-radius:50%;
+        display:inline-flex;align-items:center;justify-content:center;
+        flex-shrink:0;
+        box-shadow:0 4px 12px -3px rgba(0,0,0,.4);
     }
     .recit article p{
-        margin:0;font-size:14.5px;opacity:.9;
-        max-width:52ch;line-height:1.65;
+        margin:0;font-size:14.5px;opacity:.92;
+        line-height:1.65;color:#fff;
     }
 
     /* Signature finale — call-out imposant avec accent visuel */
