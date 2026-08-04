@@ -11,9 +11,47 @@
     @media(max-width:900px){.contact-inner{grid-template-columns:1fr}}
     .contact-inner .intro .t1{max-width:16ch}
     .contact-inner .intro p{margin-top:20px;max-width:44ch;font-size:clamp(16px,1.6vw,20px)}
-    .coord{margin-top:36px;background:var(--blanc);padding:22px 28px;border-radius:22px;font-family:var(--titre);font-weight:700;font-size:15px;display:flex;flex-direction:column;gap:8px}
-    .coord a:hover{color:var(--rouge)}
-    .coord .num{color:var(--rouge);font-size:19px}
+    /* Carte coordonnées 2026-08-04 — refonte propre :
+       3 lignes avec icône colorée + label uppercase + valeur.
+       Chaque ligne est distincte, hover surbrillance discrète. */
+    .coord{
+        margin-top:36px;background:var(--blanc);padding:8px;
+        border-radius:20px;font-family:var(--titre);
+        display:flex;flex-direction:column;
+        box-shadow:0 12px 32px -12px rgba(0,0,0,.15);
+    }
+    .coord-row{
+        display:flex;align-items:center;gap:16px;
+        padding:16px 18px;border-radius:14px;
+        text-decoration:none;color:var(--noir);
+        transition:background .18s;
+    }
+    .coord-row + .coord-row{border-top:1px solid #F0F0F0}
+    .coord-row:hover{background:#FAFAFA}
+    .coord-icon{
+        width:44px;height:44px;border-radius:12px;
+        display:flex;align-items:center;justify-content:center;
+        flex-shrink:0;font-size:18px;
+    }
+    .coord-icon-tel{background:rgba(226,6,19,.10);color:var(--rouge)}
+    .coord-icon-mail{background:rgba(58,168,53,.10);color:var(--vert)}
+    .coord-icon-addr{background:rgba(63,127,192,.10);color:var(--bleu)}
+    .coord-txt{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+    .coord-lbl{
+        font-family:var(--titre);font-weight:700;
+        font-size:10px;text-transform:uppercase;
+        letter-spacing:.12em;color:#888;
+    }
+    .coord-val{
+        font-family:var(--titre);font-weight:800;
+        font-size:16px;color:var(--noir);line-height:1.3;
+        overflow-wrap:anywhere;
+    }
+    .coord-row.coord-tel .coord-val{color:var(--rouge);font-size:18px}
+    .coord-val-sub{
+        font-family:var(--corps);font-weight:600;
+        font-size:13.5px;color:#555;line-height:1.5;margin-top:2px;
+    }
 
     /* formulaire */
     .form-card{background:#fff;border-radius:24px;padding:clamp(28px,4vw,44px);box-shadow:0 20px 50px -20px rgba(0,0,0,.15)}
@@ -58,10 +96,27 @@
             <h1 class="t1" style="margin-top:14px">Entrons en contact.</h1>
             <p>Décrivez votre besoin en deux minutes. Notre équipe commerciale vous rappelle dans la <strong>journée ouvrée</strong> avec une proposition chiffrée.</p>
             <div class="coord">
-                <a href="tel:+2250700780628" class="num">📞 +225 07 00 78 06 28</a>
-                <a href="mailto:commercial@cible-ci.com">✉ commercial@cible-ci.com</a>
-                <div style="font-weight:600;color:#666;font-size:13px;padding-top:6px;border-top:1px dashed #E4E4E4">
-                    Rue des Ambassadeurs<br>Riviera M'Badon<br>10 BP 1029 Abidjan 10
+                <a href="tel:+2250700780628" class="coord-row coord-tel">
+                    <span class="coord-icon coord-icon-tel">📞</span>
+                    <span class="coord-txt">
+                        <span class="coord-lbl">Téléphone</span>
+                        <span class="coord-val num">+225 07 00 78 06 28</span>
+                    </span>
+                </a>
+                <a href="mailto:commercial@cible-ci.com" class="coord-row">
+                    <span class="coord-icon coord-icon-mail">✉</span>
+                    <span class="coord-txt">
+                        <span class="coord-lbl">Email commercial</span>
+                        <span class="coord-val">commercial@cible-ci.com</span>
+                    </span>
+                </a>
+                <div class="coord-row" style="cursor:default">
+                    <span class="coord-icon coord-icon-addr">📍</span>
+                    <span class="coord-txt">
+                        <span class="coord-lbl">Adresse</span>
+                        <span class="coord-val">Rue des Ambassadeurs</span>
+                        <span class="coord-val-sub">Riviera M'Badon · 10 BP 1029 Abidjan 10</span>
+                    </span>
                 </div>
             </div>
         </div>
