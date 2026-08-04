@@ -13,8 +13,43 @@
     .stats .l{font-family:var(--titre);font-weight:600;font-size:13px;opacity:.9;margin-top:10px;text-transform:uppercase;letter-spacing:.08em}
 
     .carte-section{padding:clamp(56px,8vw,100px) var(--pad)}
-    .carte-slot{aspect-ratio:16/10;border-radius:26px;overflow:hidden;background:var(--gris);position:relative}
-    .carte-slot .note{position:absolute;bottom:16px;left:16px;right:16px;background:rgba(255,255,255,.94);padding:12px 16px;border-radius:10px;font-size:13px;color:#666;font-family:var(--titre);font-weight:600}
+    .carte-slot{aspect-ratio:16/10;border-radius:26px;overflow:hidden;background:var(--gris);position:relative;box-shadow:0 20px 60px -30px rgba(0,0,0,.3)}
+    .carte-slot .note{position:absolute;bottom:16px;left:16px;right:16px;background:rgba(255,255,255,.94);padding:12px 16px;border-radius:10px;font-size:13px;color:#666;font-family:var(--titre);font-weight:600;z-index:1000;pointer-events:none}
+    /* Carte Leaflet 2026-08-04 — remplace le placeholder */
+    #reseau-map{width:100%;height:100%}
+    #reseau-map-loading{
+        position:absolute;inset:0;display:flex;align-items:center;
+        justify-content:center;flex-direction:column;gap:10px;
+        background:var(--gris);color:#666;font-family:var(--titre);
+        font-weight:700;font-size:14px;z-index:500;
+    }
+    #reseau-map-loading .spinner{
+        width:36px;height:36px;border:3px solid rgba(0,0,0,.1);
+        border-top-color:var(--bleu);border-radius:50%;
+        animation:reseau-spin .9s linear infinite;
+    }
+    @keyframes reseau-spin{to{transform:rotate(360deg)}}
+    #reseau-map-loading.hidden{display:none}
+    /* Style des pins CIBLE — pastilles jaune/dorées avec chiffre panneaux */
+    .cible-pin{
+        background:var(--jaune);color:var(--noir);
+        padding:6px 12px;border-radius:20px;
+        font-family:var(--titre);font-weight:800;font-size:13px;
+        white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.25);
+        border:2px solid #fff;
+        transform:translate(-50%,-50%);
+    }
+    .cible-pin b{color:var(--rouge)}
+    .leaflet-popup-content-wrapper{
+        border-radius:12px;font-family:var(--corps);
+    }
+    .leaflet-popup-content{
+        margin:14px 16px;font-size:13px;line-height:1.5;
+    }
+    .leaflet-popup-content strong{
+        display:block;font-family:var(--titre);font-weight:800;
+        font-size:15px;color:var(--bleu);margin-bottom:4px;
+    }
 
     .communes{padding:clamp(56px,8vw,100px) var(--pad);background:var(--gris)}
     .communes .entete{max-width:640px;margin:0 auto 44px;text-align:center}
@@ -54,12 +89,12 @@
 
 <section class="carte-section">
     <div class="carte-slot rev">
-        <div class="slot slot--sombre">
-            Carte interactive du réseau CIBLE<br>
-            (implémentation Leaflet · pins par commune)
-            <small>À brancher sur la BDD Panora</small>
+        <div id="reseau-map" aria-label="Carte interactive du réseau CIBLE"></div>
+        <div id="reseau-map-loading" role="status">
+            <div class="spinner" aria-hidden="true"></div>
+            <div>Chargement de la carte…</div>
         </div>
-        <div class="note">💡 La carte interactive complète est disponible pour votre commercial sur demande.</div>
+        <div class="note">💡 Cliquez sur un pin pour voir le nombre de panneaux par commune. Détail complet auprès de votre commercial.</div>
     </div>
 </section>
 
@@ -130,3 +165,90 @@
 </section>
 
 @endsection
+
+@push('head')
+    {{-- Leaflet 1.9.4 (même version que l'admin — cf. resources/views/admin/panels/map.blade.php).
+         CSS chargé dans le head, JS déféré en bas de page via @push('page-js'). --}}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+@endpush
+
+@push('page-js')
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""
+        defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const mapEl = document.getElementById('reseau-map');
+    if (!mapEl || typeof L === 'undefined') return;
+
+    // Init map — centre Abidjan, bounds Côte d'Ivoire, tiles CARTO light
+    // (cohérent avec la carte admin cf. admin/panels/map.blade.php).
+    const map = L.map(mapEl, {
+        center: [5.36, -4.01],
+        zoom: 11,
+        minZoom: 6,
+        maxZoom: 15,
+        maxBounds: L.latLngBounds(L.latLng(4.3, -8.6), L.latLng(10.7, -2.5)),
+        maxBoundsViscosity: 0.85,
+        scrollWheelZoom: false, // désactivé côté vitrine — évite le zoom accidentel en scroll
+        zoomControl: true,
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19,
+    }).addTo(map);
+
+    // Réactive la molette souris uniquement quand la carte a le focus
+    // (clic dessus). Évite les scrolls "captés" involontairement.
+    mapEl.addEventListener('click', () => map.scrollWheelZoom.enable());
+    mapEl.addEventListener('mouseleave', () => map.scrollWheelZoom.disable());
+
+    // Chargement des pins agrégés par commune
+    fetch("{{ route('cible.api.reseau-map') }}", { headers: { 'Accept': 'application/json' } })
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(data => {
+            const pins = Array.isArray(data.pins) ? data.pins : [];
+            if (pins.length === 0) {
+                document.getElementById('reseau-map-loading').innerHTML =
+                    '<div>Aucune donnée à afficher pour le moment.</div>';
+                return;
+            }
+
+            const bounds = L.latLngBounds();
+            pins.forEach(pin => {
+                if (pin.lat == null || pin.lng == null) return;
+                const html = '<div class="cible-pin"><b>' + pin.total + '</b> · ' + pin.commune + '</div>';
+                const icon = L.divIcon({
+                    html: html,
+                    className: 'cible-pin-wrapper',
+                    iconSize: null, // laisse le contenu déterminer la taille
+                });
+                const marker = L.marker([pin.lat, pin.lng], { icon: icon }).addTo(map);
+                const zoneLabel = (pin.city && pin.city !== pin.commune) ? pin.city : (pin.region || '');
+                marker.bindPopup(
+                    '<strong>' + pin.commune + '</strong>' +
+                    (zoneLabel ? '<em style="color:#666;font-style:normal">' + zoneLabel + '</em><br>' : '') +
+                    pin.total + ' panneau' + (pin.total > 1 ? 'x' : '') + ' CIBLE'
+                );
+                bounds.extend([pin.lat, pin.lng]);
+            });
+
+            // Cadre auto sur l'ensemble des pins (pas trop serré → padding).
+            if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+            }
+
+            document.getElementById('reseau-map-loading').classList.add('hidden');
+        })
+        .catch(err => {
+            console.warn('[cible/reseau] map load failed', err);
+            const loader = document.getElementById('reseau-map-loading');
+            if (loader) {
+                loader.innerHTML = '<div>Chargement de la carte impossible.<br><small>Notre équipe reste disponible : commercial@cible-ci.com</small></div>';
+            }
+        });
+});
+</script>
+@endpush

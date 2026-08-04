@@ -36,6 +36,60 @@ class CibleController extends Controller
     public function references()       { return view('public.cible.references',        $this->baseData('references')); }
     public function contact()          { return view('public.cible.contact',           $this->baseData('contact')); }
 
+    /**
+     * Endpoint public JSON pour la carte du réseau — /cible/api/reseau-map
+     *
+     * Retourne un agrégat par commune : 1 pin par commune (centroïde GPS
+     * calculé depuis les panneaux) + nombre total de panneaux.
+     *
+     * ⚠ Sécurité — NE JAMAIS exposer ici :
+     *   - Le rate / monthly_rate (info commerciale, cf. Panel.monthly_rate)
+     *   - Le statut individuel (libre/occupé/maintenance — indique la
+     *     disponibilité qui est du domaine commercial)
+     *   - L'identifiant / la référence de chaque panneau
+     *   - Le nom du client actuel
+     * La position exacte de chaque panneau est anonymisée par
+     * l'agrégation (centroïde AVG = position moyenne de la commune).
+     *
+     * Cache 1h : la donnée bouge peu (panneaux stables) → allège la BDD.
+     */
+    public function mapData()
+    {
+        $rows = \Illuminate\Support\Facades\Cache::remember(
+            'cible.reseau_map.v1',
+            now()->addHour(),
+            fn() => \Illuminate\Support\Facades\DB::table('panels as p')
+                ->join('communes as c', 'c.id', '=', 'p.commune_id')
+                ->whereNotNull('p.latitude')
+                ->whereNotNull('p.longitude')
+                ->whereNull('p.deleted_at')
+                ->groupBy('c.id', 'c.name', 'c.city', 'c.region')
+                ->select(
+                    'c.name as commune',
+                    'c.city',
+                    'c.region',
+                    \Illuminate\Support\Facades\DB::raw('AVG(p.latitude)  as lat'),
+                    \Illuminate\Support\Facades\DB::raw('AVG(p.longitude) as lng'),
+                    \Illuminate\Support\Facades\DB::raw('COUNT(*) as total')
+                )
+                ->orderBy('c.name')
+                ->get()
+                ->map(fn($r) => [
+                    'commune' => $r->commune,
+                    'city'    => $r->city,
+                    'region'  => $r->region,
+                    'lat'     => round((float) $r->lat, 6),
+                    'lng'     => round((float) $r->lng, 6),
+                    'total'   => (int) $r->total,
+                ])
+                ->values()
+                ->all()
+        );
+
+        return response()->json(['pins' => $rows], 200)
+            ->header('Cache-Control', 'public, max-age=3600');
+    }
+
     protected function baseData(string $current): array
     {
         return [

@@ -23,6 +23,12 @@ Route::prefix('cible')->name('cible.')->group(function () {
     Route::post('/devis',           [\App\Http\Controllers\CibleController::class, 'submitDevis'])
         ->middleware('throttle:5,10')
         ->name('devis.submit');
+    // Endpoint public JSON pour la carte réseau — agrégat par commune,
+    // aucune info commerciale sensible (pas de rate ni statut individuel).
+    // Throttle défensif contre les scrapers automatiques.
+    Route::get('/api/reseau-map',   [\App\Http\Controllers\CibleController::class, 'mapData'])
+        ->middleware('throttle:60,1')
+        ->name('api.reseau-map');
 });
 
 // ─── Landing publique — vitrine commerciale Panora (WIP develop) ───
