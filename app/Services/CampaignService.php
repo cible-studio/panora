@@ -981,9 +981,15 @@ class CampaignService
         $now = now();
         $note = "[Auto] {$reason} #" . $campaign->id . ' le ' . $now->format('d/m/Y');
 
+        // 2026-08-04 : EN_ROUTE ajouté (bug fix). Un tech qui a cliqué
+        // "j'y vais" sans jamais y arriver laissait la pose fantôme sur
+        // son interface après clôture campagne — invisible pour l'admin
+        // et impossible à réutiliser. Tous les statuts non-terminaux
+        // doivent être annulés à la fin de la campagne.
         $affected = PoseTask::where('campaign_id', $campaign->id)
             ->whereIn('status', [
                 PoseTaskStatus::PLANNED->value,
+                PoseTaskStatus::EN_ROUTE->value,
                 PoseTaskStatus::IN_PROGRESS->value,
             ])
             ->get();
