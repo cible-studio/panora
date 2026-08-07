@@ -1224,24 +1224,36 @@ class TechSpaceController extends Controller
                     ->whereNull('campaigns.deleted_at');
             });
         };
-        $pigesSentToday = \App\Models\Pige::query()->tap($pigesForTech)
-            ->whereBetween('taken_at', [$startOfDay, $endOfDay])->count();
-        $pigesTotal     = \App\Models\Pige::query()->tap($pigesForTech)->count();
-        $pigesPending   = \App\Models\Pige::query()->tap($pigesForTech)->where('status', 'en_attente')->count();
-        $pigesVerified  = \App\Models\Pige::query()->tap($pigesForTech)->where('status', 'verifie')->count();
-        // Même logique que le SSR (buildPayload) : whereNotExists pour
-        // exclure les piges déjà refaites (successeure plus récente sur
-        // même panel+campaign). Sinon le chip badge reste à 2 alors que
-        // le drawer est vide.
-        $pigesRejected  = \App\Models\Pige::query()->tap($pigesForTech)->tap($onOperableCampaignHb)
-            ->where('piges.status', 'rejete')
-            ->whereNotExists(function ($sub) {
+        // Fix 2026-08-10 — cohérence heartbeat ↔ SSR piges() : ces 4
+        // compteurs alimentent la page tech-piges qui applique par
+        // défaut le mode "view=current" (dédup par panel+campaign,
+        // seule la dernière pige compte). Sans cette même dédup ici,
+        // le heartbeat écrase les valeurs SSR toutes les 20s avec des
+        // chiffres "bruts" plus élevés → l'utilisateur voit les
+        // compteurs sauter. Applique whereNotExists sur les 4.
+        $applyCurrentViewHb = function ($q) {
+            $q->whereNotExists(function ($sub) {
                 $sub->from('piges as p2')
                     ->select(\Illuminate\Support\Facades\DB::raw(1))
                     ->whereColumn('p2.panel_id',    'piges.panel_id')
                     ->whereColumn('p2.campaign_id', 'piges.campaign_id')
                     ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
-            })
+            });
+        };
+
+        $pigesSentToday = \App\Models\Pige::query()->tap($pigesForTech)
+            ->whereBetween('taken_at', [$startOfDay, $endOfDay])->count();
+        $pigesTotal     = \App\Models\Pige::query()->tap($pigesForTech)->tap($applyCurrentViewHb)->count();
+        $pigesPending   = \App\Models\Pige::query()->tap($pigesForTech)->tap($applyCurrentViewHb)
+            ->where('piges.status', 'en_attente')->count();
+        $pigesVerified  = \App\Models\Pige::query()->tap($pigesForTech)->tap($applyCurrentViewHb)
+            ->where('piges.status', 'verifie')->count();
+        // pigesRejected garde AUSSI le filtre onOperableCampaign (campagne
+        // active) — mais utilise la même dédup pour cohérence entre les
+        // 4 compteurs.
+        $pigesRejected  = \App\Models\Pige::query()->tap($pigesForTech)->tap($onOperableCampaignHb)
+            ->tap($applyCurrentViewHb)
+            ->where('piges.status', 'rejete')
             ->count();
 
         // Zones couvertes aujourd'hui (poses faites + poses du jour restantes)

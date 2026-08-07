@@ -288,6 +288,51 @@
     </div>
 </div>
 
+{{-- Bandeau explicatif 2026-08-10 : le mode "Photos d'aujourd'hui" cache
+     les anciennes piges quand une nouvelle a été prise sur le même panneau
+     (rechange). Sans ça, le tech croit que ses piges initiales validées
+     ont disparu — bug UX rapporté. --}}
+@if($view === 'current' && $hiddenInCurrent > 0)
+<div style="max-width:900px;margin:12px auto 0;padding:0 16px">
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(59,130,246,.03));border:1px solid rgba(59,130,246,.25);border-radius:10px;font-size:13px;color:var(--text2);line-height:1.5">
+        <div style="flex-shrink:0;font-size:18px;line-height:1">💡</div>
+        <div style="flex:1;min-width:0">
+            <strong style="color:#1d4ed8">{{ $hiddenInCurrent }} pige{{ $hiddenInCurrent > 1 ? 's' : '' }} plus ancienne{{ $hiddenInCurrent > 1 ? 's' : '' }} sont masquée{{ $hiddenInCurrent > 1 ? 's' : '' }}</strong>
+            —
+            elles ont été remplacées par une nouvelle photo sur le même panneau (rechange).
+            Elles restent en base et sont visibles avec le bouton
+            <a href="{{ route('tech.space.piges', $allLinkArgs) }}"
+               style="color:#1d4ed8;font-weight:700;text-decoration:underline">📜 Tout voir</a>.
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- Badge "Refaite après" 2026-08-10 : quand on est en mode "Tout voir",
+     les piges qui ont été remplacées par une plus récente ont un liseré
+     grisé + badge "↻ Refaite après" (déjà géré par la card via
+     `$p->is_superseded`). On calcule ici l'ensemble des IDs superseded
+     et on set l'attribut sur chaque pige — 1 seule requête pour toute
+     la page, pas N. --}}
+@php
+    if ($view === 'all' && $piges->isNotEmpty()) {
+        $supersededIds = \App\Models\Pige::query()
+            ->whereIn('id', $piges->pluck('id'))
+            ->whereExists(function ($sub) {
+                $sub->from('piges as p2')
+                    ->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->whereColumn('p2.panel_id',    'piges.panel_id')
+                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
+                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
+            })
+            ->pluck('id')
+            ->flip();
+        foreach ($piges as $_p) {
+            $_p->is_superseded = $supersededIds->has($_p->id);
+        }
+    }
+@endphp
+
 <div class="container">
     @forelse($piges as $p)
         @php
