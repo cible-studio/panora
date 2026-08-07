@@ -473,6 +473,69 @@ class PoseController extends Controller
             ->with('success', 'Rechange planifié. Le technicien est notifié.');
     }
 
+    /**
+     * Bulk rechange : créer N rechanges d'un coup depuis la liste poses
+     * (bulk-bar) OU depuis la fiche campagne (bouton "Programmer un
+     * rechange"). Cf. `PoseService::createRechangeBulk`.
+     *
+     * Route : POST /admin/pose-tasks/rechange-bulk
+     * Payload :
+     *   - task_ids[] (int, 1..200) : IDs des poses source
+     *   - scheduled_at, assigned_user_id?, team_name?, notes?, pose_kind?
+     *
+     * Retourne JSON si AJAX (bulk-bar), redirect sinon.
+     */
+    public function rechangeBulk(Request $request)
+    {
+        $validated = $request->validate([
+            'task_ids'         => 'required|array|min:1|max:200',
+            'task_ids.*'       => 'integer|exists:pose_tasks,id',
+            'scheduled_at'     => 'required|date',
+            'assigned_user_id' => 'nullable|exists:users,id',
+            'team_name'        => 'nullable|string|max:100',
+            'notes'            => 'nullable|string|max:1000',
+            'pose_kind'        => 'nullable|in:rechange,retouche',
+        ], [
+            'task_ids.required'       => 'Aucune pose sélectionnée.',
+            'task_ids.max'            => 'Maximum 200 rechanges par lot.',
+            'scheduled_at.required'   => 'La date et heure du rechange sont obligatoires.',
+            'assigned_user_id.exists' => 'Le technicien sélectionné est introuvable.',
+        ]);
+
+        $data = collect($validated)->except('task_ids')->all();
+        $result = $this->poseService->createRechangeBulk(
+            $validated['task_ids'],
+            $data,
+            auth()->user()
+        );
+
+        // Alerte audit si au moins 1 rechange créé
+        if ($result['created'] > 0) {
+            AlertService::create(
+                'pose',
+                'info',
+                "🔄 {$result['created']} rechange(s) créé(s) en lot",
+                auth()->user()->name . " a planifié {$result['created']} rechange(s)"
+                    . ($result['skipped'] > 0 ? " ({$result['skipped']} ignoré(s))" : ''),
+                null
+            );
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json($result);
+        }
+
+        if (!$result['ok']) {
+            return back()->with('error', $result['error'] ?? 'Aucun rechange créé.');
+        }
+
+        $msg = "{$result['created']} rechange(s) créé(s).";
+        if ($result['skipped'] > 0) {
+            $msg .= " ⚠️ {$result['skipped']} ignoré(s) : " . implode(' | ', array_slice($result['warnings'], 0, 3));
+        }
+        return back()->with('success', $msg);
+    }
+
     public function store(Request $request)
     {
         $request->merge([

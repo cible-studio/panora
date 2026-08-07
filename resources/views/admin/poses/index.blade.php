@@ -474,6 +474,90 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                     <button type="button" id="bulk-status-apply" class="btn btn-sm btn-ghost">Appliquer</button>
                 </div>
             </div>
+
+            {{-- Rechange bulk (multi-poses 2026-08-08) — bouton qui ouvre
+                 un modal léger avec date + tech + notes + type. Le service
+                 vérifie chaque pose (status realisee + non replaced) et
+                 ignore silencieusement les non-éligibles. --}}
+            <div class="pose-bulk-field" style="grid-column:span 2">
+                <label class="pose-bulk-label"><span>🔄 Rechange affiche</span></label>
+                <div class="pose-bulk-input-row">
+                    <button type="button" id="bulk-rechange-open"
+                            class="btn btn-sm"
+                            style="background:linear-gradient(135deg,#f59e0b,#b45309);color:#fff;border:0;font-weight:700;box-shadow:0 3px 10px rgba(245,158,11,.3)">
+                        Créer rechange sur la sélection…
+                    </button>
+                    <span style="font-size:11px;color:var(--text3)">
+                        seulement les poses <em>réalisées</em> et non déjà remplacées seront traitées
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- ═══ MODAL bulk rechange (liste poses) — multi-poses 2026-08-08 ═══
+         Utilise les IDs déjà cochés dans la liste (window.selected Set) et
+         POST vers admin.pose-tasks.rechange-bulk. Feedback via toast. --}}
+    <div id="bulk-rechange-modal"
+         style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:16px"
+         onclick="if(event.target===this)document.getElementById('bulk-rechange-modal').style.display='none'">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">
+            <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+                <div style="width:36px;height:36px;border-radius:10px;background:rgba(245,158,11,.12);display:flex;align-items:center;justify-content:center;font-size:18px">🔄</div>
+                <div style="flex:1">
+                    <h3 style="margin:0;font-size:15px;font-weight:800;color:var(--text)">Rechange en lot</h3>
+                    <p style="margin:2px 0 0;font-size:12px;color:var(--text3)">
+                        <strong id="bulk-rechange-count">0</strong> pose(s) sélectionnée(s)
+                    </p>
+                </div>
+                <button type="button" onclick="document.getElementById('bulk-rechange-modal').style.display='none'"
+                        style="background:transparent;border:0;color:var(--text3);cursor:pointer;padding:4px;line-height:0">✕</button>
+            </div>
+            <div style="padding:20px 22px">
+                <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.5">
+                    💡 Chaque pose éligible (réalisée + non déjà remplacée) recevra un rechange identique. Les autres seront ignorées.
+                </div>
+                <div style="margin-bottom:14px">
+                    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Type</label>
+                    <select id="bulk-rechange-kind"
+                            style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                        <option value="rechange" selected>🔄 Rechange affiche</option>
+                        <option value="retouche">🔧 Retouche</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:14px">
+                    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Date &amp; heure prévues <span style="color:#ef4444">*</span></label>
+                    <input type="datetime-local" id="bulk-rechange-date"
+                           value="{{ now()->addDay()->format('Y-m-d\TH:i') }}"
+                           style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                </div>
+                <div style="margin-bottom:14px">
+                    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Technicien (tous les rechanges)</label>
+                    <select id="bulk-rechange-tech"
+                            style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                        <option value="">— Non assigné —</option>
+                        @foreach($techniciens as $tech)
+                            <option value="{{ $tech->id }}">{{ $tech->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div style="margin-bottom:16px">
+                    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Notes (facultatif)</label>
+                    <textarea id="bulk-rechange-notes" rows="2" maxlength="1000"
+                              placeholder="Ex: nouveau visuel"
+                              style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);resize:vertical"></textarea>
+                </div>
+                <div style="display:flex;gap:10px;justify-content:flex-end">
+                    <button type="button" onclick="document.getElementById('bulk-rechange-modal').style.display='none'"
+                            style="padding:9px 16px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
+                        Annuler
+                    </button>
+                    <button type="button" id="bulk-rechange-submit"
+                            style="padding:9px 18px;background:linear-gradient(135deg,#f59e0b,#b45309);color:#fff;border:0;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(245,158,11,.3)">
+                        🔄 Créer les rechanges
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -977,6 +1061,78 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         if (!val) { showToast('warning', 'Choisissez une date.', 2500, 'Action groupée'); return; }
         postBulk('reschedule', val,
             `Confirmer : replanifier ${selected.size} tâche(s) au ${val.replace('T', ' à ')} ?`);
+    });
+
+    // ═══ Bulk rechange (multi-poses 2026-08-08) ═══
+    // Ouvre le modal dédié en injectant le count sélectionné, puis
+    // POST vers admin.pose-tasks.rechange-bulk au submit. Toast feedback.
+    document.getElementById('bulk-rechange-open')?.addEventListener('click', () => {
+        if (selected.size === 0) {
+            showToast('warning', 'Sélectionnez au moins une pose.', 2500, 'Rechange');
+            return;
+        }
+        document.getElementById('bulk-rechange-count').textContent = selected.size;
+        document.getElementById('bulk-rechange-modal').style.display = 'flex';
+    });
+
+    document.getElementById('bulk-rechange-submit')?.addEventListener('click', async () => {
+        const dateVal  = document.getElementById('bulk-rechange-date').value;
+        const kindVal  = document.getElementById('bulk-rechange-kind').value;
+        const techVal  = document.getElementById('bulk-rechange-tech').value;
+        const notesVal = document.getElementById('bulk-rechange-notes').value;
+        if (!dateVal) {
+            showToast('warning', 'Choisissez une date.', 2500, 'Rechange');
+            return;
+        }
+        if (selected.size === 0) {
+            showToast('warning', 'Aucune pose sélectionnée.', 2500, 'Rechange');
+            document.getElementById('bulk-rechange-modal').style.display = 'none';
+            return;
+        }
+
+        const btn = document.getElementById('bulk-rechange-submit');
+        btn.disabled = true; btn.style.opacity = '.6';
+
+        try {
+            const fd = new FormData();
+            selected.forEach(id => fd.append('task_ids[]', id));
+            fd.append('scheduled_at', dateVal);
+            fd.append('pose_kind', kindVal);
+            if (techVal)  fd.append('assigned_user_id', techVal);
+            if (notesVal) fd.append('notes', notesVal);
+
+            const res = await fetch(@json(route('admin.pose-tasks.rechange-bulk')), {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: fd,
+            });
+            const data = await res.json().catch(() => ({ ok: false, error: 'Réponse invalide' }));
+
+            document.getElementById('bulk-rechange-modal').style.display = 'none';
+
+            if (data.ok) {
+                let msg = `${data.created} rechange(s) créé(s)`;
+                if (data.skipped > 0) msg += ` — ${data.skipped} ignoré(s)`;
+                showToast('success', msg, 4500, 'Rechange');
+                // Reset la sélection + refresh du tableau
+                selected.clear();
+                if (typeof window._reloadPosesTable === 'function') {
+                    window._reloadPosesTable();
+                }
+            } else {
+                showToast('danger', data.error || 'Aucun rechange créé.', 5000, 'Rechange');
+            }
+        } catch (e) {
+            document.getElementById('bulk-rechange-modal').style.display = 'none';
+            showToast('danger', 'Erreur réseau.', 4000, 'Rechange');
+            console.error(e);
+        } finally {
+            btn.disabled = false; btn.style.opacity = '1';
+        }
     });
 
     // Init initial

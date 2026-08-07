@@ -263,7 +263,108 @@ class CampaignController extends Controller
             ]);
         }
 
-        return view('admin.campaigns.show', compact('campaign', 'can', 'allowed', 'commerciaux', 'amountConsistency'));
+        // Multi-poses 2026-08-08 : poses éligibles au rechange (poses
+        // realisée non encore remplacées). Utilisées par le modal
+        // "🔄 Programmer un rechange" pour peupler la checklist. Une
+        // seule pose éligible par panneau (grâce à la logique
+        // createRechange qui marque replaced_at sur la source).
+        // Query légère (juste ID + panel + done_at), rendu opt-in seulement
+        // si la campagne est active/terminée avec des poses realisées.
+        $eligibleRechangeSources = collect();
+        if (in_array($campaign->status->value, ['actif', 'termine', 'pause'])) {
+            $eligibleRechangeSources = \App\Models\PoseTask::where('campaign_id', $campaign->id)
+                ->where('status', \App\Enums\PoseTaskStatus::COMPLETED->value)
+                ->whereNull('replaced_at')
+                ->with('panel:id,reference,name,commune_id', 'panel.commune:id,name')
+                ->orderBy('done_at')
+                ->get(['id', 'panel_id', 'done_at', 'pose_kind']);
+        }
+
+        // Liste des technicien(ne)s pour le modal rechange.
+        $technicians = \App\Models\User::where('role', 'technique')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('admin.campaigns.show', compact(
+            'campaign', 'can', 'allowed', 'commerciaux',
+            'amountConsistency', 'eligibleRechangeSources', 'technicians'
+        ));
+    }
+
+    /**
+     * Bulk rechange au niveau CAMPAGNE — bouton "Programmer un rechange"
+     * de la fiche campagne. Reçoit une sélection de PoseTask (pré-cochées
+     * dans le modal, l'admin peut décocher les panneaux qu'il ne veut
+     * pas refaire) + les paramètres partagés (date, tech, notes, type)
+     * et délègue à `PoseService::createRechangeBulk`.
+     *
+     * Route : POST /admin/campaigns/{campaign}/rechange
+     *
+     * Contrairement à `admin.pose-tasks.rechange-bulk` (qui prend
+     * n'importe quelles poses de n'importe quelles campagnes), cette
+     * route est scopée à UNE campagne — elle vérifie que toutes les
+     * poses appartiennent bien à la campagne pour éviter les fuites
+     * cross-campagne (paranoia).
+     */
+    public function rechange(Request $request, Campaign $campaign)
+    {
+        $this->authorize('update', $campaign);
+
+        $validated = $request->validate([
+            'source_ids'       => 'required|array|min:1|max:200',
+            'source_ids.*'     => 'integer|exists:pose_tasks,id',
+            'scheduled_at'     => 'required|date',
+            'assigned_user_id' => 'nullable|exists:users,id',
+            'team_name'        => 'nullable|string|max:100',
+            'notes'            => 'nullable|string|max:1000',
+            'pose_kind'        => 'nullable|in:rechange,retouche',
+        ], [
+            'source_ids.required'     => 'Sélectionne au moins un panneau à réafficher.',
+            'source_ids.max'          => 'Maximum 200 rechanges par lot.',
+            'scheduled_at.required'   => 'La date et heure du rechange sont obligatoires.',
+        ]);
+
+        // Défense en profondeur : toutes les poses doivent appartenir à
+        // CETTE campagne (sinon un admin malicieux pourrait injecter
+        // des IDs de poses d'une autre campagne).
+        $belongsCount = \App\Models\PoseTask::whereIn('id', $validated['source_ids'])
+            ->where('campaign_id', $campaign->id)
+            ->count();
+        if ($belongsCount !== count($validated['source_ids'])) {
+            return back()->with('error',
+                'Une ou plusieurs poses sélectionnées n\'appartiennent pas à cette campagne.');
+        }
+
+        $data = collect($validated)->except('source_ids')->all();
+        $result = app(\App\Services\PoseService::class)
+            ->createRechangeBulk($validated['source_ids'], $data, auth()->user());
+
+        if ($result['created'] > 0) {
+            AlertService::create(
+                'pose',
+                'info',
+                "🔄 Rechange campagne « {$campaign->name} » — {$result['created']} pose(s)",
+                auth()->user()->name . " a programmé un rechange sur {$result['created']} panneau(x)"
+                    . ($result['skipped'] > 0 ? " ({$result['skipped']} ignoré(s))" : ''),
+                null
+            );
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json($result);
+        }
+
+        if (!$result['ok']) {
+            return back()->with('error', $result['error'] ?? 'Aucun rechange créé.');
+        }
+
+        $msg = "{$result['created']} rechange(s) créé(s) sur la campagne « {$campaign->name} ».";
+        if ($result['skipped'] > 0) {
+            $msg .= " ⚠️ {$result['skipped']} ignoré(s).";
+        }
+        return redirect()
+            ->route('admin.campaigns.show', $campaign)
+            ->with('success', $msg);
     }
 
     /**

@@ -458,6 +458,9 @@ Route::prefix('admin')
             Route::get('progress',         [PoseController::class, 'progress'])       ->name('progress');
             // Actions groupées (sélection multiple)
             Route::post('bulk-update',     [PoseController::class, 'bulkUpdate'])     ->name('bulk-update');
+            // Bulk rechange (multi-poses 2026-08-08) — créer N rechanges
+            // en un seul appel depuis liste poses OU fiche campagne.
+            Route::post('rechange-bulk',   [PoseController::class, 'rechangeBulk'])   ->name('rechange-bulk');
             // (2026-06-26) Écran "Poses oubliées" — liste les poses non finalisées
             // dont la date prévue est dépassée, avec bulk "Marquer réalisées".
             // Utile quand le MP a oublié de saisir des poses faites sur le terrain.
@@ -1370,6 +1373,11 @@ Route::prefix('admin')
             // + prix négociés + commercial, nouvelles dates).
             Route::post('campaigns/{campaign}/duplicate', [CampaignController::class, 'duplicate'])
                 ->whereNumber('campaign')->name('campaigns.duplicate');
+
+            // Programmer un rechange sur N panneaux de la campagne (bulk
+            // multi-poses 2026-08-08). Cf. `CampaignController::rechange`.
+            Route::post('campaigns/{campaign}/rechange', [CampaignController::class, 'rechange'])
+                ->whereNumber('campaign')->name('campaigns.rechange');
         });
 
         // Prix négocié panneau dans campagne : admin + MP + comptable.

@@ -877,6 +877,23 @@
             </div>
         </a>
         @endif
+
+        {{-- Tile "Programmer un rechange" 2026-08-08 (multi-poses bulk).
+             Visible seulement s'il y a au moins 1 pose réalisée réaffichable
+             (sinon rien à rechanger) ET si l'admin peut update la campagne. --}}
+        @if($can['update'] && $eligibleRechangeSources->isNotEmpty())
+        <button type="button" onclick="openRechangeModal()"
+                class="w-full rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
+                style="background:linear-gradient(135deg,rgba(245,158,11,.10),rgba(180,83,9,.05));border-color:rgba(245,158,11,.35);cursor:pointer;text-align:left">
+            <span class="text-2xl">🔄</span>
+            <div class="min-w-0">
+                <div class="font-bold text-sm" style="color:#b45309">Programmer un rechange</div>
+                <div class="text-xs" style="color:var(--text3)">
+                    {{ $eligibleRechangeSources->count() }} panneau(x) réaffichable(s)
+                </div>
+            </div>
+        </button>
+        @endif
     </div>
 
     {{-- ── PANNEAUX ── --}}
@@ -2404,4 +2421,175 @@
             </div>
         </div>
     </div>
+
+    {{-- ═══════════════════════════════════════════════════════════════
+         MODAL "Programmer un rechange" — Multi-poses bulk 2026-08-08.
+         Ouvert par le tile de la grille "Actions rapides".
+         Liste toutes les poses éligibles (realisée non replaced) avec
+         checkbox pré-cochée. L'admin décoche les panneaux à ne pas
+         refaire, remplit date + tech + notes + type, submit → génère
+         N rechanges d'un coup via CampaignController::rechange.
+    ══════════════════════════════════════════════════════════════ --}}
+    @if($can['update'] && $eligibleRechangeSources->isNotEmpty())
+    <div id="rechange-modal"
+         style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:16px"
+         onclick="if(event.target===this)closeRechangeModal()">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:720px;width:100%;max-height:90vh;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;display:flex;flex-direction:column">
+            <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+                <div style="width:40px;height:40px;border-radius:10px;background:rgba(245,158,11,.12);display:flex;align-items:center;justify-content:center;font-size:20px">🔄</div>
+                <div style="flex:1">
+                    <h3 style="margin:0;font-size:16px;font-weight:800;color:var(--text)">Programmer un rechange</h3>
+                    <p style="margin:2px 0 0;font-size:12.5px;color:var(--text3)">
+                        Campagne <strong>{{ $campaign->name }}</strong>
+                        · <strong>{{ $eligibleRechangeSources->count() }}</strong> panneau(x) réaffichable(s)
+                    </p>
+                </div>
+                <button type="button" onclick="closeRechangeModal()"
+                        style="background:transparent;border:0;color:var(--text3);cursor:pointer;padding:4px;line-height:0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <form method="POST" action="{{ route('admin.campaigns.rechange', $campaign) }}"
+                  style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden">
+                @csrf
+
+                <div style="padding:16px 22px;overflow-y:auto;flex:1;min-height:0">
+                    {{-- Bandeau info workflow --}}
+                    <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:12.5px;color:var(--text2);line-height:1.55">
+                        💡 Les <strong>panneaux cochés ci-dessous</strong> vont recevoir un rechange à la date et avec le technicien indiqués.
+                        Les poses actuelles resteront dans l'historique (marquées <em>remplacées</em>).
+                        Chaque tech assigné recevra une notification WhatsApp.
+                    </div>
+
+                    {{-- Type de pose --}}
+                    <div style="margin-bottom:14px">
+                        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Type d'intervention</label>
+                        <select name="pose_kind" required
+                                style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                            <option value="rechange" selected>🔄 Rechange affiche (nouveau visuel)</option>
+                            <option value="retouche">🔧 Retouche (réparation, nettoyage)</option>
+                        </select>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+                        {{-- Date planifiée --}}
+                        <div>
+                            <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Date &amp; heure prévues <span style="color:#ef4444">*</span></label>
+                            <input type="datetime-local" name="scheduled_at" required
+                                   value="{{ now()->addDay()->format('Y-m-d\TH:i') }}"
+                                   style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                        </div>
+                        {{-- Tech assigné --}}
+                        <div>
+                            <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Technicien assigné (tous)</label>
+                            <select name="assigned_user_id"
+                                    style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                                <option value="">— Non assigné —</option>
+                                @foreach($technicians as $t)
+                                    <option value="{{ $t->id }}">{{ $t->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:14px">
+                        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Équipe (facultatif)</label>
+                        <input type="text" name="team_name" maxlength="100"
+                               placeholder="Ex: Équipe Cocody, Équipe San-Pédro…"
+                               style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                    </div>
+
+                    <div style="margin-bottom:16px">
+                        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Notes (facultatif)</label>
+                        <textarea name="notes" rows="2" maxlength="1000"
+                                  placeholder="Ex: nouveau visuel campagne printemps — bâches disponibles au dépôt"
+                                  style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);resize:vertical"></textarea>
+                    </div>
+
+                    {{-- Liste des panneaux à rechanger — pré-cochés --}}
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2)">
+                            Panneaux à réafficher ({{ $eligibleRechangeSources->count() }})
+                        </label>
+                        <div style="display:flex;gap:8px">
+                            <button type="button" onclick="rechangeSelectAll(true)"
+                                    style="font-size:11px;padding:4px 10px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#15803d;border-radius:6px;cursor:pointer;font-weight:600">
+                                ✓ Tout cocher
+                            </button>
+                            <button type="button" onclick="rechangeSelectAll(false)"
+                                    style="font-size:11px;padding:4px 10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);color:#dc2626;border-radius:6px;cursor:pointer;font-weight:600">
+                                Tout décocher
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="rechange-panels-list" style="display:flex;flex-direction:column;gap:4px;border:1px solid var(--border);border-radius:10px;padding:6px;background:var(--surface2);max-height:280px;overflow-y:auto">
+                        @foreach($eligibleRechangeSources as $src)
+                            <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;transition:background .12s"
+                                   onmouseover="this.style.background='var(--surface)'"
+                                   onmouseout="this.style.background='transparent'">
+                                <input type="checkbox" name="source_ids[]" value="{{ $src->id }}" checked
+                                       class="rechange-source-cb"
+                                       style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+                                <div style="flex:1;min-width:0">
+                                    <div style="font-size:13px;font-weight:700;color:var(--text)">
+                                        {{ $src->panel?->reference ?? '#'.$src->panel_id }}
+                                        <span style="color:var(--text3);font-weight:500">·</span>
+                                        {{ \Illuminate\Support\Str::limit($src->panel?->name ?? '—', 40) }}
+                                    </div>
+                                    <div style="font-size:11px;color:var(--text3);margin-top:1px">
+                                        📍 {{ $src->panel?->commune?->name ?? '—' }}
+                                        @if($src->done_at)
+                                            · dernière pose {{ $src->done_at->format('d/m/Y') }}
+                                        @endif
+                                    </div>
+                                </div>
+                            </label>
+                        @endforeach
+                    </div>
+                    <div style="margin-top:8px;font-size:11.5px;color:var(--text3)">
+                        <span id="rechange-count-selected">{{ $eligibleRechangeSources->count() }}</span>
+                        panneau(x) sélectionné(s) — décoche ceux qui ne doivent pas être refaits.
+                    </div>
+                </div>
+
+                <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;background:var(--surface)">
+                    <button type="button" onclick="closeRechangeModal()"
+                            style="padding:9px 16px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
+                        Annuler
+                    </button>
+                    <button type="submit" id="rechange-submit-btn"
+                            style="padding:9px 20px;background:linear-gradient(135deg,#f59e0b,#b45309);color:#fff;border:0;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(245,158,11,.3)">
+                        🔄 Créer les rechanges
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openRechangeModal()  { document.getElementById('rechange-modal').style.display = 'flex'; updateRechangeCount(); }
+        function closeRechangeModal() { document.getElementById('rechange-modal').style.display = 'none'; }
+        function rechangeSelectAll(v) {
+            document.querySelectorAll('.rechange-source-cb').forEach(cb => cb.checked = v);
+            updateRechangeCount();
+        }
+        function updateRechangeCount() {
+            const n = document.querySelectorAll('.rechange-source-cb:checked').length;
+            const el = document.getElementById('rechange-count-selected');
+            if (el) el.textContent = n;
+            const btn = document.getElementById('rechange-submit-btn');
+            if (btn) {
+                btn.disabled = n === 0;
+                btn.style.opacity = n === 0 ? '.5' : '1';
+                btn.style.cursor  = n === 0 ? 'not-allowed' : 'pointer';
+            }
+        }
+        // Écoute les changements pour maintenir le compteur à jour
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.classList.contains('rechange-source-cb')) updateRechangeCount();
+        });
+    </script>
+    @endif
 </x-admin-layout>
