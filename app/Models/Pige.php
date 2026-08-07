@@ -94,6 +94,36 @@ class Pige extends Model
     }
 
     /**
+     * Piges rattachées à UNE PoseTask précise — indispensable pour le
+     * multi-poses (rechange, retouche). Ajout 2026-08-05 après bug
+     * signalé : le tech ouvrait le lien d'une pose rechange fraîchement
+     * créée et voyait la pige "verifie" de la pose INITIALE (leak par
+     * le scoping panel_id + campaign_id historique).
+     *
+     * Cas gérés :
+     *   1. Nouvelle pige (post-fix) : `piges.pose_task_id = X` → match.
+     *   2. Pige LEGACY (créée AVANT que uploadPhoto câble pose_task_id) :
+     *      `pose_task_id IS NULL` + panel+campaign matchent la pose.
+     *      → on la retourne pour préserver l'historique, mais avec
+     *      la nouvelle logique d'upload correcte, ce cas s'éteint
+     *      naturellement (nouvelles piges toujours scopées).
+     *
+     * @param  Builder   $q
+     * @param  PoseTask  $task  La pose dont on veut les piges
+     */
+    public function scopeForPoseTask(Builder $q, \App\Models\PoseTask $task): Builder
+    {
+        return $q->where(function ($qq) use ($task) {
+            $qq->where('pose_task_id', $task->id)
+               ->orWhere(function ($qqq) use ($task) {
+                   $qqq->whereNull('pose_task_id')
+                       ->where('panel_id', $task->panel_id)
+                       ->when($task->campaign_id, fn($x) => $x->where('campaign_id', $task->campaign_id));
+               });
+        });
+    }
+
+    /**
      * Pige active (campagne vivante). Par défaut on n'affiche que celles-ci
      * dans la liste admin. Les piges archivées sont accessibles via la vue
      * dédiée /admin/piges/archives.

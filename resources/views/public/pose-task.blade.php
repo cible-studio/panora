@@ -618,6 +618,11 @@
         default     => ['ic' => '📋', 'lbl' => $statusVal,          'cls' => 'planifiee'],
     };
     $hasPige = $piges->isNotEmpty();
+    // Multi-poses 2026-08-05 : détection type rechange / retouche
+    // pour bandeau explicite avant le status. NULL en base → 'initial'.
+    $poseKind = $task->pose_kind ?? 'initial';
+    $isRechange = $poseKind === 'rechange';
+    $isRetouche = $poseKind === 'retouche';
 @endphp
 
 <header class="topbar">
@@ -635,6 +640,47 @@
 <div class="toast-wrap" id="toast-wrap"></div>
 
 <div class="wrap">
+
+    {{-- ═══ BANDEAU RECHANGE / RETOUCHE (2026-08-05) ═══
+         Affiché SEULEMENT si pose_kind != 'initial'. Explique au tech
+         que c'est une nouvelle affiche à poser (rechange) ou une
+         réparation (retouche), pour qu'il ne s'attende pas à voir
+         "déjà validé" — la pige de la pose initiale ne compte plus. --}}
+    @if($isRechange || $isRetouche)
+        <div style="background:linear-gradient(135deg,#f59e0b,#b45309);color:#fff;border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:0 8px 24px -8px rgba(245,158,11,.5)">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                <span style="font-size:28px;line-height:1">{{ $isRechange ? '🔄' : '🔧' }}</span>
+                <div>
+                    <div style="font-family:'Poppins',sans-serif;font-weight:800;font-size:15px;line-height:1.2">
+                        {{ $isRechange ? 'RECHANGE D\'AFFICHE' : 'RETOUCHE / RÉPARATION' }}
+                    </div>
+                    <div style="font-size:12px;opacity:.92;margin-top:2px">
+                        @if($isRechange)
+                            Nouvelle affiche à poser sur ce panneau
+                        @else
+                            Intervention corrective sur l'affichage en place
+                        @endif
+                    </div>
+                </div>
+            </div>
+            <div style="font-size:13px;line-height:1.5;background:rgba(255,255,255,.15);border-radius:8px;padding:10px 12px;margin-top:6px">
+                @if($isRechange)
+                    ⚠ <strong>Pose déjà effectuée sur ce panneau ?</strong> Oui — c'est normal.
+                    Le client change son visuel. <strong>Tu dois faire une nouvelle pose</strong>
+                    et envoyer une <strong>nouvelle pige photo</strong> (les photos plus bas
+                    ne concernent que cette nouvelle intervention, pas l'ancienne).
+                @else
+                    Répare l'affichage en place (recollage, nettoyage, remplacement de bâche
+                    déchirée). Envoie une pige photo <strong>après</strong> l'intervention.
+                @endif
+                @if($task->replaces && $task->replaces->done_at)
+                    <div style="margin-top:6px;opacity:.85;font-size:12px">
+                        Pose précédente : effectuée le {{ $task->replaces->done_at->format('d/m/Y') }}
+                    </div>
+                @endif
+            </div>
+        </div>
+    @endif
 
     {{-- ═══ STATUT EN COURS ═══ --}}
     <div class="status-banner {{ $statusUi['cls'] }}" id="status-banner">

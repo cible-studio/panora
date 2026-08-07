@@ -32,6 +32,7 @@ class PoseTaskPublicController extends Controller
     {
         $task = $this->resolveTask($token);
 
+        // Load la pose remplacée (pour afficher "Rechange après pose du X").
         $task->load([
             'panel:id,reference,name,commune_id,format_id,latitude,longitude,adresse,quartier',
             'panel.commune:id,name',
@@ -39,13 +40,17 @@ class PoseTaskPublicController extends Controller
             'campaign:id,name,client_id,start_date,end_date',
             'campaign.client:id,name',
             'technicien:id,name,whatsapp_number',
+            'replaces:id,done_at,pose_kind', // Ajout multi-poses 2026-08-05
         ]);
 
-        $piges = Pige::where('panel_id', $task->panel_id)
-            ->when($task->campaign_id, fn($q) => $q->where('campaign_id', $task->campaign_id))
+        // Fix multi-poses 2026-08-05 : charger les piges rattachées à
+        // CETTE PoseTask précise (via scope forPoseTask), pas toutes
+        // celles du couple (panel, campaign) — sinon la pose rechange
+        // "hérite" du statut verifie de la pige initiale.
+        $piges = Pige::forPoseTask($task)
             ->orderByDesc('taken_at')
             ->take(20)
-            ->get(['id', 'photo_path', 'status', 'taken_at', 'notes', 'rejection_reason']);
+            ->get(['id', 'photo_path', 'status', 'taken_at', 'notes', 'rejection_reason', 'pose_task_id']);
 
         return view('public.pose-task', [
             'task'        => $task,
@@ -383,8 +388,13 @@ class PoseTaskPublicController extends Controller
         }
         if ($resp = $this->assertCampaignOperable($task)) return $resp;
 
+        // ⚠ Règle `file` (pas `image`) : `image` = getimagesize() qui ne
+        // reconnaît PAS HEIC/HEIF (format natif iPhone). Le tech ivoirien
+        // envoie ses photos brutes → 422 systématique. Cf. mêmes limites
+        // que TechSpaceController::uploadPhoto (fix aligné 2026-08-05).
+        // max:35840 (= 35 Mo) = alignement upload_max_filesize du Dockerfile.
         $data = $request->validate([
-            'photo'       => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'],
+            'photo'       => ['required', 'file', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:35840'],
             'gps_lat'     => 'nullable|numeric|between:-90,90',
             'gps_lng'     => 'nullable|numeric|between:-180,180',
             'note'        => 'nullable|string|max:500',
@@ -429,17 +439,24 @@ class PoseTaskPublicController extends Controller
             $noteParts[] = $data['note'];
         }
 
+        // ⚠ Multi-poses fix 2026-08-05 :
+        //   - pose_task_id = $task->id → attache la pige à CETTE pose,
+        //     évite le leak entre pose initiale et rechange.
+        //   - user_id = tech assigné en priorité, sinon commercial
+        //     (avant : user_id = commercial systématique → perte
+        //     de l'auteur réel de la pige côté audit).
         $pige = Pige::create([
-            'panel_id'    => $task->panel_id,
-            'campaign_id' => $task->campaign_id,
-            'user_id'     => $task->campaign?->user_id,
-            'photo_path'  => $path,
-            'taken_at'    => now(),
-            'gps_lat'     => $data['gps_lat'] ?? null,
-            'gps_lng'     => $data['gps_lng'] ?? null,
-            'notes'       => implode(' · ', $noteParts),
-            'status'      => 'en_attente',
-            'client_uuid' => $data['client_uuid'] ?? null,
+            'panel_id'     => $task->panel_id,
+            'campaign_id'  => $task->campaign_id,
+            'pose_task_id' => $task->id,
+            'user_id'      => $task->assigned_user_id ?? $task->campaign?->user_id,
+            'photo_path'   => $path,
+            'taken_at'     => now(),
+            'gps_lat'      => $data['gps_lat'] ?? null,
+            'gps_lng'      => $data['gps_lng'] ?? null,
+            'notes'        => implode(' · ', $noteParts),
+            'status'       => 'en_attente',
+            'client_uuid'  => $data['client_uuid'] ?? null,
         ]);
 
         PoseTaskAction::log($task->id, 'photo_uploaded', [
@@ -484,10 +501,10 @@ class PoseTaskPublicController extends Controller
         }
         if ($resp = $this->assertCampaignOperable($task)) return $resp;
 
-        $pige = Pige::where('id', $pigeId)
-            ->where('panel_id', $task->panel_id)
-            ->when($task->campaign_id, fn($q) => $q->where('campaign_id', $task->campaign_id))
-            ->first();
+        // Multi-poses 2026-08-05 : scope par pose_task_id, sinon un
+        // rechange pourrait remplacer une pige de la pose initiale
+        // (leak inverse). Fallback legacy géré par le scope.
+        $pige = Pige::forPoseTask($task)->where('id', $pigeId)->first();
 
         if (!$pige) {
             return response()->json([
@@ -504,7 +521,7 @@ class PoseTaskPublicController extends Controller
         }
 
         $data = $request->validate([
-            'photo'   => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'],
+            'photo'   => ['required', 'file', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:35840'],
             'gps_lat' => 'nullable|numeric|between:-90,90',
             'gps_lng' => 'nullable|numeric|between:-180,180',
             'note'    => 'nullable|string|max:500',
@@ -534,13 +551,17 @@ class PoseTaskPublicController extends Controller
             $noteParts[] = $data['note'];
         }
 
+        // Multi-poses 2026-08-05 : opportunité de re-câbler la pige
+        // à la bonne PoseTask si elle était orpheline (pige LEGACY
+        // avec pose_task_id NULL). Après ce fix, elle sera scopée.
         $pige->update([
-            'photo_path' => $newPath,
-            'taken_at'   => now(),
-            'gps_lat'    => $data['gps_lat'] ?? null,
-            'gps_lng'    => $data['gps_lng'] ?? null,
-            'notes'      => implode(' · ', $noteParts),
-            'status'     => 'en_attente', // repasse en attente après remplacement
+            'photo_path'   => $newPath,
+            'taken_at'     => now(),
+            'gps_lat'      => $data['gps_lat'] ?? null,
+            'gps_lng'      => $data['gps_lng'] ?? null,
+            'notes'        => implode(' · ', $noteParts),
+            'status'       => 'en_attente', // repasse en attente après remplacement
+            'pose_task_id' => $pige->pose_task_id ?? $task->id,
         ]);
 
         PoseTaskAction::log($task->id, 'photo_replaced', [
@@ -584,10 +605,8 @@ class PoseTaskPublicController extends Controller
         }
         if ($resp = $this->assertCampaignOperable($task)) return $resp;
 
-        $pige = Pige::where('id', $pigeId)
-            ->where('panel_id', $task->panel_id)
-            ->when($task->campaign_id, fn($q) => $q->where('campaign_id', $task->campaign_id))
-            ->first();
+        // Multi-poses 2026-08-05 : scope par pose_task_id (cf. show()).
+        $pige = Pige::forPoseTask($task)->where('id', $pigeId)->first();
 
         if (!$pige) {
             return response()->json([
