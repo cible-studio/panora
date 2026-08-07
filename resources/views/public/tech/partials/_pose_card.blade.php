@@ -109,7 +109,18 @@
          aria-label="Voir le détail de la pose {{ $task->panel?->reference ?? '' }}">
         <span class="pose-dot" style="background:{{ $statusColor }}" title="{{ $status->label() }}"></span>
         <div class="pose-row-info">
-            <div class="pose-ref">{{ $task->panel?->reference ?? '—' }}</div>
+            <div class="pose-ref">
+                {{ $task->panel?->reference ?? '—' }}
+                {{-- Badge rechange/retouche 2026-08-05 : signale au tech que
+                     c'est une intervention SUR une pose déjà existante, pas
+                     une pose initiale. Évite qu'il croie "déjà fait" en
+                     voyant le panneau familier. --}}
+                @if(($task->pose_kind ?? 'initial') === 'rechange')
+                    <span style="background:#f59e0b;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;margin-left:5px;letter-spacing:.3px;vertical-align:middle">🔄 RECHANGE</span>
+                @elseif(($task->pose_kind ?? 'initial') === 'retouche')
+                    <span style="background:#3b82f6;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;margin-left:5px;letter-spacing:.3px;vertical-align:middle">🔧 RETOUCHE</span>
+                @endif
+            </div>
             @if($task->panel?->name)
                 <div class="pose-name">{{ \Illuminate\Support\Str::limit($task->panel->name, 36) }}</div>
             @endif
