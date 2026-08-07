@@ -240,6 +240,82 @@ class PoseService
     }
 
     // ══════════════════════════════════════════════════════════════
+    // CREATE RECHANGE BULK — 1 rechange × N poses en un seul geste
+    //
+    // Ajout 2026-08-08 : le workflow métier réel est massif (le client
+    // demande "change l'affiche sur toute ma campagne", donc 30-80 poses
+    // en une fois, pas une par une). Cette méthode itère createRechange()
+    // sur chaque source, partage les mêmes paramètres (date, tech, notes,
+    // kind), et agrège les erreurs par pose pour un feedback UX précis.
+    //
+    // Retour :
+    //   ok: true si au moins 1 rechange créé
+    //   created: int (rechanges effectivement créés)
+    //   skipped: int (poses ignorées — status non-realisee, déjà remplacée,
+    //                 campagne bloquée, etc.)
+    //   task_ids: [ids des nouvelles PoseTask créées]
+    //   warnings: ["Panneau XXX-01 : raison du skip", ...]
+    //
+    // @param int[]  $sourcePoseIds  IDs des poses source à rechanger
+    // @param array{scheduled_at:string, assigned_user_id?:int, team_name?:string, notes?:string, pose_kind?:string} $data
+    // @param User   $creator
+    // ══════════════════════════════════════════════════════════════
+    public function createRechangeBulk(array $sourcePoseIds, array $data, User $creator): array
+    {
+        $sourcePoseIds = array_values(array_filter(array_map('intval', $sourcePoseIds)));
+        if (empty($sourcePoseIds)) {
+            return $this->error('Aucune pose sélectionnée.');
+        }
+
+        // Load en 1 requête toutes les sources avec leur panel (utile pour
+        // messages d'erreur explicites côté UI : "Panneau ABJ-01 : …").
+        $sources = PoseTask::with('panel:id,reference')
+            ->whereIn('id', $sourcePoseIds)
+            ->get()
+            ->keyBy('id');
+
+        $created  = [];
+        $warnings = [];
+
+        foreach ($sourcePoseIds as $id) {
+            $source = $sources->get($id);
+            if (!$source) {
+                $warnings[] = "Pose #{$id} : introuvable (ignorée).";
+                continue;
+            }
+
+            $res = $this->createRechange($source, $data, $creator);
+            if ($res['ok']) {
+                $created[] = $res['task']->id;
+            } else {
+                $ref = $source->panel?->reference ?? "#{$source->id}";
+                $warnings[] = "Panneau {$ref} : " . ($res['error'] ?? 'échec inconnu');
+            }
+        }
+
+        Log::info('pose_task.rechange_bulk', [
+            'requested'  => count($sourcePoseIds),
+            'created'    => count($created),
+            'skipped'    => count($warnings),
+            'created_by' => $creator->id,
+        ]);
+
+        return [
+            'ok'       => count($created) > 0,
+            'created'  => count($created),
+            'skipped'  => count($warnings),
+            'task_ids' => $created,
+            'warnings' => $warnings,
+            // Si rien n'a été créé et qu'il y a des warnings, on renvoie
+            // aussi 'error' pour affichage inline (cohérence avec les
+            // autres méthodes du service qui utilisent 'error').
+            'error'    => count($created) === 0 && !empty($warnings)
+                ? 'Aucun rechange créé. ' . implode(' | ', array_slice($warnings, 0, 3))
+                : null,
+        ];
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // UPDATE
     // ══════════════════════════════════════════════════════════════
     public function update(PoseTask $task, array $data, User $updater): array
