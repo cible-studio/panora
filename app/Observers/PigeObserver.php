@@ -60,8 +60,8 @@ class PigeObserver
 
     public function created(Pige $pige): void
     {
-        // Alerte MP/admin : nouvelle pige uploadée (pour visibilité). La
-        // PoseTask N'EST PAS basculée en COMPLETED — c'est le technicien
+        // ── Alerte in-app (cloche 🔔) — historique ────────────────
+        // La PoseTask N'EST PAS basculée en COMPLETED — c'est le technicien
         // qui décide via le bouton "Marquer terminée".
         try {
             \App\Services\AlertService::notify(
@@ -76,6 +76,55 @@ class PigeObserver
             );
         } catch (\Throwable $e) {
             Log::warning('pige.alert_failed', ['error' => $e->getMessage()]);
+        }
+
+        // ── Mail admin + MP : nouvelle pige à valider (2026-08-10) ──
+        // Demande user : au cas où admin/MP ne sont pas connectés à l'app,
+        // ils reçoivent un mail pour aller vérifier la pige. Cible :
+        // commercial assigné à la campagne + tous MP + tous admin. Le
+        // commercial est notifié car c'est lui qui suit son client.
+        //
+        // Anti-spam : dedup par pose_task_id sur 30 min (défaut
+        // AdminAlertNotifier). Si le tech upload 5 photos sur la même
+        // pose en rafale, un seul mail part. Un nouvel upload > 30 min
+        // plus tard (ex : re-photo après rejet) → nouveau mail.
+        try {
+            $pige->loadMissing('panel', 'campaign.client', 'campaign.user', 'poseTask.technicien', 'poseTask.poseTeam');
+            $task     = $pige->poseTask;
+            $panelRef = $pige->panel?->reference ?? '#' . $pige->panel_id;
+            $techName = $task?->technicien?->name
+                     ?? $task?->tech_name_self
+                     ?? '(non identifié)';
+            $teamMention = $task?->poseTeam
+                ? ' (équipe ' . $task->poseTeam->name . ')'
+                : '';
+
+            \App\Services\AdminAlertNotifier::notify(
+                to: ['commercial_assigned', 'mediaplanner', 'admin'],
+                commercialAssigned: $pige->campaign?->user,
+                severity: 'info',
+                title: 'Nouvelle pige à valider — ' . $panelRef,
+                summary: 'Un technicien vient d\'uploader une photo. Elle attend ta validation dans Panora.',
+                lines: array_filter([
+                    'Panneau : ' . $panelRef . ($pige->panel?->name ? ' — ' . $pige->panel->name : ''),
+                    'Campagne : ' . ($pige->campaign?->name ?? '—'),
+                    'Client : '   . ($pige->campaign?->client?->name ?? '—'),
+                    'Technicien : ' . $techName . $teamMention,
+                    'Uploadée le : ' . $pige->taken_at?->format('d/m/Y à H:i') ?? now()->format('d/m/Y à H:i'),
+                ]),
+                ctaLabel: 'Vérifier la pige →',
+                ctaUrl: route('admin.piges.show', $pige),
+                emoji: '📸',
+                footer: 'Pige #' . $pige->id . ' · statut : en attente',
+                dedupKey: 'pige-uploaded-task-' . ($pige->pose_task_id ?? $pige->id),
+            );
+        } catch (\Throwable $e) {
+            // Best-effort : ne jamais casser la création d'une pige à
+            // cause d'un souci mail (SMTP down, config manquante, etc.).
+            Log::warning('pige.mail_admin_failed', [
+                'pige_id' => $pige->id,
+                'error'   => $e->getMessage(),
+            ]);
         }
     }
 }
