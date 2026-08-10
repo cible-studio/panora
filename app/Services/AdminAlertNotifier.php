@@ -49,6 +49,18 @@ class AdminAlertNotifier
         ?string $dedupKey = null,
         ?User $commercialAssigned = null,
     ): void {
+        // Kill-switch staff alerts (2026-08-10) : désactivable sur staging
+        // via MAIL_STAFF_ALERTS_ENABLED=false pour économiser les crédits
+        // SMTP. Log info pour visibilité côté logs Coolify. Les mails
+        // CLIENT ne passent PAS par ce chemin — pas d'impact métier.
+        if (!config('mail.staff_alerts_enabled', true)) {
+            Log::info('admin_alert.skipped.staff_alerts_disabled', [
+                'title' => $title,
+                'to'    => $to,
+            ]);
+            return;
+        }
+
         $emails = self::resolveRecipients($to, $commercialAssigned);
         if (empty($emails)) {
             Log::info('admin_alert.skipped.no_recipient', ['title' => $title]);
