@@ -41,6 +41,8 @@ class PoseTaskPublicController extends Controller
             'campaign.client:id,name',
             'technicien:id,name,whatsapp_number',
             'replaces:id,done_at,pose_kind', // Ajout multi-poses 2026-08-05
+            // 2026-08-10 : bandeau "pose d'équipe" en tête de page tech.
+            'poseTeam:id,name,color_slug',
         ]);
 
         // Fix multi-poses 2026-08-05 : charger les piges rattachées à

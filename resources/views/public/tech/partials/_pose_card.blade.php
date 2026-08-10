@@ -120,6 +120,18 @@
                 @elseif(($task->pose_kind ?? 'initial') === 'retouche')
                     <span style="background:#3b82f6;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;margin-left:5px;letter-spacing:.3px;vertical-align:middle">🔧 RETOUCHE</span>
                 @endif
+                {{-- 2026-08-10 : badge attribution mérite pose.
+                     - Pose ÉQUIPE (pose_team_id renseigné) → badge coloré
+                       équipe (couleur de PoseTeam::color_slug). Le tech
+                       sait que le mérite ira à l'équipe, pas à lui perso.
+                     - Pose SOLO → pas de badge (comportement historique
+                       par défaut, évite le bruit visuel sur 90% des
+                       cartes). --}}
+                @if($task->poseTeam)
+                    @php $teamHex = $task->poseTeam->colorHex(); @endphp
+                    <span title="Cette pose est créditée à l'équipe {{ $task->poseTeam->name }} — le mérite va au groupe, pas à toi individuellement."
+                          style="background:{{ $teamHex }};color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;margin-left:5px;letter-spacing:.3px;vertical-align:middle">👥 {{ mb_strtoupper($task->poseTeam->name) }}</span>
+                @endif
             </div>
             @if($task->panel?->name)
                 <div class="pose-name">{{ \Illuminate\Support\Str::limit($task->panel->name, 36) }}</div>

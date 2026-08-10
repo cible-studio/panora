@@ -129,6 +129,10 @@ class TechSpaceController extends Controller
                 // ambigus → "Column 'pose_task_id' is ambiguous". On laisse
                 // Eloquent utiliser `piges.*` (qualifié) par défaut.
                 'latestRejectedPige',
+                // 2026-08-10 : badge visuel équipe créditée sur les cartes
+                // pose du tech — distingue solo (crédit perso) vs équipe
+                // (crédit collectif). Cf. _pose_card.blade.php.
+                'poseTeam:id,name,color_slug',
             ])
             ->where('assigned_user_id', $tech->id)
             ->whereNotNull('panel_id')
