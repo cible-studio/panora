@@ -115,4 +115,29 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Staff Alerts Enabled — kill-switch mails internes (2026-08-10)
+    |--------------------------------------------------------------------------
+    |
+    | Contrôle si les mails STAFF/INTERNE sont envoyés :
+    |   - Récaps direction (daily, weekly, monthly)
+    |   - AdminAlertNotifier (tous événements admin : pige uploadée, pose
+    |     réalisée, problème signalé, factures, taxes…)
+    |   - Alertes échéances internes (invoices:alerts, taxes:notify-due-soon)
+    |
+    | Mails CLIENT non concernés (toujours envoyés quel que soit ce flag) :
+    |   - Relances factures impayées (invoices:send-reminders)
+    |   - Rappels fin campagne (campaigns:notify-ending)
+    |   - Devis / propositions / réponses client
+    |
+    | Usage :
+    |   - Prod   : variable absente ou true → comportement normal
+    |   - Staging: MAIL_STAFF_ALERTS_ENABLED=false → économie crédits SMTP
+    |     (les 20-100 mails staff quotidiens sautent, mais on garde les
+    |     mails client critiques pour tester les scénarios réels)
+    */
+
+    'staff_alerts_enabled' => env('MAIL_STAFF_ALERTS_ENABLED', true),
+
 ];
