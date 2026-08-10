@@ -745,6 +745,27 @@
         @endif
     </div>
 
+    {{-- ═══ BANDEAU MÉRITE POSE — SOLO vs ÉQUIPE ═══
+         Ajout 2026-08-10 : dès que le tech ouvre une pose, il doit savoir
+         si le mérite lui revient personnellement (solo) ou si ça crédite
+         une équipe (mérite collectif). Info clé pour la motivation +
+         éviter les malentendus sur les bonus/primes. --}}
+    @if($task->pose_team_id && $task->poseTeam ?? null)
+        @php $teamHex = $task->poseTeam->colorHex(); $teamBg = $task->poseTeam->colorBgHex(); @endphp
+        <div class="card" style="background:{{ $teamBg }};border:1px solid {{ $teamHex }};border-left:4px solid {{ $teamHex }}">
+            <div style="display:flex;align-items:center;gap:12px">
+                <div style="width:36px;height:36px;border-radius:10px;background:{{ $teamHex }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">👥</div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:{{ $teamHex }};margin-bottom:2px">Pose d'équipe</div>
+                    <div style="font-size:14px;font-weight:800;color:var(--text)">Créditée à : <span style="color:{{ $teamHex }}">{{ $task->poseTeam->name }}</span></div>
+                    <div style="font-size:12px;color:var(--text2);margin-top:3px;line-height:1.4">
+                        Le mérite de cette pose va à ton <strong>équipe</strong>, pas à toi individuellement. Tu restes le porteur physique — merci de la faire proprement.
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- ═══ CAMPAGNE / CLIENT ═══ --}}
     @if($task->campaign)
     <div class="card">
