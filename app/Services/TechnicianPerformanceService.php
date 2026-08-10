@@ -33,8 +33,34 @@ use Illuminate\Support\Facades\DB;
  */
 class TechnicianPerformanceService
 {
-    /** KPIs principaux d'un technicien sur la période. */
-    public function kpis(int $techId, CarbonInterface $from, CarbonInterface $to): array
+    /**
+     * ══ Discriminants du crédit pose (refonte 2026-08-10) ══════════
+     *
+     * CREDIT_SOLO : poses avec `pose_team_id IS NULL` uniquement.
+     *   Mérite individuel du tech assigné. C'est le défaut sur le
+     *   rapport technicien : le tech ne récupère PAS le crédit des
+     *   poses qu'il a physiquement piged pour une équipe.
+     *
+     * CREDIT_ALL  : aucun filtre — retourne tout (solo + équipe).
+     *   Usage : globalKpis pour la vue direction, où l'on veut la
+     *   production totale sans distinction.
+     *
+     * Le crédit ÉQUIPE (crédit collectif) passe par byTeam() qui
+     * filtre directement sur pose_team_id = X, pas par ce paramètre.
+     */
+    public const CREDIT_SOLO = 0;
+    public const CREDIT_ALL  = 1;
+
+    /**
+     * KPIs principaux d'un technicien sur la période.
+     *
+     * @param int|null $creditFilter Filtre par contexte de crédit :
+     *   - self::CREDIT_SOLO  → uniquement poses solo (pose_team_id NULL)
+     *   - self::CREDIT_ALL   → toutes les poses (solo + équipe) — legacy
+     *   Par défaut CREDIT_SOLO (2026-08-10 refonte : le rapport
+     *   individuel du tech ne compte QUE le mérite solo).
+     */
+    public function kpis(int $techId, CarbonInterface $from, CarbonInterface $to, int $creditFilter = self::CREDIT_SOLO): array
     {
         // Périmètre : poses assignées au tech dont un des jalons tombe sur
         // la période demandée : création, planification, démarrage OU
@@ -50,6 +76,14 @@ class TechnicianPerformanceService
                   ->orWhereBetween('started_at',   [$from, $to])
                   ->orWhereBetween('done_at',      [$from, $to]);
             });
+
+        // 2026-08-10 : discriminant clé — solo vs tout. Cf. constantes
+        // CREDIT_SOLO/CREDIT_ALL en tête de classe. Par défaut le rapport
+        // individuel ne compte que le solo (les contributions équipe
+        // apparaissent en sous-bloc info dans la vue technicien show).
+        if ($creditFilter === self::CREDIT_SOLO) {
+            $base->whereNull('pose_team_id');
+        }
 
         $nbTotal      = (clone $base)->count();
         $nbRealisees  = (clone $base)->where('status', 'realisee')->count();
@@ -89,50 +123,63 @@ class TechnicianPerformanceService
             ')
             ->first();
 
+        // 2026-08-10 : closure de filtre commune, appliquée aux JOINs
+        // pose_tasks pour cohérence solo/tout.
+        $applyCreditFilter = function ($q, string $alias = 'pose_tasks') use ($creditFilter) {
+            if ($creditFilter === self::CREDIT_SOLO) {
+                $q->whereNull("{$alias}.pose_team_id");
+            }
+        };
+
         // ── Délai pige (taken_at - pose.done_at) en heures, via JOIN
-        $delaiPige = Pige::query()
+        $delaiPigeQ = Pige::query()
             ->join('pose_tasks', 'pose_tasks.id', '=', 'piges.pose_task_id')
             ->where('pose_tasks.assigned_user_id', $techId)
             ->whereNotNull('piges.taken_at')
             ->whereNotNull('pose_tasks.done_at')
-            ->whereBetween('piges.taken_at', [$from, $to])
+            ->whereBetween('piges.taken_at', [$from, $to]);
+        $applyCreditFilter($delaiPigeQ);
+        $delaiPige = $delaiPigeQ
             ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, pose_tasks.done_at, piges.taken_at)) as h')
             ->value('h');
 
         // ── Piges rejetées — Q3 brief : Option B + fallback user_id
+        //    Filtre solo appliqué au niveau de la sous-relation poseTask
+        //    (via whereHas). Le fallback pose_task_id NULL + user_id
+        //    (legacy) reste comptabilisé quel que soit le filtre —
+        //    aucune notion d'équipe possible dans ce cas.
+        $pigeScopeClosure = function ($q) use ($techId, $creditFilter) {
+            $q->whereHas('poseTask', function ($qq) use ($techId, $creditFilter) {
+                $qq->where('assigned_user_id', $techId);
+                if ($creditFilter === self::CREDIT_SOLO) {
+                    $qq->whereNull('pose_team_id');
+                }
+            })->orWhere(function ($q2) use ($techId) {
+                $q2->whereNull('pose_task_id')->where('user_id', $techId);
+            });
+        };
+
         $pigesQuery = Pige::query()->where('status', 'rejete')
             ->whereBetween('created_at', [$from, $to]);
-        $rejectedCount = (clone $pigesQuery)
-            ->where(function ($q) use ($techId) {
-                $q->whereHas('poseTask', fn ($qq) => $qq->where('assigned_user_id', $techId))
-                  ->orWhere(function ($q2) use ($techId) {
-                      $q2->whereNull('pose_task_id')->where('user_id', $techId);
-                  });
-            })->count();
-        $totalPiges = (clone $pigesQuery)
-            ->where(function ($q) use ($techId) {
-                $q->whereHas('poseTask', fn ($qq) => $qq->where('assigned_user_id', $techId))
-                  ->orWhere(function ($q2) use ($techId) {
-                      $q2->whereNull('pose_task_id')->where('user_id', $techId);
-                  });
-            });
+        $rejectedCount = (clone $pigesQuery)->where($pigeScopeClosure)->count();
         // Re-base sans filtre status pour total
         $totalPigesCount = Pige::query()
             ->whereBetween('created_at', [$from, $to])
-            ->where(function ($q) use ($techId) {
-                $q->whereHas('poseTask', fn ($qq) => $qq->where('assigned_user_id', $techId))
-                  ->orWhere(function ($q2) use ($techId) {
-                      $q2->whereNull('pose_task_id')->where('user_id', $techId);
-                  });
-            })->count();
+            ->where($pigeScopeClosure)
+            ->count();
 
         // ── Signalements émis (problem_reported) par le tech sur la période
         $tech = User::find($techId);
         $nbSignalements = PoseTaskAction::query()
             ->where('action', PoseTaskAction::ACTION_PROBLEM_REPORTED)
             ->whereBetween('created_at', [$from, $to])
-            ->where(function ($q) use ($techId, $tech) {
-                $q->whereHas('task', fn ($qq) => $qq->where('assigned_user_id', $techId));
+            ->where(function ($q) use ($techId, $tech, $creditFilter) {
+                $q->whereHas('task', function ($qq) use ($techId, $creditFilter) {
+                    $qq->where('assigned_user_id', $techId);
+                    if ($creditFilter === self::CREDIT_SOLO) {
+                        $qq->whereNull('pose_team_id');
+                    }
+                });
                 if ($tech) $q->orWhere('actor', $tech->name);
             })
             ->count();
@@ -154,45 +201,144 @@ class TechnicianPerformanceService
         ];
     }
 
-    /** KPIs agrégés au niveau équipe — somme/avg sur les membres. */
+    /**
+     * KPIs d'une équipe — REFONTE 2026-08-10.
+     *
+     * ⚠ AVANT : sommait les KPIs individuels des membres, ce qui
+     *   comptait pour l'équipe même les poses solo faites par ses
+     *   membres. Bug visible sur /admin/performance/equipes : équipe
+     *   Abengourou affichait "2 réalisées" alors qu'aucune pose ne
+     *   lui était explicitement attribuée (c'étaient les solo de David).
+     *
+     * ✅ APRÈS : requêtes SQL directes filtrées sur
+     *   `pose_tasks.pose_team_id = $teamId`. Le mérite est collectif —
+     *   la pose compte pour l'équipe quel que soit le tech qui a
+     *   physiquement pigé, et NE compte PAS pour l'équipe si elle a
+     *   été faite en solo par un membre.
+     *
+     * Retourne :
+     *   - team           : instance PoseTeam
+     *   - members_count  : nb membres actifs
+     *   - kpis           : KPIs de l'équipe (structure emptyKpis)
+     *   - contributions  : Collection [{user_id, user_name, nb_piges}]
+     *                      → sous-bloc info dans la vue (pas classement)
+     */
     public function byTeam(int $teamId, CarbonInterface $from, CarbonInterface $to): array
     {
-        $team = PoseTeam::with('members:id,name,pose_team_id')->find($teamId);
+        $team = PoseTeam::with('members:id,name')->find($teamId);
         if (!$team) {
-            return ['team' => null, 'members_count' => 0, 'kpis' => $this->emptyKpis()];
+            return [
+                'team' => null,
+                'members_count' => 0,
+                'kpis' => $this->emptyKpis(),
+                'contributions' => collect(),
+            ];
         }
 
-        $members = $team->members;
-        if ($members->isEmpty()) {
-            return ['team' => $team, 'members_count' => 0, 'kpis' => $this->emptyKpis()];
-        }
+        // Périmètre : poses créditées à l'équipe (pose_team_id = X)
+        // dont un des jalons tombe sur la période. Cohérent avec kpis().
+        $base = PoseTask::query()
+            ->where('pose_team_id', $teamId)
+            ->where(function ($q) use ($from, $to) {
+                $q->whereBetween('created_at',   [$from, $to])
+                  ->orWhereBetween('scheduled_at', [$from, $to])
+                  ->orWhereBetween('started_at',   [$from, $to])
+                  ->orWhereBetween('done_at',      [$from, $to]);
+            });
 
-        $aggregated = $this->emptyKpis();
-        $kpis = [];
-        foreach ($members as $m) {
-            $k = $this->kpis($m->id, $from, $to);
-            $kpis[] = $k;
-            // Sommes
-            $aggregated['nb_poses_total']      += $k['nb_poses_total'];
-            $aggregated['nb_poses_realisees']  += $k['nb_poses_realisees'];
-            $aggregated['nb_poses_planifiees'] += $k['nb_poses_planifiees'];
-            $aggregated['nb_poses_en_retard']  += $k['nb_poses_en_retard'];
-            $aggregated['nb_piges_rejetees']   += $k['nb_piges_rejetees'];
-            $aggregated['nb_signalements']     += $k['nb_signalements'];
-        }
-        // Moyennes (ignorer nulls)
-        foreach (['reactivite_avg_min', 'duree_pose_avg_min', 'trajet_avg_min', 'delai_pige_avg_h', 'respect_estimation_pct'] as $field) {
-            $vals = array_filter(array_column($kpis, $field), fn ($v) => $v !== null);
-            $aggregated[$field] = !empty($vals) ? round(array_sum($vals) / count($vals), 1) : null;
-        }
-        // Taux dérivés
-        $aggregated['taux_poses_en_retard'] = $aggregated['nb_poses_total'] > 0
-            ? round(($aggregated['nb_poses_en_retard'] / $aggregated['nb_poses_total']) * 100, 1) : 0.0;
-        // Pour taux_piges_rejetees on prend la moyenne des taux (déjà normalisés)
-        $tauxValues = array_column($kpis, 'taux_piges_rejetees');
-        $aggregated['taux_piges_rejetees'] = !empty($tauxValues) ? round(array_sum($tauxValues) / count($tauxValues), 1) : 0.0;
+        $nbTotal      = (clone $base)->count();
+        $nbRealisees  = (clone $base)->where('status', 'realisee')->count();
+        $nbPlanifiees = (clone $base)->where('status', 'planifiee')->count();
+        $nbEnRetard   = (clone $base)
+            ->where('status', 'planifiee')
+            ->where('scheduled_at', '<', PoseTask::lateThreshold())
+            ->count();
 
-        return ['team' => $team, 'members_count' => $members->count(), 'kpis' => $aggregated];
+        $tempsAvg = (clone $base)
+            ->whereNotNull('started_at')
+            ->selectRaw('
+                AVG(TIMESTAMPDIFF(MINUTE, created_at, started_at)) as reactivite_min,
+                AVG(CASE WHEN done_at IS NOT NULL
+                              AND COALESCE(arrived_at, started_at) IS NOT NULL
+                              AND TIMESTAMPDIFF(MINUTE, COALESCE(arrived_at, started_at), done_at) > 0
+                         THEN TIMESTAMPDIFF(MINUTE, COALESCE(arrived_at, started_at), done_at)
+                    END) as duree_pose_min,
+                AVG(CASE WHEN arrived_at IS NOT NULL AND started_at IS NOT NULL
+                              AND TIMESTAMPDIFF(MINUTE, started_at, arrived_at) > 0
+                         THEN TIMESTAMPDIFF(MINUTE, started_at, arrived_at)
+                    END) as trajet_min,
+                AVG(CASE WHEN done_at IS NOT NULL AND estimated_minutes > 0 AND real_minutes > 0
+                         THEN (real_minutes / estimated_minutes) * 100
+                    END) as respect_estimation_pct
+            ')
+            ->first();
+
+        // Délai pige moyen sur les poses d'équipe
+        $delaiPige = Pige::query()
+            ->join('pose_tasks', 'pose_tasks.id', '=', 'piges.pose_task_id')
+            ->where('pose_tasks.pose_team_id', $teamId)
+            ->whereNotNull('piges.taken_at')
+            ->whereNotNull('pose_tasks.done_at')
+            ->whereBetween('piges.taken_at', [$from, $to])
+            ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, pose_tasks.done_at, piges.taken_at)) as h')
+            ->value('h');
+
+        // Piges rejetées : uniquement les piges rattachées à une pose
+        // d'équipe (pose_task_id → pose_tasks.pose_team_id = X).
+        $rejectedCount = Pige::query()
+            ->where('status', 'rejete')
+            ->whereBetween('created_at', [$from, $to])
+            ->whereHas('poseTask', fn ($q) => $q->where('pose_team_id', $teamId))
+            ->count();
+        $totalPigesCount = Pige::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->whereHas('poseTask', fn ($q) => $q->where('pose_team_id', $teamId))
+            ->count();
+
+        // Signalements sur les poses d'équipe
+        $nbSignalements = PoseTaskAction::query()
+            ->where('action', PoseTaskAction::ACTION_PROBLEM_REPORTED)
+            ->whereBetween('created_at', [$from, $to])
+            ->whereHas('task', fn ($q) => $q->where('pose_team_id', $teamId))
+            ->count();
+
+        $kpis = [
+            'nb_poses_total'          => $nbTotal,
+            'nb_poses_realisees'      => $nbRealisees,
+            'nb_poses_planifiees'     => $nbPlanifiees,
+            'nb_poses_en_retard'      => $nbEnRetard,
+            'taux_poses_en_retard'    => $nbTotal > 0 ? round(($nbEnRetard / $nbTotal) * 100, 1) : 0.0,
+            'reactivite_avg_min'      => $tempsAvg?->reactivite_min !== null ? (int) round($tempsAvg->reactivite_min) : null,
+            'duree_pose_avg_min'      => $tempsAvg?->duree_pose_min !== null ? (int) round($tempsAvg->duree_pose_min) : null,
+            'trajet_avg_min'          => $tempsAvg?->trajet_min !== null ? (int) round($tempsAvg->trajet_min) : null,
+            'delai_pige_avg_h'        => $delaiPige !== null ? (int) round($delaiPige) : null,
+            'respect_estimation_pct'  => $tempsAvg?->respect_estimation_pct !== null ? round($tempsAvg->respect_estimation_pct, 1) : null,
+            'nb_piges_rejetees'       => $rejectedCount,
+            'taux_piges_rejetees'     => $totalPigesCount > 0 ? round(($rejectedCount / $totalPigesCount) * 100, 1) : 0.0,
+            'nb_signalements'         => $nbSignalements,
+        ];
+
+        // Contributions individuelles au sein de l'équipe (info seule).
+        // Comptées via piges.user_id sur les poses d'équipe : "qui a
+        // physiquement tenu le téléphone". PAS un classement de perf
+        // individuelle — juste de la visibilité pour le manager.
+        $contributions = DB::table('piges')
+            ->join('pose_tasks', 'pose_tasks.id', '=', 'piges.pose_task_id')
+            ->join('users', 'users.id', '=', 'piges.user_id')
+            ->where('pose_tasks.pose_team_id', $teamId)
+            ->whereBetween('piges.created_at', [$from, $to])
+            ->selectRaw('users.id as user_id, users.name as user_name, COUNT(*) as nb_piges')
+            ->groupBy('users.id', 'users.name')
+            ->orderByDesc('nb_piges')
+            ->get()
+            ->map(fn ($r) => (array) $r);
+
+        return [
+            'team'          => $team,
+            'members_count' => $team->members->count(),
+            'kpis'          => $kpis,
+            'contributions' => $contributions,
+        ];
     }
 
     /** Leaderboard tous techs (admin/MP). */
@@ -307,7 +453,9 @@ class TechnicianPerformanceService
             ];
         }
 
-        $kpisByTech = $techs->map(fn ($id) => $this->kpis((int) $id, $from, $to));
+        // Vue direction : PRODUCTION TOTALE (solo + équipe) sans
+        // discrimination. Cf. refonte 2026-08-10.
+        $kpisByTech = $techs->map(fn ($id) => $this->kpis((int) $id, $from, $to, self::CREDIT_ALL));
 
         $sum = fn (string $k) => (int) $kpisByTech->sum($k);
         $avg = fn (string $k) => $kpisByTech
@@ -508,29 +656,43 @@ class TechnicianPerformanceService
      * RÉALISÉE aujourd'hui 07/07 n'apparaissait pas dans la liste
      * "aujourd'hui", alors que les KPI la comptaient — incohérence
      * signalée par la patronne (card = 2 poses réalisées, liste vide).
+     *
+     * 2026-08-10 : filtre solo par défaut (aligné sur kpis()). Les poses
+     * d'équipe faites par le tech apparaissent dans un onglet dédié
+     * "Contribution équipes" côté vue, pas dans cette liste principale.
      */
-    public function posesList(int $techId, CarbonInterface $from, CarbonInterface $to, int $perPage = 20)
+    public function posesList(int $techId, CarbonInterface $from, CarbonInterface $to, int $perPage = 20, int $creditFilter = self::CREDIT_SOLO)
     {
-        return PoseTask::query()
+        $q = PoseTask::query()
             ->where('assigned_user_id', $techId)
             ->where(function ($q) use ($from, $to) {
                 $q->whereBetween('created_at',   [$from, $to])
                   ->orWhereBetween('scheduled_at', [$from, $to])
                   ->orWhereBetween('started_at',   [$from, $to])
                   ->orWhereBetween('done_at',      [$from, $to]);
-            })
-            ->with(['panel:id,reference,commune_id', 'panel.commune:id,name', 'campaign:id,name,client_id', 'campaign.client:id,name'])
+            });
+
+        if ($creditFilter === self::CREDIT_SOLO) {
+            $q->whereNull('pose_team_id');
+        }
+
+        return $q
+            ->with(['panel:id,reference,commune_id', 'panel.commune:id,name', 'campaign:id,name,client_id', 'campaign.client:id,name', 'poseTeam:id,name,color_slug'])
             ->orderByDesc(DB::raw('COALESCE(done_at, started_at, scheduled_at, created_at)'))
             ->paginate($perPage);
     }
 
     /** Nb poses par jour sur les N derniers jours. */
-    public function dailyPoses(int $techId, int $days = 30): Collection
+    public function dailyPoses(int $techId, int $days = 30, int $creditFilter = self::CREDIT_SOLO): Collection
     {
         $from = now()->subDays($days - 1)->startOfDay();
-        $rows = PoseTask::query()
+        $q = PoseTask::query()
             ->where('assigned_user_id', $techId)
-            ->where('created_at', '>=', $from)
+            ->where('created_at', '>=', $from);
+        if ($creditFilter === self::CREDIT_SOLO) {
+            $q->whereNull('pose_team_id');
+        }
+        $rows = $q
             ->selectRaw('DATE(created_at) as d, COUNT(*) as c')
             ->groupBy('d')
             ->pluck('c', 'd');
@@ -550,13 +712,20 @@ class TechnicianPerformanceService
     /**
      * Histogramme de réactivité — distribution des temps started_at - created_at
      * en 6 buckets : <1h, 1-4h, 4-24h, 1-3j, 3-7j, >7j.
+     *
+     * 2026-08-10 : par défaut ne comptabilise que les poses solo pour
+     * rester cohérent avec la vue technicien show.
      */
-    public function reactivityDistribution(int $techId, CarbonInterface $from, CarbonInterface $to): Collection
+    public function reactivityDistribution(int $techId, CarbonInterface $from, CarbonInterface $to, int $creditFilter = self::CREDIT_SOLO): Collection
     {
-        $rows = PoseTask::query()
+        $q = PoseTask::query()
             ->where('assigned_user_id', $techId)
             ->whereNotNull('started_at')
-            ->whereBetween('created_at', [$from, $to])
+            ->whereBetween('created_at', [$from, $to]);
+        if ($creditFilter === self::CREDIT_SOLO) {
+            $q->whereNull('pose_team_id');
+        }
+        $rows = $q
             ->selectRaw('TIMESTAMPDIFF(MINUTE, created_at, started_at) as min')
             ->pluck('min');
 
@@ -594,6 +763,36 @@ class TechnicianPerformanceService
             return $currentUser->id;
         }
         return null;
+    }
+
+    /**
+     * ══ Contributions équipe du tech (info seule) ══════════════════
+     * Compte les piges que le tech a physiquement uploadées sur des
+     * poses D'ÉQUIPE, groupées par équipe. Ces piges ne comptent PAS
+     * dans le KPI perso du tech (kpis() = CREDIT_SOLO par défaut),
+     * mais sont affichées dans une section "Contribution équipes"
+     * pour donner de la visibilité au manager.
+     *
+     * @return Collection<int, array{team_id, team_name, color_slug, nb_piges}>
+     */
+    public function teamContributionsByTech(int $techId, CarbonInterface $from, CarbonInterface $to): Collection
+    {
+        return DB::table('piges')
+            ->join('pose_tasks', 'pose_tasks.id', '=', 'piges.pose_task_id')
+            ->join('pose_teams', 'pose_teams.id', '=', 'pose_tasks.pose_team_id')
+            ->where('piges.user_id', $techId)
+            ->whereNotNull('pose_tasks.pose_team_id')
+            ->whereBetween('piges.created_at', [$from, $to])
+            ->selectRaw('
+                pose_teams.id as team_id,
+                pose_teams.name as team_name,
+                pose_teams.color_slug as color_slug,
+                COUNT(*) as nb_piges
+            ')
+            ->groupBy('pose_teams.id', 'pose_teams.name', 'pose_teams.color_slug')
+            ->orderByDesc('nb_piges')
+            ->get()
+            ->map(fn ($r) => (array) $r);
     }
 
     /** KPIs vides — utilisé pour init agrégation. */

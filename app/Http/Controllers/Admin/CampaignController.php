@@ -285,9 +285,15 @@ class CampaignController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        // 2026-08-10 : liste équipes actives pour le modal rechange (permet
+        // d'attribuer les rechanges à une équipe entière = crédit collectif).
+        $poseTeams = \App\Models\PoseTeam::active()
+            ->orderBy('name')
+            ->get(['id', 'name', 'color_slug']);
+
         return view('admin.campaigns.show', compact(
             'campaign', 'can', 'allowed', 'commerciaux',
-            'amountConsistency', 'eligibleRechangeSources', 'technicians'
+            'amountConsistency', 'eligibleRechangeSources', 'technicians', 'poseTeams'
         ));
     }
 
@@ -316,6 +322,8 @@ class CampaignController extends Controller
             'scheduled_at'     => 'required|date',
             'assigned_user_id' => 'nullable|exists:users,id',
             'team_name'        => 'nullable|string|max:100',
+            // 2026-08-10 : mérite pose (solo=NULL, équipe=X). Cf. refonte KPI.
+            'pose_team_id'     => 'nullable|integer|exists:pose_teams,id',
             'notes'            => 'nullable|string|max:1000',
             'pose_kind'        => 'nullable|in:rechange,retouche',
         ], [

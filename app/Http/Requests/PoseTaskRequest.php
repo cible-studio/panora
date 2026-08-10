@@ -29,6 +29,10 @@ class PoseTaskRequest extends FormRequest
             'campaign_id'      => ['nullable', 'integer', 'exists:campaigns,id'],
             'assigned_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'team_name'        => ['nullable', 'string', 'max:100'],
+            // 2026-08-10 : FK vers pose_teams pour attribution mérite.
+            // Cf. refonte KPI équipe/tech — le champ est nullable (pose
+            // solo par défaut), renseigné pour une pose d'équipe.
+            'pose_team_id'     => ['nullable', 'integer', 'exists:pose_teams,id'],
             'scheduled_at'     => ['required', 'date'],
             'notes'            => ['nullable', 'string', 'max:1000'],
         ];
@@ -65,6 +69,7 @@ class PoseTaskRequest extends FormRequest
             'scheduled_at.date'      => 'La date et heure de pose sont invalides.',
             'assigned_user_id.exists'=> 'Le technicien sélectionné est introuvable.',
             'team_name.max'          => "Le nom d'équipe ne doit pas dépasser 100 caractères.",
+            'pose_team_id.exists'    => "L'équipe sélectionnée est introuvable.",
             'notes.max'              => 'Les notes ne doivent pas dépasser 1000 caractères.',
             'status.required'        => 'Le statut est obligatoire.',
             'status.in'              => 'Statut invalide.',
@@ -79,6 +84,7 @@ class PoseTaskRequest extends FormRequest
             'campaign_id'      => 'campagne',
             'assigned_user_id' => 'technicien',
             'team_name'        => "nom d'équipe",
+            'pose_team_id'     => "équipe",
             'scheduled_at'     => 'date planifiée',
             'status'           => 'statut',
             'notes'            => 'notes',

@@ -104,8 +104,17 @@
                 <td>{{ $panel->name ?? '—' }}</td>
                 <td>{{ $panel->commune?->name ?? '—' }}</td>
                 <td>{{ $panel->format?->name ?? '—' }}</td>
-                <td>{{ $pose?->technicien?->name ?? '—' }}</td>
-                <td>{{ $pose?->team_name ?? '—' }}</td>
+                {{-- 2026-08-10 option A : si pose_team_id renseigné,
+                     la col "Technicien" affiche "Équipe X" (mérite collectif).
+                     Cf. refonte KPI équipe/solo. --}}
+                <td>
+                    @if($pose?->pose_team_id)
+                        👥 Équipe {{ $pose->poseTeam?->name ?? $pose->team_name }}
+                    @else
+                        {{ $pose?->technicien?->name ?? '—' }}
+                    @endif
+                </td>
+                <td>{{ $pose?->poseTeam?->name ?? $pose?->team_name ?? '—' }}</td>
             </tr>
         @empty
             <tr><td colspan="7" style="text-align:center;color:#6b7280;font-style:italic;padding:20px">

@@ -185,7 +185,7 @@ window.__EDIT__ = {
             {{-- 2026-06-18 (mission équipes pose tasks) ─ Voir create.blade.php
                  pour la doc complète. Pareil ici sur l'édition : selects vrais,
                  boutons "+ Nouveau" pour création rapide sans quitter le form. --}}
-            @php $oldTeam = old('team_name', $poseTask->team_name); @endphp
+            @php $oldTeamId = old('pose_team_id', $poseTask->pose_team_id); @endphp
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
                 <div>
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px">
@@ -212,15 +212,23 @@ window.__EDIT__ = {
                                 style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;cursor:pointer"
                                 title="Créer une équipe rapidement (sans quitter ce formulaire)">+ Nouvelle équipe</button>
                     </div>
-                    <select name="team_name" id="sel-team" class="pose-select">
-                        <option value="">— Aucune / hérite du technicien —</option>
+                    {{-- 2026-08-10 : basculé sur pose_team_id (FK) — mérite pose.
+                         L'observer PoseTask::saving auto-sync team_name (snapshot). --}}
+                    <select name="pose_team_id" id="sel-team" class="pose-select"
+                            data-initial="{{ (int) ($poseTask->pose_team_id ?? 0) }}"
+                            data-has-piges="{{ $poseTask->piges()->where('status', 'verifie')->count() }}">
+                        <option value="">— Aucune (pose solo, crédit individuel) —</option>
                         @foreach(($teams ?? collect()) as $team)
-                            <option value="{{ $team->name }}" {{ $oldTeam === $team->name ? 'selected' : '' }}>{{ $team->name }}</option>
+                            <option value="{{ $team->id }}" {{ (int) $oldTeamId === (int) $team->id ? 'selected' : '' }}>👥 {{ $team->name }} — crédit équipe</option>
                         @endforeach
-                        @if($oldTeam && !($teams ?? collect())->contains('name', $oldTeam))
-                            <option value="{{ $oldTeam }}" selected>{{ $oldTeam }} (legacy)</option>
-                        @endif
                     </select>
+                    {{-- Warning JS (2026-08-10) : bascule solo↔équipe alors qu'il
+                         y a des piges VALIDÉES → réattribution des stats. --}}
+                    <div id="team-switch-warn" style="display:none;margin-top:6px;padding:8px 12px;border:1px solid #f59e0b;background:rgba(245,158,11,.08);border-radius:8px;font-size:11.5px;color:#b45309;line-height:1.5">
+                        ⚠️ Cette pose a <strong id="team-switch-count">0</strong> pige(s) validée(s).
+                        Changer l'équipe <strong>réattribuera ces piges</strong> au score collectif
+                        de la nouvelle équipe (ou au score individuel du tech si tu passes en solo).
+                    </div>
                 </div>
             </div>
             @push('scripts')
@@ -231,19 +239,28 @@ window.__EDIT__ = {
                 if (!selTech || !selTeam) return;
                 var teamByUser = {};
                 try { teamByUser = JSON.parse(selTech.dataset.teamByUser || '{}'); } catch (e) {}
+
+                // Auto-fill équipe à partir du tech mono-équipe. teamByUser[id]
+                // est un array d'objets { id, name } (cf. controller 2026-08-10).
                 selTech.addEventListener('change', function () {
-                    // 2026-06-19 — Multi-équipe : teamByUser[id] est un array.
-                    // Auto-fill uniquement si le tech a EXACTEMENT 1 équipe.
                     var teamsList = teamByUser[selTech.value];
                     if (!Array.isArray(teamsList) || teamsList.length !== 1) return;
-                    var teamName = teamsList[0];
-                    var opt = Array.from(selTeam.options).find(function (o) { return o.value === teamName; });
-                    if (!opt) {
-                        opt = new Option(teamName, teamName, false, false);
-                        selTeam.appendChild(opt);
-                    }
-                    selTeam.value = teamName;
+                    var team = teamsList[0];
+                    var teamId = String(typeof team === 'object' ? team.id : team);
+                    var opt = Array.from(selTeam.options).find(function (o) { return o.value === teamId; });
+                    if (opt) selTeam.value = teamId;
                 });
+
+                // Warning bascule solo↔équipe avec piges validées existantes.
+                var warn = document.getElementById('team-switch-warn');
+                var initial = selTeam.dataset.initial || '0';
+                var hasPiges = parseInt(selTeam.dataset.hasPiges || '0', 10);
+                if (warn && hasPiges > 0) {
+                    document.getElementById('team-switch-count').textContent = hasPiges;
+                    selTeam.addEventListener('change', function () {
+                        warn.style.display = (selTeam.value !== initial) ? 'block' : 'none';
+                    });
+                }
             })();
             </script>
             @endpush

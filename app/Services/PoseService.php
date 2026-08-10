@@ -77,6 +77,8 @@ class PoseService
                     'campaign_id'      => $campaign?->id,
                     'assigned_user_id' => $data['assigned_user_id'] ?? null,
                     'team_name'        => $data['team_name'] ?? null,
+                    // 2026-08-10 : mérite pose (solo si NULL, équipe X sinon).
+                    'pose_team_id'     => $data['pose_team_id'] ?? null,
                     'scheduled_at'     => $data['scheduled_at'],
                     'status'           => $data['status'] ?? PoseTaskStatus::PLANNED->value,
                     'notes'            => $data['notes'] ?? null,
@@ -194,12 +196,29 @@ class PoseService
              ?? \App\Enums\PoseTaskKind::RECHANGE;
 
         return DB::transaction(function () use ($sourcePose, $data, $kind, $creator) {
+            // ── Héritage pose_team_id du parent (2026-08-10) ────────────
+            // Comportement : par défaut le rechange conserve le contexte
+            // du parent (une pose d'équipe reste équipe, une solo reste solo).
+            // Le MP peut OVERRIDE en passant explicitement pose_team_id
+            // dans $data — y compris NULL pour transformer une pose équipe
+            // en rechange solo (cas rare mais possible : réintervention
+            // isolée d'un tech nommément assigné).
+            $poseTeamId = array_key_exists('pose_team_id', $data)
+                ? ($data['pose_team_id'] ?: null)
+                : $sourcePose->pose_team_id;
+
+            // Idem pour team_name : hérite du parent si non fourni.
+            $teamName = array_key_exists('team_name', $data)
+                ? ($data['team_name'] ?: null)
+                : $sourcePose->team_name;
+
             // 1. Créer la nouvelle pose (chaînée à la source)
             $newTask = PoseTask::create([
                 'panel_id'              => $sourcePose->panel_id,
                 'campaign_id'           => $sourcePose->campaign_id,
                 'assigned_user_id'      => $data['assigned_user_id'] ?? null,
-                'team_name'             => $data['team_name'] ?? null,
+                'team_name'             => $teamName,
+                'pose_team_id'          => $poseTeamId,
                 'scheduled_at'          => $data['scheduled_at'],
                 'status'                => PoseTaskStatus::PLANNED->value,
                 'notes'                 => $data['notes'] ?? null,
@@ -351,7 +370,7 @@ class PoseService
         }
 
         $old = $oldStatus;
-        $task->update([
+        $updatePayload = [
             'campaign_id'      => $data['campaign_id'] ?? $task->campaign_id,
             'panel_id'         => $data['panel_id'] ?? $task->panel_id,
             'assigned_user_id' => $data['assigned_user_id'] ?? null,
@@ -359,7 +378,14 @@ class PoseService
             'scheduled_at'     => $data['scheduled_at'],
             'status'           => $data['status'],
             'notes'            => $data['notes'] ?? null,
-        ]);
+        ];
+        // 2026-08-10 : pose_team_id explicitement fourni → mise à jour.
+        // On distingue "clé absente" (ne pas toucher) et "clé = null"
+        // (bascule volontaire équipe → solo).
+        if (array_key_exists('pose_team_id', $data)) {
+            $updatePayload['pose_team_id'] = $data['pose_team_id'] ?: null;
+        }
+        $task->update($updatePayload);
 
         Log::info('pose_task.updated', ['task_id' => $task->id, 'old_status' => $old, 'new_status' => $task->status, 'by' => $updater->id]);
         return ['ok' => true, 'task' => $task];
@@ -446,6 +472,25 @@ class PoseService
 
             case 'rename_team':
                 $payload['team_name'] = $value === null || $value === '' ? null : mb_substr((string) $value, 0, 100);
+                break;
+
+            case 'assign_team':
+                // 2026-08-10 : nouvelle action bulk — attribue la pose à
+                // une équipe (mérite collectif). value = pose_team_id
+                // ou null pour retirer l'attribution équipe.
+                if ($value === null || $value === '' || $value === '0') {
+                    $payload['pose_team_id'] = null;
+                    $payload['team_name']    = null;
+                } else {
+                    $teamId = (int) $value;
+                    $team = \App\Models\PoseTeam::find($teamId);
+                    if (!$team) {
+                        return $this->bulkError('Équipe introuvable.');
+                    }
+                    $payload['pose_team_id'] = $teamId;
+                    // Snapshot du nom pour audit historique.
+                    $payload['team_name']    = $team->name;
+                }
                 break;
 
             case 'change_status':

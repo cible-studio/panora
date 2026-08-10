@@ -94,16 +94,21 @@ class TechnicianPerformanceController extends Controller
 
         [$from, $to] = $this->resolvePeriod($request);
 
-        $kpis          = $this->perf->kpis($user->id, $from, $to);
-        $dailyPoses    = $this->perf->dailyPoses($user->id, 30);
-        $reactivity    = $this->perf->reactivityDistribution($user->id, $from, $to);
-        $poses         = $this->perf->posesList($user->id, $from, $to, 15);
+        // 2026-08-10 refonte : KPI, courbe, histo et liste = mérite SOLO.
+        // Les contributions aux poses d'équipe apparaissent dans une
+        // section dédiée (bloc grisé sous les KPI).
+        $kpis              = $this->perf->kpis($user->id, $from, $to);
+        $dailyPoses        = $this->perf->dailyPoses($user->id, 30);
+        $reactivity        = $this->perf->reactivityDistribution($user->id, $from, $to);
+        $poses             = $this->perf->posesList($user->id, $from, $to, 15);
+        $teamContributions = $this->perf->teamContributionsByTech($user->id, $from, $to);
 
         // 2026-06-19 — Multi-équipe : on charge la relation pluriel poseTeams.
         $user->load('poseTeams:id,name,color_slug', 'teamLeading:id,name');
 
         return view('admin.performance.techniciens.show', compact(
-            'user', 'kpis', 'dailyPoses', 'reactivity', 'poses', 'from', 'to'
+            'user', 'kpis', 'dailyPoses', 'reactivity', 'poses',
+            'teamContributions', 'from', 'to'
         ));
     }
 
