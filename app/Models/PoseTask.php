@@ -68,6 +68,11 @@ class PoseTask extends Model
     protected $fillable = [
         'panel_id', 'campaign_id',
         'assigned_user_id', 'team_name',
+        // Attribution du mérite pose (2026-08-10) — cf. migration
+        // add_pose_team_id_to_pose_tasks. NULL = pose solo (crédit
+        // individuel du tech), renseigné = pose d'équipe (crédit
+        // collectif équipe X, indépendamment de qui pige).
+        'pose_team_id',
         // Identité du tech saisie via le lien public (cas tech non créé en User)
         'tech_name_self', 'tech_name_self_at', 'tech_name_self_ip',
         'scheduled_at', 'done_at', 'status', 'notes',
@@ -103,8 +108,9 @@ class PoseTask extends Model
      * Affiche le nom du technicien à présenter en UI (priorité formelle).
      *  1. assigned_user_id présent → relation technicien (User Panora)
      *  2. tech_name_self saisi via lien public (badge "déclaré")
-     *  3. team_name si défini (équipe)
-     *  4. Sinon — non assigné
+     *  3. pose_team_id renseigné → nom d'équipe (source FK, prioritaire)
+     *  4. team_name legacy (fallback historique)
+     *  5. Sinon — non assigné
      *
      * @return array{name: string, type: string, color: string}
      */
@@ -116,10 +122,49 @@ class PoseTask extends Model
         if ($this->tech_name_self) {
             return ['name' => $this->tech_name_self, 'type' => 'declared', 'color' => '#3b82f6'];
         }
+        // 2026-08-10 : pose_team_id (FK) prime sur team_name (VARCHAR legacy).
+        // La couleur suit celle définie sur l'équipe si dispo.
+        if ($this->pose_team_id) {
+            $team = $this->poseTeam;
+            if ($team) {
+                return [
+                    'name'  => $team->name,
+                    'type'  => 'team',
+                    'color' => $team->colorHex(),
+                ];
+            }
+        }
         if ($this->team_name) {
             return ['name' => $this->team_name, 'type' => 'team', 'color' => '#8b5cf6'];
         }
         return ['name' => '— Non assigné —', 'type' => 'none', 'color' => '#9ca3af'];
+    }
+
+    /**
+     * True si cette pose crédite une équipe (pose_team_id renseigné).
+     * Utilisé par les rapports pour filtrer solo vs équipe.
+     */
+    public function isTeamCredit(): bool
+    {
+        return $this->pose_team_id !== null;
+    }
+
+    /**
+     * Scope : poses SOLO uniquement (mérite individuel, aucune équipe attribuée).
+     * Cf. 2026-08-10 refonte KPI équipe/tech.
+     */
+    public function scopeSolo(\Illuminate\Database\Eloquent\Builder $q): \Illuminate\Database\Eloquent\Builder
+    {
+        return $q->whereNull('pose_team_id');
+    }
+
+    /**
+     * Scope : poses créditées à une équipe précise.
+     * Cf. 2026-08-10 refonte KPI équipe/tech.
+     */
+    public function scopeTeamCredit(\Illuminate\Database\Eloquent\Builder $q, int $teamId): \Illuminate\Database\Eloquent\Builder
+    {
+        return $q->where('pose_team_id', $teamId);
     }
 
     /**
@@ -161,14 +206,14 @@ class PoseTask extends Model
      */
     protected static function booted(): void
     {
+        // ═══ Auto-fill team_name (VARCHAR legacy) depuis le tech assigné ═══
+        // Historique 2026-06-19 : si un tech est assigné et qu'il est
+        // membre d'UNE SEULE équipe, on renseigne team_name pour
+        // l'affichage. Comportement conservé pour rétrocompat UI.
         static::saving(function (PoseTask $task) {
             if (!$task->isDirty('assigned_user_id') || empty($task->assigned_user_id)) {
                 return;
             }
-            // 2026-06-19 — Multi-équipe : on n'auto-déduit team_name QUE si
-            // le tech appartient à une seule équipe. S'il est dans plusieurs,
-            // l'admin doit choisir manuellement (sinon ambiguïté). Si team_name
-            // est déjà renseigné par l'admin, on respecte son choix.
             if (!empty($task->team_name)) {
                 return;
             }
@@ -177,8 +222,39 @@ class PoseTask extends Model
             if ($teams->count() === 1) {
                 $task->team_name = $teams->first()->name;
             }
-            // Sinon (0 ou ≥2 équipes) : team_name reste tel quel — l'admin
-            // garde la responsabilité du choix.
+        });
+
+        // ═══ Sync bidirectionnelle pose_team_id ↔ team_name (2026-08-10) ═══
+        // Le nouveau `pose_team_id` (FK) est la source de vérité métier
+        // pour la perf, mais on maintient `team_name` (VARCHAR) synchro
+        // pour l'affichage et l'audit historique.
+        //
+        //  - Si pose_team_id est set et team_name vide → auto-fill team_name
+        //    depuis pose_teams.name (snapshot au moment du set)
+        //  - Si team_name est set (via bulk/legacy) et pose_team_id vide
+        //    → tenter matching name → set pose_team_id (harmonise avec
+        //    la command backfill)
+        static::saving(function (PoseTask $task) {
+            // Sens 1 : pose_team_id → team_name
+            if ($task->isDirty('pose_team_id') && $task->pose_team_id) {
+                $team = \App\Models\PoseTeam::find($task->pose_team_id);
+                if ($team && empty($task->team_name)) {
+                    $task->team_name = $team->name;
+                }
+            }
+            // Sens 2 : team_name → pose_team_id (best-effort, silencieux si
+            // pas de match ou ambiguïté — la command backfill loggue les cas)
+            if ($task->isDirty('team_name')
+                && !empty($task->team_name)
+                && empty($task->pose_team_id)) {
+                $matches = \App\Models\PoseTeam::query()
+                    ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower(trim($task->team_name))])
+                    ->limit(2)
+                    ->get();
+                if ($matches->count() === 1) {
+                    $task->pose_team_id = $matches->first()->id;
+                }
+            }
         });
 
         // ═══ Multi-poses (2026-08-04ter) — Rollback du chaînage à la
@@ -259,6 +335,16 @@ class PoseTask extends Model
     public function technicien()
     {
         return $this->belongsTo(User::class, 'assigned_user_id');
+    }
+
+    /**
+     * Équipe créditée pour cette pose (nullable — NULL = pose solo).
+     * Ajout 2026-08-10 : discriminant clé pour la refonte perf équipe.
+     * Cf. PoseTask::isTeamCredit() + scopes solo/teamCredit.
+     */
+    public function poseTeam(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(PoseTeam::class, 'pose_team_id');
     }
 
     /**

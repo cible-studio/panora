@@ -18,6 +18,7 @@
 
 @php
     $k = $aggregated['kpis'];
+    $contributions = $aggregated['contributions'] ?? collect();
     $teamHex = $team->colorHex();
     $teamBg  = $team->colorBgHex();
 @endphp
@@ -41,12 +42,23 @@
         </div>
     </div>
 
-    {{-- KPI cards agrégés --}}
+    {{-- Bandeau pédagogique — sémantique refonte 2026-08-10.
+         Sans ça, un admin voyant "0 pose réalisée" alors que ses techs
+         bossent, ne comprend pas que c'est un choix métier délibéré. --}}
+    <div style="background:linear-gradient(90deg,rgba(14,165,233,.06),rgba(14,165,233,.02));border:1px solid rgba(14,165,233,.25);border-left:3px solid #0ea5e9;border-radius:10px;padding:11px 15px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.55">
+        ℹ️ <strong>Poses créditées à l'équipe</strong> = poses explicitement attribuées à
+        <strong>{{ $team->name }}</strong> au moment de leur création (pose_team_id = {{ $team->id }}).
+        Les poses <em>solo</em> faites par les membres <strong>ne comptent pas ici</strong> —
+        elles apparaissent dans leur rapport individuel. Pour attribuer une pose à
+        l'équipe : sélectionner l'équipe au moment de la création / du rechange.
+    </div>
+
+    {{-- KPI cards équipe (uniquement poses avec pose_team_id = X) --}}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:16px">
         <div class="perf-kpi" style="border-left-color:#16a34a">
-            <div class="perf-kpi-label">Poses réalisées</div>
+            <div class="perf-kpi-label">Poses d'équipe réalisées</div>
             <div class="perf-kpi-val" style="color:#15803d">{{ $k['nb_poses_realisees'] }}</div>
-            <div class="perf-kpi-sub">{{ $k['nb_poses_total'] }} au total</div>
+            <div class="perf-kpi-sub">{{ $k['nb_poses_total'] }} attribuée(s) à l'équipe</div>
         </div>
         <div class="perf-kpi" style="border-left-color:#0ea5e9">
             <div class="perf-kpi-label">Réactivité moy équipe</div>
@@ -65,17 +77,20 @@
         </div>
     </div>
 
-    {{-- Classement membres --}}
+    {{-- Contributions individuelles aux poses d'équipe (info seule, PAS un classement)
+         2026-08-10 refonte : compte les piges effectivement uploadées par chaque
+         membre sur les poses d'équipe. Ne rentre PAS dans le mérite individuel
+         (qui reste sur les poses solo). --}}
     <div class="perf-card">
         <div class="perf-card-head">
             <div>
-                <div class="perf-card-title">🏆 Classement des membres</div>
-                <div class="perf-card-sub">{{ $memberRanking->count() }} technicien(s) — ordonné par poses réalisées</div>
-                {{-- Garde-fou A : sous-titre explicatif pour le drill équipe. --}}
+                <div class="perf-card-title">🤝 Contribution des membres aux poses d'équipe</div>
+                <div class="perf-card-sub">{{ $contributions->count() }} contributeur(s) sur la période</div>
                 <div style="font-size:11px;color:var(--text3);font-style:italic;margin-top:6px;line-height:1.5">
-                    ℹ️ Stats calculées sur les poses dont <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">assigned_user_id</code>
-                    pointe sur un membre <strong>actuel</strong> de l'équipe. Les anciens membres
-                    rattachés à cette équipe par le passé ne sont plus comptés ici.
+                    ℹ️ <strong>Compte les piges uploadées</strong> par chaque membre sur les poses
+                    d'équipe. Ce n'est <strong>pas un classement</strong> — le mérite d'une pose
+                    d'équipe est <strong>collectif</strong>. Cette section donne au manager de
+                    la visibilité sur qui a physiquement porté le terrain.
                 </div>
             </div>
         </div>
@@ -83,36 +98,55 @@
             <table class="perf-table">
                 <thead>
                     <tr>
-                        <th>#</th>
                         <th>Technicien</th>
-                        <th style="text-align:right">Réalisées</th>
-                        <th style="text-align:right">Réactivité</th>
-                        <th style="text-align:right">% Retard</th>
-                        <th style="text-align:right">% Piges rejetées</th>
+                        <th style="text-align:right">Piges uploadées (poses d'équipe)</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($memberRanking as $idx => $row)
-                        @php
-                            $u = $row['user'];
-                            $k2 = $row['kpis'];
-                            $rank = ['🥇','🥈','🥉'][$idx] ?? ($idx + 1);
-                        @endphp
+                    @forelse($contributions as $c)
                         <tr>
-                            <td style="font-weight:800">{{ $rank }}</td>
                             <td>
-                                <div style="font-weight:700">{{ $u->name }}</div>
-                                <div style="font-size:10.5px;color:var(--text3);font-family:monospace">{{ $u->agent_code }}</div>
+                                <div style="font-weight:700">{{ $c['user_name'] }}</div>
                             </td>
-                            <td style="text-align:right;font-weight:800;color:#16a34a">{{ $k2['nb_poses_realisees'] }}</td>
-                            <td style="text-align:right;color:var(--text2)">{{ \App\Support\HumanDuration::fromMinutes($k2['reactivite_avg_min']) }}</td>
-                            <td style="text-align:right;color:var(--text2)">{{ $k2['taux_poses_en_retard'] }} %</td>
-                            <td style="text-align:right;color:var(--text2)">{{ $k2['taux_piges_rejetees'] }} %</td>
-                            <td style="text-align:right"><a href="{{ route('admin.performance.tech.show', $u) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Détail →</a></td>
+                            <td style="text-align:right;font-weight:800;color:{{ $teamHex }}">{{ $c['nb_piges'] }}</td>
+                            <td style="text-align:right"><a href="{{ route('admin.performance.tech.show', $c['user_id']) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Voir rapport perso →</a></td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text3);font-style:italic">Aucun membre dans cette équipe.</td></tr>
+                        <tr><td colspan="3" style="text-align:center;padding:30px;color:var(--text3);font-style:italic">Aucune pige d'équipe uploadée sur la période. Attribuez des poses à cette équipe lors de la création / du rechange.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {{-- Membres actifs de l'équipe (annuaire) — info pure, sans stats.
+         Les stats individuelles solo sont sur le rapport tech. --}}
+    <div class="perf-card" style="margin-top:16px">
+        <div class="perf-card-head">
+            <div>
+                <div class="perf-card-title">👥 Membres actifs</div>
+                <div class="perf-card-sub">{{ $team->members->count() }} technicien(s) rattaché(s)</div>
+            </div>
+        </div>
+        <div class="perf-card-body--flush">
+            <table class="perf-table">
+                <thead>
+                    <tr>
+                        <th>Technicien</th>
+                        <th>Code</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($team->members as $u)
+                        <tr>
+                            <td style="font-weight:700">{{ $u->name }}</td>
+                            <td style="font-family:monospace;color:var(--text3);font-size:11px">{{ $u->agent_code ?? '—' }}</td>
+                            <td style="text-align:right"><a href="{{ route('admin.performance.tech.show', $u) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Rapport perso →</a></td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="3" style="text-align:center;padding:30px;color:var(--text3);font-style:italic">Aucun membre dans cette équipe.</td></tr>
                     @endforelse
                 </tbody>
             </table>

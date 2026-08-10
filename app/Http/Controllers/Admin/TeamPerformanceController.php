@@ -74,17 +74,22 @@ class TeamPerformanceController extends Controller
 
         [$from, $to] = $this->resolvePeriod($request);
 
-        $team->load(['leader:id,name,agent_code', 'members:id,name,pose_team_id,agent_code']);
+        // 2026-08-10 refonte : plus de `members:id,name,pose_team_id` — la
+        // colonne pose_team_id sur users est legacy (multi-équipe passe par
+        // le pivot pose_team_user). On charge les infos utiles à l'annuaire.
+        $team->load(['leader:id,name,agent_code', 'members:id,name,agent_code']);
         $aggregated = $this->perf->byTeam($team->id, $from, $to);
 
-        // Classement des membres au sein de l'équipe
-        $memberRanking = $team->members->map(fn ($m) => [
-            'user' => $m,
-            'kpis' => $this->perf->kpis($m->id, $from, $to),
-        ])->sortByDesc(fn ($r) => $r['kpis']['nb_poses_realisees'])->values();
+        // Le "classement des membres" par nb_poses_realisees est SUPPRIMÉ :
+        // il sommait les poses solo du membre pour le compte de l'équipe
+        // (bug identifié 2026-08-10). La vue affiche désormais :
+        //   - contributions (aggregated['contributions']) : piges de chaque
+        //     membre sur les poses d'équipe (info seule, pas classement)
+        //   - annuaire des membres (team->members) : liens vers leur rapport
+        //     perso pour voir leur mérite individuel (poses solo).
 
         return view('admin.performance.equipes.show', compact(
-            'team', 'aggregated', 'memberRanking', 'from', 'to'
+            'team', 'aggregated', 'from', 'to'
         ));
     }
 

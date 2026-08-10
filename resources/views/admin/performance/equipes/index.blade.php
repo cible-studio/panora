@@ -71,7 +71,17 @@
     </form>
 
     <div class="perf-card">
-        <div class="perf-card-head"><div><div class="perf-card-title">🏆 Classement équipes</div><div class="perf-card-sub">Ordonné par poses réalisées</div></div></div>
+        <div class="perf-card-head">
+            <div>
+                <div class="perf-card-title">🏆 Classement équipes</div>
+                <div class="perf-card-sub">Ordonné par poses d'équipe réalisées</div>
+                <div style="font-size:11px;color:var(--text3);font-style:italic;margin-top:6px;line-height:1.5">
+                    ℹ️ Compte uniquement les poses explicitement attribuées à chaque équipe
+                    (<code style="background:var(--surface2);padding:1px 5px;border-radius:4px">pose_team_id</code>).
+                    Les poses <em>solo</em> des membres apparaissent dans leur rapport individuel.
+                </div>
+            </div>
+        </div>
         <div class="perf-card-body--flush">
             <table class="perf-table">
                 <thead>
@@ -80,7 +90,7 @@
                         <th>Équipe</th>
                         <th>Leader</th>
                         <th style="text-align:right">Membres</th>
-                        <th style="text-align:right">Réalisées</th>
+                        <th style="text-align:right">Poses d'équipe</th>
                         <th style="text-align:right">Réactivité moy</th>
                         <th style="text-align:right">% Retard</th>
                         <th style="text-align:right">% Piges rejetées</th>

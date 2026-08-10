@@ -58,12 +58,22 @@
         'compact'      => true,
     ])
 
+    {{-- Bandeau pédagogique — sémantique refonte 2026-08-10 : les KPI ci-dessous
+         comptent UNIQUEMENT le mérite individuel (poses solo). Les contributions
+         aux poses d'équipe apparaissent dans une section dédiée plus bas. --}}
+    <div style="background:linear-gradient(90deg,rgba(22,163,74,.06),rgba(22,163,74,.02));border:1px solid rgba(22,163,74,.25);border-left:3px solid #16a34a;border-radius:10px;padding:11px 15px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.55">
+        ℹ️ Les KPI ci-dessous mesurent le <strong>mérite individuel</strong> :
+        uniquement les poses <em>solo</em> assignées à {{ $user->name }}. Les poses
+        qu'il a piged pour une équipe apparaissent dans la section
+        <a href="#contribution-equipes" style="color:#0ea5e9;font-weight:700">🤝 Contribution équipes</a> plus bas.
+    </div>
+
     {{-- 6 KPI cards --}}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:16px">
         <div class="perf-kpi" style="border-left-color:#16a34a">
-            <div class="perf-kpi-label">Poses réalisées</div>
+            <div class="perf-kpi-label">Poses solo réalisées</div>
             <div class="perf-kpi-val" style="color:#15803d">{{ $kpis['nb_poses_realisees'] }}</div>
-            <div class="perf-kpi-sub">{{ $kpis['nb_poses_total'] }} au total</div>
+            <div class="perf-kpi-sub">{{ $kpis['nb_poses_total'] }} au total (mérite perso)</div>
         </div>
         <div class="perf-kpi" style="border-left-color:#0ea5e9">
             <div class="perf-kpi-label">Réactivité moy</div>
@@ -104,17 +114,69 @@
         </div>
     </div>
 
-    {{-- Tableau poses --}}
+    {{-- ══ Contribution aux poses d'équipe (info seule) ══ 2026-08-10.
+         Bloc grisé qui liste les piges du tech sur des poses D'ÉQUIPE, groupées
+         par équipe. Ces piges ne comptent pas dans les KPI ci-dessus (défaut solo).
+         @isset : rétrocompat — la variable peut ne pas être passée sur des vues
+         appelées depuis des contextes tiers. --}}
+    @isset($teamContributions)
+        <div id="contribution-equipes" class="perf-card" style="margin-bottom:16px;border:1px dashed var(--border);background:var(--surface2)">
+            <div class="perf-card-head" style="background:transparent">
+                <div>
+                    <div class="perf-card-title" style="color:var(--text2)">🤝 Contribution aux poses d'équipe</div>
+                    <div class="perf-card-sub">{{ $teamContributions->count() }} équipe(s) sur la période</div>
+                    <div style="font-size:11px;color:var(--text3);font-style:italic;margin-top:6px;line-height:1.5">
+                        Piges uploadées par {{ $user->name }} sur des poses attribuées à une équipe.
+                        <strong>Ne compte pas</strong> dans son mérite individuel — le crédit va à
+                        l'équipe. C'est de la visibilité informelle pour son manager.
+                    </div>
+                </div>
+            </div>
+            <div class="perf-card-body--flush">
+                <table class="perf-table">
+                    <thead>
+                        <tr>
+                            <th>Équipe créditée</th>
+                            <th style="text-align:right">Piges uploadées</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($teamContributions as $c)
+                            @php
+                                $hex = \App\Models\PoseTeam::COLOR_PALETTE[$c['color_slug']] ?? '#6366f1';
+                            @endphp
+                            <tr>
+                                <td>
+                                    <span style="display:inline-flex;align-items:center;gap:8px">
+                                        <span style="width:14px;height:14px;border-radius:4px;background:{{ $hex }}"></span>
+                                        <strong>{{ $c['team_name'] }}</strong>
+                                    </span>
+                                </td>
+                                <td style="text-align:right;font-weight:800;color:{{ $hex }}">{{ $c['nb_piges'] }}</td>
+                                <td style="text-align:right"><a href="{{ route('admin.performance.team.show', $c['team_id']) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Voir équipe →</a></td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text3);font-style:italic">Aucune contribution équipe sur la période.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endisset
+
+    {{-- Tableau poses SOLO du technicien --}}
     <div class="perf-card">
         <div class="perf-card-head">
             <div>
-                <div class="perf-card-title">📋 Poses du technicien</div>
+                <div class="perf-card-title">📋 Poses solo du technicien</div>
                 <div class="perf-card-sub">{{ $poses->total() }} pose(s) · page {{ $poses->currentPage() }}/{{ $poses->lastPage() }}</div>
                 {{-- Garde-fou A : sous-titre explicatif sur le team_name historique. --}}
                 <div style="font-size:11px;color:var(--text3);font-style:italic;margin-top:6px;line-height:1.5">
-                    ℹ️ L'équipe affichée dans chaque ligne correspond à celle du technicien
-                    <strong>au moment de la pose</strong>. Si le tech a changé d'équipe depuis,
-                    les anciennes poses gardent leur ancien rattachement (préservation historique).
+                    ℹ️ Uniquement les poses <strong>solo</strong> (sans équipe créditée).
+                    L'équipe affichée en colonne correspond à celle du technicien
+                    <strong>au moment de la pose</strong> (snapshot legacy, préservation
+                    historique). Pour les poses d'équipe, voir la section ci-dessus.
                 </div>
             </div>
         </div>

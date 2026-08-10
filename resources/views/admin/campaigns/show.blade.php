@@ -2494,10 +2494,19 @@
                     </div>
 
                     <div style="margin-bottom:14px">
-                        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Équipe (facultatif)</label>
-                        <input type="text" name="team_name" maxlength="100"
-                               placeholder="Ex: Équipe Cocody, Équipe San-Pédro…"
-                               style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Équipe créditée (facultatif)</label>
+                        {{-- 2026-08-10 : basculé sur pose_team_id (FK) pour
+                             attribution mérite collectif. Cf. refonte KPI. --}}
+                        <select name="pose_team_id"
+                                style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                            <option value="">— Aucune (crédit individuel du tech) —</option>
+                            @foreach(($poseTeams ?? collect()) as $t)
+                                <option value="{{ $t->id }}">👥 {{ $t->name }} — crédit équipe</option>
+                            @endforeach
+                        </select>
+                        <div style="font-size:10.5px;color:var(--text3);margin-top:4px;font-style:italic;line-height:1.4">
+                            Si tech + équipe : la pose est attribuée à l'équipe (mérite collectif), le tech reste le porteur physique.
+                        </div>
                     </div>
 
                     <div style="margin-bottom:16px">

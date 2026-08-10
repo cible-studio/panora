@@ -213,21 +213,22 @@ window.__POSE__ = {
                                 style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;cursor:pointer"
                                 title="Créer une équipe rapidement (sans quitter ce formulaire)">+ Nouvelle équipe</button>
                     </div>
-                    <select name="team_name" id="sel-team" class="pose-select">
-                        <option value="">— Aucune / hérite du technicien —</option>
+                    {{-- 2026-08-10 : basculé sur pose_team_id (FK). L'observer
+                         PoseTask::saving auto-synchronise team_name (snapshot).
+                         Une sélection ici = pose CRÉDITÉE À L'ÉQUIPE (mérite
+                         collectif, cf. refonte KPI). Value 0/vide = pose solo. --}}
+                    <select name="pose_team_id" id="sel-team" class="pose-select">
+                        <option value="">— Aucune (pose solo, crédit individuel) —</option>
                         @foreach(($teams ?? collect()) as $team)
-                            <option value="{{ $team->name }}" {{ old('team_name')===$team->name?'selected':'' }}>{{ $team->name }}</option>
+                            <option value="{{ $team->id }}" {{ (int) old('pose_team_id')===(int) $team->id?'selected':'' }}>👥 {{ $team->name }} — crédit équipe</option>
                         @endforeach
-                        @php $oldTeam = old('team_name'); @endphp
-                        @if($oldTeam && !($teams ?? collect())->contains('name', $oldTeam))
-                            <option value="{{ $oldTeam }}" selected>{{ $oldTeam }} (legacy)</option>
-                        @endif
                     </select>
                 </div>
             </div>
             {{-- JS auto-fill équipe au change technicien — seulement si l'admin
                  n'a pas encore choisi une équipe explicitement (sinon on respecte
-                 son choix). --}}
+                 son choix). Bascule 2026-08-10 : les option values sont désormais
+                 les pose_team_id (int), pas les team_name (string). --}}
             @push('scripts')
             <script>
             (function () {
@@ -238,19 +239,14 @@ window.__POSE__ = {
                 try { teamByUser = JSON.parse(selTech.dataset.teamByUser || '{}'); } catch (e) {}
 
                 selTech.addEventListener('change', function () {
-                    // 2026-06-19 — Multi-équipe : teamByUser[id] est désormais un ARRAY.
-                    // On n'auto-fill que si le tech a EXACTEMENT 1 équipe.
-                    // S'il en a plusieurs ou aucune, l'admin choisit manuellement
-                    // (cohérent avec PoseTask::saving observer).
+                    // Auto-fill si tech mono-équipe. teamByUser[id] est un array
+                    // d'objets { id, name } (cf. controller). On sélectionne l'ID.
                     var teamsList = teamByUser[selTech.value];
                     if (!Array.isArray(teamsList) || teamsList.length !== 1) return;
-                    var teamName = teamsList[0];
-                    var opt = Array.from(selTeam.options).find(function (o) { return o.value === teamName; });
-                    if (!opt) {
-                        opt = new Option(teamName, teamName, false, false);
-                        selTeam.appendChild(opt);
-                    }
-                    selTeam.value = teamName;
+                    var team = teamsList[0];
+                    var teamId = String(typeof team === 'object' ? team.id : team);
+                    var opt = Array.from(selTeam.options).find(function (o) { return o.value === teamId; });
+                    if (opt) selTeam.value = teamId;
                 });
             })();
             </script>

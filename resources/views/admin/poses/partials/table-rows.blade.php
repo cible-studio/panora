@@ -346,6 +346,7 @@
                        {{ $isFinal ? 'disabled' : '' }}
                        data-tech-id="{{ $task->assigned_user_id ?? '' }}"
                        data-team="{{ $task->team_name ?? '' }}"
+                       data-team-id="{{ $task->pose_team_id ?? '' }}"
                        data-status="{{ $task->status }}"
                        data-campaign-id="{{ $task->campaign_id ?? 'none' }}"
                        title="{{ $isFinal ? 'Tâche terminée — non modifiable en masse' : 'Sélectionner' }}"
@@ -386,6 +387,12 @@
                     $tech = $task->technicien;
                     $techInitials = $tech ? mb_strtoupper(mb_substr(collect(explode(' ', $tech->name))->map(fn($w)=>$w[0] ?? '')->take(2)->implode(''), 0, 2)) : '';
                     $hasWa = $tech && !empty($tech->whatsapp_number);
+                    // 2026-08-10 : badge équipe coloré si pose_team_id renseigné
+                    // (mérite collectif). Fallback team_name pour poses legacy.
+                    $poseTeam = $task->poseTeam ?? null;
+                    $teamLabel = $poseTeam?->name ?? $task->team_name;
+                    $teamHex = $poseTeam?->colorHex();
+                    $teamBg  = $poseTeam?->colorBgHex();
                 @endphp
                 @if($tech)
                 <div style="display:flex;align-items:center;gap:8px;min-width:0">
@@ -394,11 +401,25 @@
                     </div>
                     <div style="min-width:0">
                         <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px" title="{{ $tech->name }}">{{ $tech->name }}</div>
-                        @if($task->team_name)
-                            <div style="font-size:10px;color:var(--text3)">👥 {{ $task->team_name }}</div>
+                        @if($poseTeam)
+                            <div title="Pose créditée à l'équipe {{ $poseTeam->name }} (mérite collectif)"
+                                 style="display:inline-flex;align-items:center;gap:4px;margin-top:2px;padding:1px 6px;border-radius:999px;background:{{ $teamBg }};border:1px solid {{ $teamHex }};font-size:9.5px;font-weight:700;color:{{ $teamHex }};line-height:1.4">👥 {{ $poseTeam->name }}</div>
+                        @elseif($task->team_name)
+                            <div style="font-size:10px;color:var(--text3)" title="Équipe (label legacy — pas de FK)">👥 {{ $task->team_name }}</div>
                         @elseif(!$hasWa)
                             <div style="font-size:9px;color:#ef4444">⚠ Pas de WhatsApp</div>
                         @endif
+                    </div>
+                </div>
+                @elseif($poseTeam)
+                {{-- Pool équipe : aucun tech nommé, uniquement pose_team_id.
+                     Le mérite est collectif — la pose est ouverte à tous les
+                     membres de l'équipe (cf. sémantique 2026-08-10). --}}
+                <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                    <div style="width:28px;height:28px;border-radius:50%;background:{{ $teamBg }};border:2px solid {{ $teamHex }};color:{{ $teamHex }};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0">👥</div>
+                    <div style="min-width:0">
+                        <div style="font-size:12px;color:{{ $teamHex }};font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px">{{ $poseTeam->name }}</div>
+                        <div style="font-size:9.5px;color:var(--text3);font-style:italic">Pool équipe (crédit collectif)</div>
                     </div>
                 </div>
                 @elseif($task->tech_name_self)

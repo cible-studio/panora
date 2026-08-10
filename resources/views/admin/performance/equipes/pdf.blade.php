@@ -33,6 +33,10 @@
         <h1>PERFORMANCE ÉQUIPES</h1>
         <div class="period">Classement des équipes de pose · CIBLE CI</div>
         <div class="period">Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ $from->diffInDays($to) + 1 }} jours)</div>
+        <div class="period" style="font-style:italic;color:#6b7280;font-size:9px;margin-top:3px">
+            Compte uniquement les poses attribuées à chaque équipe (pose_team_id).
+            Les poses solo des membres sont dans le rapport individuel technicien.
+        </div>
     </div>
     <div class="right">
         Édité le {{ $generatedAt->format('d/m/Y à H:i') }}<br>
@@ -48,7 +52,7 @@
             <th>Équipe</th>
             <th>Leader</th>
             <th class="r">Membres</th>
-            <th class="r">Poses réalisées</th>
+            <th class="r">Poses d'équipe</th>
             <th class="r">Réactivité moy.</th>
             <th class="r">% en retard</th>
             <th class="r">% piges rejetées</th>

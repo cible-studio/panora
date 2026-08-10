@@ -49,6 +49,8 @@ class PoseController extends Controller
             // colonne, le badge rouge s'affichait pour TOUS les techs même
             // ceux qui ont un numéro configuré.
             'technicien:id,name,whatsapp_number',
+            // 2026-08-10 : badge coloré équipe dans la colonne Technicien.
+            'poseTeam:id,name,color_slug',
         ])->withCount([
             'piges as pige_count',
             'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
@@ -407,9 +409,11 @@ class PoseController extends Controller
         $teams = \App\Models\PoseTeam::where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name']);
+        // 2026-08-10 : basculé sur [{id, name}] au lieu de [name] pour
+        // permettre au JS create/edit d'auto-fill le select pose_team_id (FK).
         $teamByUser = $techniciens
-            ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeams->pluck('name')->all()])
-            ->filter(fn ($names) => !empty($names))
+            ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeams->map(fn ($t) => ['id' => $t->id, 'name' => $t->name])->values()->all()])
+            ->filter(fn ($teams) => !empty($teams))
             ->toArray();
 
         $preselectedCampaign = null;
@@ -442,6 +446,8 @@ class PoseController extends Controller
             'scheduled_at'     => 'required|date',
             'assigned_user_id' => 'nullable|exists:users,id',
             'team_name'        => 'nullable|string|max:100',
+            // 2026-08-10 : mérite pose (solo=NULL, équipe=X). Cf. refonte KPI.
+            'pose_team_id'     => 'nullable|integer|exists:pose_teams,id',
             'notes'            => 'nullable|string|max:1000',
             'pose_kind'        => 'nullable|in:rechange,retouche',
         ], [
@@ -493,6 +499,8 @@ class PoseController extends Controller
             'scheduled_at'     => 'required|date',
             'assigned_user_id' => 'nullable|exists:users,id',
             'team_name'        => 'nullable|string|max:100',
+            // 2026-08-10 : mérite pose (solo=NULL, équipe=X). Cf. refonte KPI.
+            'pose_team_id'     => 'nullable|integer|exists:pose_teams,id',
             'notes'            => 'nullable|string|max:1000',
             'pose_kind'        => 'nullable|in:rechange,retouche',
         ], [
@@ -643,9 +651,11 @@ class PoseController extends Controller
         $teams = \App\Models\PoseTeam::where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name']);
+        // 2026-08-10 : basculé sur [{id, name}] au lieu de [name] pour
+        // permettre au JS create/edit d'auto-fill le select pose_team_id (FK).
         $teamByUser = $techniciens
-            ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeams->pluck('name')->all()])
-            ->filter(fn ($names) => !empty($names))
+            ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeams->map(fn ($t) => ['id' => $t->id, 'name' => $t->name])->values()->all()])
+            ->filter(fn ($teams) => !empty($teams))
             ->toArray();
 
         return view('admin.poses.edit', compact('poseTask', 'techniciens', 'teams', 'teamByUser'));

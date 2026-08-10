@@ -154,4 +154,183 @@ class M2TeamAndPerfTest extends TestCase
         // Skip intégral si pose_tasks.panel_id contraint NOT NULL et qu'on a pas de Panel.
         $this->markTestSkipped('Observer test couvert manuellement par TEST 4 du checklist utilisateur.');
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // Refonte 2026-08-10 — Discrimination crédit solo vs équipe
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Le rapport tech (kpis) ne compte QUE les poses solo par défaut.
+     * Une pose créditée à l'équipe ne doit PAS remonter dans son KPI perso.
+     */
+    public function test_kpis_tech_default_excludes_team_credited_poses(): void
+    {
+        $tech = User::factory()->create(['role' => UserRole::Technique->value]);
+        $team = PoseTeam::create(['name' => 'Team A', 'color_slug' => 'blue']);
+        $panel = \App\Models\Panel::factory()->create();
+
+        // Pose SOLO — doit compter
+        \App\Models\PoseTask::create([
+            'panel_id'         => $panel->id,
+            'assigned_user_id' => $tech->id,
+            'pose_team_id'     => null,
+            'status'           => 'realisee',
+            'scheduled_at'     => now(),
+            'done_at'          => now(),
+        ]);
+        // Pose ÉQUIPE — ne doit PAS compter dans le KPI tech par défaut
+        \App\Models\PoseTask::create([
+            'panel_id'         => $panel->id,
+            'assigned_user_id' => $tech->id,
+            'pose_team_id'     => $team->id,
+            'status'           => 'realisee',
+            'scheduled_at'     => now(),
+            'done_at'          => now(),
+        ]);
+
+        $service = app(\App\Services\TechnicianPerformanceService::class);
+        $kpis = $service->kpis($tech->id, now()->startOfMonth(), now()->endOfMonth());
+        $this->assertEquals(1, $kpis['nb_poses_realisees'], 'KPI tech doit compter uniquement les poses solo');
+
+        // Avec CREDIT_ALL on retrouve les 2 (vue direction / globale)
+        $kpisAll = $service->kpis($tech->id, now()->startOfMonth(), now()->endOfMonth(), \App\Services\TechnicianPerformanceService::CREDIT_ALL);
+        $this->assertEquals(2, $kpisAll['nb_poses_realisees']);
+    }
+
+    /**
+     * Le rapport équipe (byTeam) compte les poses attribuées via pose_team_id,
+     * PAS via l'appartenance des membres. Le bug pré-refonte est corrigé.
+     */
+    public function test_byteam_counts_only_pose_team_id_credited(): void
+    {
+        $tech = User::factory()->create(['role' => UserRole::Technique->value]);
+        $team = PoseTeam::create(['name' => 'Team B', 'color_slug' => 'green']);
+        $team->members()->attach($tech->id);
+        $panel = \App\Models\Panel::factory()->create();
+
+        // 2 poses SOLO faites par le membre — ne doivent PAS être créditées à l'équipe
+        // 2 poses solo — insertion manuelle sans factory
+        for ($i = 0; $i < 2; $i++) \App\Models\PoseTask::create([
+            'panel_id'         => $panel->id,
+            'assigned_user_id' => $tech->id,
+            'pose_team_id'     => null,
+            'status'           => 'realisee',
+            'scheduled_at'     => now(),
+            'done_at'          => now(),
+        ]);
+        // 1 pose ÉQUIPE — doit être créditée
+        \App\Models\PoseTask::create([
+            'panel_id'         => $panel->id,
+            'assigned_user_id' => $tech->id,
+            'pose_team_id'     => $team->id,
+            'status'           => 'realisee',
+            'scheduled_at'     => now(),
+            'done_at'          => now(),
+        ]);
+
+        $service = app(\App\Services\TechnicianPerformanceService::class);
+        $result = $service->byTeam($team->id, now()->startOfMonth(), now()->endOfMonth());
+        $this->assertEquals(1, $result['kpis']['nb_poses_realisees'], 'Équipe ne doit compter que les poses attribuées explicitement');
+    }
+
+    /**
+     * Le rechange hérite du pose_team_id du parent par défaut.
+     * → pose équipe → rechange équipe (même équipe).
+     */
+    public function test_rechange_inherits_pose_team_id_from_parent(): void
+    {
+        $tech = User::factory()->create(['role' => UserRole::Technique->value]);
+        $team = PoseTeam::create(['name' => 'Team C', 'color_slug' => 'purple']);
+        $panel = \App\Models\Panel::factory()->create();
+
+        $parent = \App\Models\PoseTask::create([
+            'panel_id'         => $panel->id,
+            'assigned_user_id' => $tech->id,
+            'pose_team_id'     => $team->id,
+            'status'           => 'realisee',
+            'scheduled_at'     => now(),
+            'done_at'          => now(),
+        ]);
+
+        $service = app(\App\Services\PoseService::class);
+        $result = $service->createRechange($parent, [
+            'scheduled_at' => now()->addDay(),
+            'pose_kind'    => 'rechange',
+        ], $this->admin);
+
+        $this->assertTrue($result['ok']);
+        $this->assertEquals($team->id, $result['task']->pose_team_id, 'Rechange doit hériter du pose_team_id du parent');
+    }
+
+    /**
+     * Le MP peut override le pose_team_id lors d'un rechange
+     * (bascule équipe → solo ou vers une autre équipe).
+     */
+    public function test_rechange_can_override_pose_team_id(): void
+    {
+        $tech = User::factory()->create(['role' => UserRole::Technique->value]);
+        $teamA = PoseTeam::create(['name' => 'Team A', 'color_slug' => 'blue']);
+        $teamB = PoseTeam::create(['name' => 'Team B', 'color_slug' => 'red']);
+        $panel = \App\Models\Panel::factory()->create();
+
+        $parent = \App\Models\PoseTask::create([
+            'panel_id'         => $panel->id,
+            'assigned_user_id' => $tech->id,
+            'pose_team_id'     => $teamA->id,
+            'status'           => 'realisee',
+            'scheduled_at'     => now(),
+            'done_at'          => now(),
+        ]);
+
+        $service = app(\App\Services\PoseService::class);
+
+        // Override vers Team B
+        $r1 = $service->createRechange($parent, [
+            'scheduled_at' => now()->addDay(),
+            'pose_kind'    => 'rechange',
+            'pose_team_id' => $teamB->id,
+        ], $this->admin);
+        $this->assertEquals($teamB->id, $r1['task']->pose_team_id);
+
+        // Réouvrir la source (rollback replaced_at) via delete du 1er rechange
+        $r1['task']->delete();
+        $parent->refresh();
+        $this->assertNull($parent->replaced_at);
+
+        // Override vers solo (NULL explicite)
+        $r2 = $service->createRechange($parent, [
+            'scheduled_at' => now()->addDay(),
+            'pose_kind'    => 'rechange',
+            'pose_team_id' => null,
+        ], $this->admin);
+        $this->assertNull($r2['task']->pose_team_id, 'MP peut basculer équipe → solo sur rechange');
+    }
+
+    /**
+     * Backfill command : matche team_name → pose_teams.name (case-insensitive)
+     * et renseigne pose_team_id. Idempotent (skip les poses déjà FK).
+     */
+    public function test_backfill_command_matches_team_name_to_pose_teams(): void
+    {
+        $team = PoseTeam::create(['name' => 'Cocody', 'color_slug' => 'blue']);
+        $panel = \App\Models\Panel::factory()->create();
+
+        // Pose legacy avec team_name mais pose_team_id NULL
+        $legacy = \App\Models\PoseTask::create([
+            'panel_id'     => $panel->id,
+            'team_name'    => 'cocody', // case différent — matching lowercase
+            'pose_team_id' => null,
+            'scheduled_at' => now(),
+        ]);
+
+        $this->artisan('posetasks:backfill-team-ids', ['--apply' => true])
+             ->assertSuccessful();
+
+        $legacy->refresh();
+        $this->assertEquals($team->id, $legacy->pose_team_id, 'Backfill doit renseigner la FK depuis team_name');
+
+        // Re-run : idempotent (ne casse rien)
+        $this->artisan('posetasks:backfill-team-ids', ['--apply' => true])
+             ->assertSuccessful();
+    }
 }

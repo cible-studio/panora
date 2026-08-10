@@ -150,8 +150,16 @@
 
             {{-- Bloc pose : technicien / équipe assigné(s)
                  2026-06-25 — Date de pose retirée (demande user). On garde
-                 uniquement l'assignation pour identifier qui fait quoi. --}}
-            @if($pose && ($pose->technicien || $pose->team_name))
+                 uniquement l'assignation pour identifier qui fait quoi.
+                 2026-08-10 (option A validée user) — si pose_team_id renseigné,
+                 c'est une pose CRÉDITÉE À L'ÉQUIPE (mérite collectif) :
+                 on affiche "Équipe X" comme porteur principal, sans le nom
+                 du tech (même s'il est renseigné en interne). --}}
+            @if($pose && $pose->pose_team_id)
+                <div class="pose-info">
+                    <strong>👥 Prise par : Équipe {{ $pose->poseTeam?->name ?? $pose->team_name ?? '—' }}</strong>
+                </div>
+            @elseif($pose && ($pose->technicien || $pose->team_name))
                 <div class="pose-info">
                     @if($pose->technicien)
                         <strong>👷 Technicien :</strong> {{ $pose->technicien->name }}

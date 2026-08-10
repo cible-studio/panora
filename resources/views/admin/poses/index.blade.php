@@ -440,15 +440,22 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                  select alimenté par PoseTeam. Option vide en tête = "détacher"
                  (envoie une chaîne vide → côté serveur on traitera comme null). --}}
             <div class="pose-bulk-field">
-                <label class="pose-bulk-label"><span>👥 Équipe</span></label>
+                <label class="pose-bulk-label" title="Attribue le mérite pose à une équipe (crédit collectif). Cf. rapport perf équipe."><span>👥 Équipe créditée</span></label>
                 <div class="pose-bulk-input-row">
+                    {{-- 2026-08-10 : basculé sur pose_team_id via action bulk
+                         "assign_team". Le service met à jour pose_team_id ET
+                         team_name (snapshot). Option 0 = pose solo. --}}
                     <select id="bulk-team" class="filter-select">
                         <option value="">— Choisir —</option>
+                        <option value="0">(retirer — pose solo)</option>
                         @foreach(($teams ?? collect()) as $t)
-                            <option value="{{ $t->name }}">{{ $t->name }}</option>
+                            <option value="{{ $t->id }}">👥 {{ $t->name }}</option>
                         @endforeach
                     </select>
                     <button type="button" id="bulk-team-apply" class="btn btn-sm btn-ghost">Appliquer</button>
+                </div>
+                <div class="pose-bulk-hint" style="font-size:10.5px;color:var(--text3);margin-top:4px;font-style:italic">
+                    Attribue à une équipe = crédit collectif dans /performance/équipes.
                 </div>
             </div>
 
@@ -541,6 +548,22 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                         @endforeach
                     </select>
                 </div>
+                {{-- 2026-08-10 : select équipe pour attribution mérite collectif.
+                     Vide = hérite du parent (comportement défaut createRechange). --}}
+                <div style="margin-bottom:14px">
+                    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Équipe créditée (facultatif)</label>
+                    <select id="bulk-rechange-team"
+                            style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                        <option value="">— Hérite du parent (recommandé) —</option>
+                        <option value="0">Aucune (rechange solo)</option>
+                        @foreach(($teams ?? collect()) as $t)
+                            <option value="{{ $t->id }}">👥 {{ $t->name }} — crédit équipe</option>
+                        @endforeach
+                    </select>
+                    <div style="font-size:10.5px;color:var(--text3);margin-top:4px;font-style:italic;line-height:1.4">
+                        Par défaut le rechange conserve le contexte du parent (solo→solo, équipe→équipe).
+                    </div>
+                </div>
                 <div style="margin-bottom:16px">
                     <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Notes (facultatif)</label>
                     <textarea id="bulk-rechange-notes" rows="2" maxlength="1000"
@@ -613,16 +636,17 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             if (techHint) techHint.style.display = 'none';
         }
 
-        // Équipe : commune ?
-        const teams = [...new Set(checked.map(cb => cb.dataset.team || ''))];
-        if (teams.length === 1 && teams[0] !== '' && teamInp && !teamInp.dataset.userTouched) {
-            teamInp.value = teams[0];
+        // Équipe : commune ? 2026-08-10 bascule sur data-team-id (FK)
+        // au lieu de data-team (name). Fallback name conservé si FK vide.
+        const teamIds = [...new Set(checked.map(cb => cb.dataset.teamId || ''))];
+        if (teamIds.length === 1 && teamIds[0] !== '' && teamInp && !teamInp.dataset.userTouched) {
+            teamInp.value = teamIds[0];
         }
     }
 
     // Marquer les inputs comme "touchés" pour ne pas écraser la saisie user
     document.getElementById('bulk-tech')?.addEventListener('change', function () { this.dataset.userTouched = '1'; });
-    document.getElementById('bulk-team')?.addEventListener('input',  function () { this.dataset.userTouched = '1'; });
+    document.getElementById('bulk-team')?.addEventListener('change', function () { this.dataset.userTouched = '1'; });
 
     // Observer les changements de selection
     document.addEventListener('change', (e) => {
@@ -1039,10 +1063,15 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
     });
 
     document.getElementById('bulk-team-apply')?.addEventListener('click', () => {
-        const input = document.getElementById('bulk-team');
-        const val   = (input.value || '').trim();
-        const label = val ? `équipe "${val}"` : 'retirer le nom d\'équipe';
-        postBulk('rename_team', val,
+        const sel   = document.getElementById('bulk-team');
+        const val   = (sel.value || '').trim();
+        if (val === '') { showToast('warning', 'Choisissez une équipe.', 2500, 'Action groupée'); return; }
+        // 2026-08-10 : bascule sur assign_team (pose_team_id FK). Valeur 0 =
+        // retirer l'attribution (pose solo). Sinon = ID de l'équipe.
+        const label = val === '0'
+            ? 'retirer l\'attribution équipe (pose solo)'
+            : `attribuer à l'équipe "${sel.options[sel.selectedIndex]?.text || ''}"`;
+        postBulk('assign_team', val,
             `Confirmer : ${label} sur ${selected.size} tâche(s) ?`);
     });
 
@@ -1079,6 +1108,7 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         const dateVal  = document.getElementById('bulk-rechange-date').value;
         const kindVal  = document.getElementById('bulk-rechange-kind').value;
         const techVal  = document.getElementById('bulk-rechange-tech').value;
+        const teamVal  = document.getElementById('bulk-rechange-team')?.value ?? '';
         const notesVal = document.getElementById('bulk-rechange-notes').value;
         if (!dateVal) {
             showToast('warning', 'Choisissez une date.', 2500, 'Rechange');
@@ -1099,6 +1129,11 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             fd.append('scheduled_at', dateVal);
             fd.append('pose_kind', kindVal);
             if (techVal)  fd.append('assigned_user_id', techVal);
+            // 2026-08-10 : teamVal '' = hérite parent (défaut), '0' = solo
+            // (envoie explicitement une valeur vide pour clear pose_team_id),
+            // sinon FK équipe. On envoie uniquement si != '' pour distinguer
+            // "hérite" (clé absente) de "explicite" (clé présente = override).
+            if (teamVal !== '') fd.append('pose_team_id', teamVal === '0' ? '' : teamVal);
             if (notesVal) fd.append('notes', notesVal);
 
             const res = await fetch(@json(route('admin.pose-tasks.rechange-bulk')), {
