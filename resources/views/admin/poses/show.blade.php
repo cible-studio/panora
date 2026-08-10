@@ -166,7 +166,7 @@ $sIconLg = match($poseTask->status) {
                     ['CAMPAGNE',     $poseTask->campaign?->name ?? 'Sans campagne', null, $poseTask->campaign ? route('admin.campaigns.show', $poseTask->campaign) : null],
                     ['STATUT CAMP.', $poseTask->campaign?->status?->label() ?? '—', $poseTask->campaign?->status?->uiConfig()['color'] ?? null, null],
                     ['TECHNICIEN',   $poseTask->technicien?->name ?? 'Non assigné', null, null],
-                    ['ÉQUIPE',       $poseTask->team_name ?? '—', null, null],
+                    ['ÉQUIPE',       $poseTask->poseTeam?->name ?? $poseTask->team_name ?? '—', null, null],
                     ['PLANIFIÉ LE',  $poseTask->scheduled_at?->format('d/m/Y à H:i') ?? '—', $isLate ? '#ef4444' : null, null],
                     ['RÉALISÉ LE',   $poseTask->done_at?->format('d/m/Y à H:i') ?? '—', $poseTask->done_at ? '#22c55e' : null, null],
                 ];
