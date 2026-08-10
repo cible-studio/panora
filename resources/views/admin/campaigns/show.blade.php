@@ -2483,21 +2483,24 @@
                         {{-- Tech assigné --}}
                         <div>
                             <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Technicien assigné (tous)</label>
-                            <select name="assigned_user_id"
+                            <select name="assigned_user_id" id="rechange-campaign-tech"
                                     style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
                                 <option value="">— Non assigné —</option>
                                 @foreach($technicians as $t)
                                     <option value="{{ $t->id }}">{{ $t->name }}</option>
                                 @endforeach
                             </select>
+                            <div id="rechange-campaign-tech-hint" style="display:none;margin-top:4px;font-size:11px;font-style:italic"></div>
                         </div>
                     </div>
 
                     <div style="margin-bottom:14px">
                         <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Équipe créditée (facultatif)</label>
                         {{-- 2026-08-10 : basculé sur pose_team_id (FK) pour
-                             attribution mérite collectif. Cf. refonte KPI. --}}
-                        <select name="pose_team_id"
+                             attribution mérite collectif. Cf. refonte KPI.
+                             v2 : au change → filtre le select tech ci-dessus
+                             pour n'afficher que les membres de l'équipe. --}}
+                        <select name="pose_team_id" id="rechange-campaign-team"
                                 style="width:100%;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
                             <option value="">— Aucune (crédit individuel du tech) —</option>
                             @foreach(($poseTeams ?? collect()) as $t)
@@ -2508,6 +2511,14 @@
                             Si tech + équipe : la pose est attribuée à l'équipe (mérite collectif), le tech reste le porteur physique.
                         </div>
                     </div>
+                    @push('scripts')
+                    @include('admin.partials._filter_tech_by_team', [
+                        'selTeamId'     => 'rechange-campaign-team',
+                        'selTechId'     => 'rechange-campaign-tech',
+                        'membersByTeam' => $membersByTeam ?? [],
+                        'hintId'        => 'rechange-campaign-tech-hint',
+                    ])
+                    @endpush
 
                     <div style="margin-bottom:16px">
                         <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Notes (facultatif)</label>

@@ -142,7 +142,14 @@ class PoseController extends Controller
         $techniciens   = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
         $campaigns     = Campaign::where('status', CampaignStatus::ACTIF->value)->orderBy('name')->get(['id', 'name', 'status']);
         // 2026-06-18 : alimente le filtre Équipe du formulaire.
-        $teams         = \App\Models\PoseTeam::where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        // 2026-08-10 : eager-load members pour filtrage JS select tech
+        // par équipe dans le bulk-bar + modal rechange.
+        $teams         = \App\Models\PoseTeam::where('is_active', true)
+            ->with('members:id')
+            ->orderBy('name')->get(['id', 'name']);
+        $membersByTeam = $teams
+            ->mapWithKeys(fn ($t) => [$t->id => $t->members->pluck('id')->all()])
+            ->toArray();
         $overdueTasks  = $this->poseService->getOverdueTasks();
         $posesSansPige = PoseTask::where('status', PoseTaskStatus::COMPLETED->value)->whereNotNull('campaign_id')->whereDoesntHave('piges', fn($q) => $q->where('status', '!=', 'rejete'))->count();
 
@@ -157,7 +164,7 @@ class PoseController extends Controller
             ]);
         }
 
-        return view('admin.poses.index', compact('poseTasks', 'techniciens', 'campaigns', 'teams', 'stats', 'overdueTasks', 'posesSansPige'));
+        return view('admin.poses.index', compact('poseTasks', 'techniciens', 'campaigns', 'teams', 'membersByTeam', 'stats', 'overdueTasks', 'posesSansPige'));
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -406,7 +413,12 @@ class PoseController extends Controller
             ->with('poseTeams:id,name')
             ->orderBy('name')
             ->get(['id', 'name']);
+        // 2026-08-10 (v2) : on charge aussi la relation members pour permettre
+        // au JS de filtrer le select tech en fonction de l'équipe choisie
+        // (évite d'attribuer une pose à un tech qui n'appartient pas à
+        // l'équipe créditée — feedback user 2026-08-10).
         $teams = \App\Models\PoseTeam::where('is_active', true)
+            ->with('members:id')
             ->orderBy('name')
             ->get(['id', 'name']);
         // 2026-08-10 : basculé sur [{id, name}] au lieu de [name] pour
@@ -414,6 +426,10 @@ class PoseController extends Controller
         $teamByUser = $techniciens
             ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeams->map(fn ($t) => ['id' => $t->id, 'name' => $t->name])->values()->all()])
             ->filter(fn ($teams) => !empty($teams))
+            ->toArray();
+        // Map team_id => [user_id, user_id...] pour filtrage JS.
+        $membersByTeam = $teams
+            ->mapWithKeys(fn ($t) => [$t->id => $t->members->pluck('id')->all()])
             ->toArray();
 
         $preselectedCampaign = null;
@@ -425,7 +441,7 @@ class PoseController extends Controller
         }
 
         return view('admin.poses.create', compact(
-            'techniciens', 'teams', 'teamByUser', 'preselectedCampaign'
+            'techniciens', 'teams', 'teamByUser', 'membersByTeam', 'preselectedCampaign'
         ));
     }
 
@@ -648,7 +664,12 @@ class PoseController extends Controller
             ->with('poseTeams:id,name')
             ->orderBy('name')
             ->get(['id', 'name']);
+        // 2026-08-10 (v2) : on charge aussi la relation members pour permettre
+        // au JS de filtrer le select tech en fonction de l'équipe choisie
+        // (évite d'attribuer une pose à un tech qui n'appartient pas à
+        // l'équipe créditée — feedback user 2026-08-10).
         $teams = \App\Models\PoseTeam::where('is_active', true)
+            ->with('members:id')
             ->orderBy('name')
             ->get(['id', 'name']);
         // 2026-08-10 : basculé sur [{id, name}] au lieu de [name] pour
@@ -657,8 +678,12 @@ class PoseController extends Controller
             ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeams->map(fn ($t) => ['id' => $t->id, 'name' => $t->name])->values()->all()])
             ->filter(fn ($teams) => !empty($teams))
             ->toArray();
+        // Map team_id => [user_id, user_id...] pour filtrage JS.
+        $membersByTeam = $teams
+            ->mapWithKeys(fn ($t) => [$t->id => $t->members->pluck('id')->all()])
+            ->toArray();
 
-        return view('admin.poses.edit', compact('poseTask', 'techniciens', 'teams', 'teamByUser'));
+        return view('admin.poses.edit', compact('poseTask', 'techniciens', 'teams', 'teamByUser', 'membersByTeam'));
     }
 
     // ══════════════════════════════════════════════════════════════

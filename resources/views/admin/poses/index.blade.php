@@ -457,6 +457,8 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                 <div class="pose-bulk-hint" style="font-size:10.5px;color:var(--text3);margin-top:4px;font-style:italic">
                     Attribue à une équipe = crédit collectif dans /performance/équipes.
                 </div>
+                {{-- Hint filtrage tech par équipe (v2 2026-08-10) --}}
+                <div id="bulk-tech-team-filter-hint" style="display:none;margin-top:4px;font-size:11px;font-style:italic"></div>
             </div>
 
             {{-- Replanifier --}}
@@ -1722,5 +1724,22 @@ document.addEventListener('click', function(e) {
     );
 });
 </script>
+
+{{-- 2026-08-10 (v2) : filtrage select tech par équipe pour les 2 zones
+     du bulk (bulk-bar principal + modal rechange). Feedback user :
+     éviter d'attribuer une pose à un tech qui n'est pas membre de
+     l'équipe créditée. --}}
+@include('admin.partials._filter_tech_by_team', [
+    'selTeamId'     => 'bulk-team',
+    'selTechId'     => 'bulk-tech',
+    'membersByTeam' => $membersByTeam ?? [],
+    'hintId'        => 'bulk-tech-team-filter-hint',
+])
+@include('admin.partials._filter_tech_by_team', [
+    'selTeamId'     => 'bulk-rechange-team',
+    'selTechId'     => 'bulk-rechange-tech',
+    'membersByTeam' => $membersByTeam ?? [],
+    'hintId'        => null,
+])
 @endpush
 </x-admin-layout>
