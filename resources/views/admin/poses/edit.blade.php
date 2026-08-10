@@ -229,8 +229,20 @@ window.__EDIT__ = {
                         Changer l'équipe <strong>réattribuera ces piges</strong> au score collectif
                         de la nouvelle équipe (ou au score individuel du tech si tu passes en solo).
                     </div>
+                    {{-- 2026-08-10 (v2) : hint filtrage tech par équipe --}}
+                    <div id="tech-filter-hint" style="display:none;margin-top:4px;font-size:11px;font-style:italic"></div>
                 </div>
             </div>
+            {{-- Filtrage select tech en fonction de l'équipe créditée choisie
+                 (feedback user 2026-08-10). --}}
+            @push('scripts')
+            @include('admin.partials._filter_tech_by_team', [
+                'selTeamId'     => 'sel-team',
+                'selTechId'     => 'sel-technicien',
+                'membersByTeam' => $membersByTeam ?? [],
+                'hintId'        => 'tech-filter-hint',
+            ])
+            @endpush
             @push('scripts')
             <script>
             (function () {

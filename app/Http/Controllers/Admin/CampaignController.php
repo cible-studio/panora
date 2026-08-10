@@ -287,13 +287,20 @@ class CampaignController extends Controller
 
         // 2026-08-10 : liste équipes actives pour le modal rechange (permet
         // d'attribuer les rechanges à une équipe entière = crédit collectif).
+        // v2 : eager-load members pour filtrer le select tech du modal en
+        // fonction de l'équipe choisie (feedback user — évite d'attribuer
+        // un tech qui n'est pas membre de l'équipe créditée).
         $poseTeams = \App\Models\PoseTeam::active()
+            ->with('members:id')
             ->orderBy('name')
             ->get(['id', 'name', 'color_slug']);
+        $membersByTeam = $poseTeams
+            ->mapWithKeys(fn ($t) => [$t->id => $t->members->pluck('id')->all()])
+            ->toArray();
 
         return view('admin.campaigns.show', compact(
             'campaign', 'can', 'allowed', 'commerciaux',
-            'amountConsistency', 'eligibleRechangeSources', 'technicians', 'poseTeams'
+            'amountConsistency', 'eligibleRechangeSources', 'technicians', 'poseTeams', 'membersByTeam'
         ));
     }
 

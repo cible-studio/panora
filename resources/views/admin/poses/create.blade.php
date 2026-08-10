@@ -223,8 +223,21 @@ window.__POSE__ = {
                             <option value="{{ $team->id }}" {{ (int) old('pose_team_id')===(int) $team->id?'selected':'' }}>👥 {{ $team->name }} — crédit équipe</option>
                         @endforeach
                     </select>
+                    {{-- 2026-08-10 (v2) : hint filtrage tech par équipe --}}
+                    <div id="tech-filter-hint" style="display:none;margin-top:4px;font-size:11px;font-style:italic"></div>
                 </div>
             </div>
+            {{-- Filtrage select tech en fonction de l'équipe créditée choisie
+                 (feedback user 2026-08-10). Le tech doit être membre de
+                 l'équipe pour figurer dans le select. --}}
+            @push('scripts')
+            @include('admin.partials._filter_tech_by_team', [
+                'selTeamId'     => 'sel-team',
+                'selTechId'     => 'sel-technicien',
+                'membersByTeam' => $membersByTeam ?? [],
+                'hintId'        => 'tech-filter-hint',
+            ])
+            @endpush
             {{-- JS auto-fill équipe au change technicien — seulement si l'admin
                  n'a pas encore choisi une équipe explicitement (sinon on respecte
                  son choix). Bascule 2026-08-10 : les option values sont désormais
