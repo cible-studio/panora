@@ -829,7 +829,8 @@ class PoseController extends Controller
         $data = $request->validate([
             'task_ids'   => 'required|array|min:1|max:200',
             'task_ids.*' => 'integer|exists:pose_tasks,id',
-            'action'     => 'required|in:assign_tech,rename_team,change_status,reschedule',
+            // 2026-08-10 : ajout assign_team (attribution mérite équipe FK).
+            'action'     => 'required|in:assign_tech,rename_team,assign_team,change_status,reschedule',
             'value'      => 'nullable',
         ]);
 
@@ -848,6 +849,7 @@ class PoseController extends Controller
             $verbMap = [
                 'assign_tech'   => 'a réassigné le technicien sur',
                 'rename_team'   => 'a renommé l\'équipe sur',
+                'assign_team'   => "a attribué l'équipe créditée sur",
                 'change_status' => 'a changé le statut de',
                 'reschedule'    => 'a replanifié',
             ];
