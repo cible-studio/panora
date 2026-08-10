@@ -374,16 +374,24 @@ class PoseService
             'campaign_id'      => $data['campaign_id'] ?? $task->campaign_id,
             'panel_id'         => $data['panel_id'] ?? $task->panel_id,
             'assigned_user_id' => $data['assigned_user_id'] ?? null,
-            'team_name'        => $data['team_name'] ?? null,
             'scheduled_at'     => $data['scheduled_at'],
             'status'           => $data['status'],
             'notes'            => $data['notes'] ?? null,
         ];
-        // 2026-08-10 : pose_team_id explicitement fourni → mise à jour.
-        // On distingue "clé absente" (ne pas toucher) et "clé = null"
-        // (bascule volontaire équipe → solo).
+        // 2026-08-10 : team_name & pose_team_id — utiliser array_key_exists
+        // pour distinguer "absent du form" (garder valeur actuelle) vs
+        // "présent avec valeur vide" (bascule volontaire vers solo).
+        //
+        // Bug fixé 2026-08-10 (feedback user) : depuis la refonte le form
+        // edit envoie pose_team_id mais plus team_name. Le `?? null` sur
+        // team_name écrasait la valeur snapshot existante et cassait
+        // l'affichage "Équipe : —" sur la fiche pose alors que
+        // pose_team_id restait bien renseigné.
         if (array_key_exists('pose_team_id', $data)) {
             $updatePayload['pose_team_id'] = $data['pose_team_id'] ?: null;
+        }
+        if (array_key_exists('team_name', $data)) {
+            $updatePayload['team_name'] = $data['team_name'] ?: null;
         }
         $task->update($updatePayload);
 

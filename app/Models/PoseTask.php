@@ -231,14 +231,34 @@ class PoseTask extends Model
         //
         //  - Si pose_team_id est set et team_name vide → auto-fill team_name
         //    depuis pose_teams.name (snapshot au moment du set)
+        //  - Si pose_team_id passe à NULL (bascule solo) → clear team_name
+        //    pour éviter un snapshot orphelin
         //  - Si team_name est set (via bulk/legacy) et pose_team_id vide
         //    → tenter matching name → set pose_team_id (harmonise avec
         //    la command backfill)
+        //  - Bug fixé 2026-08-10 : si pose_team_id reste inchangé mais
+        //    team_name a été effacé côté controller (form edit sans
+        //    champ team_name), on RE-SYNC team_name depuis pose_teams.name.
         static::saving(function (PoseTask $task) {
             // Sens 1 : pose_team_id → team_name
-            if ($task->isDirty('pose_team_id') && $task->pose_team_id) {
+            if ($task->isDirty('pose_team_id')) {
+                if ($task->pose_team_id) {
+                    $team = \App\Models\PoseTeam::find($task->pose_team_id);
+                    if ($team) {
+                        $task->team_name = $team->name;
+                    }
+                } else {
+                    // Bascule solo : clear le snapshot legacy pour cohérence.
+                    $task->team_name = null;
+                }
+            }
+            // Filet de sécurité : pose_team_id existe mais team_name a été
+            // vidé par le controller → re-sync depuis pose_teams.name.
+            if (!$task->isDirty('pose_team_id')
+                && $task->pose_team_id
+                && empty($task->team_name)) {
                 $team = \App\Models\PoseTeam::find($task->pose_team_id);
-                if ($team && empty($task->team_name)) {
+                if ($team) {
                     $task->team_name = $team->name;
                 }
             }
