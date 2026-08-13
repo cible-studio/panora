@@ -8,7 +8,8 @@ use Illuminate\Support\Facades\Log;
 /**
  * Hooks Pige :
  *   - Backfill du pose_task_id (lien legacy via panel+campaign)
- *   - Alerte MP/admin à chaque nouvelle photo uploadée
+ *   - Alerte in-app à chaque nouvelle photo uploadée (tous les rôles voient la cloche 🔔)
+ *   - Mail dédié aux MP uniquement pour aller valider (2026-08-11 : plus admin/commercial)
  *
  * IMPORTANT : on ne marque PLUS automatiquement la PoseTask en COMPLETED
  * sur création d'une pige. Le technicien doit confirmer explicitement
@@ -78,11 +79,14 @@ class PigeObserver
             Log::warning('pige.alert_failed', ['error' => $e->getMessage()]);
         }
 
-        // ── Mail admin + MP : nouvelle pige à valider (2026-08-10) ──
-        // Demande user : au cas où admin/MP ne sont pas connectés à l'app,
-        // ils reçoivent un mail pour aller vérifier la pige. Cible :
-        // commercial assigné à la campagne + tous MP + tous admin. Le
-        // commercial est notifié car c'est lui qui suit son client.
+        // ── Mail MP UNIQUEMENT : nouvelle pige à valider ──
+        // Historique :
+        //   2026-08-10 : initialement envoyé à commercial + MP + admin.
+        //   2026-08-11 (feedback user) : trop de bruit dans les boîtes
+        //     admin (studio@cible-ci.com notamment). Restreint aux SEULS
+        //     media planners → c'est leur rôle métier de valider les piges,
+        //     les admins/commerciaux voient l'info dans l'alerte in-app
+        //     (cloche 🔔) sans polluer leur mail.
         //
         // Anti-spam : dedup par pose_task_id sur 30 min (défaut
         // AdminAlertNotifier). Si le tech upload 5 photos sur la même
@@ -100,8 +104,7 @@ class PigeObserver
                 : '';
 
             \App\Services\AdminAlertNotifier::notify(
-                to: ['commercial_assigned', 'mediaplanner', 'admin'],
-                commercialAssigned: $pige->campaign?->user,
+                to: ['mediaplanner'],
                 severity: 'info',
                 title: 'Nouvelle pige à valider — ' . $panelRef,
                 summary: 'Un technicien vient d\'uploader une photo. Elle attend ta validation dans Panora.',
