@@ -769,53 +769,95 @@ class PigeController extends Controller
     // ══════════════════════════════════════════════════════════════
     // AJAX — panneaux d'une campagne (pour le formulaire upload)
     // GET /admin/piges/campaign-panels?campaign_id=X
+    //
+    // Historique bug 2026-08-13 : erreur 500 signalée sur SIETTA 2026
+    // (campagne avec écart de facturation + réservation liée + peut-être
+    // multi-poses). Cause probable : `SUM(status="verifie")` en syntaxe
+    // MySQL non-portable (double-quotes = identifiants en mode ANSI_QUOTES)
+    // OU keyBy('panel_id') qui écrase quand plusieurs PoseTasks pour un
+    // même panel (post multi-poses/rechange 2026-08-04).
+    //
+    // Fix défensif :
+    //   - try/catch global + log détaillé (stack trace serveur)
+    //   - SUM(CASE WHEN ...) au lieu de SUM(status="...") — 100% portable
+    //   - whereNotNull('panel_id') sur les deux requêtes
+    //   - Multi-poses : on garde la PoseTask la plus récente par panel
+    //     via une sous-requête MAX(id) plutôt que keyBy silencieux
     // ══════════════════════════════════════════════════════════════
     public function campaignPanels(Request $request): JsonResponse
     {
         $request->validate(['campaign_id' => 'required|integer|exists:campaigns,id']);
- 
-        $campaign = Campaign::with([
-            'panels:id,reference,name,commune_id',
-            'panels.commune:id,name',
-        ])->findOrFail($request->campaign_id);
- 
-        // Stats piges par panneau (1 requête)
-        $pigesStats = Pige::where('campaign_id', $campaign->id)
-            ->selectRaw('panel_id,
-                COUNT(*) as total,
-                SUM(status="verifie") as verifie,
-                SUM(status="rejete")  as rejete,
-                SUM(status="en_attente") as en_attente
-            ')
-            ->groupBy('panel_id')
-            ->get()
-            ->keyBy('panel_id');
- 
-        // Statuts pose par panneau (1 requête)
-        $poseTasks = \App\Models\PoseTask::where('campaign_id', $campaign->id)
-            ->whereIn('status', ['realisee', 'en_cours', 'planifiee'])
-            ->latest()
-            ->get(['panel_id', 'status', 'done_at'])
-            ->keyBy('panel_id');
- 
-        $panels = $campaign->panels->map(fn($p) => [
-            'id'            => $p->id,
-            'reference'     => $p->reference,
-            'name'          => $p->name,
-            'commune'       => $p->commune?->name ?? '—',
-            // Stats pige
-            'pige_total'    => (int) ($pigesStats[$p->id]->total      ?? 0),
-            'pige_verifie'  => (int) ($pigesStats[$p->id]->verifie    ?? 0),
-            'pige_rejete'   => (int) ($pigesStats[$p->id]->rejete     ?? 0),
-            'pige_attente'  => (int) ($pigesStats[$p->id]->en_attente ?? 0),
-            // Statut pose (pour afficher "Posé" dans la liste)
-            'pose_status'   => $poseTasks[$p->id]?->status ?? null,
-            'pose_date'     => $poseTasks[$p->id]?->done_at?->format('d/m/Y'),
-        ]);
- 
-        return response()->json([
-            'campaign' => ['id' => $campaign->id, 'name' => $campaign->name],
-            'panels'   => $panels->values(),
-        ]);
+
+        try {
+            $campaign = Campaign::with([
+                'panels:id,reference,name,commune_id',
+                'panels.commune:id,name',
+            ])->findOrFail($request->campaign_id);
+
+            // Stats piges par panneau — SUM(CASE WHEN) portable, filtre
+            // défensif sur panel_id NULL (piges hors-panneau exceptionnelles).
+            $pigesStats = Pige::where('campaign_id', $campaign->id)
+                ->whereNotNull('panel_id')
+                ->selectRaw("
+                    panel_id,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'verifie'    THEN 1 ELSE 0 END) as verifie,
+                    SUM(CASE WHEN status = 'rejete'     THEN 1 ELSE 0 END) as rejete,
+                    SUM(CASE WHEN status = 'en_attente' THEN 1 ELSE 0 END) as en_attente
+                ")
+                ->groupBy('panel_id')
+                ->get()
+                ->keyBy('panel_id');
+
+            // Statut pose le plus récent par panneau — post multi-poses
+            // (2026-08-04), un panneau peut avoir plusieurs PoseTasks
+            // sur la même campagne (initial + rechange). On prend la
+            // dernière via MAX(id).
+            $latestTaskIds = \App\Models\PoseTask::where('campaign_id', $campaign->id)
+                ->whereNotNull('panel_id')
+                ->whereIn('status', ['realisee', 'en_cours', 'planifiee'])
+                ->selectRaw('MAX(id) as id')
+                ->groupBy('panel_id')
+                ->pluck('id');
+
+            $poseTasks = \App\Models\PoseTask::whereIn('id', $latestTaskIds)
+                ->get(['id', 'panel_id', 'status', 'done_at'])
+                ->keyBy('panel_id');
+
+            $panels = $campaign->panels->map(fn($p) => [
+                'id'            => $p->id,
+                'reference'     => $p->reference,
+                'name'          => $p->name,
+                'commune'       => $p->commune?->name ?? '—',
+                // Stats pige
+                'pige_total'    => (int) ($pigesStats[$p->id]->total      ?? 0),
+                'pige_verifie'  => (int) ($pigesStats[$p->id]->verifie    ?? 0),
+                'pige_rejete'   => (int) ($pigesStats[$p->id]->rejete     ?? 0),
+                'pige_attente'  => (int) ($pigesStats[$p->id]->en_attente ?? 0),
+                // Statut pose (pour afficher "Posé" dans la liste)
+                'pose_status'   => $poseTasks[$p->id]?->status ?? null,
+                'pose_date'     => $poseTasks[$p->id]?->done_at?->format('d/m/Y'),
+            ]);
+
+            return response()->json([
+                'campaign' => ['id' => $campaign->id, 'name' => $campaign->name],
+                'panels'   => $panels->values(),
+            ]);
+        } catch (\Throwable $e) {
+            // Log détaillé côté serveur pour diagnostic (visible dans
+            // storage/logs/laravel.log). Pas d'exposition en réponse
+            // sauf si APP_DEBUG=true (dev/staging).
+            \Illuminate\Support\Facades\Log::error('piges.campaignPanels.failed', [
+                'campaign_id' => $request->campaign_id,
+                'error'       => $e->getMessage(),
+                'file'        => $e->getFile(),
+                'line'        => $e->getLine(),
+                'trace'       => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'message' => 'Erreur lors du chargement des panneaux',
+                'debug'   => config('app.debug') ? $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine() : null,
+            ], 500);
+        }
     }
 }
