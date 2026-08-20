@@ -824,20 +824,30 @@ class PigeController extends Controller
                 ->get(['id', 'panel_id', 'status', 'done_at'])
                 ->keyBy('panel_id');
 
-            $panels = $campaign->panels->map(fn($p) => [
-                'id'            => $p->id,
-                'reference'     => $p->reference,
-                'name'          => $p->name,
-                'commune'       => $p->commune?->name ?? '—',
-                // Stats pige
-                'pige_total'    => (int) ($pigesStats[$p->id]->total      ?? 0),
-                'pige_verifie'  => (int) ($pigesStats[$p->id]->verifie    ?? 0),
-                'pige_rejete'   => (int) ($pigesStats[$p->id]->rejete     ?? 0),
-                'pige_attente'  => (int) ($pigesStats[$p->id]->en_attente ?? 0),
-                // Statut pose (pour afficher "Posé" dans la liste)
-                'pose_status'   => $poseTasks[$p->id]?->status ?? null,
-                'pose_date'     => $poseTasks[$p->id]?->done_at?->format('d/m/Y'),
-            ]);
+            // Bug fixé 2026-08-20 : `$pigesStats[$p->id]` sur une Collection
+            // émet un warning "Undefined array key X" (converti en exception
+            // PHP 8+) quand le panneau n'a AUCUNE pige. Le `?->` ne rattrape
+            // pas car le warning arrive AVANT le null-safe operator.
+            // Fix : utiliser Collection::get($id) qui retourne null si absent
+            // sans warning — combiné avec ?-> pour null-safety propre.
+            $panels = $campaign->panels->map(function ($p) use ($pigesStats, $poseTasks) {
+                $stat = $pigesStats->get($p->id);
+                $task = $poseTasks->get($p->id);
+                return [
+                    'id'            => $p->id,
+                    'reference'     => $p->reference,
+                    'name'          => $p->name,
+                    'commune'       => $p->commune?->name ?? '—',
+                    // Stats pige (0 si aucune pige sur ce panneau)
+                    'pige_total'    => (int) ($stat->total      ?? 0),
+                    'pige_verifie' => (int) ($stat->verifie    ?? 0),
+                    'pige_rejete'  => (int) ($stat->rejete     ?? 0),
+                    'pige_attente' => (int) ($stat->en_attente ?? 0),
+                    // Statut pose (null si aucune pose)
+                    'pose_status'  => $task?->status ?? null,
+                    'pose_date'    => $task?->done_at?->format('d/m/Y'),
+                ];
+            });
 
             return response()->json([
                 'campaign' => ['id' => $campaign->id, 'name' => $campaign->name],
