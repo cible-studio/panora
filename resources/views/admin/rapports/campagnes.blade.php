@@ -351,4 +351,94 @@
     @endif
 </div>
 
+{{-- ═══ CAMPAGNES TERMINÉES — LISTE DÉTAILLÉE (2026-XX) ═══════════
+     Ajout feedback user : l'admin doit pouvoir voir QUELLES campagnes
+     se sont terminées sur la période (pas juste le compte KPI).
+     Le commercial responsable de chaque campagne y est aussi rappelé
+     pour faciliter le suivi post-campagne. --}}
+<div class="card" style="margin-top:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+        <h2 style="margin:0;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px">
+            <span>📋</span>
+            <span>Campagnes terminées sur la période</span>
+            <span style="background:rgba(107,114,128,.12);color:#6b7280;font-size:12px;font-weight:600;padding:2px 8px;border-radius:10px">
+                {{ $campagnesTerminees->count() }}
+            </span>
+        </h2>
+        <span style="font-size:11px;color:var(--text3)">
+            Triées par date de fin (les plus récentes en tête)
+        </span>
+    </div>
+
+    @if($campagnesTerminees->isEmpty())
+        <div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;background:rgba(107,114,128,.04);border-radius:8px">
+            Aucune campagne terminée sur cette période.
+        </div>
+    @else
+        <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.4px">
+                        <th style="text-align:left;padding:8px 10px;font-weight:600">Campagne</th>
+                        <th style="text-align:left;padding:8px 10px;font-weight:600">Client</th>
+                        <th style="text-align:left;padding:8px 10px;font-weight:600">Période</th>
+                        <th style="text-align:left;padding:8px 10px;font-weight:600">Commercial</th>
+                        <th style="text-align:right;padding:8px 10px;font-weight:600">Panneaux</th>
+                        <th style="text-align:right;padding:8px 10px;font-weight:600">Montant</th>
+                        <th style="text-align:right;padding:8px 10px;font-weight:600">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($campagnesTerminees as $c)
+                        <tr style="border-bottom:1px solid var(--border)">
+                            <td style="padding:10px;font-weight:600">
+                                <a href="{{ route('admin.campaigns.show', $c) }}" style="color:var(--text);text-decoration:none">
+                                    {{ $c->name }}
+                                </a>
+                            </td>
+                            <td style="padding:10px">
+                                @if($c->client)
+                                    <a href="{{ route('admin.clients.show', $c->client) }}" style="color:var(--text2);text-decoration:none">
+                                        {{ $c->client->name }}
+                                    </a>
+                                @else
+                                    <span style="color:var(--text3)">—</span>
+                                @endif
+                            </td>
+                            <td style="padding:10px;color:var(--text2);white-space:nowrap">
+                                {{ $c->start_date?->format('d/m/Y') }}
+                                <span style="color:var(--text3)">→</span>
+                                <strong>{{ $c->end_date?->format('d/m/Y') }}</strong>
+                            </td>
+                            <td style="padding:10px;color:var(--text2)">
+                                {{ $c->user?->name ?? '—' }}
+                            </td>
+                            <td style="padding:10px;text-align:right;color:var(--text2)">
+                                {{ $c->total_panels ?? 0 }}
+                            </td>
+                            <td style="padding:10px;text-align:right;font-weight:600;white-space:nowrap">
+                                @if($c->total_amount)
+                                    {{ number_format($c->total_amount, 0, ',', ' ') }} FCFA
+                                @else
+                                    <span style="color:var(--text3)">—</span>
+                                @endif
+                            </td>
+                            <td style="padding:10px;text-align:right">
+                                <a href="{{ route('admin.campaigns.show', $c) }}"
+                                   style="display:inline-block;padding:4px 10px;background:rgba(59,130,246,.08);color:#3b82f6;border-radius:6px;font-size:11px;text-decoration:none;font-weight:600">
+                                    Voir →
+                                </a>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top:12px;font-size:11px;color:var(--text3);font-style:italic">
+            💡 Le commercial responsable a été prévenu par email à la fin de chaque campagne.
+            Le suivi post-campagne (satisfaction, opportunités) est à sa main.
+        </div>
+    @endif
+</div>
+
 </x-admin-layout>

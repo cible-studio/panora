@@ -72,6 +72,16 @@ Schedule::command('campaigns:notify-ending', ['--days' => 7])
     ->dailyAt('10:00')
     ->withoutOverlapping();
 
+// 9-bis. Notif COMMERCIAL J-3 avant fin de campagne (préventif).
+//        Distinct de campaigns:notify-ending (destinataire CLIENT) :
+//        cible le commercial assigné pour qu'il prépare son mail de
+//        suivi post-campagne (satisfaction, upsell).
+//        Idempotent via cache flag (TTL 60j).
+//        Envoi 09h00 pour que le commercial voit ça dès le matin.
+Schedule::command('campaigns:notify-commercial-ending', ['--days' => 3])
+    ->dailyAt('09:00')
+    ->withoutOverlapping();
+
 // 10. Alertes opérationnelles internes (admin / comptable / équipe terrain).
 //     Idempotent via AdminAlertNotifier::dedupKey (cooldown 30 min).
 //
