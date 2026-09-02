@@ -25,6 +25,22 @@ un besoin.
 Compte Twilio en Trial → prod en pause. Passage prod à faire après upgrade
 du compte + validation du sender et du content template.
 
+### Logo illisible dans `pdf/partials/branding-header` (repéré 2026-09-02)
+
+`branding-header.blade.php` affiche `$logoCibleLight` (logol.png — texte
+**noir**) alors que les vues qui l'incluent ont toutes un `.header` en
+`#0a0c10` (quasi noir) : le logo y est donc très peu lisible. Le trait
+`PdfAssets::getCibleLogoDark()` (logob.png, texte blanc) existe justement
+pour ce cas.
+
+Vues concernées : `network-report`, `piges-report`, `panel-list`,
+`panel-sheet`, `selection-images`, `selection-liste`.
+
+Non corrigé volontairement : un seul partial pilote 6 PDF, le changement
+doit être validé visuellement sur chacun. `taxes-report` est sorti du lot
+le 2026-09-02 (refonte style taxes) — il n'utilise plus ce partial et
+affiche le logo sur fond clair.
+
 ---
 
 ## Résolues
