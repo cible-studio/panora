@@ -1967,26 +1967,45 @@ class RapportController extends Controller
             ->whereIn('status', ['actif', 'termine', 'pause'])
             ->sum('total_amount');
 
-        // ── 8. Liste détaillée des campagnes TERMINÉES sur la période
-        // (2026-XX feedback user : l'admin doit pouvoir voir quelles
-        // campagnes se sont terminées ce mois-ci, pas juste le compte).
-        // Périmètre : campagnes dont end_date tombe dans la période.
-        $campagnesTerminees = $baseQuery()
-            ->where('status', 'termine')
-            ->whereBetween('end_date', [$dateFrom, $dateTo])
+        // ── 8. Liste détaillée par statut (feedback user 2026-XX) ────
+        // L'admin doit pouvoir cliquer sur chaque carte KPI (Total,
+        // Actives, Terminées, Annulées, Planifiées, En pause) pour
+        // voir la liste concrète des campagnes correspondantes.
+        //
+        // Stratégie perf : UNE seule requête eager-loadée qui charge
+        // toutes les campagnes de la période, puis split côté PHP par
+        // statut. Volume faible (≤ quelques centaines par période),
+        // pas de risque de saturer la RAM.
+        $allCampagnes = $baseQuery()
             ->with(['client:id,name,email', 'user:id,name'])
             ->orderByDesc('end_date')
             ->get([
                 'id', 'name', 'client_id', 'user_id',
-                'start_date', 'end_date', 'total_amount', 'total_panels',
+                'start_date', 'end_date', 'total_amount', 'total_panels', 'status',
             ]);
+
+        // Note : `status` est casté en enum CampaignStatus → on filtre
+        // via closure sur ->value plutôt qu'un ->where() (qui ne
+        // supporte pas la navigation dans l'enum).
+        $byStatusFilter = fn(string $s) => $allCampagnes
+            ->filter(fn($c) => (is_object($c->status) ? $c->status->value : $c->status) === $s)
+            ->values();
+
+        $campaignsByStatus = [
+            'total'    => $allCampagnes,
+            'actif'    => $byStatusFilter('actif'),
+            'termine'  => $byStatusFilter('termine'),
+            'annule'   => $byStatusFilter('annule'),
+            'planifie' => $byStatusFilter('planifie'),
+            'pause'    => $byStatusFilter('pause'),
+        ];
 
         return view('admin.rapports.campagnes', compact(
             'annee', 'moisDu', 'moisAu', 'dateFrom', 'dateTo', 'anneesDisponibles',
             'total', 'actives', 'terminees', 'annulees', 'planifiees', 'enPause',
             'tauxAnnulation', 'motifsAnnulation',
             'topByCA', 'topPanels', 'topByDuration', 'tendance',
-            'caTotal', 'campagnesTerminees'
+            'caTotal', 'campaignsByStatus'
         ));
     }
 
