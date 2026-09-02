@@ -503,6 +503,15 @@
     @endforeach
 </div>
 
+@php
+    // Construction extraite ici pour éviter que le parser Blade ne
+    // trébuche sur le [ ... ] du closure multi-ligne dans un @json().
+    $statusMetaJs = collect($statusMeta)->map(fn ($m, $k) => [
+        'label' => $m['label'],
+        'color' => $m['color'],
+        'count' => $campaignsByStatus[$k]->count(),
+    ])->all();
+@endphp
 <script>
 (function () {
     'use strict';
@@ -512,11 +521,10 @@
     const countEl = document.getElementById('rcamp-list-count');
 
     // Métadonnées côté JS pour titre + couleur du compteur
-    const meta = @json(collect($statusMeta)->map(fn($m, $k) => [
-        'label' => $m['label'],
-        'color' => $m['color'],
-        'count' => $campaignsByStatus[$k]->count(),
-    ])->all());
+    // Note : construction extraite en @php pour éviter que le parser
+    // Blade ne s'emmêle dans le [ ... ] du closure multi-ligne à
+    // l'intérieur de la directive @json(...).
+    const meta = {!! json_encode($statusMetaJs, JSON_UNESCAPED_UNICODE) !!};
 
     function activate(status) {
         cards.forEach(c => c.classList.toggle('is-active', c.dataset.status === status));
