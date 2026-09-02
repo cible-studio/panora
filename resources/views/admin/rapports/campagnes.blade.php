@@ -105,8 +105,14 @@
 </form>
 
 {{-- ── KPI cards (6) — design KPI unifié ─────────────────────── --}}
+{{-- 2026-XX : 5 des 6 cartes sont cliquables → filtre la section
+     "Liste détaillée" en bas. Data-status pointe vers la clé du
+     tableau $campaignsByStatus retourné par le controller.
+     La carte CA (dernière) reste passive — c'est un agrégat, pas
+     un filtre de liste. --}}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px">
-    <div class="kpi-card" style="--kpi-color:var(--accent)">
+    <div class="kpi-card kpi-clickable" data-status="total" role="button" tabindex="0"
+         aria-label="Voir la liste de toutes les campagnes" style="--kpi-color:var(--accent)">
         <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
         <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg></div>
         <div class="kpi-card__value" style="color:var(--accent)">{{ $total }}</div>
@@ -114,7 +120,8 @@
         <div class="kpi-card__sub">Sur la période sélectionnée</div>
     </div>
 
-    <div class="kpi-card" style="--kpi-color:#22c55e">
+    <div class="kpi-card kpi-clickable" data-status="actif" role="button" tabindex="0"
+         aria-label="Voir la liste des campagnes actives" style="--kpi-color:#22c55e">
         <div class="kpi-card__top-bar" style="background:#22c55e"></div>
         <div class="kpi-card__icon" style="color:#22c55e"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg></div>
         <div class="kpi-card__value" style="color:#22c55e">{{ $actives }}</div>
@@ -122,7 +129,8 @@
         <div class="kpi-card__sub">En cours d'affichage</div>
     </div>
 
-    <div class="kpi-card" style="--kpi-color:#6b7280">
+    <div class="kpi-card kpi-clickable is-active" data-status="termine" role="button" tabindex="0"
+         aria-label="Voir la liste des campagnes terminées" style="--kpi-color:#6b7280">
         <div class="kpi-card__top-bar" style="background:#6b7280"></div>
         <div class="kpi-card__icon" style="color:#6b7280"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
         <div class="kpi-card__value" style="color:#6b7280">{{ $terminees }}</div>
@@ -130,7 +138,8 @@
         <div class="kpi-card__sub">Achevées avec succès</div>
     </div>
 
-    <div class="kpi-card" style="--kpi-color:#ef4444">
+    <div class="kpi-card kpi-clickable" data-status="annule" role="button" tabindex="0"
+         aria-label="Voir la liste des campagnes annulées" style="--kpi-color:#ef4444">
         <div class="kpi-card__top-bar" style="background:#ef4444"></div>
         <div class="kpi-card__icon" style="color:#ef4444"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
         <div class="kpi-card__value" style="color:#ef4444">{{ $annulees }}</div>
@@ -138,7 +147,8 @@
         <div class="kpi-card__sub">{{ $tauxAnnulation }}% du total</div>
     </div>
 
-    <div class="kpi-card" style="--kpi-color:#f97316">
+    <div class="kpi-card kpi-clickable" data-status="planifie" role="button" tabindex="0"
+         aria-label="Voir la liste des campagnes planifiées" style="--kpi-color:#f97316">
         <div class="kpi-card__top-bar" style="background:#f97316"></div>
         <div class="kpi-card__icon" style="color:#f97316"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
         <div class="kpi-card__value" style="color:#f97316">{{ $planifiees }}</div>
@@ -351,94 +361,184 @@
     @endif
 </div>
 
-{{-- ═══ CAMPAGNES TERMINÉES — LISTE DÉTAILLÉE (2026-XX) ═══════════
-     Ajout feedback user : l'admin doit pouvoir voir QUELLES campagnes
-     se sont terminées sur la période (pas juste le compte KPI).
-     Le commercial responsable de chaque campagne y est aussi rappelé
-     pour faciliter le suivi post-campagne. --}}
+{{-- ═══ LISTE DÉTAILLÉE — 6 filtres cliquables (2026-XX) ══════════
+     Feedback user : les 5 cartes KPI de statut (Total, Actives,
+     Terminées, Annulées, Planifiées) sont cliquables → chaque clic
+     affiche la liste correspondante ici. Défaut : Terminées.
+     Les 6 tables sont rendues en HTML (5 masquées via [hidden]) et
+     le JS toggle sans requête AJAX. --}}
+<style>
+    .kpi-clickable { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+    .kpi-clickable:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+    .kpi-clickable:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .kpi-clickable.is-active {
+        box-shadow: 0 0 0 2px var(--kpi-color), 0 6px 18px rgba(0,0,0,.10);
+        transform: translateY(-1px);
+    }
+    .rcamp-list-panel[hidden] { display: none !important; }
+</style>
+
+@php
+    $statusMeta = [
+        'total'    => ['label' => 'Toutes les campagnes',     'color' => 'var(--accent)', 'empty' => 'Aucune campagne sur cette période.'],
+        'actif'    => ['label' => 'Campagnes actives',        'color' => '#22c55e',       'empty' => 'Aucune campagne active sur cette période.'],
+        'termine'  => ['label' => 'Campagnes terminées',      'color' => '#6b7280',       'empty' => 'Aucune campagne terminée sur cette période.'],
+        'annule'   => ['label' => 'Campagnes annulées',       'color' => '#ef4444',       'empty' => 'Aucune campagne annulée sur cette période.'],
+        'planifie' => ['label' => 'Campagnes planifiées',     'color' => '#f97316',       'empty' => 'Aucune campagne planifiée sur cette période.'],
+    ];
+@endphp
+
 <div class="card" style="margin-top:18px">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">
         <h2 style="margin:0;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px">
             <span>📋</span>
-            <span>Campagnes terminées sur la période</span>
-            <span style="background:rgba(107,114,128,.12);color:#6b7280;font-size:12px;font-weight:600;padding:2px 8px;border-radius:10px">
-                {{ $campagnesTerminees->count() }}
+            <span id="rcamp-list-title">{{ $statusMeta['termine']['label'] }}</span>
+            <span id="rcamp-list-count" style="background:rgba(107,114,128,.12);color:#6b7280;font-size:12px;font-weight:600;padding:2px 8px;border-radius:10px">
+                {{ $campaignsByStatus['termine']->count() }}
             </span>
         </h2>
         <span style="font-size:11px;color:var(--text3)">
-            Triées par date de fin (les plus récentes en tête)
+            💡 Clique une carte ci-dessus pour filtrer · triées par date de fin
         </span>
     </div>
 
-    @if($campagnesTerminees->isEmpty())
-        <div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;background:rgba(107,114,128,.04);border-radius:8px">
-            Aucune campagne terminée sur cette période.
-        </div>
-    @else
-        <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:13px">
-                <thead>
-                    <tr style="border-bottom:2px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.4px">
-                        <th style="text-align:left;padding:8px 10px;font-weight:600">Campagne</th>
-                        <th style="text-align:left;padding:8px 10px;font-weight:600">Client</th>
-                        <th style="text-align:left;padding:8px 10px;font-weight:600">Période</th>
-                        <th style="text-align:left;padding:8px 10px;font-weight:600">Commercial</th>
-                        <th style="text-align:right;padding:8px 10px;font-weight:600">Panneaux</th>
-                        <th style="text-align:right;padding:8px 10px;font-weight:600">Montant</th>
-                        <th style="text-align:right;padding:8px 10px;font-weight:600">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($campagnesTerminees as $c)
-                        <tr style="border-bottom:1px solid var(--border)">
-                            <td style="padding:10px;font-weight:600">
-                                <a href="{{ route('admin.campaigns.show', $c) }}" style="color:var(--text);text-decoration:none">
-                                    {{ $c->name }}
-                                </a>
-                            </td>
-                            <td style="padding:10px">
-                                @if($c->client)
-                                    <a href="{{ route('admin.clients.show', $c->client) }}" style="color:var(--text2);text-decoration:none">
-                                        {{ $c->client->name }}
-                                    </a>
-                                @else
-                                    <span style="color:var(--text3)">—</span>
+    @foreach($statusMeta as $key => $meta)
+        @php $list = $campaignsByStatus[$key]; @endphp
+        <div class="rcamp-list-panel" data-panel="{{ $key }}" @if($key !== 'termine') hidden @endif>
+            @if($list->isEmpty())
+                <div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;background:rgba(107,114,128,.04);border-radius:8px">
+                    {{ $meta['empty'] }}
+                </div>
+            @else
+                <div style="overflow-x:auto">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px">
+                        <thead>
+                            <tr style="border-bottom:2px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.4px">
+                                <th style="text-align:left;padding:8px 10px;font-weight:600">Campagne</th>
+                                <th style="text-align:left;padding:8px 10px;font-weight:600">Client</th>
+                                <th style="text-align:left;padding:8px 10px;font-weight:600">Période</th>
+                                <th style="text-align:left;padding:8px 10px;font-weight:600">Commercial</th>
+                                @if($key === 'total')
+                                    <th style="text-align:left;padding:8px 10px;font-weight:600">Statut</th>
                                 @endif
-                            </td>
-                            <td style="padding:10px;color:var(--text2);white-space:nowrap">
-                                {{ $c->start_date?->format('d/m/Y') }}
-                                <span style="color:var(--text3)">→</span>
-                                <strong>{{ $c->end_date?->format('d/m/Y') }}</strong>
-                            </td>
-                            <td style="padding:10px;color:var(--text2)">
-                                {{ $c->user?->name ?? '—' }}
-                            </td>
-                            <td style="padding:10px;text-align:right;color:var(--text2)">
-                                {{ $c->total_panels ?? 0 }}
-                            </td>
-                            <td style="padding:10px;text-align:right;font-weight:600;white-space:nowrap">
-                                @if($c->total_amount)
-                                    {{ number_format($c->total_amount, 0, ',', ' ') }} FCFA
-                                @else
-                                    <span style="color:var(--text3)">—</span>
-                                @endif
-                            </td>
-                            <td style="padding:10px;text-align:right">
-                                <a href="{{ route('admin.campaigns.show', $c) }}"
-                                   style="display:inline-block;padding:4px 10px;background:rgba(59,130,246,.08);color:#3b82f6;border-radius:6px;font-size:11px;text-decoration:none;font-weight:600">
-                                    Voir →
-                                </a>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                                <th style="text-align:right;padding:8px 10px;font-weight:600">Panneaux</th>
+                                <th style="text-align:right;padding:8px 10px;font-weight:600">Montant</th>
+                                <th style="text-align:right;padding:8px 10px;font-weight:600">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($list as $c)
+                                @php
+                                    $statusValue = is_object($c->status) ? $c->status->value : $c->status;
+                                    $statusColors = [
+                                        'actif'    => '#22c55e', 'termine' => '#6b7280',
+                                        'annule'   => '#ef4444', 'planifie' => '#f97316',
+                                        'pause'    => '#f59e0b',
+                                    ];
+                                    $statusLabels = [
+                                        'actif' => 'Actif', 'termine' => 'Terminé',
+                                        'annule' => 'Annulé', 'planifie' => 'Planifié',
+                                        'pause' => 'En pause',
+                                    ];
+                                @endphp
+                                <tr style="border-bottom:1px solid var(--border)">
+                                    <td style="padding:10px;font-weight:600">
+                                        <a href="{{ route('admin.campaigns.show', $c) }}" style="color:var(--text);text-decoration:none">
+                                            {{ $c->name }}
+                                        </a>
+                                    </td>
+                                    <td style="padding:10px">
+                                        @if($c->client)
+                                            <a href="{{ route('admin.clients.show', $c->client) }}" style="color:var(--text2);text-decoration:none">
+                                                {{ $c->client->name }}
+                                            </a>
+                                        @else
+                                            <span style="color:var(--text3)">—</span>
+                                        @endif
+                                    </td>
+                                    <td style="padding:10px;color:var(--text2);white-space:nowrap">
+                                        {{ $c->start_date?->format('d/m/Y') }}
+                                        <span style="color:var(--text3)">→</span>
+                                        <strong>{{ $c->end_date?->format('d/m/Y') }}</strong>
+                                    </td>
+                                    <td style="padding:10px;color:var(--text2)">
+                                        {{ $c->user?->name ?? '—' }}
+                                    </td>
+                                    @if($key === 'total')
+                                        <td style="padding:10px">
+                                            <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:{{ ($statusColors[$statusValue] ?? '#6b7280') }}18;color:{{ $statusColors[$statusValue] ?? '#6b7280' }}">
+                                                {{ $statusLabels[$statusValue] ?? $statusValue }}
+                                            </span>
+                                        </td>
+                                    @endif
+                                    <td style="padding:10px;text-align:right;color:var(--text2)">
+                                        {{ $c->total_panels ?? 0 }}
+                                    </td>
+                                    <td style="padding:10px;text-align:right;font-weight:600;white-space:nowrap">
+                                        @if($c->total_amount)
+                                            {{ number_format($c->total_amount, 0, ',', ' ') }} FCFA
+                                        @else
+                                            <span style="color:var(--text3)">—</span>
+                                        @endif
+                                    </td>
+                                    <td style="padding:10px;text-align:right">
+                                        <a href="{{ route('admin.campaigns.show', $c) }}"
+                                           style="display:inline-block;padding:4px 10px;background:rgba(59,130,246,.08);color:#3b82f6;border-radius:6px;font-size:11px;text-decoration:none;font-weight:600">
+                                            Voir →
+                                        </a>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @if($key === 'termine' && !$list->isEmpty())
+                    <div style="margin-top:12px;font-size:11px;color:var(--text3);font-style:italic">
+                        💡 Le commercial responsable est prévenu par email à la fin de chaque campagne.
+                        Le suivi post-campagne (satisfaction, opportunités) est à sa main.
+                    </div>
+                @endif
+            @endif
         </div>
-        <div style="margin-top:12px;font-size:11px;color:var(--text3);font-style:italic">
-            💡 Le commercial responsable a été prévenu par email à la fin de chaque campagne.
-            Le suivi post-campagne (satisfaction, opportunités) est à sa main.
-        </div>
-    @endif
+    @endforeach
 </div>
+
+<script>
+(function () {
+    'use strict';
+    const cards   = document.querySelectorAll('.kpi-clickable[data-status]');
+    const panels  = document.querySelectorAll('.rcamp-list-panel[data-panel]');
+    const titleEl = document.getElementById('rcamp-list-title');
+    const countEl = document.getElementById('rcamp-list-count');
+
+    // Métadonnées côté JS pour titre + couleur du compteur
+    const meta = @json(collect($statusMeta)->map(fn($m, $k) => [
+        'label' => $m['label'],
+        'color' => $m['color'],
+        'count' => $campaignsByStatus[$k]->count(),
+    ])->all());
+
+    function activate(status) {
+        cards.forEach(c => c.classList.toggle('is-active', c.dataset.status === status));
+        panels.forEach(p => { p.hidden = (p.dataset.panel !== status); });
+        if (meta[status]) {
+            titleEl.textContent = meta[status].label;
+            countEl.textContent = meta[status].count;
+            countEl.style.color = meta[status].color;
+            countEl.style.background = meta[status].color + '1F';
+        }
+    }
+
+    cards.forEach(card => {
+        card.addEventListener('click', () => activate(card.dataset.status));
+        card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                activate(card.dataset.status);
+            }
+        });
+    });
+})();
+</script>
 
 </x-admin-layout>
