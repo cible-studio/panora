@@ -520,10 +520,9 @@
     const titleEl = document.getElementById('rcamp-list-title');
     const countEl = document.getElementById('rcamp-list-count');
 
-    // Métadonnées côté JS pour titre + couleur du compteur
-    // Note : construction extraite en @php pour éviter que le parser
-    // Blade ne s'emmêle dans le [ ... ] du closure multi-ligne à
-    // l'intérieur de la directive @json(...).
+    // Metadonnees cote JS pour titre + couleur du compteur.
+    // Construction faite en PHP ci-dessus (le parser Blade se prenait
+    // les pieds dans les crochets/arrows dans une directive inline).
     const meta = {!! json_encode($statusMetaJs, JSON_UNESCAPED_UNICODE) !!};
 
     function activate(status) {
