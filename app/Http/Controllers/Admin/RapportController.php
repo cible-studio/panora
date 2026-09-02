@@ -1986,7 +1986,7 @@ class RapportController extends Controller
             'total', 'actives', 'terminees', 'annulees', 'planifiees', 'enPause',
             'tauxAnnulation', 'motifsAnnulation',
             'topByCA', 'topPanels', 'topByDuration', 'tendance',
-            'caTotal', 'terminéesList'
+            'caTotal', 'campagnesTerminees'
         ));
     }
 
