@@ -3,6 +3,7 @@ namespace App\Observers;
 
 use App\Enums\PoseTaskStatus;
 use App\Jobs\SendCampaignEndedMail;
+use App\Jobs\SendCampaignEndedCommercialMail;
 use App\Jobs\SendSatisfactionSurvey;
 use App\Models\Campaign;
 use App\Models\PoseTask;
@@ -169,6 +170,12 @@ class CampaignObserver
                         'client_id'   => $campaign->client_id,
                     ]);
                 }
+
+                // Notif commerciale J0 — indépendante du mail client :
+                // même si pas de client_id, on prévient le commercial si
+                // assigné. Le job skip proprement s'il n'y a pas de
+                // commercial (campaign->user null ou sans email).
+                SendCampaignEndedCommercialMail::dispatch($campaign->id);
 
                 AlertService::notify(
                     'campagne_terminee',

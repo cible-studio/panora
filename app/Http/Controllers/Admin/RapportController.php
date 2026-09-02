@@ -1967,12 +1967,26 @@ class RapportController extends Controller
             ->whereIn('status', ['actif', 'termine', 'pause'])
             ->sum('total_amount');
 
+        // ── 8. Liste détaillée des campagnes TERMINÉES sur la période
+        // (2026-XX feedback user : l'admin doit pouvoir voir quelles
+        // campagnes se sont terminées ce mois-ci, pas juste le compte).
+        // Périmètre : campagnes dont end_date tombe dans la période.
+        $campagnesTerminees = $baseQuery()
+            ->where('status', 'termine')
+            ->whereBetween('end_date', [$dateFrom, $dateTo])
+            ->with(['client:id,name,email', 'user:id,name'])
+            ->orderByDesc('end_date')
+            ->get([
+                'id', 'name', 'client_id', 'user_id',
+                'start_date', 'end_date', 'total_amount', 'total_panels',
+            ]);
+
         return view('admin.rapports.campagnes', compact(
             'annee', 'moisDu', 'moisAu', 'dateFrom', 'dateTo', 'anneesDisponibles',
             'total', 'actives', 'terminees', 'annulees', 'planifiees', 'enPause',
             'tauxAnnulation', 'motifsAnnulation',
             'topByCA', 'topPanels', 'topByDuration', 'tendance',
-            'caTotal'
+            'caTotal', 'terminéesList'
         ));
     }
 
