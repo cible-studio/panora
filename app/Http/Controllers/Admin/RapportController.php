@@ -2009,4 +2009,79 @@ class RapportController extends Controller
         ));
     }
 
+    /**
+     * ═══ CLASSIFICATION PANNEAUX PAR DURÉE D'OCCUPATION ═══════════
+     *
+     * Vue dédiée qui classe les panneaux en 3 catégories selon leur
+     * durée d'occupation cumulée sur la période analysée :
+     *   🟢 À l'année      : days_occupied ≥ 365
+     *   🟡 Intermédiaire  : 0 < days_occupied < 365
+     *   🔴 Jamais occupés : days_occupied = 0
+     *
+     * Exclusion métier : Chevalets + Murales (cycle d'occupation
+     * spécifique, ne rentrent pas dans l'analyse standard).
+     *
+     * Défaut de période : 12 mois glissants (nécessaire pour qu'un
+     * panneau puisse atteindre 365j cumulés). Le user peut choisir
+     * une autre période via `from` / `to` en query string.
+     */
+    public function panneauxClassification(Request $request, DashboardKpiService $kpi)
+    {
+        // Période : défaut 12 mois glissants, override user possible.
+        $from = $request->date('from');
+        $to   = $request->date('to');
+        if (!$from || !$to) {
+            $to   = Carbon::today();
+            $from = $to->copy()->subMonths(12);
+        }
+
+        // Injecte la période dans le service (contrat interne
+        // applyPeriodAndFilters attend une Request → on la clone
+        // avec les bons paramètres pour respecter le pipeline).
+        $request->merge([
+            'from' => $from->toDateString(),
+            'to'   => $to->toDateString(),
+        ]);
+        $this->applyPeriodAndFilters($request, $kpi);
+
+        $classification = $kpi->panelsClassificationByOccupation();
+        $periodDays     = max(1, (int) $from->diffInDays($to) + 1);
+
+        return view('admin.rapports.panneaux-classification', [
+            'classification' => $classification,
+            'from'           => $from,
+            'to'             => $to,
+            'periodDays'     => $periodDays,
+        ]);
+    }
+
+    /**
+     * Export PDF de la classification panneaux — 3 tables complètes.
+     */
+    public function panneauxClassificationPdf(Request $request, DashboardKpiService $kpi)
+    {
+        $from = $request->date('from');
+        $to   = $request->date('to');
+        if (!$from || !$to) {
+            $to   = Carbon::today();
+            $from = $to->copy()->subMonths(12);
+        }
+        $request->merge([
+            'from' => $from->toDateString(),
+            'to'   => $to->toDateString(),
+        ]);
+        $this->applyPeriodAndFilters($request, $kpi);
+
+        $classification = $kpi->panelsClassificationByOccupation();
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.panneaux-classification-pdf', [
+            'classification' => $classification,
+            'from'           => $from,
+            'to'             => $to,
+            'user'           => $request->user(),
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download('classification-panneaux-' . now()->format('Ymd_His') . '.pdf');
+    }
+
 }

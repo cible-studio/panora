@@ -1410,6 +1410,12 @@ Route::prefix('admin')
         Route::get('/rapports/clients/{client}/detail', [RapportController::class, 'clientDetail'])
             ->whereNumber('client')->name('rapports.clients.detail');
         Route::get('/rapports/campagnes', [RapportController::class, 'campagnes'])->name('rapports.campagnes');
+        Route::get('/rapports/panneaux-classification',
+            [RapportController::class, 'panneauxClassification'])
+            ->name('rapports.panneaux-classification');
+        Route::get('/rapports/panneaux-classification/pdf',
+            [RapportController::class, 'panneauxClassificationPdf'])
+            ->name('rapports.panneaux-classification.pdf');
 
         // Actions / endpoints décapage (déjà scopés commercial — cf.
         // DashboardKpiService::decapStats et decapList).
