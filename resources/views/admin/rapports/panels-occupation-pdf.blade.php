@@ -23,24 +23,23 @@ body {
 }
 
 /* ── PAGE DE GARDE ─────────────────────────────── */
+/* Fix 2026-09-14 : page blanche entre cover et contenu.
+   Cause : cover-page height fixe + cover-footer position:absolute
+   → DomPDF crée une page fantôme. Solution : flow normal, pas de
+   height explicite, pas d'absolute. */
 .cover-page {
     width: 100%;
-    height: 550px;
     background-color: #0F172A;
     page-break-after: always;
-    position: relative;
 }
 .cover-header {
     background-color: #0F172A;
-    padding: 28px 32px 20px 32px;
+    padding: 40px 32px 24px 32px;
     border-bottom: 4px solid #E8A020;
+    text-align: center;
 }
-.cover-logo-row { width: 100%; border-collapse: collapse; }
-.cover-logo-row td { vertical-align: middle; }
-.cover-logo { height: 56px; width: auto; }
-.cover-brand-name { font-size: 16px; font-weight: bold; color: #ffffff; padding-left: 14px; }
-.cover-brand-sub { font-size: 9px; color: #94A3B8; padding-left: 14px; display: block; margin-top: 3px; }
-.cover-body { padding: 30px 32px 10px 32px; }
+.cover-logo { height: 72px; width: auto; }
+.cover-body { padding: 40px 32px 28px 32px; background-color: #0F172A; }
 .cover-title-1 {
     font-size: 30px; font-weight: bold; color: #ffffff;
     line-height: 1.1; margin-bottom: 4px;
@@ -58,8 +57,8 @@ body {
 }
 .cover-meta-value { color: #E2E8F0; font-weight: bold; }
 .cover-footer {
-    background-color: #E8A020; padding: 8px 32px;
-    position: absolute; bottom: 0; left: 0; right: 0;
+    background-color: #E8A020;
+    padding: 10px 32px;
 }
 .cover-footer-text { font-size: 8px; font-weight: bold; color: #0F172A; }
 
@@ -192,23 +191,13 @@ body {
 ══════════════════════════════════════ --}}
 <div class="cover-page">
     <div class="cover-header">
-        <table class="cover-logo-row">
-            <tr>
-                <td style="width:80px;">
-                    @if(!empty($logoCibleDark))
-                        <img src="{{ $logoCibleDark }}" class="cover-logo" alt="CIBLE CI">
-                    @else
-                        <div style="width:56px;height:56px;background:#E8A020;
-                                    text-align:center;line-height:56px;color:#0F172A;
-                                    font-weight:bold;font-size:11px;">CIBLE</div>
-                    @endif
-                </td>
-                <td>
-                    <span class="cover-brand-name">CIBLE SARL</span>
-                    <span class="cover-brand-sub">Régie Publicitaire OOH · Côte d'Ivoire</span>
-                </td>
-            </tr>
-        </table>
+        @if(!empty($logoCibleDark))
+            <img src="{{ $logoCibleDark }}" class="cover-logo" alt="CIBLE CI">
+        @else
+            <div style="width:72px;height:72px;background:#E8A020;
+                        text-align:center;line-height:72px;color:#0F172A;
+                        font-weight:bold;font-size:13px;display:inline-block;">CIBLE</div>
+        @endif
     </div>
 
     <div class="cover-body">
