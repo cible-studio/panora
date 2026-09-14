@@ -1516,6 +1516,12 @@ class RapportController extends Controller
      */
     public function exportPanelsOccupationPdf(Request $request, DashboardKpiService $kpi, \App\Services\RapportFilterContextService $filterCtx)
     {
+        // DomPDF sur un parc de +400 panneaux consomme jusqu'à 800 Mo pour
+        // parser le HTML + calculer les box models. Le défaut Docker à
+        // 512M ne suffit pas → bump ponctuel à 1024M sur cette route.
+        // Fix permanent : bump 1024M dans Dockerfile (redéploy nécessaire).
+        @ini_set('memory_limit', '1024M');
+
         $this->applyPeriodAndFilters($request, $kpi);
         $panels = $kpi->panelsOccupationFull();
         $period = $kpi->getPeriod();
@@ -1532,7 +1538,44 @@ class RapportController extends Controller
             'filterRecap' => $filterRecap,
         ])->setPaper('a4', 'landscape');
 
+        $this->injectPagination($pdf);
+
         return $pdf->download('occupation-panneaux-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    /**
+     * Injecte "Page X / Y" en bas-droite de chaque page du PDF.
+     * Méthode PHP fiable (DomPDF 3.x) via getCanvas()->page_text().
+     * Placeholders {PAGE_NUM} et {PAGE_COUNT} résolus par DomPDF au
+     * moment du rendu final (quand le nb total de pages est connu).
+     *
+     * Coord A4 landscape : W=842pt, H=595pt.
+     * Position bas-droite : x=780, y=578 (≈ 5mm de la marge droite,
+     * 6mm du bas).
+     */
+    protected function injectPagination(\Barryvdh\DomPDF\PDF $pdf): void
+    {
+        try {
+            $dompdf = $pdf->getDomPDF();
+            $canvas = $dompdf->getCanvas();
+            $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans', 'bold');
+
+            $x = 780;
+            $y = 578;
+            $size = 8;
+
+            // Masque blanc pour cacher le "Page 1" placeholder du HTML
+            $canvas->filled_rectangle($x - 30, $y - 2, 70, $size + 4, [1, 1, 1]);
+            $canvas->page_text($x, $y, 'Page {PAGE_NUM} / {PAGE_COUNT}', $font, $size, [0.04, 0.05, 0.06]);
+        } catch (\Throwable $e) {
+            // Best-effort : si DomPDF ne supporte pas cette API sur cette
+            // version, on log mais on n'empêche pas le téléchargement du
+            // PDF (le placeholder "Page 1" du HTML reste visible — moche
+            // mais fonctionnel).
+            \Illuminate\Support\Facades\Log::warning('pdf.pagination.inject_failed', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -2060,6 +2103,8 @@ class RapportController extends Controller
      */
     public function panneauxClassificationPdf(Request $request, DashboardKpiService $kpi)
     {
+        @ini_set('memory_limit', '1024M');
+
         $from = $request->date('from');
         $to   = $request->date('to');
         if (!$from || !$to) {
@@ -2080,6 +2125,8 @@ class RapportController extends Controller
             'to'             => $to,
             'user'           => $request->user(),
         ])->setPaper('a4', 'landscape');
+
+        $this->injectPagination($pdf);
 
         return $pdf->download('classification-panneaux-' . now()->format('Ymd_His') . '.pdf');
     }

@@ -264,28 +264,11 @@
     <div class="c">Document généré automatiquement par Panora</div>
 </div>
 
-{{-- DomPDF page_text : injecte la vraie numérotation "X / Y" sur
-     chaque page. DomPDF remplace {PAGE_NUM} et {PAGE_COUNT} au
-     rendu final (après avoir compté toutes les pages). C'est la
-     méthode officielle DomPDF 2.x/3.x (page_script(string) a été
-     retiré, on utilise page_text() qui gère les placeholders).
-
-     Position : le PDF est en A4 landscape (842×595 pt). La ligne
-     `1 span "Page 1" placeholder` du footer HTML se trouve dans
-     la zone droite ; ici on écrit par-dessus en absolue. --}}
-<script type="text/php">
-if (isset($pdf)) {
-    $font = $fontMetrics->get_font("DejaVu Sans", "bold");
-    $size = 8;
-    // A4 landscape : W=842pt, H=595pt. Footer bottom 4mm ≈ 11pt.
-    // Position bas-droite juste au-dessus du bord droit.
-    $x = 780;
-    $y = 578;
-    // Masque blanc pour cacher le "Page 1" placeholder du HTML
-    $pdf->filled_rectangle($x - 30, $y - 2, 70, $size + 4, [1, 1, 1]);
-    $pdf->page_text($x, $y, "Page {PAGE_NUM} / {PAGE_COUNT}", $font, $size, [0.04, 0.05, 0.06]);
-}
-</script>
+{{-- La pagination "Page X / Y" est injectée par le controller
+     via $pdf->getDomPDF()->getCanvas()->page_text() après
+     loadView() → plus fiable que <script type="text/php"> qui
+     dépend du parser DomPDF (variables auto-injectées différentes
+     selon versions). Cf. RapportController::exportPanelsOccupationPdf. --}}
 
 </body>
 </html>
