@@ -183,18 +183,12 @@
 
 <script type="text/php">
 if (isset($pdf)) {
-    $pdf->page_script('
-        $font = $fontMetrics->get_font("DejaVu Sans", "bold");
-        $size = 8;
-        $text = "Page " . $PAGE_NUM . " / " . $PAGE_COUNT;
-        $width  = $fontMetrics->get_text_width($text, $font, $size);
-        $pageWidth  = $pdf->get_width();
-        $pageHeight = $pdf->get_height();
-        $x = $pageWidth - $width - 30;
-        $y = $pageHeight - 26;
-        $pdf->filled_rectangle($x - 4, $y - 2, $width + 8, $size + 4, [1, 1, 1]);
-        $pdf->text($x, $y, $text, $font, $size, [0.04, 0.05, 0.06]);
-    ');
+    $font = $fontMetrics->get_font("DejaVu Sans", "bold");
+    $size = 8;
+    $x = 780;
+    $y = 578;
+    $pdf->filled_rectangle($x - 30, $y - 2, 70, $size + 4, [1, 1, 1]);
+    $pdf->page_text($x, $y, "Page {PAGE_NUM} / {PAGE_COUNT}", $font, $size, [0.04, 0.05, 0.06]);
 }
 </script>
 
