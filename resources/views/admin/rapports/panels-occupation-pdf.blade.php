@@ -4,10 +4,12 @@
 <meta charset="UTF-8">
 <title>Occupation des panneaux — CIBLE CI</title>
 <style>
-    /* margin-bottom 20mm = espace réservé pour le footer fixed
-       (sans ça, le tableau se mélange avec le footer en bas de page 2+). */
-    @page { size: A4 landscape; margin: 12mm 10mm 20mm 10mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2937; line-height: 1.4; }
+    /* margin-bottom 26mm = espace réservé pour le footer fixed.
+       Historique : 20mm ne suffisait pas → DomPDF laissait déborder
+       la dernière ligne du tableau sur le footer (bug user 2026-09).
+       26mm + padding-bottom body = double garde-fou. */
+    @page { size: A4 landscape; margin: 12mm 10mm 26mm 10mm; }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2937; line-height: 1.4; padding-bottom: 4mm; }
     h1 { font-size: 16px; color: #e8a020; margin: 0 0 4px; }
     .header { display: table; width: 100%; margin-bottom: 12px; }
     .header .left  { display: table-cell; vertical-align: middle; }
