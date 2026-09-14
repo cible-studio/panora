@@ -120,8 +120,13 @@
         $list = $classification[$section['key']];
         $nbMaintList = $list->filter(fn ($p) => $p->status === 'maintenance')->count();
     @endphp
+    @php
+        $sectionLabel = $section['label'] . ' (' . $list->count()
+            . ($nbMaintList > 0 ? ' · dont ' . $nbMaintList . ' en maintenance' : '')
+            . ')';
+    @endphp
     <h2 style="background:{{ $section['color'] }}">
-        {{ $section['label'] }} ({{ $list->count() }}@if($nbMaintList > 0) · dont {{ $nbMaintList }} en maintenance@endif)
+        {{ $sectionLabel }}
     </h2>
 
     @if($list->isEmpty())
