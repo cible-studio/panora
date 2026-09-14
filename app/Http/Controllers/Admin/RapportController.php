@@ -1529,8 +1529,26 @@ class RapportController extends Controller
 
         $filterRecap = $filterCtx->build($request, $period['from'], $period['to']);
 
+        // Prépare les agrégats pour la page de garde + KPI banner.
+        // Refonte 2026-09-14 : template pro avec cover page + header/footer
+        // répétés + KPI colorés + légende + ligne totale. Cf. request user.
+        $nbMaintenance = $panels->filter(fn ($p) => $p->status === 'maintenance')->count();
+        $stats = [
+            'reference'       => 'C' . strtoupper(substr(md5(now()->toIso8601String()), 0, 8)),
+            'date_debut'      => $period['from']->toDateString(),
+            'date_fin'        => $period['to']->toDateString(),
+            'total_panneaux'  => $panels->count(),
+            'total_jours'     => (int) $panels->sum('days_occupied'),
+            'taux_moyen'      => $panels->count() > 0 ? round($panels->avg('occupation_rate'), 1) : 0,
+            'total_campagnes' => (int) $panels->sum('campaigns_count'),
+            'en_maintenance'  => $nbMaintenance,
+            'edite_le'        => now()->format('d/m/Y H:i'),
+            'zone_label'      => $zoneLabel,
+        ];
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.panels-occupation-pdf', [
             'panels'      => $panels,
+            'stats'       => $stats,
             'from'        => $period['from'],
             'to'          => $period['to'],
             'zoneLabel'   => $zoneLabel,
