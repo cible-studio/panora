@@ -1558,20 +1558,23 @@ class RapportController extends Controller
         try {
             $dompdf = $pdf->getDomPDF();
             $canvas = $dompdf->getCanvas();
-            $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans', 'bold');
+            $font   = $dompdf->getFontMetrics()->getFont('DejaVu Sans', 'bold');
 
-            $x = 780;
-            $y = 578;
-            $size = 8;
-
-            // Masque blanc pour cacher le "Page 1" placeholder du HTML
-            $canvas->filled_rectangle($x - 30, $y - 2, 70, $size + 4, [1, 1, 1]);
-            $canvas->page_text($x, $y, 'Page {PAGE_NUM} / {PAGE_COUNT}', $font, $size, [0.04, 0.05, 0.06]);
+            // A4 landscape : 842 × 595 pt.
+            // Position bas-droite : x=780 (≈ 22pt de la marge droite),
+            // y=578 (≈ 17pt du bord bas, dans la zone du footer).
+            // page_text() écrit sur TOUTES les pages avec placeholders
+            // {PAGE_NUM} / {PAGE_COUNT} remplacés au rendu final.
+            // Pas de filled_rectangle (ne s'applique qu'à la page courante).
+            // Les templates HTML ne contiennent plus de placeholder "Page 1"
+            // dans le footer — page_text est la source unique de pagination.
+            $canvas->page_text(
+                780, 578,
+                'Page {PAGE_NUM} / {PAGE_COUNT}',
+                $font, 8,
+                [0.04, 0.05, 0.06]
+            );
         } catch (\Throwable $e) {
-            // Best-effort : si DomPDF ne supporte pas cette API sur cette
-            // version, on log mais on n'empêche pas le téléchargement du
-            // PDF (le placeholder "Page 1" du HTML reste visible — moche
-            // mais fonctionnel).
             \Illuminate\Support\Facades\Log::warning('pdf.pagination.inject_failed', [
                 'error' => $e->getMessage(),
             ]);
