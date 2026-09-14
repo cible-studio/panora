@@ -242,10 +242,13 @@
         @endforelse
 
         @if($panels->isNotEmpty())
+            @php
+                $totalLabel = 'TOTAL (' . $panels->count() . ' panneaux'
+                    . ($nbMaintenance > 0 ? ' · dont ' . $nbMaintenance . ' en maintenance' : '')
+                    . ')';
+            @endphp
             <tr class="totals">
-                <td colspan="6" class="r">TOTAL ({{ $panels->count() }} panneaux
-                    @if($nbMaintenance > 0)· dont {{ $nbMaintenance }} en maintenance@endif)
-                </td>
+                <td colspan="6" class="r">{{ $totalLabel }}</td>
                 <td class="c">{{ $panels->sum('campaigns_count') }}</td>
                 <td class="r">{{ number_format($totalJours, 0, ',', ' ') }} j</td>
                 <td class="r">{{ $tauxMoyen }} %</td>
