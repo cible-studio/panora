@@ -4,38 +4,45 @@
 <meta charset="UTF-8">
 <title>Occupation des panneaux — CIBLE CI</title>
 <style>
-    @page { size: A4 landscape; margin: 12mm 10mm 18mm 10mm; }
+    @page { size: A4 landscape; margin: 12mm 10mm 16mm 10mm; }
     body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2937; line-height: 1.3; margin: 0; padding: 0; }
 
-    /* ═══ HEADER — vraie table HTML (pas de div display:table qui bugue) ═══ */
-    table.doc-header { width: 100%; border-collapse: collapse; background: #0a0c10; margin-bottom: 8px; }
-    table.doc-header td { padding: 8px 12px; vertical-align: middle; color: #cbd5e1; font-size: 8.5px; }
-    table.doc-header td.left { border-left: 4px solid #e8a020; width: 65%; }
-    table.doc-header td.right { text-align: right; }
-    table.doc-header h1 { margin: 0; color: #fff; font-size: 14px; font-weight: bold; letter-spacing: 0.4px; text-transform: uppercase; }
-    table.doc-header .subtitle { margin-top: 2px; font-size: 9px; color: #e8a020; }
-    table.doc-header .lbl { color: #94a3b8; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; }
-    table.doc-header .val { color: #fff; font-size: 9px; font-weight: 600; }
+    /* ═══ HEADER — Layout FLOAT (pas de <table>, pas de display:table) ═══
+       Fix bug DomPDF v3 : les <table> de layout génèrent des sauts de
+       page fantômes derrière eux. Solution : float pur. */
+    .header-band {
+        background: #0a0c10;
+        padding: 8px 12px;
+        border-left: 4px solid #e8a020;
+        margin-bottom: 6px;
+        overflow: hidden;
+    }
+    .header-band .h-left  { float: left;  width: 65%; }
+    .header-band .h-right { float: right; width: 33%; text-align: right; color: #cbd5e1; font-size: 8.5px; }
+    .header-band h1 { margin: 0; color: #fff; font-size: 14px; font-weight: bold; letter-spacing: 0.4px; text-transform: uppercase; }
+    .header-band .subtitle { margin-top: 2px; font-size: 9px; color: #e8a020; }
+    .header-band .lbl { color: #94a3b8; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; }
+    .header-band .val { color: #fff; font-size: 9px; font-weight: 600; }
 
-    /* ═══ Meta stats — vraie table HTML avec hauteur fixe cellules ═══ */
-    table.meta { width: 100%; border-collapse: separate; border-spacing: 4px 0; margin: 6px 0 8px; }
-    table.meta td {
+    /* ═══ Meta stats — 1 ligne texte enrichi (fini les tuiles bugées) ═══ */
+    .stats-line {
         background: #fefaf1;
         border: 1px solid #f3d999;
         border-left: 3px solid #e8a020;
         border-radius: 3px;
-        padding: 5px 8px;
-        text-align: center;
-        vertical-align: middle;
-        height: 32px;
+        padding: 6px 10px;
+        margin: 4px 0 8px;
+        font-size: 9px;
+        color: #78350f;
+        line-height: 1.6;
     }
-    table.meta .val { font-size: 13px; font-weight: bold; color: #92400e; line-height: 1; }
-    table.meta .lbl { font-size: 7px; color: #78350f; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
-    table.meta td.maint { background: #fef3c7; border-color: #fbbf24; border-left-color: #d97706; }
-    table.meta td.maint .val { color: #92400e; }
+    .stats-line .k { color: #92400e; font-weight: bold; }
+    .stats-line .v { color: #78350f; font-weight: bold; font-size: 11px; }
+    .stats-line .sep { color: #d97706; margin: 0 6px; }
+    .stats-line .maint { color: #b45309; font-weight: bold; }
 
-    /* ═══ Table data — compact ═══ */
-    table.data { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    /* ═══ Table data ═══ */
+    table.data { width: 100%; border-collapse: collapse; margin-top: 2px; }
     table.data th { background: #0a0c10; color: #fff; padding: 5px 6px; text-align: left; font-size: 7.5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px; }
     table.data th.r, table.data td.r { text-align: right; }
     table.data th.c, table.data td.c { text-align: center; }
@@ -60,17 +67,16 @@
         padding: 6px;
     }
 
-    /* Footer fixed */
     .footer {
         position: fixed;
-        bottom: 4mm;
+        bottom: 3mm;
         left: 10mm;
         right: 10mm;
-        height: 10mm;
+        height: 8mm;
         font-size: 7.5px;
         color: #6b7280;
         border-top: 1px solid #d1d5db;
-        padding-top: 3mm;
+        padding-top: 2mm;
     }
     .footer .l { float: left; }
     .footer .r { float: right; }
@@ -79,20 +85,18 @@
 </head>
 <body>
 
-{{-- ═══ HEADER (table HTML native, pas de div display:table) ═══ --}}
-<table class="doc-header">
-    <tr>
-        <td class="left">
-            <h1>Occupation des panneaux</h1>
-            <div class="subtitle">Rapport détaillé par panneau · {{ $operatorName ?? 'CIBLE CI' }}</div>
-        </td>
-        <td class="right">
-            <div><span class="lbl">Édité le</span> <span class="val">{{ now()->format('d/m/Y H:i') }}</span></div>
-            <div><span class="lbl">Par</span> <span class="val">{{ $user->name ?? '—' }}</span></div>
-            <div><span class="lbl">Réf.</span> <span class="val">C{{ strtoupper(substr(md5(now()), 0, 8)) }}</span></div>
-        </td>
-    </tr>
-</table>
+{{-- HEADER : divs floatés, aucune <table> --}}
+<div class="header-band">
+    <div class="h-left">
+        <h1>Occupation des panneaux</h1>
+        <div class="subtitle">Rapport détaillé par panneau · {{ $operatorName ?? 'CIBLE CI' }}</div>
+    </div>
+    <div class="h-right">
+        <div><span class="lbl">Édité le</span> <span class="val">{{ now()->format('d/m/Y H:i') }}</span></div>
+        <div><span class="lbl">Par</span> <span class="val">{{ $user->name ?? '—' }}</span></div>
+        <div><span class="lbl">Réf.</span> <span class="val">C{{ strtoupper(substr(md5(now()), 0, 8)) }}</span></div>
+    </div>
+</div>
 
 @include('admin.rapports.partials._filter_recap_pdf')
 
@@ -103,33 +107,20 @@
     $totalCampagnes  = $panels->sum('campaigns_count');
 @endphp
 
-{{-- ═══ Meta stats — table HTML avec height fixe pour empêcher le stretch ═══ --}}
-<table class="meta">
-    <tr>
-        <td>
-            <div class="val">{{ $panels->count() }}</div>
-            <div class="lbl">Panneaux</div>
-        </td>
-        <td>
-            <div class="val">{{ number_format($totalJours, 0, ',', ' ') }}</div>
-            <div class="lbl">Jours occupés</div>
-        </td>
-        <td>
-            <div class="val">{{ $tauxMoyen }} %</div>
-            <div class="lbl">Taux moyen</div>
-        </td>
-        <td>
-            <div class="val">{{ $totalCampagnes }}</div>
-            <div class="lbl">Campagnes cumulées</div>
-        </td>
-        @if($nbMaintenance > 0)
-        <td class="maint">
-            <div class="val">{{ $nbMaintenance }}</div>
-            <div class="lbl">En maintenance</div>
-        </td>
-        @endif
-    </tr>
-</table>
+{{-- META : une ligne texte enrichi (plus de tuiles qui bugent) --}}
+<div class="stats-line">
+    <span class="k">Panneaux :</span> <span class="v">{{ $panels->count() }}</span>
+    <span class="sep">·</span>
+    <span class="k">Jours occupés :</span> <span class="v">{{ number_format($totalJours, 0, ',', ' ') }}</span>
+    <span class="sep">·</span>
+    <span class="k">Taux moyen :</span> <span class="v">{{ $tauxMoyen }} %</span>
+    <span class="sep">·</span>
+    <span class="k">Campagnes cumulées :</span> <span class="v">{{ $totalCampagnes }}</span>
+    @if($nbMaintenance > 0)
+        <span class="sep">·</span>
+        <span class="maint">🔧 {{ $nbMaintenance }} en maintenance</span>
+    @endif
+</div>
 
 <table class="data">
     <thead>
