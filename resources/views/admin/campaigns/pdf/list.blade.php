@@ -4,8 +4,12 @@
     <meta charset="UTF-8">
     <title>Liste des campagnes — CIBLE CI</title>
     <style>
-        @page { margin: 12mm; }
-        body  { font-family: 'DejaVu Sans', Arial, sans-serif; color: #1f2937; font-size: 9px; line-height: 1.4; }
+        /* margin-bottom 22mm + body padding-bottom = double garde-fou
+           contre le débordement du tableau sur le footer (bug DomPDF).
+           Ici on est en portrait A4 par défaut → 22mm suffit (au lieu
+           de 26mm sur les rapports paysage). */
+        @page { margin: 12mm 12mm 22mm 12mm; }
+        body  { font-family: 'DejaVu Sans', Arial, sans-serif; color: #1f2937; font-size: 9px; line-height: 1.4; padding-bottom: 4mm; }
 
         /* Header uniforme cohérent avec les autres PDFs */
         .pdf-header {
