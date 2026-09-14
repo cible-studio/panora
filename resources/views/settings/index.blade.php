@@ -3,6 +3,25 @@
 <x-slot:topbarActions>
 </x-slot:topbarActions>
 
+@php
+    // Highlight IDs passés par les controllers Settings après create/update
+    // → scroll auto vers la ligne + pulse coloré pendant 3s.
+    $highlightCommune  = request()->query('highlight_communes');
+    $highlightZone     = request()->query('highlight_zones');
+    $highlightFormat   = request()->query('highlight_formats');
+    $highlightCategory = request()->query('highlight_categories');
+@endphp
+
+<style>
+    /* Flash highlight sur ligne récemment créée/modifiée. */
+    @keyframes settings-pulse {
+        0%   { background-color: rgba(226, 6, 19, .22); box-shadow: inset 3px 0 0 var(--accent); }
+        70%  { background-color: rgba(226, 6, 19, .10); box-shadow: inset 3px 0 0 var(--accent); }
+        100% { background-color: transparent;           box-shadow: inset 3px 0 0 transparent; }
+    }
+    tr.row-highlight td { animation: settings-pulse 3.5s ease-out 1; }
+</style>
+
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
 
     {{-- ══ COMMUNES ══ --}}
@@ -30,7 +49,8 @@
                 </thead>
                 <tbody>
                     @forelse($communes as $commune)
-                    <tr>
+                    <tr id="row-commune-{{ $commune->id }}"
+                        @if($highlightCommune == $commune->id) class="row-highlight" @endif>
                         <td><strong>{{ $commune->name }}</strong></td>
                         <td style="color:var(--text2);font-size:12px;">{{ $commune->city ?? '—' }}</td>
                         <td style="font-size:12px;">{{ number_format($commune->odp_rate, 0, ',', ' ') }} FCFA</td>
@@ -90,7 +110,8 @@
                 </thead>
                 <tbody>
                     @forelse($zones as $zone)
-                    <tr>
+                    <tr id="row-zone-{{ $zone->id }}"
+                        @if($highlightZone == $zone->id) class="row-highlight" @endif>
                         <td><strong>{{ $zone->name }}</strong></td>
                         <td style="color:var(--text2);font-size:12px;">{{ $zone->commune?->name ?? '—' }}</td>
                         <td style="font-size:11px;color:var(--text3);">
@@ -150,7 +171,8 @@
                 </thead>
                 <tbody>
                     @forelse($formats as $format)
-                    <tr>
+                    <tr id="row-format-{{ $format->id }}"
+                        @if($highlightFormat == $format->id) class="row-highlight" @endif>
                         <td><strong>{{ $format->name }}</strong></td>
                         <td style="font-size:12px;color:var(--text2);">
                             {{ $format->dimensions_label ?? '—' }}
@@ -212,7 +234,8 @@
                 </thead>
                 <tbody>
                     @forelse($categories as $category)
-                    <tr>
+                    <tr id="row-category-{{ $category->id }}"
+                        @if($highlightCategory == $category->id) class="row-highlight" @endif>
                         <td><strong>{{ $category->name }}</strong></td>
                         <td style="font-size:11px;color:var(--text3);">
                             {{ \Illuminate\Support\Str::limit($category->description ?? '', 40) ?: '—' }}
@@ -569,6 +592,17 @@
         document.body.appendChild(t);
         setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 2800);
     }
+
+    // Auto-scroll vers la ligne highlight (juste après création/édition
+    // depuis un controller Settings) — cf. Controller::redirectToSettingsRecord.
+    // La ligne pulse déjà en rouge via CSS keyframes ; le scroll centre
+    // la vue dessus pour la rendre immédiatement lisible.
+    document.addEventListener('DOMContentLoaded', () => {
+        const highlighted = document.querySelector('tr.row-highlight');
+        if (highlighted) {
+            highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
 })();
 </script>
 @endpush

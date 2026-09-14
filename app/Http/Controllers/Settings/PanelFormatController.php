@@ -22,10 +22,10 @@ class PanelFormatController extends Controller
             'print_type' => 'nullable|string|max:80',
         ]);
 
-        PanelFormat::create($request->all());
+        $format = PanelFormat::create($request->all());
 
-        return redirect()->route('admin.settings.index')
-            ->with('success', 'Format créé avec succès !');
+        return $this->redirectToSettingsRecord($format, 'formats')
+            ->with('success', 'Format « ' . $format->name . ' » créé avec succès !');
     }
 
     public function update(Request $request, PanelFormat $format)
@@ -44,8 +44,8 @@ class PanelFormatController extends Controller
             return response()->json(['success' => true, 'message' => 'Format modifié avec succès !']);
         }
 
-        return redirect()->route('admin.settings.index')
-            ->with('success', 'Format modifié avec succès !');
+        return $this->redirectToSettingsRecord($format, 'formats')
+            ->with('success', 'Format « ' . $format->name . ' » modifié avec succès !');
     }
 
     public function destroy(PanelFormat $format)

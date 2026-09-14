@@ -25,10 +25,10 @@ class CommuneController extends Controller
         $data['odp_rate'] = $data['odp_rate'] ?? 0;
         $data['tm_rate']  = $data['tm_rate']  ?? 0;
 
-        Commune::create($data);
+        $commune = Commune::create($data);
 
-        return redirect()->route('admin.settings.index')
-            ->with('success', 'Commune créée avec succès !');
+        return $this->redirectToSettingsRecord($commune, 'communes')
+            ->with('success', 'Commune « ' . $commune->name . ' » créée avec succès !');
     }
 
     public function update(Request $request, Commune $commune)
@@ -59,7 +59,7 @@ class CommuneController extends Controller
             return response()->json(['success' => true, 'message' => $msg]);
         }
 
-        return redirect()->route('admin.settings.index')
+        return $this->redirectToSettingsRecord($commune, 'communes')
             ->with('success', $msg);
     }
 

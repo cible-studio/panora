@@ -23,10 +23,10 @@ class ZoneController extends Controller
             'demand_level' => 'required|in:faible,normale,haute,tres_haute',
         ]);
 
-        Zone::create($request->all());
+        $zone = Zone::create($request->all());
 
-        return redirect()->route('admin.settings.index')
-            ->with('success', 'Zone créée avec succès !');
+        return $this->redirectToSettingsRecord($zone, 'zones')
+            ->with('success', 'Zone « ' . $zone->name . ' » créée avec succès !');
     }
 
     public function update(Request $request, Zone $zone)
@@ -44,8 +44,8 @@ class ZoneController extends Controller
             return response()->json(['success' => true, 'message' => 'Zone modifiée avec succès !']);
         }
 
-        return redirect()->route('admin.settings.index')
-            ->with('success', 'Zone modifiée avec succès !');
+        return $this->redirectToSettingsRecord($zone, 'zones')
+            ->with('success', 'Zone « ' . $zone->name . ' » modifiée avec succès !');
     }
 
     public function destroy(Zone $zone)
