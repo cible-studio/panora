@@ -4,17 +4,16 @@
 <meta charset="UTF-8">
 <title>Occupation des panneaux — CIBLE CI</title>
 <style>
-    /* margin-bottom 26mm réservé au footer fixed (bug DomPDF connu). */
     @page { size: A4 landscape; margin: 14mm 10mm 22mm 10mm; }
     body {
         font-family: 'DejaVu Sans', sans-serif;
         font-size: 9px;
         color: #1f2937;
-        line-height: 1.4;
+        line-height: 1.35;
         padding-bottom: 4mm;
     }
 
-    /* ═══ HEADER professionnel — bande foncée + accent orange ═══ */
+    /* ═══ HEADER pro ═══ */
     .doc-header {
         display: table;
         width: 100%;
@@ -54,7 +53,7 @@
     .doc-header .right .lbl { color: #94a3b8; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; }
     .doc-header .right .val { color: #fff; font-size: 9.5px; font-weight: 600; }
 
-    /* ═══ Bandeau meta stats (allégé — sans CA) ═══ */
+    /* ═══ Meta stats (tuiles) ═══ */
     .meta {
         display: table;
         width: 100%;
@@ -74,58 +73,51 @@
     .meta .val { font-size: 13px; font-weight: bold; color: #92400e; line-height: 1; }
     .meta .lbl { font-size: 7.5px; color: #78350f; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
 
-    /* ═══ Table ═══ */
-    table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
-    thead { display: table-header-group; }
-    tr    { page-break-inside: avoid; }
-    th {
+    /* ═══ Table — CSS minimal pour éviter les bugs DomPDF ═══
+       Fix bug 2026-09-14 : sans page-break-inside sur tr, DomPDF
+       ne saute pas de lignes à cause de calculs de hauteur foireux
+       sur les inline-block avec padding. Tableau compact et fluide. */
+    table.data { width: 100%; border-collapse: collapse; }
+    table.data th {
         background: #0a0c10;
-        padding: 6px 7px;
+        color: #fff;
+        padding: 5px 6px;
         text-align: left;
         font-size: 7.5px;
         font-weight: bold;
-        color: #fff;
         text-transform: uppercase;
-        letter-spacing: 0.4px;
-    }
-    th.r, td.r { text-align: right; }
-    th.c, td.c { text-align: center; }
-    td { padding: 4px 7px; font-size: 8.5px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
-    tr:nth-child(even) td { background: #fafafa; }
-    .num  { color: #6b7280; font-size: 8px; font-family: 'Courier New', monospace; text-align: right; }
-    .ref  { font-family: 'Courier New', monospace; color: #b45309; font-weight: bold; font-size: 8.5px; }
-    .pct  { font-weight: bold; }
-    .pct-hi  { color: #16a34a; }
-    .pct-mid { color: #f97316; }
-    .pct-lo  { color: #dc2626; }
-    .fmt { color: #4b5563; font-size: 8px; }
-
-    /* Badges */
-    .badge-zone { display: inline-block; padding: 1px 6px; font-size: 7.5px; border-radius: 999px; }
-    .badge-abj  { background: #dbeafe; color: #1d4ed8; }
-    .badge-int  { background: #d1fae5; color: #047857; }
-    .badge-maint {
-        display: inline-block;
-        padding: 1px 5px;
-        font-size: 7px;
-        border-radius: 3px;
-        background: #fef3c7;
-        color: #92400e;
-        font-weight: bold;
-        margin-left: 4px;
         letter-spacing: 0.3px;
     }
-    tr.row-maintenance td { background: #fffbeb !important; }
+    table.data th.r, table.data td.r { text-align: right; }
+    table.data th.c, table.data td.c { text-align: center; }
+    table.data td {
+        padding: 3px 6px;
+        font-size: 8.5px;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    table.data tr.even td { background: #fafafa; }
+    table.data tr.maint td { background: #fffbeb; }
+    .num  { color: #6b7280; font-size: 8px; font-family: 'Courier New', monospace; }
+    .ref  { font-family: 'Courier New', monospace; color: #b45309; font-weight: bold; font-size: 8.5px; }
+    .pct-hi  { color: #16a34a; font-weight: bold; }
+    .pct-mid { color: #f97316; font-weight: bold; }
+    .pct-lo  { color: #dc2626; font-weight: bold; }
+    .fmt { color: #4b5563; font-size: 8px; }
+    /* Zone : texte simple coloré, PAS de span inline-block (bug DomPDF) */
+    .zone-abj { color: #1d4ed8; font-weight: bold; font-size: 8px; }
+    .zone-int { color: #047857; font-weight: bold; font-size: 8px; }
+    .maint-tag { color: #92400e; font-weight: bold; font-size: 7.5px; }
 
     /* Ligne totaux */
-    .totals td {
+    tr.totals td {
         font-weight: bold;
         color: #92400e;
         border-top: 2px solid #f59e0b;
-        background: #fef3c7 !important;
+        background: #fef3c7;
+        padding: 6px;
     }
 
-    /* ═══ Footer propre — visuellement séparé du corps ═══ */
+    /* Footer fixed */
     .footer {
         position: fixed;
         bottom: 4mm;
@@ -139,13 +131,12 @@
         padding-top: 4mm;
     }
     .footer .l { float: left; }
+    .footer .r { float: right; }
     .footer .c { text-align: center; }
-    .footer .r { float: right; font-weight: bold; color: #0a0c10; }
 </style>
 </head>
 <body>
 
-{{-- ═══ HEADER professionnel (fond foncé, sobre) ═══ --}}
 <div class="doc-header">
     <div class="left">
         <h1>Occupation des panneaux</h1>
@@ -158,16 +149,13 @@
     </div>
 </div>
 
-{{-- Récap filtres actifs (source unique RapportFilterContextService) --}}
 @include('admin.rapports.partials._filter_recap_pdf')
 
-{{-- ═══ Meta stats — sans CA (retiré à la demande 2026-09-14) ═══ --}}
 @php
-    // Split panneaux : opérationnels vs maintenance
-    $nbMaintenance = $panels->filter(fn ($p) => $p->status === 'maintenance')->count();
-    $nbOperationnels = $panels->count() - $nbMaintenance;
-    $totalJours = $panels->sum('days_occupied');
-    $tauxMoyen = $panels->count() > 0 ? round($panels->avg('occupation_rate'), 1) : 0;
+    $nbMaintenance   = $panels->filter(fn ($p) => $p->status === 'maintenance')->count();
+    $totalJours      = $panels->sum('days_occupied');
+    $tauxMoyen       = $panels->count() > 0 ? round($panels->avg('occupation_rate'), 1) : 0;
+    $totalCampagnes  = $panels->sum('campaigns_count');
 @endphp
 
 <div class="meta">
@@ -184,7 +172,7 @@
         <div class="lbl">Taux moyen</div>
     </div>
     <div class="cell">
-        <div class="val">{{ $panels->sum('campaigns_count') }}</div>
+        <div class="val">{{ $totalCampagnes }}</div>
         <div class="lbl">Campagnes cumulées</div>
     </div>
     @if($nbMaintenance > 0)
@@ -195,43 +183,47 @@
     @endif
 </div>
 
-<table>
+<table class="data">
     <thead>
         <tr>
             <th style="width:22px" class="c">N°</th>
-            <th style="width:70px">Référence</th>
+            <th style="width:78px">Référence</th>
             <th>Emplacement</th>
             <th style="width:95px">Commune</th>
-            <th style="width:65px" class="c">Zone</th>
+            <th style="width:55px" class="c">Zone</th>
             <th style="width:60px" class="c">Format</th>
-            <th style="width:55px" class="c">Camp.</th>
-            <th style="width:70px" class="r">Jours occ.</th>
-            <th style="width:65px" class="r">Taux occ.</th>
+            <th style="width:45px" class="c">Camp.</th>
+            <th style="width:65px" class="r">Jours occ.</th>
+            <th style="width:55px" class="r">Taux occ.</th>
         </tr>
     </thead>
     <tbody>
         @forelse($panels as $index => $p)
             @php
-                $rate = $p->occupation_rate ?? 0;
+                $rate = (float) ($p->occupation_rate ?? 0);
                 $rateClass = $rate >= 60 ? 'pct-hi' : ($rate >= 25 ? 'pct-mid' : 'pct-lo');
-                $zoneClass = ($p->zone ?? '') === 'Abidjan' ? 'badge-abj' : 'badge-int';
                 $isMaint   = $p->status === 'maintenance';
+                $isAbj     = ($p->zone ?? '') === 'Abidjan';
+                $rowClass  = $isMaint ? 'maint' : (($index % 2) ? 'even' : '');
             @endphp
-            <tr @if($isMaint) class="row-maintenance" @endif>
-                <td class="num">{{ $index + 1 }}</td>
-                <td class="ref">
-                    {{ $p->reference }}
-                    @if($isMaint)<span class="badge-maint">🔧 MAINT.</span>@endif
+            <tr @if($rowClass) class="{{ $rowClass }}" @endif>
+                <td class="c num">{{ $index + 1 }}</td>
+                <td>
+                    <span class="ref">{{ $p->reference }}</span>@if($isMaint) <span class="maint-tag">🔧</span>@endif
                 </td>
-                <td>{{ \Illuminate\Support\Str::limit($p->name ?? '—', 42) }}</td>
+                <td>{{ \Illuminate\Support\Str::limit($p->name ?? '—', 45) }}</td>
                 <td>{{ $p->commune_name ?? '—' }}</td>
                 <td class="c">
-                    <span class="badge-zone {{ $zoneClass }}">{{ $p->zone ?? '—' }}</span>
+                    @if($isAbj)
+                        <span class="zone-abj">Abidjan</span>
+                    @else
+                        <span class="zone-int">Intérieur</span>
+                    @endif
                 </td>
                 <td class="c fmt">{{ $p->format_name ?? '—' }}</td>
                 <td class="c">{{ (int) $p->campaigns_count }}</td>
                 <td class="r">{{ (int) $p->days_occupied }} j</td>
-                <td class="r pct {{ $rateClass }}">{{ $rate }} %</td>
+                <td class="r {{ $rateClass }}">{{ $rate }} %</td>
             </tr>
         @empty
             <tr>
@@ -249,7 +241,7 @@
             @endphp
             <tr class="totals">
                 <td colspan="6" class="r">{{ $totalLabel }}</td>
-                <td class="c">{{ $panels->sum('campaigns_count') }}</td>
+                <td class="c">{{ $totalCampagnes }}</td>
                 <td class="r">{{ number_format($totalJours, 0, ',', ' ') }} j</td>
                 <td class="r">{{ $tauxMoyen }} %</td>
             </tr>
@@ -257,18 +249,14 @@
     </tbody>
 </table>
 
-{{-- ═══ Footer — nettement séparé, avec vraie pagination X / Y ═══ --}}
+{{-- ═══ Footer : pas de placeholder "Page 1" HTML, la pagination
+     est entièrement dessinée par le controller via getCanvas()->
+     page_text() qui écrit sur TOUTES les pages. ═══ --}}
 <div class="footer">
     <div class="l">CIBLE SARL · Régie OOH Côte d'Ivoire</div>
-    <div class="r">Page <span class="pagenum-fake">1</span></div>
     <div class="c">Document généré automatiquement par Panora</div>
+    <div class="r">&nbsp;</div>
 </div>
-
-{{-- La pagination "Page X / Y" est injectée par le controller
-     via $pdf->getDomPDF()->getCanvas()->page_text() après
-     loadView() → plus fiable que <script type="text/php"> qui
-     dépend du parser DomPDF (variables auto-injectées différentes
-     selon versions). Cf. RapportController::exportPanelsOccupationPdf. --}}
 
 </body>
 </html>
