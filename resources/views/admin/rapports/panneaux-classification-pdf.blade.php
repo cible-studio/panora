@@ -4,37 +4,40 @@
 <meta charset="UTF-8">
 <title>Classification panneaux — CIBLE CI</title>
 <style>
-    @page { size: A4 landscape; margin: 14mm 10mm 22mm 10mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2937; line-height: 1.35; padding-bottom: 4mm; }
+    @page { size: A4 landscape; margin: 12mm 10mm 18mm 10mm; }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2937; line-height: 1.3; margin: 0; padding: 0; }
 
-    .doc-header { display: table; width: 100%; margin-bottom: 10px; background: #0a0c10; border-radius: 4px; overflow: hidden; }
-    .doc-header .left { display: table-cell; vertical-align: middle; padding: 10px 14px; border-left: 4px solid #e8a020; }
-    .doc-header .right { display: table-cell; vertical-align: middle; text-align: right; padding: 10px 14px; color: #cbd5e1; font-size: 8.5px; }
-    .doc-header h1 { margin: 0; color: #fff; font-size: 15px; font-weight: bold; letter-spacing: 0.4px; text-transform: uppercase; }
-    .doc-header .subtitle { margin-top: 3px; font-size: 9.5px; color: #e8a020; letter-spacing: 0.3px; }
-    .doc-header .right .lbl { color: #94a3b8; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; }
-    .doc-header .right .val { color: #fff; font-size: 9.5px; font-weight: 600; }
+    /* Header table native */
+    table.doc-header { width: 100%; border-collapse: collapse; background: #0a0c10; margin-bottom: 8px; }
+    table.doc-header td { padding: 8px 12px; vertical-align: middle; color: #cbd5e1; font-size: 8.5px; }
+    table.doc-header td.left { border-left: 4px solid #e8a020; width: 60%; }
+    table.doc-header td.right { text-align: right; }
+    table.doc-header h1 { margin: 0; color: #fff; font-size: 14px; font-weight: bold; letter-spacing: 0.4px; text-transform: uppercase; }
+    table.doc-header .subtitle { margin-top: 2px; font-size: 9px; color: #e8a020; }
+    table.doc-header .lbl { color: #94a3b8; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; }
+    table.doc-header .val { color: #fff; font-size: 9px; font-weight: 600; }
 
     .meta {
-        margin: 8px 0 12px; padding: 8px 12px;
+        margin: 6px 0 8px; padding: 6px 10px;
         background: #fefaf1; border: 1px solid #f3d999;
         border-left: 3px solid #e8a020; border-radius: 3px;
         font-size: 9px; color: #78350f;
     }
     .meta strong { color: #92400e; }
 
-    .synth { display: table; width: 100%; margin: 6px 0 14px; border-collapse: separate; border-spacing: 6px 0; }
-    .synth .cell { display: table-cell; padding: 8px 10px; border-radius: 4px; text-align: center; vertical-align: middle; }
-    .synth .value { font-size: 20px; font-weight: bold; color: #fff; line-height: 1; }
-    .synth .label { font-size: 8px; color: rgba(255,255,255,.9); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+    /* Synthèse buckets — table native */
+    table.synth { width: 100%; border-collapse: separate; border-spacing: 5px 0; margin: 4px 0 10px; }
+    table.synth td { padding: 6px 8px; border-radius: 3px; text-align: center; vertical-align: middle; height: 40px; }
+    table.synth .value { font-size: 18px; font-weight: bold; color: #fff; line-height: 1; }
+    table.synth .label { font-size: 7.5px; color: #fff; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
 
-    h2.section { font-size: 12px; margin: 14px 0 6px; padding: 5px 8px; color: #fff; border-radius: 3px; letter-spacing: 0.3px; }
+    h2.section { font-size: 11px; margin: 10px 0 4px; padding: 4px 8px; color: #fff; border-radius: 3px; letter-spacing: 0.3px; }
 
-    table.data { width: 100%; border-collapse: collapse; }
+    table.data { width: 100%; border-collapse: collapse; margin-top: 2px; }
     table.data th { background: #0a0c10; color: #fff; padding: 5px 6px; text-align: left; font-size: 7.5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px; }
     table.data th.r, table.data td.r { text-align: right; }
     table.data th.c, table.data td.c { text-align: center; }
-    table.data td { padding: 3px 6px; font-size: 8.5px; border-bottom: 1px solid #f3f4f6; }
+    table.data td { padding: 3px 6px; font-size: 8.5px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
     table.data tr.even td { background: #fafafa; }
     table.data tr.maint td { background: #fffbeb; }
     .num  { color: #6b7280; font-size: 8px; font-family: 'Courier New', monospace; }
@@ -44,9 +47,9 @@
     .zone-int { color: #047857; font-weight: bold; font-size: 8px; }
     .maint-tag { color: #92400e; font-weight: bold; font-size: 7.5px; }
 
-    .empty { padding: 12px; text-align: center; color: #9ca3af; font-style: italic; background: #fafafa; border-radius: 3px; }
+    .empty { padding: 10px; text-align: center; color: #9ca3af; font-style: italic; background: #fafafa; border-radius: 3px; }
 
-    .footer { position: fixed; bottom: 4mm; left: 10mm; right: 10mm; height: 12mm; font-size: 7.5px; color: #6b7280; background: #fff; border-top: 1px solid #d1d5db; padding-top: 4mm; }
+    .footer { position: fixed; bottom: 4mm; left: 10mm; right: 10mm; height: 10mm; font-size: 7.5px; color: #6b7280; border-top: 1px solid #d1d5db; padding-top: 3mm; }
     .footer .l { float: left; }
     .footer .r { float: right; }
     .footer .c { text-align: center; }
@@ -54,17 +57,19 @@
 </head>
 <body>
 
-<div class="doc-header">
-    <div class="left">
-        <h1>Classification des panneaux par occupation</h1>
-        <div class="subtitle">Analyse par durée d'occupation cumulée · CIBLE CI</div>
-    </div>
-    <div class="right">
-        <div><span class="lbl">Période</span> <span class="val">{{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}</span></div>
-        <div><span class="lbl">Édité le</span> <span class="val">{{ now()->format('d/m/Y H:i') }}</span></div>
-        <div><span class="lbl">Par</span> <span class="val">{{ $user?->name ?? '—' }}</span></div>
-    </div>
-</div>
+<table class="doc-header">
+    <tr>
+        <td class="left">
+            <h1>Classification des panneaux par occupation</h1>
+            <div class="subtitle">Analyse par durée d'occupation cumulée · CIBLE CI</div>
+        </td>
+        <td class="right">
+            <div><span class="lbl">Période</span> <span class="val">{{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}</span></div>
+            <div><span class="lbl">Édité le</span> <span class="val">{{ now()->format('d/m/Y H:i') }}</span></div>
+            <div><span class="lbl">Par</span> <span class="val">{{ $user?->name ?? '—' }}</span></div>
+        </td>
+    </tr>
+</table>
 
 <div class="meta">
     <strong>Périmètre :</strong> {{ $classification['total'] }} panneaux analysés
@@ -72,20 +77,22 @@
     · <strong>Règle :</strong> à l'année = ≥ 365 j occupés, intermédiaire = 1-364 j, jamais = 0 j
 </div>
 
-<div class="synth">
-    <div class="cell" style="background:#22c55e">
-        <div class="value">{{ $classification['a_lannee']->count() }}</div>
-        <div class="label">À l'année (≥ 365 j)</div>
-    </div>
-    <div class="cell" style="background:#f97316">
-        <div class="value">{{ $classification['intermediaire']->count() }}</div>
-        <div class="label">Intermédiaire (1-364 j)</div>
-    </div>
-    <div class="cell" style="background:#ef4444">
-        <div class="value">{{ $classification['jamais']->count() }}</div>
-        <div class="label">Jamais occupés (0 j)</div>
-    </div>
-</div>
+<table class="synth">
+    <tr>
+        <td style="background:#22c55e">
+            <div class="value">{{ $classification['a_lannee']->count() }}</div>
+            <div class="label">À l'année (≥ 365 j)</div>
+        </td>
+        <td style="background:#f97316">
+            <div class="value">{{ $classification['intermediaire']->count() }}</div>
+            <div class="label">Intermédiaire (1-364 j)</div>
+        </td>
+        <td style="background:#ef4444">
+            <div class="value">{{ $classification['jamais']->count() }}</div>
+            <div class="label">Jamais occupés (0 j)</div>
+        </td>
+    </tr>
+</table>
 
 @php
     $sections = [
