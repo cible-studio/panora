@@ -1558,22 +1558,22 @@ class RapportController extends Controller
         try {
             $dompdf = $pdf->getDomPDF();
             $canvas = $dompdf->getCanvas();
-            $font   = $dompdf->getFontMetrics()->getFont('DejaVu Sans', 'bold');
 
             // A4 landscape : 842 × 595 pt.
-            // Position bas-droite : x=780 (≈ 22pt de la marge droite),
-            // y=578 (≈ 17pt du bord bas, dans la zone du footer).
-            // page_text() écrit sur TOUTES les pages avec placeholders
-            // {PAGE_NUM} / {PAGE_COUNT} remplacés au rendu final.
-            // Pas de filled_rectangle (ne s'applique qu'à la page courante).
-            // Les templates HTML ne contiennent plus de placeholder "Page 1"
-            // dans le footer — page_text est la source unique de pagination.
-            $canvas->page_text(
-                780, 578,
-                'Page {PAGE_NUM} / {PAGE_COUNT}',
-                $font, 8,
-                [0.04, 0.05, 0.06]
-            );
+            // page_script(Closure) — méthode DomPDF v3 officielle pour
+            // dessiner sur TOUTES les pages au rendu final. La closure
+            // reçoit ($pageNumber, $pageCount, $canvas, $fontMetrics) et
+            // est exécutée une fois par page APRÈS le rendu du contenu
+            // → le nb total de pages est bien connu à ce moment-là.
+            //
+            // Historique du bug (2026-09-14) : $canvas->page_text() en
+            // v3 marque le texte pour ajout, mais le remplacement de
+            // {PAGE_COUNT} se fait au moment de l'ajout à la page 1
+            // uniquement → toutes les pages affichaient "Page 1 / 1".
+            $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+                $font = $fontMetrics->getFont('DejaVu Sans', 'bold');
+                $canvas->text(780, 578, "Page {$pageNumber} / {$pageCount}", $font, 8, [0.04, 0.05, 0.06]);
+            });
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('pdf.pagination.inject_failed', [
                 'error' => $e->getMessage(),
