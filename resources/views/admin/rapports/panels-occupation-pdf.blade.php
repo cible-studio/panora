@@ -4,127 +4,285 @@
 <meta charset="UTF-8">
 <title>Occupation des panneaux — CIBLE CI</title>
 <style>
-    /* margin-bottom 26mm = espace réservé pour le footer fixed.
-       Historique : 20mm ne suffisait pas → DomPDF laissait déborder
-       la dernière ligne du tableau sur le footer (bug user 2026-09).
-       26mm + padding-bottom body = double garde-fou. */
-    @page { size: A4 landscape; margin: 12mm 10mm 26mm 10mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2937; line-height: 1.4; padding-bottom: 4mm; }
-    h1 { font-size: 16px; color: #e8a020; margin: 0 0 4px; }
-    .header { display: table; width: 100%; margin-bottom: 12px; }
-    .header .left  { display: table-cell; vertical-align: middle; }
-    .header .mid   { display: table-cell; vertical-align: middle; }
-    .header .right { display: table-cell; vertical-align: middle; text-align: right; font-size: 8.5px; color: #6b7280; }
-    .header .logo { height: 38px; margin-right: 14px; }
-    .period { font-size: 10px; color: #6b7280; margin-top: 2px; }
-    .meta { font-size: 9px; color: #374151; margin-top: 8px; padding: 6px 10px; background: #fafafa; border-left: 3px solid #e8a020; border-radius: 3px; }
-    .meta strong { color: #111827; }
-    table { width: 100%; border-collapse: collapse; }
-    th { background: #0a0c10; padding: 6px 8px; text-align: left; font-size: 8px; font-weight: bold; color: #fff; text-transform: uppercase; letter-spacing: 0.4px; }
+    /* margin-bottom 26mm réservé au footer fixed (bug DomPDF connu). */
+    @page { size: A4 landscape; margin: 14mm 10mm 22mm 10mm; }
+    body {
+        font-family: 'DejaVu Sans', sans-serif;
+        font-size: 9px;
+        color: #1f2937;
+        line-height: 1.4;
+        padding-bottom: 4mm;
+    }
+
+    /* ═══ HEADER professionnel — bande foncée + accent orange ═══ */
+    .doc-header {
+        display: table;
+        width: 100%;
+        margin-bottom: 10px;
+        background: #0a0c10;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    .doc-header .left {
+        display: table-cell;
+        vertical-align: middle;
+        padding: 10px 14px;
+        border-left: 4px solid #e8a020;
+    }
+    .doc-header .right {
+        display: table-cell;
+        vertical-align: middle;
+        text-align: right;
+        padding: 10px 14px;
+        color: #cbd5e1;
+        font-size: 8.5px;
+    }
+    .doc-header h1 {
+        margin: 0;
+        color: #fff;
+        font-size: 15px;
+        font-weight: bold;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+    }
+    .doc-header .subtitle {
+        margin-top: 3px;
+        font-size: 9.5px;
+        color: #e8a020;
+        letter-spacing: 0.3px;
+    }
+    .doc-header .right .lbl { color: #94a3b8; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; }
+    .doc-header .right .val { color: #fff; font-size: 9.5px; font-weight: 600; }
+
+    /* ═══ Bandeau meta stats (allégé — sans CA) ═══ */
+    .meta {
+        display: table;
+        width: 100%;
+        margin: 8px 0 10px;
+        border-collapse: separate;
+        border-spacing: 5px 0;
+    }
+    .meta .cell {
+        display: table-cell;
+        background: #fefaf1;
+        border: 1px solid #f3d999;
+        border-left: 3px solid #e8a020;
+        border-radius: 4px;
+        padding: 6px 10px;
+        text-align: center;
+    }
+    .meta .val { font-size: 13px; font-weight: bold; color: #92400e; line-height: 1; }
+    .meta .lbl { font-size: 7.5px; color: #78350f; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+    /* ═══ Table ═══ */
+    table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tr    { page-break-inside: avoid; }
+    th {
+        background: #0a0c10;
+        padding: 6px 7px;
+        text-align: left;
+        font-size: 7.5px;
+        font-weight: bold;
+        color: #fff;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
     th.r, td.r { text-align: right; }
     th.c, td.c { text-align: center; }
-    td { padding: 5px 8px; font-size: 8.5px; border-bottom: 1px solid #f3f4f6; }
+    td { padding: 4px 7px; font-size: 8.5px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
     tr:nth-child(even) td { background: #fafafa; }
-    .ref { font-family: 'Courier New', monospace; color: #b45309; font-weight: bold; }
-    .pct { font-weight: bold; }
-    .pct-hi { color: #16a34a; }
+    .num  { color: #6b7280; font-size: 8px; font-family: 'Courier New', monospace; text-align: right; }
+    .ref  { font-family: 'Courier New', monospace; color: #b45309; font-weight: bold; font-size: 8.5px; }
+    .pct  { font-weight: bold; }
+    .pct-hi  { color: #16a34a; }
     .pct-mid { color: #f97316; }
-    .pct-lo { color: #dc2626; }
-    .badge-zone { display: inline-block; padding: 1px 6px; font-size: 8px; border-radius: 999px; }
-    .badge-abj { background: rgba(59,130,246,.15); color: #1d4ed8; }
-    .badge-int { background: rgba(16,185,129,.15); color: #047857; }
-    /* footer dans l'espace réservé par margin-bottom 20mm de @page */
-    .footer { position: fixed; bottom: 6mm; left: 10mm; right: 10mm; font-size: 8px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 4px; background: #fff; }
-    .footer .pagenum:before { content: counter(page) " / " counter(pages); }
-    .totals { background: #fef3c7; }
-    .totals td { font-weight: bold; color: #92400e; border-top: 2px solid #f59e0b; }
+    .pct-lo  { color: #dc2626; }
+    .fmt { color: #4b5563; font-size: 8px; }
+
+    /* Badges */
+    .badge-zone { display: inline-block; padding: 1px 6px; font-size: 7.5px; border-radius: 999px; }
+    .badge-abj  { background: #dbeafe; color: #1d4ed8; }
+    .badge-int  { background: #d1fae5; color: #047857; }
+    .badge-maint {
+        display: inline-block;
+        padding: 1px 5px;
+        font-size: 7px;
+        border-radius: 3px;
+        background: #fef3c7;
+        color: #92400e;
+        font-weight: bold;
+        margin-left: 4px;
+        letter-spacing: 0.3px;
+    }
+    tr.row-maintenance td { background: #fffbeb !important; }
+
+    /* Ligne totaux */
+    .totals td {
+        font-weight: bold;
+        color: #92400e;
+        border-top: 2px solid #f59e0b;
+        background: #fef3c7 !important;
+    }
+
+    /* ═══ Footer propre — visuellement séparé du corps ═══ */
+    .footer {
+        position: fixed;
+        bottom: 4mm;
+        left: 10mm;
+        right: 10mm;
+        height: 12mm;
+        font-size: 7.5px;
+        color: #6b7280;
+        background: #fff;
+        border-top: 1px solid #d1d5db;
+        padding-top: 4mm;
+    }
+    .footer .l { float: left; }
+    .footer .c { text-align: center; }
+    .footer .r { float: right; font-weight: bold; color: #0a0c10; }
 </style>
 </head>
 <body>
 
-<div class="header">
-    @if(!empty($logoCibleLight))
-        <div class="mid">
-            <img src="{{ $logoCibleLight }}" alt="CIBLE CI" class="logo">
-        </div>
-    @endif
+{{-- ═══ HEADER professionnel (fond foncé, sobre) ═══ --}}
+<div class="doc-header">
     <div class="left">
-        <h1>OCCUPATION DES PANNEAUX</h1>
-        <div class="period">Rapport détaillé par panneau · {{ $operatorName ?? 'CIBLE CI' }}</div>
-        {{-- Période retirée du header : elle est désormais portée par le
-             bandeau "Type d'export" plus bas (plus complet, avec le preset). --}}
+        <h1>Occupation des panneaux</h1>
+        <div class="subtitle">Rapport détaillé par panneau · {{ $operatorName ?? 'CIBLE CI' }}</div>
     </div>
     <div class="right">
-        Édité le {{ now()->format('d/m/Y H:i') }}<br>
-        Par {{ $user->name ?? '—' }}<br>
-        Réf. {{ strtoupper(substr(md5(now()), 0, 8)) }}
+        <div><span class="lbl">Édité le</span> <span class="val">{{ now()->format('d/m/Y H:i') }}</span></div>
+        <div><span class="lbl">Par</span> <span class="val">{{ $user->name ?? '—' }}</span></div>
+        <div><span class="lbl">Réf.</span> <span class="val">C{{ strtoupper(substr(md5(now()), 0, 8)) }}</span></div>
     </div>
 </div>
 
-{{-- ════ Récap filtres actifs ════
-     Source unique : RapportFilterContextService — cohérent avec l'Excel
-     et le PDF Synthèse exécutive. Le bloc "stats agrégées" qui suit
-     reste à part : ce sont des chiffres calculés, pas du contexte filtre.
-     La ligne "Zone :" est retirée d'ici car déjà présente dans le récap. --}}
+{{-- Récap filtres actifs (source unique RapportFilterContextService) --}}
 @include('admin.rapports.partials._filter_recap_pdf')
 
+{{-- ═══ Meta stats — sans CA (retiré à la demande 2026-09-14) ═══ --}}
+@php
+    // Split panneaux : opérationnels vs maintenance
+    $nbMaintenance = $panels->filter(fn ($p) => $p->status === 'maintenance')->count();
+    $nbOperationnels = $panels->count() - $nbMaintenance;
+    $totalJours = $panels->sum('days_occupied');
+    $tauxMoyen = $panels->count() > 0 ? round($panels->avg('occupation_rate'), 1) : 0;
+@endphp
+
 <div class="meta">
-    <strong>{{ $panels->count() }}</strong> panneau(x) ·
-    <strong>Total jours occupés :</strong> {{ number_format($panels->sum('days_occupied'), 0, ',', ' ') }} ·
-    <strong>Taux moyen :</strong> {{ $panels->count() > 0 ? round($panels->avg('occupation_rate'), 1) : 0 }} % ·
-    <strong>CA estimé :</strong> {{ number_format($panels->sum('estimated_revenue'), 0, ',', ' ') }} FCFA
+    <div class="cell">
+        <div class="val">{{ $panels->count() }}</div>
+        <div class="lbl">Panneaux</div>
+    </div>
+    <div class="cell">
+        <div class="val">{{ number_format($totalJours, 0, ',', ' ') }}</div>
+        <div class="lbl">Jours occupés</div>
+    </div>
+    <div class="cell">
+        <div class="val">{{ $tauxMoyen }} %</div>
+        <div class="lbl">Taux moyen</div>
+    </div>
+    <div class="cell">
+        <div class="val">{{ $panels->sum('campaigns_count') }}</div>
+        <div class="lbl">Campagnes cumulées</div>
+    </div>
+    @if($nbMaintenance > 0)
+        <div class="cell" style="background:#fef3c7;border-color:#fbbf24;border-left-color:#d97706">
+            <div class="val" style="color:#92400e">{{ $nbMaintenance }}</div>
+            <div class="lbl">En maintenance</div>
+        </div>
+    @endif
 </div>
 
 <table>
     <thead>
         <tr>
-            <th>Référence</th>
+            <th style="width:22px" class="c">N°</th>
+            <th style="width:70px">Référence</th>
             <th>Emplacement</th>
-            <th>Commune</th>
-            <th>Zone</th>
-            <th class="r">Tarif/mois</th>
-            <th class="c">Camp.</th>
-            <th class="r">Jours occupés</th>
-            <th class="r">Taux occup.</th>
-            <th class="r">CA estimé (FCFA)</th>
+            <th style="width:95px">Commune</th>
+            <th style="width:65px" class="c">Zone</th>
+            <th style="width:60px" class="c">Format</th>
+            <th style="width:55px" class="c">Camp.</th>
+            <th style="width:70px" class="r">Jours occ.</th>
+            <th style="width:65px" class="r">Taux occ.</th>
         </tr>
     </thead>
     <tbody>
-        @forelse($panels as $p)
+        @forelse($panels as $index => $p)
             @php
                 $rate = $p->occupation_rate ?? 0;
                 $rateClass = $rate >= 60 ? 'pct-hi' : ($rate >= 25 ? 'pct-mid' : 'pct-lo');
                 $zoneClass = ($p->zone ?? '') === 'Abidjan' ? 'badge-abj' : 'badge-int';
+                $isMaint   = $p->status === 'maintenance';
             @endphp
-            <tr>
-                <td class="ref">{{ $p->reference }}</td>
-                <td>{{ \Illuminate\Support\Str::limit($p->name ?? '—', 38) }}</td>
+            <tr @if($isMaint) class="row-maintenance" @endif>
+                <td class="num">{{ $index + 1 }}</td>
+                <td class="ref">
+                    {{ $p->reference }}
+                    @if($isMaint)<span class="badge-maint">🔧 MAINT.</span>@endif
+                </td>
+                <td>{{ \Illuminate\Support\Str::limit($p->name ?? '—', 42) }}</td>
                 <td>{{ $p->commune_name ?? '—' }}</td>
-                <td><span class="badge-zone {{ $zoneClass }}">{{ $p->zone ?? '—' }}</span></td>
-                <td class="r">{{ $p->monthly_rate ? number_format((float)$p->monthly_rate, 0, ',', ' ') : '—' }}</td>
-                <td class="c">{{ (int)$p->campaigns_count }}</td>
-                <td class="r">{{ (int)$p->days_occupied }} j</td>
+                <td class="c">
+                    <span class="badge-zone {{ $zoneClass }}">{{ $p->zone ?? '—' }}</span>
+                </td>
+                <td class="c fmt">{{ $p->format_name ?? '—' }}</td>
+                <td class="c">{{ (int) $p->campaigns_count }}</td>
+                <td class="r">{{ (int) $p->days_occupied }} j</td>
                 <td class="r pct {{ $rateClass }}">{{ $rate }} %</td>
-                <td class="r">{{ number_format((float)$p->estimated_revenue, 0, ',', ' ') }}</td>
             </tr>
         @empty
-            <tr><td colspan="9" style="text-align:center;color:#6b7280;font-style:italic;padding:24px">Aucune donnée sur la période et les filtres choisis.</td></tr>
+            <tr>
+                <td colspan="9" style="text-align:center;color:#6b7280;font-style:italic;padding:24px">
+                    Aucune donnée sur la période et les filtres choisis.
+                </td>
+            </tr>
         @endforelse
+
         @if($panels->isNotEmpty())
             <tr class="totals">
-                <td colspan="5" class="r">TOTAL ({{ $panels->count() }} panneaux)</td>
+                <td colspan="6" class="r">TOTAL ({{ $panels->count() }} panneaux
+                    @if($nbMaintenance > 0)· dont {{ $nbMaintenance }} en maintenance@endif)
+                </td>
                 <td class="c">{{ $panels->sum('campaigns_count') }}</td>
-                <td class="r">{{ number_format($panels->sum('days_occupied'), 0, ',', ' ') }} j</td>
-                <td class="r">{{ $panels->count() > 0 ? round($panels->avg('occupation_rate'), 1) : 0 }} %</td>
-                <td class="r">{{ number_format($panels->sum('estimated_revenue'), 0, ',', ' ') }}</td>
+                <td class="r">{{ number_format($totalJours, 0, ',', ' ') }} j</td>
+                <td class="r">{{ $tauxMoyen }} %</td>
             </tr>
         @endif
     </tbody>
 </table>
 
+{{-- ═══ Footer — nettement séparé, avec vraie pagination X / Y ═══ --}}
 <div class="footer">
-    CIBLE SARL — Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora · Page <span class="pagenum"></span>
+    <div class="l">CIBLE SARL · Régie OOH Côte d'Ivoire</div>
+    <div class="r">Page <span class="pagenum-fake">1</span></div>
+    <div class="c">Document généré automatiquement par Panora</div>
 </div>
+
+{{-- DomPDF page_script : injecte la VRAIE numérotation "X / Y" en
+     surimpression du texte fake — c'est la seule façon d'obtenir
+     un total de pages correct avec DomPDF (le counter(pages) CSS
+     renvoie 0 dans un position:fixed). --}}
+<script type="text/php">
+if (isset($pdf)) {
+    $pdf->page_script('
+        $font = $fontMetrics->get_font("DejaVu Sans", "bold");
+        $size = 8;
+        $text = "Page " . $PAGE_NUM . " / " . $PAGE_COUNT;
+        $width  = $fontMetrics->get_text_width($text, $font, $size);
+        $pageWidth  = $pdf->get_width();
+        $pageHeight = $pdf->get_height();
+        // Position : bas-droite, aligné sur le footer (bottom 4mm ≈ 11.3 pt)
+        $x = $pageWidth - $width - 30;
+        $y = $pageHeight - 26;
+        // Masque blanc pour cacher le placeholder "Page 1"
+        $pdf->filled_rectangle($x - 4, $y - 2, $width + 8, $size + 4, [1, 1, 1]);
+        $pdf->text($x, $y, $text, $font, $size, [0.04, 0.05, 0.06]);
+    ');
+}
+</script>
 
 </body>
 </html>

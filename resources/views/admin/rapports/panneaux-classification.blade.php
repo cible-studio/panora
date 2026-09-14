@@ -146,24 +146,32 @@
                         <table style="width:100%;border-collapse:collapse;font-size:13px">
                             <thead>
                                 <tr style="border-bottom:2px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.4px">
+                                    <th style="text-align:right;padding:8px 10px;font-weight:600;width:36px">N°</th>
                                     <th style="text-align:left;padding:8px 10px;font-weight:600">Référence</th>
                                     <th style="text-align:left;padding:8px 10px;font-weight:600">Emplacement</th>
                                     <th style="text-align:left;padding:8px 10px;font-weight:600">Commune</th>
                                     <th style="text-align:left;padding:8px 10px;font-weight:600">Zone</th>
+                                    <th style="text-align:center;padding:8px 10px;font-weight:600">Format</th>
                                     <th style="text-align:right;padding:8px 10px;font-weight:600">Jours occupés</th>
                                     <th style="text-align:right;padding:8px 10px;font-weight:600">Taux</th>
                                     <th style="text-align:right;padding:8px 10px;font-weight:600">Campagnes</th>
-                                    <th style="text-align:right;padding:8px 10px;font-weight:600">CA estimé</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($list as $p)
-                                    <tr style="border-bottom:1px solid var(--border)">
+                                @foreach($list as $index => $p)
+                                    @php $isMaint = $p->status === 'maintenance'; @endphp
+                                    <tr style="border-bottom:1px solid var(--border);{{ $isMaint ? 'background:rgba(251,191,36,.05)' : '' }}">
+                                        <td style="padding:10px;text-align:right;color:var(--text3);font-family:ui-monospace,monospace;font-size:11px">
+                                            {{ $index + 1 }}
+                                        </td>
                                         <td style="padding:10px;font-weight:700">
                                             <a href="{{ route('admin.panels.show', $p->id) }}"
                                                style="font-family:ui-monospace,monospace;color:var(--accent);text-decoration:none">
                                                 {{ $p->reference }}
                                             </a>
+                                            @if($isMaint)
+                                                <span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:6px;letter-spacing:.3px" title="Panneau en maintenance">🔧 MAINT.</span>
+                                            @endif
                                         </td>
                                         <td style="padding:10px;color:var(--text2);max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                                             {{ $p->name ?? '—' }}
@@ -176,6 +184,9 @@
                                                 <span style="background:rgba(16,185,129,.15);color:#047857;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600">Intérieur</span>
                                             @endif
                                         </td>
+                                        <td style="padding:10px;text-align:center;color:var(--text2);font-size:12px">
+                                            {{ $p->format_name ?? '—' }}
+                                        </td>
                                         <td style="padding:10px;text-align:right;font-weight:700;color:{{ $m['color'] }}">
                                             {{ (int) $p->days_occupied }} j
                                         </td>
@@ -184,9 +195,6 @@
                                         </td>
                                         <td style="padding:10px;text-align:right;color:var(--text2)">
                                             {{ (int) $p->campaigns_count }}
-                                        </td>
-                                        <td style="padding:10px;text-align:right;font-weight:600;white-space:nowrap">
-                                            {{ number_format((float) $p->estimated_revenue, 0, ',', ' ') }}
                                         </td>
                                     </tr>
                                 @endforeach

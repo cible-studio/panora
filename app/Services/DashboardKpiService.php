@@ -449,6 +449,7 @@ class DashboardKpiService
 
             $q = DB::table('panels')
                 ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
+                ->leftJoin('panel_formats', 'panel_formats.id', '=', 'panels.format_id')
                 ->leftJoin('campaign_panels', function ($j) {
                     $j->on('campaign_panels.panel_id', '=', 'panels.id')
                       ->where('campaign_panels.type', '=', 'interne');
@@ -470,13 +471,14 @@ class DashboardKpiService
                     'panels.name',
                     'panels.status',
                     'panels.monthly_rate',
+                    'panel_formats.name as format_name',
                     'communes.name as commune_name',
                     'communes.city as city',
                     DB::raw('COUNT(DISTINCT campaigns.id) as campaigns_count'),
                     DB::raw('COALESCE(SUM(DATEDIFF(LEAST(campaigns.end_date, "' . $to . '"), GREATEST(campaigns.start_date, "' . $from . '")) + 1), 0) as days_occupied'),
                     DB::raw('COALESCE(SUM(campaigns.total_amount / GREATEST(DATEDIFF(campaigns.end_date, campaigns.start_date) + 1, 1) * (DATEDIFF(LEAST(campaigns.end_date, "' . $to . '"), GREATEST(campaigns.start_date, "' . $from . '")) + 1)), 0) as estimated_revenue'),
                 )
-                ->groupBy('panels.id', 'panels.reference', 'panels.name', 'panels.status', 'panels.monthly_rate', 'communes.name', 'communes.city')
+                ->groupBy('panels.id', 'panels.reference', 'panels.name', 'panels.status', 'panels.monthly_rate', 'panel_formats.name', 'communes.name', 'communes.city')
                 ->orderByDesc('days_occupied')
                 ->orderBy('panels.reference')
                 ->get()
