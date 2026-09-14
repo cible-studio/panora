@@ -19,10 +19,10 @@ class PanelCategoryController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        PanelCategory::create($request->all());
+        $category = PanelCategory::create($request->all());
 
-        return redirect()->route('admin.settings.index')
-            ->with('success', 'Catégorie créée avec succès !');
+        return $this->redirectToSettingsRecord($category, 'categories')
+            ->with('success', 'Catégorie « ' . $category->name . ' » créée avec succès !');
     }
 
     public function update(Request $request, PanelCategory $category)
@@ -38,8 +38,8 @@ class PanelCategoryController extends Controller
             return response()->json(['success' => true, 'message' => 'Catégorie modifiée avec succès !']);
         }
 
-        return redirect()->route('admin.settings.index')
-            ->with('success', 'Catégorie modifiée avec succès !');
+        return $this->redirectToSettingsRecord($category, 'categories')
+            ->with('success', 'Catégorie « ' . $category->name . ' » modifiée avec succès !');
     }
 
     public function destroy(PanelCategory $category)
