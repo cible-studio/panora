@@ -181,16 +181,7 @@
     <div class="c">Document généré automatiquement par Panora</div>
 </div>
 
-<script type="text/php">
-if (isset($pdf)) {
-    $font = $fontMetrics->get_font("DejaVu Sans", "bold");
-    $size = 8;
-    $x = 780;
-    $y = 578;
-    $pdf->filled_rectangle($x - 30, $y - 2, 70, $size + 4, [1, 1, 1]);
-    $pdf->page_text($x, $y, "Page {PAGE_NUM} / {PAGE_COUNT}", $font, $size, [0.04, 0.05, 0.06]);
-}
-</script>
+{{-- Pagination injectée par le controller (méthode PHP plus fiable). --}}
 
 </body>
 </html>
