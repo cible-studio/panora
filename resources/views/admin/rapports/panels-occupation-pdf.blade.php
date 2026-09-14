@@ -264,26 +264,26 @@
     <div class="c">Document généré automatiquement par Panora</div>
 </div>
 
-{{-- DomPDF page_script : injecte la VRAIE numérotation "X / Y" en
-     surimpression du texte fake — c'est la seule façon d'obtenir
-     un total de pages correct avec DomPDF (le counter(pages) CSS
-     renvoie 0 dans un position:fixed). --}}
+{{-- DomPDF page_text : injecte la vraie numérotation "X / Y" sur
+     chaque page. DomPDF remplace {PAGE_NUM} et {PAGE_COUNT} au
+     rendu final (après avoir compté toutes les pages). C'est la
+     méthode officielle DomPDF 2.x/3.x (page_script(string) a été
+     retiré, on utilise page_text() qui gère les placeholders).
+
+     Position : le PDF est en A4 landscape (842×595 pt). La ligne
+     `1 span "Page 1" placeholder` du footer HTML se trouve dans
+     la zone droite ; ici on écrit par-dessus en absolue. --}}
 <script type="text/php">
 if (isset($pdf)) {
-    $pdf->page_script('
-        $font = $fontMetrics->get_font("DejaVu Sans", "bold");
-        $size = 8;
-        $text = "Page " . $PAGE_NUM . " / " . $PAGE_COUNT;
-        $width  = $fontMetrics->get_text_width($text, $font, $size);
-        $pageWidth  = $pdf->get_width();
-        $pageHeight = $pdf->get_height();
-        // Position : bas-droite, aligné sur le footer (bottom 4mm ≈ 11.3 pt)
-        $x = $pageWidth - $width - 30;
-        $y = $pageHeight - 26;
-        // Masque blanc pour cacher le placeholder "Page 1"
-        $pdf->filled_rectangle($x - 4, $y - 2, $width + 8, $size + 4, [1, 1, 1]);
-        $pdf->text($x, $y, $text, $font, $size, [0.04, 0.05, 0.06]);
-    ');
+    $font = $fontMetrics->get_font("DejaVu Sans", "bold");
+    $size = 8;
+    // A4 landscape : W=842pt, H=595pt. Footer bottom 4mm ≈ 11pt.
+    // Position bas-droite juste au-dessus du bord droit.
+    $x = 780;
+    $y = 578;
+    // Masque blanc pour cacher le "Page 1" placeholder du HTML
+    $pdf->filled_rectangle($x - 30, $y - 2, 70, $size + 4, [1, 1, 1]);
+    $pdf->page_text($x, $y, "Page {PAGE_NUM} / {PAGE_COUNT}", $font, $size, [0.04, 0.05, 0.06]);
 }
 </script>
 
