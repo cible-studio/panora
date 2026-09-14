@@ -491,6 +491,73 @@ class DashboardKpiService
     }
 
     /**
+     * Classification des panneaux par durée d'occupation cumulée
+     * sur la période courante. Exclut Chevalet et Murale (feedback
+     * user 2026-09 : ces catégories ont un cycle d'occupation
+     * différent, ne rentrent pas dans l'analyse "panneau standard").
+     *
+     * 3 buckets sur `days_occupied` :
+     *   - a_lannee     : days_occupied ≥ 365 (panneau occupé toute l'année)
+     *   - intermediaire: 0 < days_occupied < 365
+     *   - jamais       : days_occupied = 0
+     *
+     * Note métier : pour qu'un panneau atteigne 365 jours cumulés,
+     * il faut regarder au moins 12 mois d'historique. Le contrôleur
+     * fixe donc la période à 12 mois glissants par défaut sur cette
+     * vue (si pas d'override utilisateur).
+     *
+     * @return array{
+     *   a_lannee: Collection,
+     *   intermediaire: Collection,
+     *   jamais: Collection,
+     *   total: int,
+     *   excluded_count: int,
+     * }
+     */
+    public function panelsClassificationByOccupation(): array
+    {
+        return $this->cached('panels_classification_by_occupation', function () {
+            $all = $this->panelsOccupationFull();
+
+            // Exclusion des chevalets et façades murales (via relation
+            // Panel::category). On lit les catégories en 1 seule requête
+            // pour éviter N+1 (le service actuel travaille sur DB::table
+            // brut, pas d'Eloquent).
+            $excludedCategoryIds = \App\Models\PanelCategory::query()
+                ->whereIn('name', ['Chevalet', 'Murale'])
+                ->pluck('id')
+                ->all();
+
+            $excludedPanelIds = \DB::table('panels')
+                ->whereIn('category_id', $excludedCategoryIds)
+                ->whereNull('deleted_at')
+                ->pluck('id')
+                ->all();
+
+            $excludedSet = array_flip($excludedPanelIds);
+            $excludedCount = 0;
+
+            $eligible = $all->filter(function ($p) use ($excludedSet, &$excludedCount) {
+                if (isset($excludedSet[$p->id])) { $excludedCount++; return false; }
+                return true;
+            })->values();
+
+            // Split en 3 buckets
+            $aLannee       = $eligible->filter(fn ($p) => (int) $p->days_occupied >= 365)->values();
+            $intermediaire = $eligible->filter(fn ($p) => (int) $p->days_occupied > 0 && (int) $p->days_occupied < 365)->values();
+            $jamais        = $eligible->filter(fn ($p) => (int) $p->days_occupied === 0)->values();
+
+            return [
+                'a_lannee'       => $aLannee,
+                'intermediaire'  => $intermediaire,
+                'jamais'         => $jamais,
+                'total'          => $eligible->count(),
+                'excluded_count' => $excludedCount,
+            ];
+        });
+    }
+
+    /**
      * Détail complet d'un panneau (drill-down) — historique des occupations.
      * Retourne :
      *   - info de base (référence, nom, commune, statut, tarif)
