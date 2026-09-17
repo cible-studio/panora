@@ -708,17 +708,66 @@ class ReservationController extends Controller
         return [$internalIds, $externalIds];
     }
 
+    /**
+     * Nettoie un nom de fichier PDF fourni par l'utilisateur.
+     *
+     * Retire tous les caractères illégaux Windows/Linux (/ \ : * ? " < > |
+     * + caractères de contrôle), les points/espaces en début/fin, force
+     * l'extension .pdf, tronque à 100 chars (extension incluse).
+     *
+     * Si $custom est vide, null ou devient vide après nettoyage → retourne
+     * $fallback (garanti .pdf).
+     *
+     * @param string|null $custom    Nom saisi par l'utilisateur (peut être null)
+     * @param string      $fallback  Nom par défaut si $custom vide/invalide
+     * @return string  Nom sûr avec extension .pdf
+     */
+    private function sanitizePdfFilename(?string $custom, string $fallback): string
+    {
+        $ensurePdf = static function (string $name): string {
+            $name = preg_replace('/\.pdf$/i', '', $name);
+            return $name . '.pdf';
+        };
+
+        $custom = trim((string) $custom);
+        if ($custom === '') {
+            return $ensurePdf($fallback);
+        }
+
+        // Retire l'extension .pdf temporairement pour ne pas la re-nettoyer.
+        $custom = preg_replace('/\.pdf$/i', '', $custom);
+
+        // Retire caractères illégaux + caractères de contrôle.
+        $custom = preg_replace('/[\/\\\\:\*\?"<>\|\x00-\x1F]/', '', $custom);
+        // Espaces multiples → un seul.
+        $custom = preg_replace('/\s+/', ' ', $custom);
+        // Trim + retirer points/espaces début/fin (Windows n'aime pas).
+        $custom = trim($custom, " .");
+
+        if ($custom === '') {
+            return $ensurePdf($fallback);
+        }
+
+        // Tronque à 96 chars (laisse la place pour '.pdf').
+        if (mb_strlen($custom) > 96) {
+            $custom = mb_substr($custom, 0, 96);
+        }
+
+        return $ensurePdf($custom);
+    }
+
     // ══════════════════════════════════════════════════════════════
     // PDF — images (supporte sélection mixte interne + externe)
     // ══════════════════════════════════════════════════════════════
     public function pdfImages(Request $request)
     {
         $request->validate([
-            'panel_ids'    => 'required|array|min:1',
-            'start_date'   => 'nullable|date',
-            'end_date'     => 'nullable|date',
-            'show_pricing' => 'nullable|boolean',
-            'hide_status'  => 'nullable|boolean',
+            'panel_ids'       => 'required|array|min:1',
+            'start_date'      => 'nullable|date',
+            'end_date'        => 'nullable|date',
+            'show_pricing'    => 'nullable|boolean',
+            'hide_status'     => 'nullable|boolean',
+            'custom_filename' => 'nullable|string|max:200',
         ]);
 
         [$internalIds, $externalIds] = $this->validateMixedPanelIds($request);
@@ -838,7 +887,13 @@ class ReservationController extends Controller
             return $row;
         });
 
-        $filename = 'panneaux-' . now()->format('Ymd_His');
+        // Nom de fichier : override par le MP possible (feedback user
+        // 2026-09-17 : le MP veut personnaliser le nom avant download).
+        // Fallback : 'panneaux-YYYYMMDD_HHMMSS'.
+        $filename = $this->sanitizePdfFilename(
+            $request->input('custom_filename'),
+            'panneaux-' . now()->format('Ymd_His')
+        );
 
         // Règle métier : par défaut on cache prix + statut (proposition propre).
         // L'admin coche "show_pricing" pour afficher l'info commerciale.
@@ -1054,7 +1109,11 @@ class ReservationController extends Controller
         ]);
 
         $suffix = $hideStatus ? '-proposition' : '';
-        return $pdf->download('selection-panneaux-liste' . $suffix . '-' . now()->format('Ymd') . '.pdf');
+        $filename = $this->sanitizePdfFilename(
+            $request->input('custom_filename'),
+            'selection-panneaux-liste' . $suffix . '-' . now()->format('Ymd')
+        );
+        return $pdf->download($filename);
     }
 
     /**
@@ -1063,11 +1122,12 @@ class ReservationController extends Controller
     public function exportExcel(Request $request)
     {
         $request->validate([
-            'panel_ids'    => 'required|array|min:1',
-            'start_date'   => 'nullable|date',
-            'end_date'     => 'nullable|date',
-            'show_pricing' => 'nullable|boolean',
-            'hide_status'  => 'nullable|boolean',
+            'panel_ids'       => 'required|array|min:1',
+            'start_date'      => 'nullable|date',
+            'end_date'        => 'nullable|date',
+            'show_pricing'    => 'nullable|boolean',
+            'hide_status'     => 'nullable|boolean',
+            'custom_filename' => 'nullable|string|max:200',
         ]);
 
         [$internalIds, $externalIds] = $this->validateMixedPanelIds($request);
