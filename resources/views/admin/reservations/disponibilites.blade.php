@@ -362,6 +362,7 @@
             <input type="hidden" name="start_date" id="pdf-start">
             <input type="hidden" name="end_date" id="pdf-end">
             <input type="hidden" name="show_pricing" id="pdf-images-show-pricing" value="0">
+            <input type="hidden" name="custom_filename" id="pdf-images-filename">
         </form>
 
         <form id="form-pdf-liste" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}"
@@ -371,7 +372,51 @@
             <input type="hidden" name="start_date" id="pdf-liste-start">
             <input type="hidden" name="end_date" id="pdf-liste-end">
             <input type="hidden" name="show_pricing" id="pdf-liste-show-pricing" value="0">
+            <input type="hidden" name="custom_filename" id="pdf-liste-filename">
         </form>
+
+        {{-- ══ MODAL RENOMMER LE PDF AVANT TÉLÉCHARGEMENT (feedback MP 2026-09-17) ══ --}}
+        <div id="modal-pdf-rename"
+             class="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm items-center justify-center p-4"
+             style="display:none" onclick="if(event.target===this)PDF_RENAME.close()">
+            <div class="bg-[var(--surface)] border border-[var(--border2)] rounded-2xl w-full max-w-md shadow-2xl"
+                 onclick="event.stopPropagation()">
+                <div class="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface2)] rounded-t-2xl flex justify-between items-center">
+                    <div>
+                        <div class="font-bold text-[var(--text)] text-sm">📄 Nommer le fichier PDF</div>
+                        <div class="text-xs text-[var(--text3)] mt-0.5">Le nom sera utilisé lors de l'enregistrement.</div>
+                    </div>
+                    <button type="button" onclick="PDF_RENAME.close()"
+                        class="w-8 h-8 flex items-center justify-center bg-[var(--surface3)] border border-[var(--border2)] rounded-lg text-[var(--text3)] hover:text-red-500 hover:bg-red-500/10 transition-all text-sm">✕</button>
+                </div>
+                <div class="p-5 space-y-3">
+                    <label class="block">
+                        <span class="text-xs font-semibold text-[var(--text2)] mb-1 block">Nom du fichier</span>
+                        <div class="flex items-stretch gap-0 border border-[var(--border2)] rounded-lg overflow-hidden focus-within:border-[var(--accent)] transition-colors">
+                            <input type="text" id="pdf-rename-input"
+                                class="flex-1 bg-transparent px-3 py-2 text-sm text-[var(--text)] outline-none"
+                                maxlength="96"
+                                autocomplete="off"
+                                placeholder="nom-du-fichier">
+                            <span class="bg-[var(--surface3)] text-[var(--text3)] text-xs font-mono px-3 flex items-center border-l border-[var(--border2)]">.pdf</span>
+                        </div>
+                        <div class="text-[10.5px] text-[var(--text3)] mt-1">
+                            Les caractères <code class="font-mono">/ \ : * ? " &lt; &gt; |</code> seront retirés automatiquement.
+                        </div>
+                    </label>
+                </div>
+                <div class="px-5 py-3 border-t border-[var(--border)] bg-[var(--surface2)] rounded-b-2xl flex justify-end gap-2">
+                    <button type="button" onclick="PDF_RENAME.close()"
+                        class="px-4 py-2 text-sm text-[var(--text2)] bg-[var(--surface3)] border border-[var(--border2)] rounded-lg hover:bg-[var(--surface)] transition-colors">
+                        Annuler
+                    </button>
+                    <button type="button" onclick="PDF_RENAME.confirm()"
+                        class="px-4 py-2 text-sm font-semibold text-white bg-[var(--accent)] rounded-lg hover:brightness-110 transition-all">
+                        ⬇ Télécharger
+                    </button>
+                </div>
+            </div>
+        </div>
 
     </div>
 
@@ -1680,7 +1725,9 @@
                         _el(sId).value = S.f.du || '';
                         _el(eId).value = S.f.au || '';
                         this._injectShowPricing(type);
-                        document.getElementById(fId).submit();
+                        // Feedback MP 2026-09-17 : passer par le modal de renommage
+                        // avant le submit final (le user peut personnaliser le nom).
+                        PDF_RENAME.open(type, 'all');
                     },
 
                     exportSelPdf(type) {
@@ -1700,7 +1747,7 @@
                         _el(sId).value = S.f.du || '';
                         _el(eId).value = S.f.au || '';
                         this._injectShowPricing(type);
-                        document.getElementById(fId).submit();
+                        PDF_RENAME.open(type, 'sel');
                     },
 
                     // ── EXPORTS EXCEL ─────────────────────────────────────
@@ -2840,6 +2887,65 @@
                     const dd = document.getElementById('dispo-export-dropdown');
                     if (dd) dd.classList.add('hidden');
                 }
+            });
+
+            /* ═══ Modal renommage du fichier PDF avant download ═══
+               Feedback MP 2026-09-17 : le MP veut personnaliser le nom
+               du fichier PDF avant de lancer le téléchargement.
+               Le modal s'ouvre pré-rempli avec un nom suggéré ; à la
+               confirmation, il remplit l'input custom_filename du form
+               approprié puis submit. Annuler ferme sans télécharger. */
+            window.PDF_RENAME = (function () {
+                let currentForm = null;
+                let currentFilenameInputId = null;
+
+                function pad(n) { return n < 10 ? '0' + n : '' + n; }
+                function suggestName(type, scope) {
+                    const d = new Date();
+                    const ymd = d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate());
+                    const hms = pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+                    if (type === 'images') {
+                        return 'panneaux-' + ymd + '_' + hms;
+                    }
+                    // liste
+                    const showPricing = document.getElementById('pdf-liste-show-pricing')?.value === '1';
+                    const suffix = showPricing ? '' : '-proposition';
+                    return 'selection-panneaux-liste' + suffix + '-' + ymd;
+                }
+
+                return {
+                    open(type, scope) {
+                        currentForm = type === 'images' ? 'form-pdf-images' : 'form-pdf-liste';
+                        currentFilenameInputId = type === 'images' ? 'pdf-images-filename' : 'pdf-liste-filename';
+                        const input = document.getElementById('pdf-rename-input');
+                        input.value = suggestName(type, scope);
+                        const modal = document.getElementById('modal-pdf-rename');
+                        modal.style.display = 'flex';
+                        setTimeout(() => { input.focus(); input.select(); }, 30);
+                    },
+                    close() {
+                        const modal = document.getElementById('modal-pdf-rename');
+                        modal.style.display = 'none';
+                        currentForm = null;
+                        currentFilenameInputId = null;
+                    },
+                    confirm() {
+                        if (!currentForm) return;
+                        const raw = document.getElementById('pdf-rename-input').value;
+                        document.getElementById(currentFilenameInputId).value = (raw || '').trim();
+                        const form = document.getElementById(currentForm);
+                        this.close();
+                        form.submit();
+                    }
+                };
+            })();
+
+            // Enter = confirmer, Escape = annuler dans le modal
+            document.addEventListener('keydown', function (e) {
+                const modal = document.getElementById('modal-pdf-rename');
+                if (!modal || modal.style.display === 'none') return;
+                if (e.key === 'Enter') { e.preventDefault(); PDF_RENAME.confirm(); }
+                if (e.key === 'Escape') { e.preventDefault(); PDF_RENAME.close(); }
             });
         </script>
     @endpush
