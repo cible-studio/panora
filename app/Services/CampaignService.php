@@ -362,17 +362,89 @@ class CampaignService
                 }
             }
 
+            // Le panneau ne fait plus partie de la campagne → ses tâches de
+            // pose encore ouvertes n'ont plus d'objet. Sans ça, elles
+            // restaient dans la gestion des poses ET dans les « à faire »
+            // du technicien (feedback user 2026-09-21).
+            $cancelledTasks = $this->cancelPendingPoseTasksForPanel($campaign, $panel->id);
+
             $this->recalculateCampaignAmount($campaign);
             $this->availability->syncPanelStatuses([$panel->id]);
 
             Log::info('campaign.panel_removed', [
-                'campaign_id' => $campaign->id,
-                'panel_id'    => $panel->id,
-                'user_id'     => auth()->id(),
+                'campaign_id'     => $campaign->id,
+                'panel_id'        => $panel->id,
+                'user_id'         => auth()->id(),
+                'tasks_cancelled' => $cancelledTasks,
             ]);
 
-            return ['ok' => true];
+            return ['ok' => true, 'tasks_cancelled' => $cancelledTasks];
         });
+    }
+
+    /**
+     * Variante ciblée de cancelPendingPoseTasks() : annule les poses
+     * encore ouvertes d'UN SEUL panneau retiré d'une campagne (l'autre
+     * méthode traite la campagne entière lors d'une annulation).
+     *
+     * Règle métier (feedback user 2026-09-21) : quand le media planner
+     * retire un panneau d'une campagne, ses poses ne doivent plus
+     * apparaître ni dans la gestion des poses côté admin, ni dans les
+     * « à faire » de l'espace technicien.
+     *
+     * ⚠ Les poses RÉALISÉES ne sont PAS touchées : elles constituent une
+     * trace historique (pige, performance du technicien, facturation).
+     * Même règle que cancelPendingPoseTasks() — cohérence garantie.
+     *
+     * @return int  Nombre de tâches annulées
+     */
+    private function cancelPendingPoseTasksForPanel(Campaign $campaign, int $panelId): int
+    {
+        try {
+            // Mêmes statuts non-terminaux que cancelPendingPoseTasks()
+            // (EN_ROUTE inclus depuis le bug fix 2026-08-04 : un tech ayant
+            // cliqué « j'y vais » laissait sinon une pose fantôme).
+            $affected = PoseTask::where('campaign_id', $campaign->id)
+                ->where('panel_id', $panelId)
+                ->whereIn('status', [
+                    PoseTaskStatus::PLANNED->value,
+                    PoseTaskStatus::EN_ROUTE->value,
+                    PoseTaskStatus::IN_PROGRESS->value,
+                ])
+                ->get();
+
+            if ($affected->isEmpty()) {
+                return 0;
+            }
+
+            $note = '[Auto] Panneau retiré de la campagne #' . $campaign->id
+                  . ' le ' . now()->format('d/m/Y')
+                  . (auth()->user() ? ' par ' . auth()->user()->name : '');
+
+            foreach ($affected as $task) {
+                $task->update([
+                    'status' => PoseTaskStatus::CANCELLED->value,
+                    'notes'  => $this->appendNote($task->notes, $note),
+                ]);
+            }
+
+            Log::info('campaign.poses_cancelled_panel_removed', [
+                'campaign_id' => $campaign->id,
+                'panel_id'    => $panelId,
+                'count'       => $affected->count(),
+            ]);
+
+            return $affected->count();
+        } catch (\Throwable $e) {
+            // Best-effort : un souci ici ne doit pas annuler le retrait du
+            // panneau (l'opération métier principale a déjà réussi).
+            Log::warning('posetasks.cancel_on_remove_failed', [
+                'campaign_id' => $campaign->id,
+                'panel_id'    => $panelId,
+                'error'       => $e->getMessage(),
+            ]);
+            return 0;
+        }
     }
 
     // ══════════════════════════════════════════════════════════════
