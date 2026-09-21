@@ -35,6 +35,10 @@
                         <div class="sm2-done-row-meta">
                             @if($dp->panel?->commune?->name)📍 {{ $dp->panel->commune->name }}@endif
                             · <span>{{ optional($dp->updated_at)->diffForHumans() }}</span>
+                            @php $doneBy = $dp->completedByLabel(); @endphp
+                            @if($doneBy)
+                                · <span class="sm2-done-row-by">Fait par {{ $doneBy }}</span>
+                            @endif
                         </div>
                     </div>
                 </div>
