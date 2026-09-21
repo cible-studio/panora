@@ -1765,6 +1765,14 @@ class CampaignController extends Controller
 
         $msg = "Panneau {$panel->reference} retiré.";
 
+        // Informe le MP que les poses ouvertes ont suivi — sinon il peut
+        // croire qu'elles traînent encore côté technicien (feedback 2026-09-21).
+        $nbTasks = (int) ($result['tasks_cancelled'] ?? 0);
+        if ($nbTasks > 0) {
+            $msg .= " {$nbTasks} tâche" . ($nbTasks > 1 ? 's' : '') . ' de pose annulée'
+                  . ($nbTasks > 1 ? 's' : '') . '.';
+        }
+
         if (isset($result['warning'])) {
             return redirect()
                 ->route('admin.campaigns.index')
