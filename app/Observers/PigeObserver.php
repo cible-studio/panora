@@ -39,13 +39,36 @@ class PigeObserver
 {
     public function creating(Pige $pige): void
     {
-        // Backfill automatique du pose_task_id si manquant — recherche
-        // la PoseTask (panel + campaign) la plus récente.
+        // Backfill automatique du pose_task_id si manquant.
+        //
+        // Priorité (2026-09-21) : la tâche ENCORE OUVERTE la plus
+        // récente. Sans ça, sur un panneau avec rechange, la pige
+        // pouvait se rattacher à l'ancienne pose déjà réalisée et le
+        // rechange restait éternellement « à faire » côté technicien.
+        //
+        // On ordonne par id DESC et non latest() (= created_at) : les
+        // créations en lot (createRechangeBulk) partagent le même
+        // created_at à la seconde près, ce qui rendait le résultat
+        // non-déterministe.
         if (!$pige->pose_task_id && $pige->panel_id && $pige->campaign_id) {
-            $poseTask = \App\Models\PoseTask::where('panel_id', $pige->panel_id)
+            $base = fn () => \App\Models\PoseTask::where('panel_id', $pige->panel_id)
                 ->where('campaign_id', $pige->campaign_id)
-                ->latest()
+                ->orderByDesc('id');
+
+            // 1er choix : une tâche encore ouverte (c'est elle que la
+            // pige vient documenter).
+            $poseTask = $base()
+                ->whereNotIn('status', [
+                    \App\Enums\PoseTaskStatus::COMPLETED->value,
+                    \App\Enums\PoseTaskStatus::CANCELLED->value,
+                ])
                 ->first();
+
+            // Repli : aucune tâche ouverte → on rattache à la plus
+            // récente quelle qu'elle soit (photo complémentaire sur une
+            // pose déjà clôturée, par exemple).
+            $poseTask ??= $base()->first();
+
             if ($poseTask) {
                 $pige->pose_task_id = $poseTask->id;
             }
