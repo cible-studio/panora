@@ -33,13 +33,18 @@ use Illuminate\Support\Facades\Log;
 class BackfillPoseTasksFromPiges extends Command
 {
     protected $signature = 'posetasks:backfill-from-piges
-                            {--dry-run : Affiche ce qui serait modifié sans rien écrire}';
+                            {--dry-run : Affiche ce qui serait modifié sans rien écrire}
+                            {--relink : Rebranche d\'abord les piges rattachées à une pose déjà clôturée alors qu\'un rechange ouvert existe}';
 
     protected $description = "Clôture les poses qui ont déjà une pige valide mais sont restées 'à faire'";
 
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
+
+        if ($this->option('relink')) {
+            $this->relinkPigesToOpenTasks($dryRun);
+        }
 
         // Tâches non terminales qui ont au moins une pige non rejetée.
         $tasks = PoseTask::query()
@@ -133,5 +138,91 @@ class BackfillPoseTasksFromPiges extends Command
         ]);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Rebranche les piges mal rattachées.
+     *
+     * Cas traité : sur un panneau avec rechange, une pige uploadée
+     * APRÈS la création du rechange s'est rattachée à l'ancienne pose
+     * (déjà réalisée) au lieu du rechange encore ouvert. Résultat : le
+     * rechange reste éternellement « à faire » côté technicien alors
+     * que sa photo existe.
+     *
+     * Critère de rebranchement — tous doivent être réunis :
+     *   - la pige pointe vers une pose RÉALISÉE
+     *   - cette pose a été REMPLACÉE (replaced_at non nul)
+     *   - une pose plus récente, encore ouverte, existe sur le même
+     *     couple panneau × campagne
+     *   - la pige a été prise APRÈS la création de cette pose ouverte
+     *     (sinon elle documente bien l'ancienne pose, pas le rechange)
+     */
+    private function relinkPigesToOpenTasks(bool $dryRun): void
+    {
+        $this->line('');
+        $this->info('─── Étape 1 : rebranchement des piges mal rattachées ───');
+
+        $candidates = Pige::query()
+            ->whereNotNull('pose_task_id')
+            ->whereHas('poseTask', function ($q) {
+                $q->where('status', PoseTaskStatus::COMPLETED->value)
+                  ->whereNotNull('replaced_at');
+            })
+            ->with(['poseTask', 'panel:id,reference'])
+            ->get();
+
+        if ($candidates->isEmpty()) {
+            $this->line('  Aucune pige à rebrancher.');
+            $this->line('');
+            return;
+        }
+
+        $relinked = 0;
+
+        foreach ($candidates as $pige) {
+            $openTask = PoseTask::where('panel_id', $pige->panel_id)
+                ->where('campaign_id', $pige->campaign_id)
+                ->whereNotIn('status', [
+                    PoseTaskStatus::COMPLETED->value,
+                    PoseTaskStatus::CANCELLED->value,
+                ])
+                ->where('id', '>', $pige->pose_task_id)
+                ->orderByDesc('id')
+                ->first();
+
+            if (!$openTask) {
+                continue;
+            }
+
+            // La pige doit être postérieure à la création de la pose
+            // ouverte, sinon elle documente l'ancienne pose.
+            $pigeDate = $pige->taken_at ?? $pige->created_at;
+            if ($pigeDate && $openTask->created_at && $pigeDate->lt($openTask->created_at)) {
+                continue;
+            }
+
+            $this->line(sprintf(
+                '  · Pige #%d (%s) : tâche #%d (réalisée, remplacée) → tâche #%d (%s)',
+                $pige->id,
+                $pige->panel?->reference ?? '#' . $pige->panel_id,
+                $pige->pose_task_id,
+                $openTask->id,
+                $openTask->pose_kind ?? 'initiale'
+            ));
+
+            if (!$dryRun) {
+                $pige->forceFill(['pose_task_id' => $openTask->id])->saveQuietly();
+                $relinked++;
+            }
+        }
+
+        if ($dryRun) {
+            $this->warn('  [DRY-RUN] Aucune pige rebranchée.');
+        } else {
+            $this->info("  ✓ {$relinked} pige(s) rebranchée(s).");
+            Log::info('piges.relinked_to_open_task', ['count' => $relinked]);
+        }
+
+        $this->line('');
     }
 }
