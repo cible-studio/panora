@@ -284,16 +284,29 @@
     // PDF proposition : on n'affiche le badge QUE si le panneau est réellement
     // occupé (confirme/occupe), avec la date de libération. Pour tout autre
     // statut (libre, option, maintenance…), renvoie null → pas de ligne statut.
+    // 2026-09-22 : formulation POSITIVE de la disponibilité.
+    // Avant : « Occupé jusqu'au 15/09 » — et surtout masqué quand le MP
+    // générait une proposition sans prix, ce qui laissait croire que le
+    // panneau était libre sur toute la période.
+    // Maintenant : « Disponible à partir du 16/09 », toujours affiché.
+    // C'est une info logistique essentielle, pas une donnée sensible :
+    // seul le TARIF reste conditionné à $showPricing.
     $statusFor = function (array $p) {
         $s = $p['display_status'] ?? null;
         if (!in_array($s, ['occupe', 'occupé', 'confirme'], true)) {
             return null;
         }
         $release = $p['release_date'] ?? null;
-        $label = $release
-            ? 'Occupé jusqu\'au ' . \Carbon\Carbon::parse($release)->format('d/m/Y')
-            : 'Occupé';
-        return ['label' => $label, 'class' => 'badge-occupe'];
+        if ($release) {
+            // La date stockée est le DERNIER jour d'occupation → le
+            // panneau est réellement disponible le lendemain.
+            $freeFrom = \Carbon\Carbon::parse($release)->addDay();
+            return [
+                'label' => 'Disponible à partir du ' . $freeFrom->format('d/m/Y'),
+                'class' => 'badge-occupe',
+            ];
+        }
+        return ['label' => 'Actuellement occupé', 'class' => 'badge-occupe'];
     };
 
     // Logo CIBLE CI : passé par PdfAssets::getLogoPdf() — fallback inline.
@@ -518,7 +531,7 @@
                             </td>
                         </tr>
 
-                        {{-- ─── Tarif & statut UNIQUEMENT si showPricing ─── --}}
+                        {{-- ─── Tarif UNIQUEMENT si showPricing ─── --}}
                         @if($showPricing)
                             <tr>
                                 <td class="lbl">Tarif mensuel HT</td>
@@ -532,12 +545,22 @@
                                     @endif
                                 </td>
                             </tr>
-                            @if($status)
+                        @endif
+
+                        {{-- ─── Disponibilité : TOUJOURS affichée ───
+                             2026-09-22 : ce bloc était imbriqué dans
+                             @if($showPricing). Conséquence : sur une
+                             proposition sans prix (cas par défaut du MP),
+                             un panneau occupé jusqu'au 15 apparaissait
+                             comme libre sur toute la période. Le tarif
+                             est une donnée commerciale sensible, la date
+                             de libération est une info logistique que le
+                             client DOIT voir. --}}
+                        @if($status)
                             <tr>
-                                <td class="lbl">Statut actuel</td>
+                                <td class="lbl">Disponibilité</td>
                                 <td class="val"><span class="badge {{ $status['class'] }}">{{ $status['label'] }}</span></td>
                             </tr>
-                            @endif
                         @endif
                     </table>
                     </td>
