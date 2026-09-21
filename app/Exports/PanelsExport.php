@@ -62,9 +62,12 @@ class PanelsExport implements FromCollection, WithHeadings, WithMapping, WithSty
             'SOURCE',
         ];
 
-        if (!$this->hideStatus) {
-            $headings[] = 'STATUT';
-        }
+        // Colonne TOUJOURS présente depuis 2026-09-22 : un panneau occupé
+        // jusqu'au 15 ressortait comme libre sur toute la période quand le
+        // MP générait un export « proposition » (hideStatus). Info
+        // logistique essentielle — contrairement au tarif, elle ne doit
+        // jamais être masquée.
+        $headings[] = 'DISPONIBILITÉ';
 
         if ($this->startDate && $this->endDate) {
             $headings[] = 'TOTAL PÉRIODE (FCFA)';
@@ -112,20 +115,31 @@ class PanelsExport implements FromCollection, WithHeadings, WithMapping, WithSty
             $source,
         ];
 
-        if (!$this->hideStatus) {
-            // Le statut peut être un enum (Panel) OU un objet avec ->value (ExternalPanel adapté)
-            $statusValue = is_object($panel->status ?? null)
-                ? ($panel->status->value ?? 'libre')
-                : (string) ($panel->status ?? 'libre');
-            $statusLabel = match ($statusValue) {
+        // ── DISPONIBILITÉ (toujours renseignée) ───────────────────
+        // Le statut peut être un enum (Panel) OU un objet avec ->value
+        // (ExternalPanel adapté dans ReservationController::exportExcel).
+        $statusValue = is_object($panel->status ?? null)
+            ? ($panel->status->value ?? 'libre')
+            : (string) ($panel->status ?? 'libre');
+
+        $isOccupied = in_array($statusValue, ['occupe', 'confirme'], true);
+
+        // release_date = DERNIER jour d'occupation → dispo le lendemain.
+        // Injecté par ReservationController::exportExcel (enrichissement
+        // identique à celui des PDF).
+        $release = $panel->release_date ?? null;
+
+        if ($isOccupied && $release) {
+            $freeFrom = \Carbon\Carbon::parse($release)->addDay();
+            $row[] = 'Disponible à partir du ' . $freeFrom->format('d/m/Y');
+        } else {
+            $row[] = match ($statusValue) {
                 'libre', 'disponible' => 'Disponible',
-                'occupe'              => 'Occupé',
+                'occupe', 'confirme'  => 'Occupé',
                 'option'              => 'En option',
-                'confirme'            => 'Confirmé',
                 'maintenance'         => 'Maintenance',
                 default               => ucfirst($statusValue),
             };
-            $row[] = $statusLabel;
         }
 
         if ($this->startDate && $this->endDate) {

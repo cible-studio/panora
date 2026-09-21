@@ -404,9 +404,11 @@
                     <th style="width:12%">Catégorie</th>
                     <th style="width:6%">Éclair.</th>
                     <th class="num" style="width:8%">Trafic/j (estimatif)</th>
-                    @if(!$hideStatus)
-                        <th style="width:9%">Statut</th>
-                    @endif
+                    {{-- Colonne TOUJOURS présente depuis 2026-09-22 : masquer
+                         la disponibilité d'un panneau occupé induisait le
+                         client en erreur (il le croyait libre toute la
+                         période). Seul le PRIX reste conditionné. --}}
+                    <th style="width:11%">Disponibilité</th>
                     @if($showPricing)
                         <th class="num" style="width:10%">Prix HT/mois</th>
                     @endif
@@ -423,9 +425,19 @@
                         $releaseDate  = is_object($p) ? ($p->release_date ?? null) : ($p['release_date'] ?? null);
                         $releaseLabel = $releaseDate ? \Carbon\Carbon::parse($releaseDate)->format('d/m/Y') : null;
 
+                        // 2026-09-22 : formulation positive + toujours
+                        // affichée (cf. disponibilites-images.blade.php).
+                        // La date stockée est le DERNIER jour d'occupation
+                        // → disponible le lendemain.
+                        $freeFromLabel = $releaseDate
+                            ? \Carbon\Carbon::parse($releaseDate)->addDay()->format('d/m/Y')
+                            : null;
+
                         $statusMeta = $isOccupied
                             ? [
-                                'label' => $releaseLabel ? 'Occupé jusqu\'au ' . $releaseLabel : 'Occupé',
+                                'label' => $freeFromLabel
+                                    ? 'Dispo. dès le ' . $freeFromLabel
+                                    : 'Occupé',
                                 'class' => 'badge-occupe',
                             ]
                             : null;
@@ -473,13 +485,13 @@
                             @endif
                         </td>
                         <td class="num">{{ $traffic > 0 ? number_format($traffic, 0, ',', ' ') : '—' }}</td>
-                        @if(!$hideStatus)
-                            <td>
-                                @if($statusMeta)
-                                    <span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span>
-                                @endif
-                            </td>
-                        @endif
+                        <td>
+                            @if($statusMeta)
+                                <span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span>
+                            @else
+                                <span class="badge badge-libre">Libre</span>
+                            @endif
+                        </td>
                         @if($showPricing)
                             <td class="num" style="font-weight:600;color:#c2570d">
                                 {{ $rate > 0 ? number_format($rate, 0, ',', ' ') : '—' }}

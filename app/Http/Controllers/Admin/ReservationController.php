@@ -709,6 +709,85 @@ class ReservationController extends Controller
     }
 
     /**
+     * Construit la carte des dates de libération pour un lot de panneaux.
+     *
+     * Source unique partagée par les 3 exports (PDF images, PDF liste,
+     * Excel) — avant 2026-09-22 seuls les PDF calculaient cette donnée,
+     * et l'Excel ne la connaissait pas du tout.
+     *
+     * Prend en compte DEUX sources de blocage :
+     *   1. les réservations / campagnes via getInternalPanelBookingMap
+     *   2. les campagnes actives sans réservation associée (un panneau
+     *      peut être engagé par une campagne seule)
+     *
+     * @return array{internal: array<int,string>, external: array<int,string>}
+     *         panel_id => date du DERNIER jour d'occupation (Y-m-d)
+     */
+    private function buildReleaseDateMap(
+        array $internalIds,
+        array $externalIds,
+        ?string $startDate,
+        ?string $endDate
+    ): array {
+        // Sans période explicite, on regarde de today à +1 an pour
+        // toujours pouvoir annoncer une date de libération.
+        $lookupStart = $startDate ?: now()->toDateString();
+        $lookupEnd   = $endDate   ?: now()->addYear()->toDateString();
+
+        $internal = [];
+        $external = [];
+
+        if ($internalIds) {
+            $blocking = $this->availability
+                ->getInternalPanelBookingMap($internalIds, $lookupStart, $lookupEnd)
+                ->keyBy('panel_id');
+
+            foreach ($blocking as $panelId => $b) {
+                if (!empty($b->release_date)) {
+                    $internal[(int) $panelId] = $b->release_date;
+                }
+            }
+
+            // Campagnes actives sans réservation liée.
+            $campaignRelease = \DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->whereIn('campaign_panels.panel_id', $internalIds)
+                ->where('campaign_panels.type', 'interne')
+                ->whereIn('campaigns.status', ['actif', 'pause'])
+                ->where('campaigns.end_date', '>=', $lookupStart)
+                ->select(
+                    'campaign_panels.panel_id',
+                    \DB::raw('MAX(campaigns.end_date) as release_date')
+                )
+                ->groupBy('campaign_panels.panel_id')
+                ->get();
+
+            foreach ($campaignRelease as $camp) {
+                $pid = (int) $camp->panel_id;
+                // On garde la date la PLUS LOINTAINE : le panneau n'est
+                // réellement libre qu'une fois tous les engagements finis.
+                if (!isset($internal[$pid]) || $camp->release_date > $internal[$pid]) {
+                    $internal[$pid] = $camp->release_date;
+                }
+            }
+        }
+
+        if ($externalIds) {
+            $blocking = $this->availability
+                ->getExternalPanelBookingMap($externalIds, $lookupStart, $lookupEnd)
+                ->keyBy('id');
+
+            foreach ($blocking as $extId => $b) {
+                if (!empty($b->release_date)) {
+                    $external[(int) $extId] = $b->release_date;
+                }
+            }
+        }
+
+        return ['internal' => $internal, 'external' => $external];
+    }
+
+    /**
      * Nettoie un nom de fichier PDF fourni par l'utilisateur.
      *
      * Retire tous les caractères illégaux Windows/Linux (/ \ : * ? " < > |
@@ -1174,6 +1253,38 @@ class ReservationController extends Controller
         $hideStatus = $request->has('show_pricing')
             ? !$request->boolean('show_pricing')
             : (bool) $request->boolean('hide_status', false);
+
+        // 2026-09-22 : injection des dates de libération. Sans ça,
+        // l'Excel affichait « Occupé » (ou rien du tout en mode
+        // proposition) sans jamais dire à partir de quand le panneau
+        // redevenait disponible — même info manquante que dans les PDF.
+        $releaseMap = $this->buildReleaseDateMap($internalIds, $externalIds, $startDate, $endDate);
+
+        $panels = $panels->map(function ($p) use ($releaseMap) {
+            $isExt = (bool) ($p->_external ?? false);
+            $key   = $isExt ? 'external' : 'internal';
+            $id    = (int) ($p->id ?? 0);
+
+            $release = $releaseMap[$key][$id] ?? null;
+
+            if ($release) {
+                // stdClass (externes) vs modèle Eloquent (internes) :
+                // l'affectation dynamique fonctionne sur les deux.
+                $p->release_date = $release;
+
+                // Le statut brut du panneau reflète son état courant, pas
+                // son état sur la période demandée. On le force à 'occupe'
+                // pour que PanelsExport::map() bascule sur le libellé
+                // « Disponible à partir du … ».
+                if (is_object($p->status ?? null)) {
+                    $p->status = (object) ['value' => 'occupe'];
+                } else {
+                    $p->status = 'occupe';
+                }
+            }
+
+            return $p;
+        });
 
         return Excel::download(
             new PanelsExport($panels, $startDate, $endDate, $hideStatus),
