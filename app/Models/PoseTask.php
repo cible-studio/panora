@@ -76,6 +76,11 @@ class PoseTask extends Model
         // Identité du tech saisie via le lien public (cas tech non créé en User)
         'tech_name_self', 'tech_name_self_at', 'tech_name_self_ip',
         'scheduled_at', 'done_at', 'status', 'notes',
+        // Traçabilité de la complétion (2026-09-21) — cf. migration
+        // add_completion_tracking_to_pose_tasks. Renseignés dès qu'une
+        // pige est uploadée pour cette tâche, peu importe l'auteur.
+        'completed_by_user_id',
+        'completed_source',
         // Module WhatsApp + progression temps réel
         'progress_percent',
         'estimated_minutes',
@@ -355,6 +360,44 @@ class PoseTask extends Model
     public function technicien()
     {
         return $this->belongsTo(User::class, 'assigned_user_id');
+    }
+
+    /**
+     * Utilisateur qui a déclenché la complétion de la tâche (upload de
+     * la pige ou bouton « Marquer terminée »). NULL sur les tâches
+     * complétées avant 2026-09-21 ou via un lien public anonyme.
+     */
+    public function completedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'completed_by_user_id');
+    }
+
+    /**
+     * Libellé lisible de l'auteur de la complétion, pour affichage
+     * « Fait par … » dans l'espace technicien.
+     *
+     * Ordre de résolution :
+     *   1. completed_by_user_id (le plus fiable, depuis 2026-09-21)
+     *   2. tech_name_self (tech non créé en User, saisi via lien public)
+     *   3. technicien assigné (fallback historique)
+     */
+    public function completedByLabel(): ?string
+    {
+        if (!$this->done_at) {
+            return null;
+        }
+
+        $name = $this->completedBy?->name
+            ?? $this->tech_name_self
+            ?? $this->technicien?->name;
+
+        if (!$name) {
+            return null;
+        }
+
+        return $this->completed_source === 'admin'
+            ? $name . ' (bureau)'
+            : $name;
     }
 
     /**

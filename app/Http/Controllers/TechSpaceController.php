@@ -210,7 +210,14 @@ class TechSpaceController extends Controller
         // tech peut tout voir dans /tech/{token}/piges.
         $donePosesRecent = PoseTask::where('assigned_user_id', $tech->id)
             ->where('status', PoseTaskStatus::COMPLETED->value)
-            ->with(['panel:id,reference,name,commune_id', 'panel.commune:id,name'])
+            ->with([
+                'panel:id,reference,name,commune_id',
+                'panel.commune:id,name',
+                // 2026-09-21 : « Fait par … » dans la section « Déjà faites ».
+                // Eager-load obligatoire, sinon N+1 sur 30 lignes.
+                'completedBy:id,name',
+                'technicien:id,name',
+            ])
             ->orderByDesc('updated_at')
             ->limit(30)
             ->get();

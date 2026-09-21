@@ -8,15 +8,32 @@ use Illuminate\Support\Facades\Log;
 /**
  * Hooks Pige :
  *   - Backfill du pose_task_id (lien legacy via panel+campaign)
+ *   - Clôture automatique de la PoseTask dès qu'une pige existe
  *   - Alerte in-app à chaque nouvelle photo uploadée (tous les rôles voient la cloche 🔔)
  *   - Mail dédié aux MP uniquement pour aller valider (2026-08-11 : plus admin/commercial)
  *
- * IMPORTANT : on ne marque PLUS automatiquement la PoseTask en COMPLETED
- * sur création d'une pige. Le technicien doit confirmer explicitement
- * la fin de la pose via le bouton "Marquer terminée" (markDone) sur la
- * page publique — sinon une simple photo prise par erreur clôturait la
- * tâche, et il était impossible d'uploader plusieurs photos sans que la
- * pose repasse en re-traitement.
+ * ── HISTORIQUE DE LA RÈGLE DE CLÔTURE ────────────────────────────
+ *
+ * 2026-08 : on avait RETIRÉ la clôture auto de la PoseTask sur
+ *   création d'une pige, car une photo prise par erreur clôturait la
+ *   tâche et empêchait les uploads multiples.
+ *
+ * 2026-09-21 (feedback user, urgent) : effet de bord inacceptable —
+ *   quand le media planner ajoute une pige manuellement depuis
+ *   /admin/piges/create, la PoseTask restait PLANNED et continuait
+ *   d'apparaître comme « à faire » dans l'espace technicien alors que
+ *   la preuve de pose existait. Les techs se perdaient dans des tâches
+ *   déjà réalisées.
+ *
+ *   Nouvelle règle : TOUTE pige clôture la PoseTask, peu importe qui
+ *   l'a uploadée (tech via lien public OU MP/admin via back-office).
+ *   On trace l'auteur dans completed_by_user_id + completed_source
+ *   pour afficher « Fait par X » côté tech.
+ *
+ *   Le risque « photo par erreur » d'origine est neutralisé par le
+ *   garde-fou inverse : si la pige est REJETÉE et qu'il ne reste plus
+ *   aucune pige non-rejetée sur la tâche, celle-ci est automatiquement
+ *   ROUVERTE (cf. PigeObserver::updated).
  */
 class PigeObserver
 {
@@ -61,9 +78,13 @@ class PigeObserver
 
     public function created(Pige $pige): void
     {
+        // ── Clôture automatique de la PoseTask (2026-09-21) ───────
+        // Une pige existe = la pose est faite. On clôture la tâche pour
+        // qu'elle sorte des listes « à faire » de l'espace technicien
+        // (TechSpaceController filtre sur whereNotIn status COMPLETED).
+        $this->closePoseTask($pige);
+
         // ── Alerte in-app (cloche 🔔) — historique ────────────────
-        // La PoseTask N'EST PAS basculée en COMPLETED — c'est le technicien
-        // qui décide via le bouton "Marquer terminée".
         try {
             \App\Services\AlertService::notify(
                 'avancement_pose',
@@ -127,6 +148,129 @@ class PigeObserver
             Log::warning('pige.mail_admin_failed', [
                 'pige_id' => $pige->id,
                 'error'   => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Garde-fou inverse : si une pige passe en « rejete » et qu'il ne
+     * reste plus AUCUNE pige non-rejetée sur la tâche, on ROUVRE la
+     * PoseTask (retour en IN_PROGRESS) pour qu'elle réapparaisse dans
+     * les tâches à faire du technicien.
+     *
+     * Sans ce garde-fou, la clôture auto de `created()` laisserait des
+     * poses fantômes marquées « faites » alors que la seule preuve a
+     * été rejetée par le MP.
+     */
+    public function updated(Pige $pige): void
+    {
+        if (!$pige->wasChanged('status')) {
+            return;
+        }
+        if ($pige->status !== 'rejete' || !$pige->pose_task_id) {
+            return;
+        }
+
+        try {
+            $task = \App\Models\PoseTask::find($pige->pose_task_id);
+            if (!$task || $task->status !== \App\Enums\PoseTaskStatus::COMPLETED->value) {
+                return;
+            }
+
+            // Reste-t-il une pige valable (non rejetée) sur cette tâche ?
+            $stillHasValidPige = Pige::where('pose_task_id', $task->id)
+                ->where('status', '!=', 'rejete')
+                ->exists();
+
+            if ($stillHasValidPige) {
+                return; // une autre photo tient toujours la preuve
+            }
+
+            $task->forceFill([
+                'status'               => \App\Enums\PoseTaskStatus::IN_PROGRESS->value,
+                'done_at'              => null,
+                'completed_by_user_id' => null,
+                'completed_source'     => null,
+            ])->save();
+
+            Log::info('posetask.reopened_after_pige_rejected', [
+                'pose_task_id' => $task->id,
+                'pige_id'      => $pige->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('posetask.reopen_failed', [
+                'pige_id' => $pige->id,
+                'error'   => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Clôture la PoseTask liée à la pige, avec traçabilité de l'auteur.
+     *
+     * Idempotent : ne fait rien si la tâche est déjà COMPLETED ou
+     * CANCELLED (uploads multiples de photos sur la même pose → un seul
+     * passage effectif, pas de done_at qui se déplace à chaque photo).
+     *
+     * Best-effort : un échec ici ne doit jamais empêcher l'enregistrement
+     * de la pige (la photo est la donnée critique, pas le statut).
+     */
+    private function closePoseTask(Pige $pige): void
+    {
+        if (!$pige->pose_task_id) {
+            return;
+        }
+
+        try {
+            $task = \App\Models\PoseTask::find($pige->pose_task_id);
+            if (!$task) {
+                return;
+            }
+
+            // Déjà terminée ou annulée → on ne touche à rien.
+            if (in_array($task->status, [
+                \App\Enums\PoseTaskStatus::COMPLETED->value,
+                \App\Enums\PoseTaskStatus::CANCELLED->value,
+            ], true)) {
+                return;
+            }
+
+            $user = auth()->user();
+
+            // Origine : 'tech' si l'upload vient du technicien assigné ou
+            // d'un lien public anonyme (pas d'auth), 'admin' si c'est un
+            // MP/admin connecté au back-office qui saisit la pige.
+            $isAssignedTech = $user && (int) $user->id === (int) $task->assigned_user_id;
+            $source = (!$user || $isAssignedTech) ? 'tech' : 'admin';
+
+            $task->forceFill([
+                'status'               => \App\Enums\PoseTaskStatus::COMPLETED->value,
+                'done_at'              => $pige->taken_at ?? now(),
+                'progress_percent'     => 100,
+                'completed_by_user_id' => $user?->id,
+                'completed_source'     => $source,
+            ]);
+
+            // real_minutes si on connaît l'heure de démarrage terrain.
+            if ($task->started_at && !$task->real_minutes) {
+                $task->real_minutes = max(1, (int) round(
+                    $task->started_at->diffInMinutes($task->done_at)
+                ));
+            }
+
+            $task->save();
+
+            Log::info('posetask.auto_completed_by_pige', [
+                'pose_task_id' => $task->id,
+                'pige_id'      => $pige->id,
+                'source'       => $source,
+                'user_id'      => $user?->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('posetask.auto_complete_failed', [
+                'pige_id'      => $pige->id,
+                'pose_task_id' => $pige->pose_task_id,
+                'error'        => $e->getMessage(),
             ]);
         }
     }
