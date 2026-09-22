@@ -206,15 +206,27 @@
             display: flex; justify-content: center; gap: 6px;
             margin-top: 16px; flex-wrap: wrap;
         }
+        /* La vue public.tech.partials._pagination encapsule les liens dans un <nav>
+           (accessibilité) — c'est lui qui porte la mise en ligne. */
+        .pagination nav {
+            display: flex; justify-content: center; gap: 6px;
+            flex-wrap: wrap; width: 100%;
+        }
         .pagination a, .pagination span {
             padding: 6px 11px; border-radius: 8px;
             background: var(--surface); border: 1px solid var(--border);
             color: var(--text2); text-decoration: none; font-size: 12px;
+            line-height: 1.2; min-width: 34px; text-align: center;
         }
+        .pagination a:active { background: var(--surface2); }
         .pagination .active, .pagination span[aria-current] {
             background: var(--accent); color: #fff; border-color: var(--accent);
             font-weight: 800;
         }
+        /* Garde-fou : si une vue de pagination tierce réintroduit des SVG
+           (thème Tailwind par défaut), ils restent à taille raisonnable
+           au lieu de s'afficher en pleine page. */
+        .pagination svg { width: 14px; height: 14px; vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -410,8 +422,11 @@
     @endforelse
 
     @if($piges->hasPages())
+        {{-- Vue dédiée : le thème Tailwind par défaut cassait l'affichage
+             (SVG géants, libellés anglais) car cette page n'a pas Tailwind.
+             Cf. resources/views/public/tech/partials/_pagination.blade.php --}}
         <div class="pagination">
-            {{ $piges->links() }}
+            {{ $piges->links('public.tech.partials._pagination') }}
         </div>
     @endif
 </div>
