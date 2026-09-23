@@ -89,7 +89,13 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
         // generateLines() retourne des arrays — accès par clé.
         return [
             $row['commune'] ?? '',
-            $row['reference'] ?? '',
+            // TX-10 (2026-09-23) — Pour un panneau double-face, generateLines()
+            // renvoie déjà la référence physique fusionnée (ABG-001). On accole
+            // les faces d'origine entre parenthèses pour la piste d'audit.
+            ($row['reference'] ?? '')
+                . (!empty($row['faces_refs'])
+                    ? ' (' . implode(' + ', $row['faces_refs']) . ')'
+                    : ''),
             $row['name'] ?? '',
             $row['dimensions'] ?? '',
             (float) ($row['surface'] ?? 0),

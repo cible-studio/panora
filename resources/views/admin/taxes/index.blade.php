@@ -52,8 +52,10 @@
 
     <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.6;">
         <strong>Formules :</strong>
-        ODP = tarif commune × m² × nb panneaux × nb mois ·
-        TM = tarif commune × m² × nb panneaux × nb mois.
+        ODP = (tarif commune × 3) × m² × nb trimestres entamés — forfait trimestriel,
+        facturé <strong>une seule fois par panneau physique</strong> (un mât double-face
+        A/B compte pour un) ·
+        TM = tarif commune × m² × nb mois de campagne, <strong>par face</strong>.
         Calcul en temps réel sur le parc actuel (panneaux internes hors maintenance).
     </div>
 </div>
