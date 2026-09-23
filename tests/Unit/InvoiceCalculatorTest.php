@@ -402,8 +402,9 @@ class InvoiceCalculatorTest extends TestCase
         $this->assertEquals(100000, $c['montant_ht_ligne']);
         // TM = 1000 × 12 × 1 mois anniv = 12 000
         $this->assertEquals(12000, $c['tm_ligne']);
-        // ODP = (4000 × 3) × 12 × 1 trimestre = 144 000 (forfait T1 plein)
-        $this->assertEquals(144000, $c['odp_ligne']);
+        // TX-13 (2026-09-23) — plus de ×3 : on refacture au client ce qui est
+        // dû à la commune. ODP = 4000 × 12 m² × 1 trimestre (T1 entamé) = 48 000.
+        $this->assertEquals(48000, $c['odp_ligne']);
     }
 
     public function test_tx9_avec_dates_campagne_15mars_30avril_2_mois_2_trimestres(): void
@@ -427,7 +428,8 @@ class InvoiceCalculatorTest extends TestCase
 
         $this->assertEquals(200000, $c['montant_ht_ligne'], 'Loyer 2 mois négociés');
         $this->assertEquals(24000,  $c['tm_ligne'],         'TM = 1000×12×2');
-        $this->assertEquals(288000, $c['odp_ligne'],        'ODP = 4000×3×12×2 trimestres');
+        // TX-13 (2026-09-23) — plus de ×3 sur l'ODP refacturée.
+        $this->assertEquals(96000,  $c['odp_ligne'],        'ODP = 4000×12×2 trimestres');
     }
 
     public function test_tx9_sans_dates_campagne_fallback_ancien_comportement(): void

@@ -12,7 +12,8 @@ use App\Models\InvoiceLine;
  *
  *   Par ligne :
  *     Montant HT = PU × quantité × durée
- *     ODP        = odp_rate × m² × quantité × durée
+ *     ODP        = odp_rate × m² × quantité × trimestres entamés
+ *                  (durée en mois si la ligne n'a pas de dates campagne)
  *                  (OU odp_amount_override si présent — ajout 2026-08-03)
  *     TM         = tm_rate (1000) × m² × quantité × durée
  *                  (OU tm_amount_override si présent — ajout 2026-08-03)
@@ -84,11 +85,12 @@ class InvoiceCalculator
      *        calculés depuis campaign_start → campaign_end SI fournies.
      *        Sinon fallback sur duree_mois (compatibilité anciennes factures).
      *
-     *   ODP : (odp_rate × 3) × surface × quantite × trimestres_ODP
+     *   ODP : odp_rate × surface × quantite × trimestres_ODP
      *         où trimestres_ODP = nb trimestres calendaires touchés
      *         par la campagne SI dates fournies. Sinon fallback
      *         sur duree_mois (compatibilité).
-     *         Le ×3 vient de "tarif stocké mensuel → forfait trimestriel".
+     *         TX-13 (2026-09-23) : plus de ×3 — on refacture au client
+     *         exactement ce qui est dû à la commune (cf. TX-12).
      *
      * ═══ OVERRIDES par ligne (ajout 2026-08-03) ═══
      * Si `odp_amount_override` ou `tm_amount_override` sont fournis
@@ -144,7 +146,15 @@ class InvoiceCalculator
             $moisTM         = $this->period->moisAnniversaireEntames($csDate, $ceDate);
             $trimestresODP  = $this->period->trimestresCalendairesTouches($csDate, $ceDate);
 
-            $odpAuto = ($odpRate * 3) * $m2 * $qte * $trimestresODP;   // forfait trimestriel ×3
+            // TX-13 (2026-09-23) — RÈGLE VALIDÉE PAR ÉCRIT :
+            // « je facture au client ce que je paie à la mairie ».
+            // Le ×3 de TX-9 faisait refacturer 3× l'ODP réellement due
+            // (150 000 payés à la commune → 450 000 sur la facture).
+            // Aligné sur TaxCalculationService (TX-12) : le tarif mensuel
+            // s'applique tel quel, par trimestre entamé.
+            // Les factures déjà émises ne bougent pas : leurs montants sont
+            // figés dans invoice_lines.odp_ligne.
+            $odpAuto = $odpRate * $m2 * $qte * $trimestresODP;
             $tmAuto  = $tmRate       * $m2 * $qte * $moisTM;
         } else {
             // Compatibilité totale : ligne saisie sans dates → on utilise
