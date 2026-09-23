@@ -43,6 +43,60 @@ affiche le logo sur fond clair.
 
 ---
 
+### TX-11 — `computeAnnualTotalDue()` triple l'ODP annuelle (prouvé 2026-09-23)
+
+`TaxController::computeAnnualTotalDue()` (ligne ~441) additionne les 12
+totaux mensuels renvoyés par `generateLines(PERIOD_MONTHLY, …)` :
+
+```php
+for ($mois = 1; $mois <= 12; $mois++) {
+    $totals = $calc->summarize($calc->generateLines(PERIOD_MONTHLY, $mois, $year, …));
+    $total += $totals['odp_total'] + $totals['tm_total'];
+}
+```
+
+Depuis TX-9 (2026-07-29), l'ODP est un **forfait trimestriel** et la règle
+« 1 jour dans le trimestre = trimestre entier » fait que **chaque mois**
+renvoie un trimestre complet. Les 12 mois cumulent donc 12 forfaits
+trimestriels au lieu de 4 → **×3 exactement**.
+
+Mesuré sur le parc réel (2026, ODP seule, ratio identique sur les 30
+communes) :
+
+| Méthode                              | ODP annuelle 2026 |
+|--------------------------------------|-------------------|
+| Somme des 12 mois (code actuel)      | 315 612 000 FCFA  |
+| `generateLines('annuel', …)`         | 105 204 000 FCFA  |
+
+⚠ La part **TM** de la somme, elle, est correcte (la TM est réellement
+mensuelle). Le correctif ne peut donc pas être un `/3` global : il faut
+calculer l'ODP en **un seul appel annuel** et garder la somme des 12 mois
+pour la TM.
+
+Même symptôme sur la matrice mensuelle de `showCommune()` (ligne ~498) :
+chaque mois d'un trimestre affiche le forfait trimestriel entier, donc le
+cumul annuel de la colonne est lui aussi ×3.
+
+**Non corrigé volontairement** : la règle N°5 du `CLAUDE.md` impose une
+validation écrite de la patronne avant toute modification d'un calcul
+fiscal. Le chiffre affiché sur la fiche commune change de 315 M à 105 M —
+décision métier, pas décision technique.
+
+### `calculODPCommune()` — cluster de code mort sur l'ancienne règle
+
+`TaxCalculationService::calculODPCommune()` (~ligne 384) et ses
+satellites (`panneauxPourCalcul()`, `moisExistencePanneau()`) appliquent
+encore la règle **mensuelle** d'avant TX-9
+(`tarif_mensuel × surface × mois_existence`), sans forfait trimestriel et
+sans la fusion des faces TX-10.
+
+Aucun appelant en production (vérifié par grep : seul `generateLines()`
+est consommé par `TaxController` et `TaxesDetailsExport`). Conservé au
+titre de la règle N°3 (pas de suppression hors périmètre), mais **à ne
+jamais rebrancher en l'état**.
+
+---
+
 ## Résolues
 
 ### TX-9 (2026-07-29) — Règles TM / ODP alignées sur la pratique terrain

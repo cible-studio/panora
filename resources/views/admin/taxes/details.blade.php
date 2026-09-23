@@ -258,7 +258,18 @@
                     <tr>
                         <td style="font-weight:600;">{{ $row['commune'] }}</td>
                         <td>
-                            <div style="font-family:monospace;font-weight:700;color:var(--accent);font-size:12px;">{{ $row['reference'] }}</div>
+                            <div style="font-family:monospace;font-weight:700;color:var(--accent);font-size:12px;">
+                                {{ $row['reference'] }}
+                                {{-- TX-10 (2026-09-23) — Panneau double-face : l'ODP est due
+                                     une seule fois pour le mât. On affiche les faces d'origine
+                                     pour que le comptable retrouve ses petits. --}}
+                                @if(!empty($row['faces_count']) && $row['faces_count'] > 1)
+                                    <span class="badge" style="background:#eef2ff;color:#4338ca;font-size:9px;font-weight:700;vertical-align:middle;"
+                                          title="Panneau double-face ({{ implode(' + ', $row['faces_refs'] ?? []) }}) — ODP facturée une seule fois">
+                                        {{ $row['faces_count'] }} faces → 1 ODP
+                                    </span>
+                                @endif
+                            </div>
                             <div style="font-size:11px;color:var(--text3);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ $row['name'] }}">{{ $row['name'] }}</div>
                         </td>
                         <td>
@@ -346,6 +357,11 @@
         (règle « anniversaire glissant »).<br>
         💡 <strong>ODP</strong> : (tarif mensuel × 3) × surface × <em>trimestres calendaires touchés</em>
         — 1 jour dans un trimestre = trimestre entier compté.<br>
+        💡 <strong>Panneaux double-face</strong> : l'ODP taxe l'emprise au sol, donc un mât
+        A/B (ex. ADJ-004A + ADJ-004B) est <strong>facturé une seule fois</strong> sur la surface
+        d'une face. La TM, elle, taxe l'affichage → elle reste due <strong>par face</strong>.<br>
+        💡 <strong>Point de départ ODP</strong> : les panneaux déjà en place avant Panora sont
+        taxés sur toute la période ; ceux créés dans l'app le sont à partir de leur date de création.<br>
         Les tarifs utilisent l'<strong>historique tarifaire</strong> de la commune (cohérence rétroactive).
     </div>
 

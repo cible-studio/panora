@@ -34,6 +34,9 @@ class Panel extends Model
 
         // Champs Dev A
         'nombre_faces',
+
+        // TX-10 (2026-09-23) — Départ du calcul ODP (cf. booted() plus bas)
+        'odp_start_date',
         'type_support',
         'orientation',
         'adresse',
@@ -50,7 +53,31 @@ class Panel extends Model
         'gps_dispersion_flag' => 'boolean',
         'gps_computed_at'     => 'datetime',
         'status'       => PanelStatus::class,
+        'odp_start_date'      => 'date',
     ];
+
+    /**
+     * TX-10 (2026-09-23) — Auto-remplissage de la date de départ ODP.
+     *
+     * Règle métier validée par la patronne :
+     *   - Les panneaux déjà saisis dans Panora (odp_start_date = NULL) sont
+     *     des panneaux qui existaient physiquement AVANT l'app. L'ODP leur
+     *     est due sur toute la période demandée (cf. TaxCalculationService).
+     *   - Tout panneau créé À PARTIR DE MAINTENANT est un nouveau panneau :
+     *     son ODP ne court qu'à partir de sa date de création.
+     *
+     * ⚠ Si un jour on importe un lot de panneaux HISTORIQUES, il faut
+     *   passer odp_start_date explicitement (ou la remettre à null après
+     *   import), sinon ils hériteront de la date du jour.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $panel) {
+            if (empty($panel->odp_start_date)) {
+                $panel->odp_start_date = now()->toDateString();
+            }
+        });
+    }
 
     // ───────────── Relations principales ─────────────
 

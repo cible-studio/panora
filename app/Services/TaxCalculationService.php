@@ -156,8 +156,16 @@ class TaxCalculationService
                     $rateApplied = $unitRate;   // tarif mensuel appliqué
                     $unitLabel   = 'mois';       // libellé pour l'affichage
                 } elseif ($type === self::TYPE_ODP) {
+                    // TX-10 (2026-09-23) — On part de odp_start_date, PAS de
+                    // created_at. created_at = date de SAISIE dans Panora, or
+                    // le parc existait physiquement bien avant l'app : s'y
+                    // fier sous-facturait tous les panneaux historiques.
+                    //   odp_start_date NULL → panneau préexistant, ODP due
+                    //                         sur toute la période demandée.
+                    //   odp_start_date remplie → ODP due à partir de là.
+                    // (auto-remplie à la création — cf. Panel::booted())
                     $lineMonths = $this->period->trimestresODPDansPeriode(
-                        $panel->created_at ?? $periodStart,
+                        $panel->odp_start_date ?? $periodStart,
                         $panel->deleted_at,
                         $periodStart,
                         $periodEnd
@@ -205,7 +213,108 @@ class TaxCalculationService
             }
         }
 
-        return $lines;
+        // TX-10 — L'ODP se paie par PANNEAU physique, pas par face.
+        return $this->fusionnerFacesODP($lines);
+    }
+
+    /**
+     * Référence "physique" d'un panneau : on retire le suffixe de face.
+     *
+     * Convention Panora : un panneau double-face est saisi comme deux
+     * enregistrements dont la référence ne diffère que par un suffixe
+     * A / B collé derrière le numéro (ABG-001A + ABG-001B).
+     *
+     *   ABG-001A    → ABG-001
+     *   CDYT2-001B  → CDYT2-001
+     *   SPBS-01     → SPBS-01   (pas de suffixe lettre → inchangé)
+     *   ABG-PAN-01  → ABG-PAN-01
+     *
+     * Le chiffre obligatoire devant le A/B évite de mutiler une
+     * référence qui finirait légitimement par une lettre.
+     */
+    public static function referencePhysique(string $reference): string
+    {
+        $base = preg_replace('/(\d)[AB]$/i', '$1', trim($reference));
+
+        return $base !== null && $base !== '' ? $base : trim($reference);
+    }
+
+    /**
+     * ═══ RÈGLE MÉTIER VALIDÉE PAR ÉCRIT — 2026-09-23 (patronne) ═══
+     *
+     * « Les panneaux à double face, dans Panora on considère chaque face
+     *   comme un panneau, mais en réalité c'est un seul panneau : l'ODP
+     *   se paye pour un, pas pour les faces. »
+     *
+     * L'ODP (Occupation du Domaine Public) taxe l'EMPRISE AU SOL : un mât
+     * double-face occupe le même trottoir qu'un mono-face. On facturait
+     * donc 2× le même panneau (2 lignes × 12 m² = 24 m² au lieu de 12).
+     *
+     * Ce qui est fusionné :
+     *   - les lignes ODP uniquement — la TM (Taxe Municipale) reste par
+     *     face, car elle taxe l'AFFICHAGE : 2 faces = 2 publicités = 2 TM.
+     *   - regroupement par (commune, référence physique).
+     *
+     * Ce qui est retenu pour la ligne fusionnée :
+     *   - surface : celle d'UNE face (la plus grande si les faces
+     *     diffèrent — prudence fiscale, on ne sous-déclare pas).
+     *   - trimestres : le max du groupe (le panneau physique existe dès
+     *     que sa première face existe).
+     *   - montant : recalculé, jamais additionné.
+     *
+     * Un panneau orphelin (ex : CDY-037B sans CDY-037A) reste seul dans
+     * son groupe → aucune fusion, sa référence d'origine est conservée
+     * telle quelle pour ne pas dérouter le comptable.
+     */
+    private function fusionnerFacesODP(Collection $lines): Collection
+    {
+        $odp = $lines->filter(fn($l) => ($l['type'] ?? null) === self::TYPE_ODP);
+        if ($odp->count() < 2) {
+            return $lines;
+        }
+
+        $autres  = $lines->reject(fn($l) => ($l['type'] ?? null) === self::TYPE_ODP);
+        $fusions = collect();
+
+        $groupes = $odp->groupBy(
+            fn($l) => $l['commune_id'] . '|' . self::referencePhysique($l['reference'])
+        );
+
+        foreach ($groupes as $groupe) {
+            // Tri par référence → la face A sert toujours de ligne pivot.
+            // Rend le résultat déterministe quel que soit l'ordre SQL.
+            $groupe = $groupe->sortBy('reference')->values();
+            $ligne  = $groupe->first();
+
+            if ($groupe->count() > 1) {
+                $ligne['surface']   = (float) $groupe->max('surface');
+                $ligne['months']    = (int) $groupe->max('months');
+                $ligne['reference'] = self::referencePhysique($ligne['reference']);
+                $ligne['amount']    = round(
+                    $ligne['rate_applied'] * $ligne['surface'] * $ligne['months'],
+                    2
+                );
+
+                // Traçabilité : affichée dans le détail / l'export Excel
+                // pour que le comptable retrouve les faces d'origine.
+                $ligne['faces_count'] = $groupe->count();
+                $ligne['faces_refs']  = $groupe->pluck('reference')->all();
+                $ligne['faces_panel_ids'] = $groupe->pluck('panel_id')->all();
+
+                // Si la face pivot n'a pas de campagne mais l'autre si,
+                // on remonte l'info plutôt que d'afficher un trou.
+                foreach (['client_name', 'client_id', 'campaign_name', 'campaign_id',
+                          'campaign_start', 'campaign_end'] as $cle) {
+                    if (($ligne[$cle] ?? null) === null) {
+                        $ligne[$cle] = $groupe->pluck($cle)->filter()->first();
+                    }
+                }
+            }
+
+            $fusions->push($ligne);
+        }
+
+        return $autres->merge($fusions)->values();
     }
 
     /**
@@ -380,6 +489,16 @@ class TaxCalculationService
      * ODP totale due pour une commune sur la période [debut, fin].
      * Somme par panneau : tarif_ODP_MENSUEL × surface × mois_existence.
      * FIX TX-3 (2026-06-22) : tarifs mensuels confirmés patronne.
+     *
+     * ⚠ CODE MORT — NE PAS REBRANCHER EN L'ÉTAT (constaté 2026-09-23).
+     *   Aucun appelant en production : TaxController et TaxesDetailsExport
+     *   passent tous par generateLines(). Cette méthode applique encore
+     *   l'ancienne règle MENSUELLE d'avant TX-9 (pas de forfait
+     *   trimestriel ×3) et ignore la fusion des faces TX-10 (elle
+     *   facturerait 2× un mât double-face). Conservée au titre de la
+     *   règle N°3 du CLAUDE.md. Cf. docs/TECHNICAL_DEBT.md.
+     *
+     * @deprecated Utiliser generateLines() + summarize().
      */
     public function calculODPCommune(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
     {
