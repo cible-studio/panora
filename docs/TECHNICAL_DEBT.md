@@ -43,44 +43,6 @@ affiche le logo sur fond clair.
 
 ---
 
-### TX-11 — `computeAnnualTotalDue()` triple l'ODP annuelle (prouvé 2026-09-23)
-
-`TaxController::computeAnnualTotalDue()` (ligne ~441) additionne les 12
-totaux mensuels renvoyés par `generateLines(PERIOD_MONTHLY, …)` :
-
-```php
-for ($mois = 1; $mois <= 12; $mois++) {
-    $totals = $calc->summarize($calc->generateLines(PERIOD_MONTHLY, $mois, $year, …));
-    $total += $totals['odp_total'] + $totals['tm_total'];
-}
-```
-
-L'ODP se compte en **trimestres** et la règle « 1 jour dans le trimestre =
-trimestre entier » fait que **chaque mois** renvoie un trimestre complet.
-Les 12 mois cumulent donc 12 trimestres au lieu de 4 → **×3 exactement**.
-
-Mesuré sur le parc réel (2026, ODP seule, ratio identique sur les 30
-communes) — chiffres réactualisés après TX-12 :
-
-| Méthode                              | ODP annuelle 2026 |
-|--------------------------------------|-------------------|
-| Somme des 12 mois (code actuel)      | 105 204 000 FCFA  |
-| `generateLines('annuel', …)`         |  35 068 000 FCFA  |
-
-⚠ La part **TM** de la somme, elle, est correcte (la TM est réellement
-mensuelle). Le correctif ne peut donc pas être un `/3` global : il faut
-calculer l'ODP en **un seul appel annuel** et garder la somme des 12 mois
-pour la TM.
-
-Même symptôme sur la matrice mensuelle de `showCommune()` (ligne ~498) :
-chaque mois d'un trimestre affiche un trimestre entier, donc le cumul
-annuel de la colonne est lui aussi ×3.
-
-**Non corrigé volontairement** : la règle N°5 du `CLAUDE.md` impose une
-validation écrite de la patronne avant toute modification d'un calcul
-fiscal. Le chiffre affiché sur la fiche commune change de 315 M à 105 M —
-décision métier, pas décision technique.
-
 ### `calculODPCommune()` — cluster de code mort sur l'ancienne règle
 
 `TaxCalculationService::calculODPCommune()` (~ligne 384) et ses
@@ -94,45 +56,6 @@ est consommé par `TaxController` et `TaxesDetailsExport`). Conservé au
 titre de la règle N°3 (pas de suppression hors périmètre), mais **à ne
 jamais rebrancher en l'état**.
 
----
-
-### TX-13 — La FACTURATION applique encore le ×3 sur l'ODP (constaté 2026-09-23)
-
-TX-12 a retiré le ×3 du module Taxes (`TaxCalculationService`, dashboard,
-détail, PDF mairie, Excel) sur règle validée par écrit : **ODP = tarif
-mensuel × m² × nb trimestres**.
-
-Mais `App\Services\InvoiceCalculator::calculateLine()` (ligne ~147)
-applique toujours l'ancienne règle TX-9 :
-
-```php
-$odpAuto = ($odpRate * 3) * $m2 * $qte * $trimestresODP;   // forfait trimestriel ×3
-```
-
-Conséquence : **CIBLE refacture au client 3× l'ODP qu'elle doit
-réellement à la commune.** Sur un panneau 50 m² à 3 000 F dans une
-commune, sur un trimestre :
-
-| | Montant |
-|---|---|
-| Ce que le module Taxes dit devoir à la mairie | 150 000 FCFA |
-| Ce que la facture client porte | 450 000 FCFA |
-
-Périmètre concerné (tous consomment `InvoiceCalculator`) :
-`InvoiceController`, `QuoteController`, `InvoiceFromCampaignBuilder`,
-`QuoteBuilder`, `admin/invoices/partials/_form-fne.blade.php` (JS de
-prévisualisation temps réel), `resources/views/pdf/quote.blade.php`.
-
-Bonne nouvelle : les montants sont **figés en base**
-(`invoice_lines.odp_ligne`, `odp_rate_applique`, `odp_amount_override`),
-donc aligner le calcul ne modifierait **pas** les factures déjà émises —
-seulement les nouvelles et les brouillons recalculés.
-
-**Non corrigé volontairement** : règle N°5 du `CLAUDE.md`. La règle a été
-validée pour le module Taxes (ce que CIBLE doit à la mairie) ; l'étendre
-à ce que CIBLE facture au client est une **décision commerciale** qui
-divise par 3 une ligne de revenu. Doit être validée explicitement avant
-toute modification.
 ---
 
 ### Base de dev locale en MyISAM → les transactions ne protègent rien (constaté 2026-09-23)
@@ -164,6 +87,27 @@ Correctif local possible (non appliqué, décision utilisateur) :
 ---
 
 ## Résolues
+
+### TX-11 / TX-13 (2026-09-23) — ODP : cumul annuel et refacturation client
+
+**TX-11** — `computeAnnualTotalDue()` et la matrice mensuelle de
+`showCommune()` additionnaient 12 totaux mensuels d'une taxe trimestrielle
+(chaque mois renvoyant le trimestre entier) → cumul annuel ×3.
+Corrigé : l'ODP passe par un seul appel annuel, et la matrice la porte sur
+le 1er mois de chaque trimestre (janvier, avril, juillet, octobre) — ce qui
+est aussi le moment où elle est exigible. La TM continue d'être sommée mois
+par mois, elle est réellement mensuelle.
+Vérifié : fiche commune = 35 068 000 FCFA, identique à /admin/taxes.
+
+**TX-13** — `InvoiceCalculator::calculateLine()` appliquait encore
+`($odpRate * 3)`, donc CIBLE refacturait au client 3× l'ODP due à la mairie.
+Règle validée par écrit le 2026-09-23 : « je facture au client ce que je paie
+à la mairie ». Le ×3 est retiré ; les factures déjà émises ne bougent pas,
+leurs montants étant figés dans `invoice_lines.odp_ligne`.
+Vérifié : le ×3 n'était recopié nulle part ailleurs — ni dans `QuoteBuilder`
+ni dans `InvoiceFromCampaignBuilder` (qui délèguent au calculateur), ni dans
+le JS de prévisualisation du formulaire FNE (qui n'utilise pas les dates
+campagne, donc la branche fallback sans ×3).
 
 ### TX-9 (2026-07-29) — Règles TM / ODP alignées sur la pratique terrain
 
