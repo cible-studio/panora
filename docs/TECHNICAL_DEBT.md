@@ -55,18 +55,17 @@ for ($mois = 1; $mois <= 12; $mois++) {
 }
 ```
 
-Depuis TX-9 (2026-07-29), l'ODP est un **forfait trimestriel** et la règle
-« 1 jour dans le trimestre = trimestre entier » fait que **chaque mois**
-renvoie un trimestre complet. Les 12 mois cumulent donc 12 forfaits
-trimestriels au lieu de 4 → **×3 exactement**.
+L'ODP se compte en **trimestres** et la règle « 1 jour dans le trimestre =
+trimestre entier » fait que **chaque mois** renvoie un trimestre complet.
+Les 12 mois cumulent donc 12 trimestres au lieu de 4 → **×3 exactement**.
 
 Mesuré sur le parc réel (2026, ODP seule, ratio identique sur les 30
-communes) :
+communes) — chiffres réactualisés après TX-12 :
 
 | Méthode                              | ODP annuelle 2026 |
 |--------------------------------------|-------------------|
-| Somme des 12 mois (code actuel)      | 315 612 000 FCFA  |
-| `generateLines('annuel', …)`         | 105 204 000 FCFA  |
+| Somme des 12 mois (code actuel)      | 105 204 000 FCFA  |
+| `generateLines('annuel', …)`         |  35 068 000 FCFA  |
 
 ⚠ La part **TM** de la somme, elle, est correcte (la TM est réellement
 mensuelle). Le correctif ne peut donc pas être un `/3` global : il faut
@@ -74,8 +73,8 @@ calculer l'ODP en **un seul appel annuel** et garder la somme des 12 mois
 pour la TM.
 
 Même symptôme sur la matrice mensuelle de `showCommune()` (ligne ~498) :
-chaque mois d'un trimestre affiche le forfait trimestriel entier, donc le
-cumul annuel de la colonne est lui aussi ×3.
+chaque mois d'un trimestre affiche un trimestre entier, donc le cumul
+annuel de la colonne est lui aussi ×3.
 
 **Non corrigé volontairement** : la règle N°5 du `CLAUDE.md` impose une
 validation écrite de la patronne avant toute modification d'un calcul
@@ -94,6 +93,73 @@ Aucun appelant en production (vérifié par grep : seul `generateLines()`
 est consommé par `TaxController` et `TaxesDetailsExport`). Conservé au
 titre de la règle N°3 (pas de suppression hors périmètre), mais **à ne
 jamais rebrancher en l'état**.
+
+---
+
+### TX-13 — La FACTURATION applique encore le ×3 sur l'ODP (constaté 2026-09-23)
+
+TX-12 a retiré le ×3 du module Taxes (`TaxCalculationService`, dashboard,
+détail, PDF mairie, Excel) sur règle validée par écrit : **ODP = tarif
+mensuel × m² × nb trimestres**.
+
+Mais `App\Services\InvoiceCalculator::calculateLine()` (ligne ~147)
+applique toujours l'ancienne règle TX-9 :
+
+```php
+$odpAuto = ($odpRate * 3) * $m2 * $qte * $trimestresODP;   // forfait trimestriel ×3
+```
+
+Conséquence : **CIBLE refacture au client 3× l'ODP qu'elle doit
+réellement à la commune.** Sur un panneau 50 m² à 3 000 F dans une
+commune, sur un trimestre :
+
+| | Montant |
+|---|---|
+| Ce que le module Taxes dit devoir à la mairie | 150 000 FCFA |
+| Ce que la facture client porte | 450 000 FCFA |
+
+Périmètre concerné (tous consomment `InvoiceCalculator`) :
+`InvoiceController`, `QuoteController`, `InvoiceFromCampaignBuilder`,
+`QuoteBuilder`, `admin/invoices/partials/_form-fne.blade.php` (JS de
+prévisualisation temps réel), `resources/views/pdf/quote.blade.php`.
+
+Bonne nouvelle : les montants sont **figés en base**
+(`invoice_lines.odp_ligne`, `odp_rate_applique`, `odp_amount_override`),
+donc aligner le calcul ne modifierait **pas** les factures déjà émises —
+seulement les nouvelles et les brouillons recalculés.
+
+**Non corrigé volontairement** : règle N°5 du `CLAUDE.md`. La règle a été
+validée pour le module Taxes (ce que CIBLE doit à la mairie) ; l'étendre
+à ce que CIBLE facture au client est une **décision commerciale** qui
+divise par 3 une ligne de revenu. Doit être validée explicitement avant
+toute modification.
+---
+
+### Base de dev locale en MyISAM → les transactions ne protègent rien (constaté 2026-09-23)
+
+Sur le WAMP de dev, **51 des 57 tables sont en MyISAM** (`panels`,
+`campaigns`, `communes`, `invoices`, `audits`…), seules 6 sont en InnoDB.
+MyISAM ne gère pas les transactions : `DB::beginTransaction()` /
+`DB::rollBack()` s'exécutent **sans erreur et sans effet**.
+
+Constaté en dur : un `update()` de 8 panneaux encadré d'un `beginTransaction`
++ `rollBack` a été **écrit en base définitivement**. Aucune exception, aucun
+avertissement.
+
+Conséquences :
+- Tout `DB::transaction()` du code métier (`PaymentService`,
+  `BillingAllocationService`, `ReservationService`…) n'a **aucune atomicité**
+  en local : un échec au milieu laisse des écritures partielles.
+- Un bug d'atomicité est **invisible en dev** et n'apparaîtra qu'en prod.
+- Aucun script de vérification ne doit se reposer sur un rollback pour
+  « annuler » une écriture de test sur cette base.
+
+⚠ À vérifier : la base de **prod** (Docker MySQL) est a priori en InnoDB
+puisque créée par les migrations Laravel, mais ce n'est **pas vérifié**.
+Contrôle : `SHOW TABLE STATUS` et regarder la colonne `Engine`.
+
+Correctif local possible (non appliqué, décision utilisateur) :
+`ALTER TABLE <table> ENGINE=InnoDB;` sur les 51 tables.
 
 ---
 

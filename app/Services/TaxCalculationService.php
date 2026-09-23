@@ -54,11 +54,16 @@ class TaxCalculationService
      * @param  string $periodType    'mensuel' | 'trimestriel' | 'annuel'
      * @param  int    $periodValue   1-12 (mois) | 1-4 (trim) | 0 (annuel)
      * @param  int    $year
-     * @param  array  $filters       ['commune_id'=>?, 'client_id'=>?, 'campaign_id'=>?, 'type'=>?]
+     * @param  array  $filters       ['commune_id'=>?, 'client_id'=>?, 'campaign_id'=>?,
+     *                               'type'=>?, 'include_maintenance'=>bool]
+     *                               include_maintenance : false (défaut) = les panneaux
+     *                               en maintenance sont exclus du calcul.
      * @return Collection            Collection de lignes :
      *      {commune, commune_id, panel_id, reference, name, dimensions,
-     *       surface, type, statut, client_name, client_id, campaign_name,
-     *       campaign_id, period_start, period_end, months, rate, amount}
+     *       format_id, surface, type, statut, client_name, client_id,
+     *       campaign_name, campaign_id, period_start, period_end, months,
+     *       unit, rate, rate_applied, amount, + faces_count/faces_refs
+     *       sur les lignes ODP issues d'un mât double-face}
      */
     public function generateLines(string $periodType, int $periodValue, int $year, array $filters = [], ?int $periodEndValue = null): Collection
     {
@@ -80,6 +85,14 @@ class TaxCalculationService
         // On ne prend PAS les soft-deleted (parc actuel uniquement).
         $panelsQuery = Panel::with(['commune:id,name', 'format:id,name,width,height,surface'])
             ->whereNull('deleted_at');
+        // TX-12 (2026-09-23) — Panneaux en maintenance EXCLUS par défaut,
+        // conformément au dashboard /admin/taxes et à la légende affichée.
+        // Avant : generateLines() les incluait alors que le dashboard les
+        // excluait → les deux écrans ne tombaient pas sur le même total.
+        // Le filtre 'include_maintenance' permet de les réintégrer.
+        if (empty($filters['include_maintenance'])) {
+            $panelsQuery->whereNotIn('status', ['maintenance']);
+        }
         if (!empty($filters['commune_id'])) {
             $panelsQuery->where('commune_id', $filters['commune_id']);
         }
@@ -136,8 +149,8 @@ class TaxCalculationService
                 //
                 // ODP : facturation par TRIMESTRE CALENDAIRE. 1 seul jour
                 //       dans le trimestre = trimestre entier compté.
-                //       Le tarif stocké est mensuel → on facture ×3 par
-                //       trimestre (tarif_mensuel × 3 = forfait_trimestriel).
+                //       TX-12 (2026-09-23) : le tarif mensuel s'applique
+                //       TEL QUEL par trimestre (plus de ×3).
                 //
                 // Historique : avant TX-9 (2026-07-29), la TM comptait les
                 // mois calendaires touchés (1 jour dans mars + 1 jour dans
@@ -170,8 +183,14 @@ class TaxCalculationService
                         $periodStart,
                         $periodEnd
                     );
-                    // Forfait trimestriel = tarif_mensuel × 3
-                    $rateApplied = $unitRate * 3;
+                    // TX-12 (2026-09-23) — RÈGLE VALIDÉE PAR ÉCRIT :
+                    // « tarif mensuel × m² × nb trimestres, on paye l'ODP
+                    //   chaque trimestre ».
+                    // Le tarif commune s'applique TEL QUEL, sans ×3. TX-9
+                    // multipliait par 3 pour en faire un « forfait
+                    // trimestriel » : abandonné, ça triplait la note et ça
+                    // divergeait du dashboard /admin/taxes.
+                    $rateApplied = $unitRate;
                     $unitLabel   = 'trimestre';
                 } else {
                     // Garde-fou : si TM sans dates campagne connues (rare).
@@ -190,6 +209,9 @@ class TaxCalculationService
                     'reference'      => $panel->reference,
                     'name'           => $panel->name,
                     'dimensions'     => $dimensions,
+                    // TX-12 — nécessaire au regroupement par format du
+                    // dashboard /admin/taxes (TaxController::calcul()).
+                    'format_id'      => $panel->format_id,
                     'surface'        => $surface,
                     'type'           => $type,
                     'statut'         => $panel->status?->value ?? 'libre',
@@ -207,7 +229,7 @@ class TaxCalculationService
                     'months'         => $lineMonths,        // Nb d'unités (mois pour TM, trimestres pour ODP)
                     'unit'           => $unitLabel,         // 'mois' | 'trimestre' (pour l'affichage)
                     'rate'           => $unitRate,          // Tarif mensuel stocké (référence)
-                    'rate_applied'   => $rateApplied,       // Tarif effectivement appliqué (=×3 pour ODP)
+                    'rate_applied'   => $rateApplied,       // Tarif effectivement appliqué (= tarif brut depuis TX-12)
                     'amount'         => $amount,
                 ]);
             }

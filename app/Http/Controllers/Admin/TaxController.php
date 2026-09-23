@@ -130,6 +130,10 @@ class TaxController extends Controller
             'campaign_id' => $request->input('campaign_id') ?: null,
             'type'        => $request->input('type')        ?: null,
         ]);
+        // TX-12 (2026-09-23) — Maintenance exclue par défaut. Ajouté
+        // APRÈS array_filter() : la valeur false serait sinon éliminée,
+        // et on veut pouvoir la relire telle quelle côté vue.
+        $filters['include_maintenance'] = $request->boolean('include_maintenance');
 
         $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue);
         $totals = $calc->summarize($lines);
@@ -204,6 +208,10 @@ class TaxController extends Controller
             'campaign_id' => $request->input('campaign_id') ?: null,
             'type'        => $request->input('type')        ?: null,
         ]);
+        // TX-12 (2026-09-23) — Maintenance exclue par défaut. Ajouté
+        // APRÈS array_filter() : la valeur false serait sinon éliminée,
+        // et on veut pouvoir la relire telle quelle côté vue.
+        $filters['include_maintenance'] = $request->boolean('include_maintenance');
 
         $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue);
         $totals = $calc->summarize($lines);
@@ -249,6 +257,10 @@ class TaxController extends Controller
                 $filterParts[] = "campagne={$cm->name}";
             }
         }
+        if (!empty($filters['include_maintenance'])) {
+            $filterMeta[]  = ['label' => 'Maintenance', 'value' => 'Panneaux en maintenance inclus'];
+            $filterParts[] = 'maintenance=incluse';
+        }
         if (!empty($filters['type'])) {
             $typeLabels = ['tm' => 'Taxe Municipale (TM)', 'odp' => 'Occupation Domaine Public (ODP)'];
             $filterMeta[]  = ['label' => 'Nature',   'value' => $typeLabels[$filters['type']] ?? strtoupper($filters['type'])];
@@ -286,6 +298,10 @@ class TaxController extends Controller
             'campaign_id' => $request->input('campaign_id') ?: null,
             'type'        => $request->input('type')        ?: null,
         ]);
+        // TX-12 (2026-09-23) — Maintenance exclue par défaut. Ajouté
+        // APRÈS array_filter() : la valeur false serait sinon éliminée,
+        // et on veut pouvoir la relire telle quelle côté vue.
+        $filters['include_maintenance'] = $request->boolean('include_maintenance');
 
         $lines = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue)
             ->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])
@@ -310,6 +326,7 @@ class TaxController extends Controller
         if (!empty($filters['client_id']))   { $c = Client::find($filters['client_id']);    if ($c) $parts[] = "client={$c->name}"; }
         if (!empty($filters['campaign_id'])) { $c = Campaign::find($filters['campaign_id']);if ($c) $parts[] = "campagne={$c->name}"; }
         if (!empty($filters['type']))        $parts[] = 'type=' . strtoupper($filters['type']);
+        if (!empty($filters['include_maintenance'])) $parts[] = 'maintenance=incluse';
         $filterSummary = implode(' · ', $parts);
 
         $filename = 'taxes-details-' . str_replace(' ', '-', strtolower($periodLabel)) . '.xlsx';
@@ -688,7 +705,7 @@ class TaxController extends Controller
      *
      * Endpoint AJAX appelé depuis l'UI pour basculer entre les vues.
      */
-    public function calcul(Request $request): JsonResponse
+    public function calcul(Request $request, TaxCalculationService $calc): JsonResponse
     {
         // Hotfix TX-2 (2026-06-22) : validation period_value CONTEXTUELLE
         // au period_type. Avant : max:12 même en trimestriel → un
@@ -730,15 +747,19 @@ class TaxController extends Controller
             default       => 1,
         };
 
-        // Charge les communes avec leurs panneaux opérables (exclut
-        // maintenance + supprimés). On limite les colonnes pour rester
-        // léger : un parc de 1000 panneaux × 34 communes = ~30k cellules,
-        // l'agrégation est instantanée en mémoire.
+        // Charge les communes avec leurs panneaux opérables. On limite les
+        // colonnes pour rester léger : un parc de 1000 panneaux × 34
+        // communes = ~30k cellules, l'agrégation est instantanée en mémoire.
+        //
+        // TX-12 (2026-09-23) — La maintenance est exclue par défaut mais
+        // devient pilotable, comme sur /admin/taxes/details : les deux
+        // écrans doivent répondre au même filtre.
+        $includeMaintenance = $request->boolean('include_maintenance');
         $communes = Commune::query()
             ->with([
                 'panels' => fn($q) => $q
                     ->whereNull('deleted_at')
-                    ->whereNotIn('status', ['maintenance'])
+                    ->when(!$includeMaintenance, fn($qq) => $qq->whereNotIn('status', ['maintenance']))
                     ->with('format:id,name,width,height'),
             ])
             ->whereNotNull('odp_rate')
@@ -864,7 +885,22 @@ class TaxController extends Controller
             1
         )->toDateString();
 
-        $rows = $communes->map(function ($commune) use ($nbMois, $allPayments, $queryMonths, $periodType, $periodYear, $periodValue, $rateDate, $moisOccByPanel) {
+        // ── TX-12 (2026-09-23) — SOURCE UNIQUE POUR L'ODP ──────────
+        // Avant : ce dashboard recalculait l'ODP avec sa propre formule
+        // ($odpRate × m² × qty × nbMois) pendant que /admin/taxes/details
+        // utilisait TaxCalculationService. Deux moteurs → deux résultats
+        // (divergence ×3 en mensuel, désaccord sur la maintenance et sur
+        // les mâts double-face depuis TX-10). On consomme désormais le
+        // service, agrégé par (commune, format) pour alimenter le tableau.
+        $odpParCommuneFormat = $calc
+            ->generateLines($periodType, $periodValue, $periodYear, [
+                'type'                => TaxCalculationService::TYPE_ODP,
+                'include_maintenance' => $includeMaintenance,
+            ], $periodEndValue)
+            ->groupBy(fn($l) => $l['commune_id'] . '|' . $l['format_id'])
+            ->map(fn($g) => (float) $g->sum('amount'));
+
+        $rows = $communes->map(function ($commune) use ($nbMois, $allPayments, $queryMonths, $periodType, $periodYear, $periodValue, $rateDate, $moisOccByPanel, $odpParCommuneFormat) {
             // Phase audit 8E — tarifs HISTORISÉS, pas courants.
             // Avant : $commune->odp_rate (valeur actuelle) → divergeait
             // avec la facturation qui utilise ratesAt(issued_at).
@@ -875,19 +911,19 @@ class TaxController extends Controller
             // Lignes détaillées par format (pour affichage tableau)
             $lignes = $commune->panels
                 ->groupBy('format_id')
-                ->map(function ($panels) use ($tmRate, $odpRate, $nbMois, $moisOccByPanel) {
+                ->map(function ($panels) use ($tmRate, $odpRate, $nbMois, $moisOccByPanel, $odpParCommuneFormat, $commune) {
                     $fmt = $panels->first()->format;
                     if (!$fmt?->width || !$fmt?->height) return null;
 
                     $m2  = round((float) $fmt->width * (float) $fmt->height, 2);
                     $qty = $panels->count();
-                    // FIX TX-3 (2026-06-22, validé patronne) — RÉVERSE DU TX-1.
-                    // Tarifs ODP/TM stockés sont MENSUELS (FCFA/m²/mois),
-                    // pas annuels. Convention officielle CIBLE CI confirmée
-                    // par la patronne. Avant : ×(nbMois/12) → 12× trop bas.
-                    // ODP : forfaitaire (tous les panneaux du parc payent
-                    // l'ODP, peu importe leur occupation effective).
-                    $odp = round($odpRate * $m2 * $qty * $nbMois);
+                    // TX-12 (2026-09-23) — ODP lue depuis TaxCalculationService
+                    // (règle : tarif mensuel × m² × nb trimestres, un mât
+                    // double-face compté une seule fois, départ au
+                    // odp_start_date du panneau). La formule locale
+                    // $odpRate × m² × qty × nbMois a été retirée : elle
+                    // ignorait ces trois règles.
+                    $odp = round($odpParCommuneFormat[$commune->id . '|' . $fmt->id] ?? 0);
 
                     // TM panneau-par-panneau selon l'OCCUPATION EFFECTIVE.
                     // Un panneau jamais loué sur la fenêtre contribue 0.

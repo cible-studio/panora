@@ -125,6 +125,21 @@
                         @endforeach
                     </select>
                 </div>
+                {{-- TX-12 (2026-09-23) — Les panneaux en maintenance sont exclus
+                     par défaut (cohérent avec le dashboard /admin/taxes). Cette
+                     case permet de les réintégrer quand la mairie les réclame
+                     quand même — l'ODP reste due tant que le mât occupe le sol. --}}
+                <div class="filter-group">
+                    <label class="filter-label">Maintenance</label>
+                    <label style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:12px;cursor:pointer;white-space:nowrap;"
+                           title="Par défaut les panneaux en maintenance ne sont pas taxés. Cochez pour les inclure dans le calcul.">
+                        <input type="checkbox" name="include_maintenance" value="1"
+                               {{ !empty($filters['include_maintenance']) ? 'checked' : '' }}
+                               onchange="this.form.submit()"
+                               style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
+                        <span>Inclure</span>
+                    </label>
+                </div>
                 {{-- FIX 2026-06-25 — Pills cliquables au lieu d'un select dropdown.
                      L'état actif est immédiatement visible (couleur de la taxe),
                      et le filtrage se fait en 1 clic. Cohérent avec le code couleur
@@ -151,7 +166,11 @@
                         </button>
                     </div>
                 </div>
-                @if(!empty($filters))
+                {{-- TX-12 — $filters porte désormais toujours la clé
+                     include_maintenance (false par défaut) : on teste les
+                     valeurs réellement renseignées, sinon le bouton
+                     « Réinitialiser » s'afficherait en permanence. --}}
+                @if(collect($filters)->filter()->isNotEmpty())
                 <div class="filter-group" style="display:flex;align-items:flex-end">
                     <a href="{{ route('admin.taxes.details') }}"
                        class="btn btn-ghost"
@@ -303,7 +322,7 @@
                             @php
                                 // TX-9 (2026-07-29) : affichage adapté au type
                                 //   TM  → tarif_mensuel × surface × Nm (mois anniversaires)
-                                //   ODP → (tarif_mensuel × 3) × surface × Nt (trimestres forfaitaires)
+                                //   ODP → tarif_mensuel × surface × Nt (trimestres entamés)
                                 $rateShown = $row['rate_applied'] ?? $row['rate'];
                                 $unitAbbr  = ($row['unit'] ?? 'mois') === 'trimestre' ? 't' : 'm';
                             @endphp
@@ -355,13 +374,15 @@
     <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center;">
         💡 <strong>TM</strong> : tarif mensuel × surface × <em>mois de date à date entamés</em>
         (règle « anniversaire glissant »).<br>
-        💡 <strong>ODP</strong> : (tarif mensuel × 3) × surface × <em>trimestres calendaires touchés</em>
-        — 1 jour dans un trimestre = trimestre entier compté.<br>
+        💡 <strong>ODP</strong> : tarif mensuel × surface × <em>trimestres calendaires touchés</em>
+        — l'ODP se paye chaque trimestre, 1 jour dans un trimestre = trimestre entier compté.<br>
         💡 <strong>Panneaux double-face</strong> : l'ODP taxe l'emprise au sol, donc un mât
         A/B (ex. ADJ-004A + ADJ-004B) est <strong>facturé une seule fois</strong> sur la surface
         d'une face. La TM, elle, taxe l'affichage → elle reste due <strong>par face</strong>.<br>
         💡 <strong>Point de départ ODP</strong> : les panneaux déjà en place avant Panora sont
         taxés sur toute la période ; ceux créés dans l'app le sont à partir de leur date de création.<br>
+        💡 <strong>Maintenance</strong> : les panneaux en maintenance sont exclus du calcul sauf si
+        la case « Inclure » est cochée.<br>
         Les tarifs utilisent l'<strong>historique tarifaire</strong> de la commune (cohérence rétroactive).
     </div>
 
