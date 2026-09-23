@@ -49,18 +49,77 @@ class TaxCalculationServicePureTest extends TestCase
 
     public function test_amount_formula_uses_rate_applied_not_raw_rate(): void
     {
-        // Canari statique — TX-9 (2026-07-29).
-        // Depuis TX-9, la formule utilise $rateApplied (qui vaut tarif_mensuel
-        // pour la TM, tarif_mensuel×3 pour l'ODP forfait trimestriel) et non
-        // le $unitRate brut. Si demain quelqu'un remet l'ancienne formule
-        // (× $unitRate direct), le calcul ODP sera 3× trop bas → régression.
+        // Canari statique — TX-9 (2026-07-29), révisé TX-12 (2026-09-23).
+        // La formule passe par $rateApplied, le tarif effectivement retenu
+        // pour la ligne. Depuis TX-12 il vaut le tarif mensuel brut pour
+        // les DEUX taxes (le ×3 de l'ODP a été retiré), mais on garde
+        // l'indirection : c'est elle qui permet de changer la règle à un
+        // seul endroit sans toucher au reste du service.
         $source = file_get_contents(__DIR__ . '/../../app/Services/TaxCalculationService.php');
         $this->assertStringContainsString(
             '$amount = round($rateApplied * $surface * $lineMonths, 2);',
             $source,
             'RÉGRESSION TX-9 : la formule generateLines() doit utiliser ' .
-            '$rateApplied (tarif effectif) et non $unitRate direct. Sinon l\'ODP ' .
-            'trimestriel n\'est plus multiplié par 3.'
+            '$rateApplied (tarif effectif) et non $unitRate direct.'
+        );
+    }
+
+    /**
+     * TX-12 (2026-09-23) — Canari statique : plus de ×3 sur l'ODP.
+     *
+     * Règle validée par écrit : « tarif mensuel × m² × nb trimestres, on
+     * paye l'ODP chaque trimestre ». TX-9 multipliait le tarif par 3 pour
+     * en faire un forfait trimestriel — abandonné, ça triplait la note.
+     * Si quelqu'un remet le ×3, tous les montants ODP de l'app triplent.
+     */
+    public function test_odp_rate_is_not_multiplied_by_three(): void
+    {
+        $source = file_get_contents(__DIR__ . '/../../app/Services/TaxCalculationService.php');
+
+        $this->assertStringNotContainsString(
+            '$rateApplied = $unitRate * 3;',
+            $source,
+            'RÉGRESSION TX-12 : le tarif ODP ne doit plus être multiplié par 3. ' .
+            'La règle est tarif_mensuel × m² × nb_trimestres.'
+        );
+    }
+
+    /**
+     * TX-12 (2026-09-23) — Canari statique : maintenance exclue par défaut.
+     *
+     * Le dashboard /admin/taxes excluait déjà les panneaux en maintenance
+     * alors que generateLines() les incluait : les deux écrans affichaient
+     * des totaux différents pour la même période.
+     */
+    public function test_maintenance_panels_are_excluded_by_default(): void
+    {
+        $source = file_get_contents(__DIR__ . '/../../app/Services/TaxCalculationService.php');
+
+        $this->assertStringContainsString(
+            "if (empty(\$filters['include_maintenance'])) {",
+            $source,
+            'RÉGRESSION TX-12 : generateLines() doit exclure les panneaux en ' .
+            'maintenance sauf si le filtre include_maintenance est actif.'
+        );
+    }
+
+    /**
+     * TX-12 (2026-09-23) — Canari statique : un seul moteur ODP.
+     *
+     * TaxController::calcul() (dashboard) recalculait l'ODP avec sa propre
+     * formule $odpRate × m² × qty × nbMois, en désaccord avec le service
+     * sur le ×3, la maintenance et les mâts double-face. Il doit consommer
+     * TaxCalculationService, pas refaire le calcul.
+     */
+    public function test_dashboard_does_not_recompute_odp_locally(): void
+    {
+        $source = file_get_contents(__DIR__ . '/../../app/Http/Controllers/Admin/TaxController.php');
+
+        $this->assertStringNotContainsString(
+            '$odp = round($odpRate * $m2 * $qty * $nbMois);',
+            $source,
+            'RÉGRESSION TX-12 : le dashboard ne doit plus recalculer l\'ODP ' .
+            'localement — il lit TaxCalculationService::generateLines().'
         );
     }
 

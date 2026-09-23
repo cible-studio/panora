@@ -47,16 +47,26 @@
             @endforeach
         </select>
 
+        {{-- TX-12 (2026-09-23) — Même filtre que /admin/taxes/details, pour que
+             les deux écrans annoncent toujours le même total. --}}
+        <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;white-space:nowrap;"
+               title="Par défaut les panneaux en maintenance ne sont pas taxés.">
+            <input type="checkbox" id="include-maintenance"
+                   style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
+            <span style="color:var(--text2);">Inclure la maintenance</span>
+        </label>
+
         <span id="period-label" style="margin-left:auto;font-size:12px;color:var(--text3);"></span>
     </div>
 
     <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.6;">
         <strong>Formules :</strong>
-        ODP = (tarif commune × 3) × m² × nb trimestres entamés — forfait trimestriel,
-        facturé <strong>une seule fois par panneau physique</strong> (un mât double-face
-        A/B compte pour un) ·
+        ODP = tarif commune × m² × nb trimestres entamés — due <strong>chaque trimestre</strong>,
+        et <strong>une seule fois par panneau physique</strong> (un mât double-face A/B
+        compte pour un) ·
         TM = tarif commune × m² × nb mois de campagne, <strong>par face</strong>.
-        Calcul en temps réel sur le parc actuel (panneaux internes hors maintenance).
+        Calcul en temps réel sur le parc actuel. Les panneaux en maintenance sont exclus
+        sauf si la case ci-dessus est cochée.
     </div>
 </div>
 
@@ -479,6 +489,15 @@ window.TaxModule = (function () {
         return `Année ${currentPeriodYear}`;
     }
 
+    // TX-12 (2026-09-23) — État de la case « Inclure la maintenance ».
+    // Lu à chaque appel plutôt que mis en cache : la case est le seul
+    // point de vérité, et loadCalcul() est rappelé à chaque changement
+    // de période.
+    function includeMaintenance() {
+        const cb = document.getElementById('include-maintenance');
+        return !!(cb && cb.checked);
+    }
+
     async function loadCalcul() {
         document.getElementById('tax-loading').style.display = '';
         const params = new URLSearchParams({
@@ -489,6 +508,10 @@ window.TaxModule = (function () {
         // FIX 2026-06-22 — period_end_value envoyé uniquement en mode personnalisé.
         if (currentPeriodType === 'personnalise') {
             params.set('period_end_value', String(currentPeriodEndValue));
+        }
+        // TX-12 (2026-09-23) — Propage le filtre maintenance au serveur.
+        if (includeMaintenance()) {
+            params.set('include_maintenance', '1');
         }
 
         try {
@@ -886,6 +909,13 @@ window.TaxModule = (function () {
                     renderTable(getFilteredSortedCommunes());
                 });
             });
+
+            // TX-12 (2026-09-23) — Recharge le calcul quand on coche /
+            // décoche la maintenance. Le serveur refait l'agrégation :
+            // impossible de filtrer côté client, les panneaux en
+            // maintenance ne sont pas descendus dans la réponse.
+            const cbMaint = document.getElementById('include-maintenance');
+            if (cbMaint) cbMaint.addEventListener('change', () => loadCalcul());
 
             // Premier chargement
             loadCalcul();

@@ -79,8 +79,9 @@ class TaxOdpFaceMergeTest extends TestCase
             'months'         => 4,
             'unit'           => 'trimestre',
             'rate'           => 3000,
-            'rate_applied'   => 9000,
-            'amount'         => 432000.0,
+            // TX-12 : le tarif ODP appliqué est le tarif mensuel brut.
+            'rate_applied'   => 3000,
+            'amount'         => 144000.0,
         ], $override);
     }
 
@@ -104,9 +105,9 @@ class TaxOdpFaceMergeTest extends TestCase
             $this->ligne(['panel_id' => 2, 'reference' => 'ADJ-004B']),
         ]);
 
-        // 9 000 (forfait trimestriel) × 12 m² (UNE face) × 4 trimestres
+        // 3 000 (tarif mensuel) × 12 m² (UNE face) × 4 trimestres
         $this->assertSame(12.0, $res[0]['surface']);
-        $this->assertSame(432000.0, $res[0]['amount']);
+        $this->assertSame(144000.0, $res[0]['amount']);
     }
 
     public function test_surface_retenue_est_la_plus_grande_si_les_faces_different(): void
@@ -118,7 +119,7 @@ class TaxOdpFaceMergeTest extends TestCase
         ]);
 
         $this->assertSame(16.0, $res[0]['surface']);
-        $this->assertSame(576000.0, $res[0]['amount']); // 9000 × 16 × 4
+        $this->assertSame(192000.0, $res[0]['amount']); // 3000 × 16 × 4
     }
 
     public function test_trimestres_retenus_sont_le_max_du_groupe(): void
