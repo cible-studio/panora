@@ -17,10 +17,16 @@
                     $filters
                 );
             @endphp
-            <a href="{{ route('admin.taxes.details.excel', $exportParams) }}"
-               class="btn btn-ghost btn-sm" title="Télécharger l'export Excel">📊 <span class="btn-label">Excel</span></a>
-            <a href="{{ route('admin.taxes.details.pdf', $exportParams) }}"
-               class="btn btn-primary btn-sm keep-label" target="_blank" rel="noopener" title="Ouvrir le PDF détaillé (transmissible aux mairies)">📄 <span class="btn-label">PDF</span></a>
+            {{-- 2026-09-23 — Demande MP : pouvoir renommer le fichier avant de
+                 lancer le téléchargement (ces exports partent aux mairies, le
+                 nom auto n'est pas toujours celui qu'on veut transmettre).
+                 Même mécanique que les PDF de disponibilités. --}}
+            <button type="button" class="btn btn-ghost btn-sm"
+                    title="Télécharger l'export Excel (nom du fichier personnalisable)"
+                    onclick="TAX_EXPORT_RENAME.open('xlsx', @js(route('admin.taxes.details.excel', $exportParams)), @js($defaultExportName))">📊 <span class="btn-label">Excel</span></button>
+            <button type="button" class="btn btn-primary btn-sm keep-label"
+                    title="Télécharger le PDF détaillé, transmissible aux mairies (nom du fichier personnalisable)"
+                    onclick="TAX_EXPORT_RENAME.open('pdf', @js(route('admin.taxes.details.pdf', $exportParams)), @js($defaultExportName))">📄 <span class="btn-label">PDF</span></button>
         @endif
     </x-slot>
 
@@ -385,5 +391,104 @@
         la case « Inclure » est cochée.<br>
         Les tarifs utilisent l'<strong>historique tarifaire</strong> de la commune (cohérence rétroactive).
     </div>
+
+    {{-- ══════ MODAL — nommer le fichier avant téléchargement ══════
+         Les exports sont de simples liens GET : on ajoute le nom saisi
+         en paramètre `custom_filename` à l'URL, que le serveur nettoie
+         (App\Support\DownloadFilename). Rien n'est envoyé si on annule. --}}
+    <div id="modal-export-rename"
+         style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);
+                align-items:center;justify-content:center;padding:16px;"
+         onclick="TAX_EXPORT_RENAME.close()">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;
+                    width:100%;max-width:440px;box-shadow:0 20px 50px rgba(0,0,0,.35);overflow:hidden;"
+             onclick="event.stopPropagation()">
+            <div style="padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2);
+                        display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div>
+                    <div style="font-weight:700;font-size:13px;color:var(--text);" id="export-rename-title">Nommer le fichier</div>
+                    <div style="font-size:11px;color:var(--text3);margin-top:2px;">Le nom sera utilisé à l'enregistrement.</div>
+                </div>
+                <button type="button" onclick="TAX_EXPORT_RENAME.close()"
+                        style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);
+                               background:var(--surface3);color:var(--text3);cursor:pointer;font-size:13px;line-height:1;">✕</button>
+            </div>
+
+            <div style="padding:18px;">
+                <label style="display:block;">
+                    <span style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">Nom du fichier</span>
+                    <span style="display:flex;align-items:stretch;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+                        <input type="text" id="export-rename-input" maxlength="96" autocomplete="off"
+                               placeholder="nom-du-fichier"
+                               style="flex:1;background:transparent;border:0;outline:none;padding:9px 12px;
+                                      font-size:13px;color:var(--text);">
+                        <span id="export-rename-ext"
+                              style="display:flex;align-items:center;padding:0 12px;background:var(--surface2);
+                                     border-left:1px solid var(--border);font-family:monospace;font-size:11px;color:var(--text3);">.pdf</span>
+                    </span>
+                    <span style="display:block;font-size:10.5px;color:var(--text3);margin-top:6px;">
+                        Les caractères <code style="font-family:monospace;">/ \ : * ? " &lt; &gt; |</code> seront retirés automatiquement.
+                    </span>
+                </label>
+            </div>
+
+            <div style="padding:12px 18px;border-top:1px solid var(--border);background:var(--surface2);
+                        display:flex;justify-content:flex-end;gap:8px;">
+                <button type="button" onclick="TAX_EXPORT_RENAME.close()"
+                        style="padding:8px 14px;font-size:13px;color:var(--text2);background:var(--surface3);
+                               border:1px solid var(--border);border-radius:9px;cursor:pointer;">Annuler</button>
+                <button type="button" onclick="TAX_EXPORT_RENAME.confirm()"
+                        style="padding:8px 16px;font-size:13px;font-weight:700;color:#fff;background:var(--accent);
+                               border:0;border-radius:9px;cursor:pointer;">⬇ Télécharger</button>
+            </div>
+        </div>
+    </div>
+
+    @push('scripts')
+    <script>
+    window.TAX_EXPORT_RENAME = (function () {
+        let url = null, ext = 'pdf';
+
+        const modal = () => document.getElementById('modal-export-rename');
+        const input = () => document.getElementById('export-rename-input');
+
+        return {
+            open(extension, exportUrl, suggested) {
+                ext = extension || 'pdf';
+                url = exportUrl;
+                document.getElementById('export-rename-ext').textContent = '.' + ext;
+                document.getElementById('export-rename-title').textContent =
+                    ext === 'xlsx' ? 'Nommer le fichier Excel' : 'Nommer le fichier PDF';
+                const el = input();
+                el.value = suggested || '';
+                modal().style.display = 'flex';
+                setTimeout(() => { el.focus(); el.select(); }, 30);
+            },
+            close() {
+                modal().style.display = 'none';
+                url = null;
+            },
+            confirm() {
+                if (!url) return;
+                const nom = (input().value || '').trim();
+                // On repart de l'URL générée côté serveur (elle porte déjà
+                // tous les filtres) et on n'ajoute que le nom voulu.
+                const u = new URL(url, window.location.origin);
+                if (nom !== '') u.searchParams.set('custom_filename', nom);
+                const cible = u.toString();
+                this.close();
+                window.location.href = cible;
+            }
+        };
+    })();
+
+    document.addEventListener('keydown', function (e) {
+        const m = document.getElementById('modal-export-rename');
+        if (!m || m.style.display !== 'flex') return;
+        if (e.key === 'Enter')  { e.preventDefault(); TAX_EXPORT_RENAME.confirm(); }
+        if (e.key === 'Escape') { e.preventDefault(); TAX_EXPORT_RENAME.close(); }
+    });
+    </script>
+    @endpush
 
 </x-admin-layout>

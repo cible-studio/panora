@@ -9,6 +9,7 @@ use App\Models\Commune;
 use App\Models\CommuneTaxPayment;
 use App\Models\Panel;
 use App\Services\TaxCalculationService;
+use App\Support\DownloadFilename;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -179,10 +180,17 @@ class TaxController extends Controller
             ]
         );
 
+        // 2026-09-23 — Nom proposé dans le modal « renommer le fichier ».
+        // Calculé ici et non dans la vue : c'est exactement le nom que le
+        // serveur appliquera si l'utilisateur valide sans rien changer.
+        $defaultExportName = $this->defaultExportBasename(
+            $this->periodLabel($periodType, $periodValue, $periodEndValue, $year)
+        );
+
         return view('admin.taxes.details', compact(
             'lines', 'totals', 'year', 'periodType', 'periodValue', 'periodEndValue',
             'communes', 'clients', 'campaigns', 'anneesDispos', 'filters',
-            'paginator', 'perPage'
+            'paginator', 'perPage', 'defaultExportName'
         ));
     }
 
@@ -218,18 +226,7 @@ class TaxController extends Controller
         $lines  = $lines->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])->values();
 
         // Libellé période lisible (titre PDF + nom du fichier)
-        $periodLabel = match ($periodType) {
-            TaxCalculationService::PERIOD_MONTHLY   =>
-                \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F') . ' ' . $year,
-            TaxCalculationService::PERIOD_QUARTERLY => "T{$periodValue} {$year}",
-            TaxCalculationService::PERIOD_ANNUAL    => "Année {$year}",
-            TaxCalculationService::PERIOD_CUSTOM    =>
-                \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F')
-                . ' → '
-                . \Carbon\Carbon::create()->month($periodEndValue ?? $periodValue)->translatedFormat('F')
-                . ' ' . $year,
-            default => $year,
-        };
+        $periodLabel = $this->periodLabel($periodType, $periodValue, $periodEndValue, $year);
 
         // Récap filtres pour l'en-tête PDF — structure lisible pour l'affichage
         // « fiche synthétique » (labels FR) + chaîne compacte legacy conservée
@@ -272,7 +269,14 @@ class TaxController extends Controller
             'lines', 'totals', 'periodLabel', 'filterSummary', 'filterMeta'
         ))->setPaper('a4', 'landscape');
 
-        $filename = 'taxes-details-' . str_replace(' ', '-', strtolower($periodLabel)) . '.pdf';
+        // 2026-09-23 — Le MP peut renommer le fichier avant de lancer le
+        // téléchargement (même mécanique que les PDF de disponibilités).
+        // Nom vide ou invalide → on retombe sur le nom auto.
+        $filename = DownloadFilename::sanitize(
+            $request->input('custom_filename'),
+            $this->defaultExportBasename($periodLabel),
+            'pdf'
+        );
         return $pdf->download($filename);
     }
 
@@ -307,18 +311,7 @@ class TaxController extends Controller
             ->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])
             ->values();
 
-        $periodLabel = match ($periodType) {
-            TaxCalculationService::PERIOD_MONTHLY   =>
-                \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F') . ' ' . $year,
-            TaxCalculationService::PERIOD_QUARTERLY => "T{$periodValue} {$year}",
-            TaxCalculationService::PERIOD_ANNUAL    => "Année {$year}",
-            TaxCalculationService::PERIOD_CUSTOM    =>
-                \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F')
-                . ' → '
-                . \Carbon\Carbon::create()->month($periodEndValue ?? $periodValue)->translatedFormat('F')
-                . ' ' . $year,
-            default => (string) $year,
-        };
+        $periodLabel = $this->periodLabel($periodType, $periodValue, $periodEndValue, $year);
 
         // Récap filtres pour l'en-tête imprimable de la feuille
         $parts = [];
@@ -329,7 +322,12 @@ class TaxController extends Controller
         if (!empty($filters['include_maintenance'])) $parts[] = 'maintenance=incluse';
         $filterSummary = implode(' · ', $parts);
 
-        $filename = 'taxes-details-' . str_replace(' ', '-', strtolower($periodLabel)) . '.xlsx';
+        // 2026-09-23 — Nom personnalisable, cf. detailsPdf().
+        $filename = DownloadFilename::sanitize(
+            $request->input('custom_filename'),
+            $this->defaultExportBasename($periodLabel),
+            'xlsx'
+        );
         return \Maatwebsite\Excel\Facades\Excel::download(
             new \App\Exports\TaxesDetailsExport($lines, $periodLabel, $filterSummary),
             $filename
@@ -448,6 +446,41 @@ class TaxController extends Controller
             'tauxCouverture' => $tauxCouv,
             'anneesDispos'   => range(date('Y') + 1, max(2020, date('Y') - 5)),
         ]);
+    }
+
+    /**
+     * Libellé lisible de la période demandée (« Septembre 2026 », « T3 2026 »,
+     * « Année 2026 », « Mars → Juin 2026 »).
+     *
+     * 2026-09-23 — Extrait de detailsPdf() et detailsExcel(), qui en portaient
+     * deux copies identiques. Sert aussi au nom de fichier proposé dans le
+     * modal de renommage : la suggestion affichée à l'écran est ainsi
+     * exactement ce que le serveur utilisera si l'utilisateur ne change rien.
+     */
+    private function periodLabel(string $periodType, int $periodValue, ?int $periodEndValue, int $year): string
+    {
+        return match ($periodType) {
+            TaxCalculationService::PERIOD_MONTHLY   =>
+                \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F') . ' ' . $year,
+            TaxCalculationService::PERIOD_QUARTERLY => "T{$periodValue} {$year}",
+            TaxCalculationService::PERIOD_ANNUAL    => "Année {$year}",
+            TaxCalculationService::PERIOD_CUSTOM    =>
+                \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F')
+                . ' → '
+                . \Carbon\Carbon::create()->month($periodEndValue ?? $periodValue)->translatedFormat('F')
+                . ' ' . $year,
+            default => (string) $year,
+        };
+    }
+
+    /**
+     * Nom de fichier par défaut (sans extension) des exports du détail taxes.
+     * Source unique : utilisé par le PDF, l'Excel, et proposé dans le modal
+     * de renommage côté vue.
+     */
+    private function defaultExportBasename(string $periodLabel): string
+    {
+        return 'taxes-details-' . str_replace(' ', '-', strtolower($periodLabel));
     }
 
     /**
