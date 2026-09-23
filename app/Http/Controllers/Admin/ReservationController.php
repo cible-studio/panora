@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\ReservationStatus;
 use App\Http\Controllers\Controller;
+use App\Support\DownloadFilename;
 use App\Http\Requests\Reservation\UpdateReservationRequest;
 use App\Models\Client;
 use App\Models\Commune;
@@ -803,36 +804,11 @@ class ReservationController extends Controller
      */
     private function sanitizePdfFilename(?string $custom, string $fallback): string
     {
-        $ensurePdf = static function (string $name): string {
-            $name = preg_replace('/\.pdf$/i', '', $name);
-            return $name . '.pdf';
-        };
-
-        $custom = trim((string) $custom);
-        if ($custom === '') {
-            return $ensurePdf($fallback);
-        }
-
-        // Retire l'extension .pdf temporairement pour ne pas la re-nettoyer.
-        $custom = preg_replace('/\.pdf$/i', '', $custom);
-
-        // Retire caractères illégaux + caractères de contrôle.
-        $custom = preg_replace('/[\/\\\\:\*\?"<>\|\x00-\x1F]/', '', $custom);
-        // Espaces multiples → un seul.
-        $custom = preg_replace('/\s+/', ' ', $custom);
-        // Trim + retirer points/espaces début/fin (Windows n'aime pas).
-        $custom = trim($custom, " .");
-
-        if ($custom === '') {
-            return $ensurePdf($fallback);
-        }
-
-        // Tronque à 96 chars (laisse la place pour '.pdf').
-        if (mb_strlen($custom) > 96) {
-            $custom = mb_substr($custom, 0, 96);
-        }
-
-        return $ensurePdf($custom);
+        // 2026-09-23 — Le nettoyage vit désormais dans App\Support\DownloadFilename,
+        // partagé avec les exports du module Taxes (PDF + Excel). Cette méthode
+        // est conservée : les 2 appels de ce contrôleur passent par elle et son
+        // comportement est inchangé (extension .pdf garantie).
+        return DownloadFilename::sanitize($custom, $fallback, 'pdf');
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -1003,7 +979,9 @@ class ReservationController extends Controller
                 'dpi'                  => 96,
             ]);
 
-        return $pdf->download($filename . '.pdf');
+        // FIX 2026-09-23 — sanitizePdfFilename() garantit déjà l'extension :
+        // le '.pdf' concaténé ici produisait « panneaux-20260923_1430.pdf.pdf ».
+        return $pdf->download($filename);
     }
 
 
