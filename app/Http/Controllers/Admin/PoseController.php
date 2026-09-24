@@ -56,50 +56,10 @@ class PoseController extends Controller
             'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
         ]);
 
-        // Filtre "Masquer poses orphelines" (par défaut activé) : cache
-        // celles dont la campagne est supprimée, annulée ou terminée.
-        $hideOrphan = !$request->has('show_orphan') || !$request->boolean('show_orphan');
-        if ($hideOrphan) {
-            $query->whereHas('campaign', fn($q) =>
-                $q->whereNotIn('status', [
-                    \App\Enums\CampaignStatus::ANNULE->value,
-                    \App\Enums\CampaignStatus::TERMINE->value,
-                ])
-                ->whereNull('deleted_at')
-            );
-        }
-
-        // ⚠ Toutes les colonnes ambiguës (status, campaign_id…) sont
-        // préfixées 'pose_tasks.' car le join campaigns + panels (plus bas)
-        // introduit des homonymes dans le SELECT — sinon SQLSTATE 23000.
-        if ($request->filled('q')) {
-            $q = $request->q;
-            $query->where(fn($sq) =>
-                $sq->whereHas('panel', fn($p) => $p->where('reference', 'like', "%{$q}%")->orWhere('name', 'like', "%{$q}%"))
-                ->orWhereHas('campaign', fn($c) => $c->where('name', 'like', "%{$q}%"))
-                ->orWhereHas('technicien', fn($u) => $u->where('name', 'like', "%{$q}%"))
-            );
-        }
-        if ($request->filled('technicien_id')) $query->where('pose_tasks.assigned_user_id', $request->technicien_id);
-        if ($request->filled('campaign_id'))   $query->where('pose_tasks.campaign_id',      $request->campaign_id);
-        // FIX 2026-07-01 (feedback patronne) — Le filtre date_from/date_to
-        // doit s'adapter à la colonne pertinente selon le statut demandé,
-        // sinon la KPI "Réalisées d'aujourd'hui" du pilotage renvoie 0
-        // alors que 2 poses ont été faites (leur scheduled_at reste au
-        // jour prévu, pas au jour de réalisation).
-        //   status=realisee → filtrer sur done_at
-        //   status=en_cours → filtrer sur started_at (fallback scheduled_at si NULL)
-        //   status=planifiee/annulee/tous → filtrer sur scheduled_at (comportement historique)
-        $dateColumn = match ($request->input('status')) {
-            'realisee' => 'pose_tasks.done_at',
-            'en_cours' => 'pose_tasks.started_at',
-            default    => 'pose_tasks.scheduled_at',
-        };
-        if ($request->filled('date_from'))     $query->whereDate($dateColumn, '>=', $request->date_from);
-        if ($request->filled('date_to'))       $query->whereDate($dateColumn, '<=', $request->date_to);
-        // 2026-06-18 : filtre Équipe (team_name VARCHAR — pose_team_id ne vit
-        // que sur users, pas sur pose_tasks ; on requête donc par nom).
-        if ($request->filled('team_name'))     $query->where('pose_tasks.team_name', $request->team_name);
+        // 2026-09-24 — Extrait dans applyIndexFilters() : la validation
+        // groupée « toutes les poses du filtre » doit rejouer EXACTEMENT
+        // les mêmes critères côté serveur, sans que les deux divergent.
+        $this->applyIndexFilters($query, $request);
 
         // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
         // (chaque carte garde sa vraie valeur quand on en clique une).
@@ -119,10 +79,7 @@ class PoseController extends Controller
         ];
 
         // Filtre status appliqué APRÈS le calcul des compteurs.
-        // Préfixé 'pose_tasks.' pour éviter l'ambiguïté avec campaigns.status.
-        if ($request->filled('status')) {
-            $query->where('pose_tasks.status', $request->status);
-        }
+        $this->applyStatusFilter($query, $request);
 
         // Tri optimisé pour le groupage par campagne dans la vue :
         //  1) Campagnes les plus récemment créées en HAUT (join campaigns)
@@ -849,6 +806,134 @@ class PoseController extends Controller
     // Endpoint AJAX POST → renvoie JSON {ok, updated, skipped, error?}.
     // Le front affiche un toast et recharge la table.
     // ══════════════════════════════════════════════════════════════
+    /**
+     * Critères de la liste des poses (hors statut), factorisés pour que
+     * l'écran ET la validation groupée « toutes les poses du filtre »
+     * s'appuient sur la même définition du périmètre.
+     *
+     * Le statut est volontairement à part : index() calcule ses compteurs
+     * KPI sur le périmètre AVANT filtre statut, pour que chaque carte
+     * garde sa vraie valeur quand on en clique une.
+     */
+    private function applyIndexFilters($query, Request $request)
+    {
+        // Filtre "Masquer poses orphelines" (par défaut activé) : cache
+        // celles dont la campagne est supprimée, annulée ou terminée.
+        $hideOrphan = !$request->has('show_orphan') || !$request->boolean('show_orphan');
+        if ($hideOrphan) {
+            $query->whereHas('campaign', fn($q) =>
+                $q->whereNotIn('status', [
+                    \App\Enums\CampaignStatus::ANNULE->value,
+                    \App\Enums\CampaignStatus::TERMINE->value,
+                ])
+                ->whereNull('deleted_at')
+            );
+        }
+
+        // ⚠ Toutes les colonnes ambiguës (status, campaign_id…) sont
+        // préfixées 'pose_tasks.' car le join campaigns + panels introduit
+        // des homonymes dans le SELECT — sinon SQLSTATE 23000.
+        if ($request->filled('q')) {
+            $q = $request->q;
+            $query->where(fn($sq) =>
+                $sq->whereHas('panel', fn($p) => $p->where('reference', 'like', "%{$q}%")->orWhere('name', 'like', "%{$q}%"))
+                ->orWhereHas('campaign', fn($c) => $c->where('name', 'like', "%{$q}%"))
+                ->orWhereHas('technicien', fn($u) => $u->where('name', 'like', "%{$q}%"))
+            );
+        }
+        if ($request->filled('technicien_id')) $query->where('pose_tasks.assigned_user_id', $request->technicien_id);
+        if ($request->filled('campaign_id'))   $query->where('pose_tasks.campaign_id',      $request->campaign_id);
+        // FIX 2026-07-01 (feedback patronne) — Le filtre date_from/date_to
+        // s'adapte à la colonne pertinente selon le statut demandé, sinon
+        // la KPI "Réalisées d'aujourd'hui" du pilotage renvoie 0 alors que
+        // 2 poses ont été faites (leur scheduled_at reste au jour prévu).
+        $dateColumn = match ($request->input('status')) {
+            'realisee' => 'pose_tasks.done_at',
+            'en_cours' => 'pose_tasks.started_at',
+            default    => 'pose_tasks.scheduled_at',
+        };
+        if ($request->filled('date_from'))     $query->whereDate($dateColumn, '>=', $request->date_from);
+        if ($request->filled('date_to'))       $query->whereDate($dateColumn, '<=', $request->date_to);
+        // 2026-06-18 : filtre Équipe (team_name VARCHAR — pose_team_id ne vit
+        // que sur users, pas sur pose_tasks ; on requête donc par nom).
+        if ($request->filled('team_name'))     $query->where('pose_tasks.team_name', $request->team_name);
+
+        return $query;
+    }
+
+    /** Préfixé 'pose_tasks.' pour éviter l'ambiguïté avec campaigns.status. */
+    private function applyStatusFilter($query, Request $request)
+    {
+        if ($request->filled('status')) {
+            $query->where('pose_tasks.status', $request->status);
+        }
+        return $query;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // VALIDATION GROUPÉE DES POSES (2026-09-24)
+    //
+    // Demande MP : sur une campagne de 50+ panneaux, valider les poses
+    // une par une était intenable.
+    //
+    // Deux modes de sélection :
+    //   - task_ids[]        : les cases cochées (une page = 20 lignes)
+    //   - all_matching=1    : TOUTES les poses du filtre courant, toutes
+    //                         pages confondues. Le périmètre est rejoué
+    //                         côté serveur via applyIndexFilters() — on ne
+    //                         fait pas confiance à une liste d'ids envoyée
+    //                         par le navigateur pour un volume pareil.
+    //
+    // Règle validée par écrit : une pose sans pige photo n'est pas
+    // validable en groupé (cf. PoseService::bulkComplete).
+    // ══════════════════════════════════════════════════════════════
+    public function bulkComplete(Request $request)
+    {
+        $data = $request->validate([
+            'task_ids'   => 'nullable|array|max:1000',
+            'task_ids.*' => 'integer|exists:pose_tasks,id',
+            'done_at'    => 'nullable|date|before_or_equal:today',
+        ]);
+
+        if ($request->boolean('all_matching')) {
+            $query = PoseTask::query();
+            $this->applyIndexFilters($query, $request);
+            $this->applyStatusFilter($query, $request);
+            // Garde-fou volume : au-delà, le MP doit affiner son filtre.
+            $taskIds = $query->limit(1000)->pluck('pose_tasks.id')->all();
+        } else {
+            $taskIds = $data['task_ids'] ?? [];
+        }
+
+        $result = $this->poseService->bulkComplete(
+            $taskIds,
+            auth()->user(),
+            $data['done_at'] ?? null,
+            requirePige: true
+        );
+
+        if (!empty($result['ok']) && ($result['completed'] ?? 0) > 0) {
+            \App\Services\AlertService::create(
+                'pose',
+                'info',
+                '✅ Validation groupée — ' . $result['completed'] . ' pose(s)',
+                auth()->user()?->name . ' a marqué ' . $result['completed'] . ' pose(s) comme réalisée(s)'
+                    . (($result['skipped'] ?? 0) > 0 ? ' · ' . $result['skipped'] . ' ignorée(s)' : ''),
+                null
+            );
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json($result);
+        }
+
+        if (empty($result['ok'])) {
+            return back()->with('error', $result['error'] ?? 'Validation impossible.');
+        }
+        return back()->with('success', $result['completed'] . ' pose(s) marquée(s) réalisée(s).'
+            . ($result['skipped'] ? ' ' . $result['skipped'] . ' ignorée(s).' : ''));
+    }
+
     public function bulkUpdate(Request $request)
     {
         $data = $request->validate([
@@ -1016,21 +1101,32 @@ class PoseController extends Controller
         ]);
 
         $doneAt = \Carbon\Carbon::parse($data['done_at'])->endOfDay();
-        $alreadyDone = [
-            PoseTaskStatus::COMPLETED->value,
-            PoseTaskStatus::CANCELLED->value,
-        ];
 
-        $count = PoseTask::whereIn('id', $data['task_ids'])
-            ->whereNotIn('status', $alreadyDone)
-            ->update([
-                'status'  => PoseTaskStatus::COMPLETED->value,
-                'done_at' => $doneAt,
-            ]);
+        // 2026-09-24 — Passe désormais par PoseService::bulkComplete().
+        // Avant : un update() de masse qui contournait la garde campagne,
+        // la traçabilité (completed_by_user_id) et le log.
+        // requirePige: false — c'est tout l'objet de cet écran : rattraper
+        // des poses faites sur le terrain sans saisie, donc souvent sans
+        // pige. La liste principale, elle, exige la pige.
+        $result = $this->poseService->bulkComplete(
+            $data['task_ids'],
+            auth()->user(),
+            $doneAt->toDateTimeString(),
+            requirePige: false
+        );
+
+        if (empty($result['ok'])) {
+            return back()->with('error', $result['error'] ?? 'Validation impossible.');
+        }
+
+        $msg = "✅ {$result['completed']} pose(s) marquée(s) réalisée(s) au " . $doneAt->format('d/m/Y') . '.';
+        if ($result['skipped'] > 0) {
+            $msg .= ' ' . $result['skipped'] . ' ignorée(s).';
+        }
 
         return redirect()
             ->route('admin.pose-tasks.oubliees', $request->only(['user_id', 'client_id', 'month']))
-            ->with('success', "✅ $count pose(s) marquée(s) réalisée(s) au " . $doneAt->format('d/m/Y') . '.');
+            ->with('success', $msg);
     }
 
     // ══════════════════════════════════════════════════════════════

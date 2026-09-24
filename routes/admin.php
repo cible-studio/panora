@@ -450,6 +450,11 @@ Route::prefix('admin')
             Route::get('progress',         [PoseController::class, 'progress'])       ->name('progress');
             // Actions groupées (sélection multiple)
             Route::post('bulk-update',     [PoseController::class, 'bulkUpdate'])     ->name('bulk-update');
+            // 2026-09-24 — Validation groupée « marquer réalisée ». Séparée
+            // de bulk-update car elle porte ses propres règles : pige photo
+            // obligatoire, date de réalisation, sélection possible sur tout
+            // le filtre et pas seulement la page affichée.
+            Route::post('bulk-complete',   [PoseController::class, 'bulkComplete'])   ->name('bulk-complete');
             // Bulk rechange (multi-poses 2026-08-08) — créer N rechanges
             // en un seul appel depuis liste poses OU fiche campagne.
             Route::post('rechange-bulk',   [PoseController::class, 'rechangeBulk'])   ->name('rechange-bulk');
