@@ -147,10 +147,11 @@ class TaxCalculationService
                 //      Exemple : 15/03 → 30/04 = 2 mois (anniv 15/04 dépassé
                 //      strictement par 30/04).
                 //
-                // ODP : facturation par TRIMESTRE CALENDAIRE. 1 seul jour
-                //       dans le trimestre = trimestre entier compté.
-                //       TX-12 (2026-09-23) : le tarif mensuel s'applique
-                //       TEL QUEL par trimestre (plus de ×3).
+                // ODP : facturation au MOIS CALENDAIRE. 1 seul jour dans
+                //       le mois = mois entier compté (le panneau occupe
+                //       le domaine public ce mois-là).
+                //       TX-14 (2026-09-24) : règle établie sur la
+                //       déclaration réelle de CIBLE, cf. plus bas.
                 //
                 // Historique : avant TX-9 (2026-07-29), la TM comptait les
                 // mois calendaires touchés (1 jour dans mars + 1 jour dans
@@ -177,21 +178,25 @@ class TaxCalculationService
                     //                         sur toute la période demandée.
                     //   odp_start_date remplie → ODP due à partir de là.
                     // (auto-remplie à la création — cf. Panel::booted())
-                    $lineMonths = $this->period->trimestresODPDansPeriode(
+                    $lineMonths = $this->period->moisODPDansPeriode(
                         $panel->odp_start_date ?? $periodStart,
                         $panel->deleted_at,
                         $periodStart,
                         $periodEnd
                     );
-                    // TX-12 (2026-09-23) — RÈGLE VALIDÉE PAR ÉCRIT :
-                    // « tarif mensuel × m² × nb trimestres, on paye l'ODP
-                    //   chaque trimestre ».
-                    // Le tarif commune s'applique TEL QUEL, sans ×3. TX-9
-                    // multipliait par 3 pour en faire un « forfait
-                    // trimestriel » : abandonné, ça triplait la note et ça
-                    // divergeait du dashboard /admin/taxes.
+                    // TX-14 (2026-09-24) — RÈGLE ÉTABLIE SUR PIÈCE :
+                    //   ODP = tarif mensuel × m² × nb de MOIS
+                    // Source : la déclaration réelle de CIBLE,
+                    // docs/ODP 2024 SAN PEDRO.xlsx (13/12/2024), dont les
+                    // formules sont « surface × 12 × quantité × tarif »
+                    // avec une colonne « NB MOIS » = 12 pour l'année.
+                    // Le tarif s'applique tel quel (pas de ×3 : TX-9 le
+                    // multipliait par 3 sur 4 trimestres, ce qui revenait
+                    // déjà à 12 mois mais affichait un tarif faux).
+                    // Le paiement trimestriel est une cadence de règlement
+                    // (4 versements de 3 mois), pas un forfait.
                     $rateApplied = $unitRate;
-                    $unitLabel   = 'trimestre';
+                    $unitLabel   = 'mois';
                 } else {
                     // Garde-fou : si TM sans dates campagne connues (rare).
                     $lineMonths  = $months;

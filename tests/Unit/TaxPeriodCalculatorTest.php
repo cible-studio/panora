@@ -227,4 +227,101 @@ class TaxPeriodCalculatorTest extends TestCase
             Carbon::create(2026, 6, 30)
         ));
     }
+
+    // ═══════════════ ODP · Mois calendaires (règle en vigueur) ═══════════════
+    //
+    // TX-14 (2026-09-24). Établie sur docs/ODP 2024 SAN PEDRO.xlsx, la
+    // déclaration réelle de CIBLE : « surface × 12 × quantité × tarif »,
+    // colonne « NB MOIS » = 12 pour l'année. Les tests trimestres ci-dessus
+    // restent verts (les méthodes existent toujours) mais ne portent plus
+    // la règle appliquée.
+
+    /** @test */
+    public function odp_annee_complete_egale_12_mois()
+    {
+        // Le cas du fichier CIBLE : une année pleine = 12 mois.
+        $this->assertEquals(12, $this->c->moisCalendairesTouches(
+            Carbon::create(2026, 1, 1),
+            Carbon::create(2026, 12, 31)
+        ));
+    }
+
+    /** @test */
+    public function odp_un_seul_jour_compte_le_mois_entier()
+    {
+        $this->assertEquals(1, $this->c->moisCalendairesTouches(
+            Carbon::create(2026, 3, 17),
+            Carbon::create(2026, 3, 17)
+        ));
+    }
+
+    /** @test */
+    public function odp_a_cheval_sur_deux_mois_egale_2_mois()
+    {
+        // 15/03 → 02/04 : mars et avril sont touchés.
+        $this->assertEquals(2, $this->c->moisCalendairesTouches(
+            Carbon::create(2026, 3, 15),
+            Carbon::create(2026, 4, 2)
+        ));
+    }
+
+    /** @test */
+    public function odp_fin_de_mois_ne_deborde_pas_sur_le_suivant()
+    {
+        // Garde-fou addMonthsNoOverflow : 31/01 → 31/01 ne doit pas
+        // sauter en mars (31 février n'existe pas).
+        $this->assertEquals(1, $this->c->moisCalendairesTouches(
+            Carbon::create(2026, 1, 31),
+            Carbon::create(2026, 1, 31)
+        ));
+        $this->assertEquals(2, $this->c->moisCalendairesTouches(
+            Carbon::create(2026, 1, 31),
+            Carbon::create(2026, 2, 28)
+        ));
+    }
+
+    /** @test */
+    public function odp_fin_avant_debut_egale_0()
+    {
+        $this->assertEquals(0, $this->c->moisCalendairesTouches(
+            Carbon::create(2026, 5, 10),
+            Carbon::create(2026, 5, 1)
+        ));
+    }
+
+    /** @test */
+    public function odp_mois_dans_periode_panneau_pose_en_cours_dannee()
+    {
+        // Panneau posé le 15/06, filtre année pleine → juin..décembre = 7 mois.
+        $this->assertEquals(7, $this->c->moisODPDansPeriode(
+            Carbon::create(2026, 6, 15),
+            null,
+            Carbon::create(2026, 1, 1),
+            Carbon::create(2026, 12, 31)
+        ));
+    }
+
+    /** @test */
+    public function odp_mois_dans_periode_panneau_demonte()
+    {
+        // Panneau démonté le 10/05, filtre S1 → janvier..mai = 5 mois.
+        $this->assertEquals(5, $this->c->moisODPDansPeriode(
+            Carbon::create(2026, 1, 1),
+            Carbon::create(2026, 5, 10),
+            Carbon::create(2026, 1, 1),
+            Carbon::create(2026, 6, 30)
+        ));
+    }
+
+    /** @test */
+    public function odp_mois_dans_periode_panneau_hors_periode_egale_0()
+    {
+        // Panneau posé en novembre, filtre S1 → aucun mois.
+        $this->assertEquals(0, $this->c->moisODPDansPeriode(
+            Carbon::create(2026, 11, 1),
+            null,
+            Carbon::create(2026, 1, 1),
+            Carbon::create(2026, 6, 30)
+        ));
+    }
 }

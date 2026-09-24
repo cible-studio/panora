@@ -61,9 +61,9 @@
 
     <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.6;">
         <strong>Formules :</strong>
-        ODP = tarif commune × m² × nb trimestres entamés — due <strong>chaque trimestre</strong>,
-        et <strong>une seule fois par panneau physique</strong> (un mât double-face A/B
-        compte pour un) ·
+        ODP = tarif commune × m² × nb de <strong>mois</strong> — réglée chaque trimestre
+        (4 versements de 3 mois), et comptée <strong>une seule fois par panneau
+        physique</strong> (un mât double-face A/B compte pour un) ·
         TM = tarif commune × m² × nb mois de campagne, <strong>par face</strong>.
         Calcul en temps réel sur le parc actuel. Les panneaux en maintenance sont exclus
         sauf si la case ci-dessus est cochée.

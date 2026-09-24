@@ -83,10 +83,11 @@
                 @endif
             </td>
             <td class="right mono tdoc-muted" style="font-size:7.5px;">
-                {{-- TX-12 (2026-09-23) — L'unité dépend de la taxe : la TM se
-                     compte en mois de campagne, l'ODP en trimestres. Le PDF
-                     écrivait « mois » partout, donc une ODP de 4 trimestres
-                     était présentée à la mairie comme « 4 mois ». --}}
+                {{-- TX-14 (2026-09-24) — Les deux taxes se comptent en mois :
+                     la TM en mois de campagne (date à date), l'ODP en mois
+                     calendaires d'occupation. L'unité reste lue depuis la
+                     ligne plutôt que codée en dur, pour que le document suive
+                     si la règle rebouge. --}}
                 @php $uniteLabel = ($row['unit'] ?? 'mois') === 'trimestre'
                     ? ($row['months'] > 1 ? 'trimestres' : 'trimestre')
                     : 'mois'; @endphp
@@ -106,8 +107,8 @@
 
 <div class="tdoc-note">
     ■ Chaque montant est justifiable : <b>TM = tarif × surface (m²) × nombre de mois</b> de campagne ·
-    <b>ODP = tarif × surface (m²) × nombre de trimestres</b> entamés (l'ODP est due chaque trimestre,
-    et une seule fois par panneau physique — un mât double-face compte pour un).
+    <b>ODP = tarif × surface (m²) × nombre de mois</b> d'occupation du domaine public
+    (comptée une seule fois par panneau physique — un mât double-face compte pour un).
     Les panneaux en maintenance sont exclus sauf mention contraire dans les filtres ci-dessus.<br>
     Les tarifs appliqués reflètent l'<b>historique tarifaire</b> de chaque commune à la date de la période —
     document fiable pour les contrôles administratifs.

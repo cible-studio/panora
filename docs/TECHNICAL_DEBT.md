@@ -58,6 +58,37 @@ jamais rebrancher en l'état**.
 
 ---
 
+### Mâts double-face non détectés quand les références n'ont pas de suffixe A/B (repéré 2026-09-24)
+
+`TaxCalculationService::referencePhysique()` regroupe les faces d'un même
+mât en repérant le suffixe `A`/`B` collé au numéro (`ADJ-004A` + `ADJ-004B`
+→ `ADJ-004`). Il couvre 59 paires du parc.
+
+Mais la déclaration réelle `docs/ODP 2024 SAN PEDRO.xlsx` montre un cas
+que la règle rate : la ligne « San-Pedro Entrée de ville/**Sortie** de
+ville », quantité **1**, correspond à **deux** panneaux dans Panora —
+`SPBS-01` (Entrée de Ville) et `SPBS-02` (Sortie de Ville). CIBLE les
+déclare comme un seul mât ; Panora facture deux ODP, soit 1 800 000 FCFA
+de trop sur San Pedro pour une année.
+
+À l'inverse, le même fichier déclare le rond-point de la Cité en **deux**
+emplacements séparés (côté Hôpital, côté Mosquée). Le regroupement n'est
+donc pas mécanique : c'est un jugement par site, que la convention de
+nommage ne porte pas.
+
+Pistes (aucune tranchée) :
+- un champ `panneau_physique_id` (ou `mat_id`) sur `panels`, saisi par le
+  MP, qui remplacerait la déduction par référence — le plus fiable ;
+- réutiliser `nombre_faces`, aujourd'hui à 1 sur les 364 panneaux donc
+  inexploitable en l'état ;
+- un rapprochement par coordonnées GPS, fragile (dispersion connue).
+
+⚠ Tant que ce n'est pas traité, **l'ODP de Panora est surévaluée** partout
+où une paire de faces ne suit pas la convention `A`/`B`. Le nombre de cas
+n'est pas connu : il faudrait confronter le parc aux déclarations réelles
+commune par commune.
+
+---
 ### Base de dev locale en MyISAM → les transactions ne protègent rien (constaté 2026-09-23)
 
 Sur le WAMP de dev, **51 des 57 tables sont en MyISAM** (`panels`,
@@ -87,6 +118,49 @@ Correctif local possible (non appliqué, décision utilisateur) :
 ---
 
 ## Résolues
+
+### TX-14 (2026-09-24) — L'ODP se compte en MOIS (correction de TX-12)
+
+**Pièce de référence : `docs/ODP 2024 SAN PEDRO.xlsx`**, la déclaration
+réelle transmise par CIBLE, datée du 13/12/2024. Ses formules :
+
+```
+6 m²  : =SUM(6*12*6*3000)   = 1 296 000
+12 m² : =SUM(12*12*4*3000)  = 1 728 000
+50 m² : =SUM(50*12*1*3000)  = 1 800 000
+TOTAL                       = 4 824 000
+```
+
+Les quatre facteurs sont les colonnes du tableau : **surface × NB MOIS ×
+quantité × tarif mensuel**. La colonne s'appelle « NB MOIS » et vaut 12
+pour l'année. **Aucune notion de trimestre n'apparaît dans le document.**
+
+Ce que ça corrige : TX-12 (2026-09-23) avait retiré le ×3 *en gardant le
+comptage trimestriel*, ce qui divisait l'ODP par 3. L'ancienne écriture de
+TX-9 (`tarif × 3` × 4 trimestres) donnait en réalité le bon montant —
+3 × 4 = 12 mois — mais affichait un tarif faux (9 000 au lieu de 3 000),
+d'où la demande de retirer le ×3.
+
+Le paiement trimestriel évoqué par la patronne est une **cadence de
+règlement** (4 versements couvrant 3 mois chacun), pas un forfait.
+
+Adapté : `TaxPeriodCalculator` (nouveaux `moisCalendairesTouches()` /
+`moisODPDansPeriode()` ; les méthodes `trimestres*` restent en place mais
+ne portent plus la règle), `TaxCalculationService`, la matrice mensuelle de
+`showCommune()`, `InvoiceCalculator`, les légendes des 2 écrans, le PDF
+mairie et l'en-tête de l'export Excel.
+
+Vérifié : San Pedro année pleine = 6 840 000 FCFA, soit exactement la
+formule du fichier appliquée au parc actuel. L'écart avec les 4 824 000 du
+fichier 2024 s'explique intégralement par le parc (`SPBS-02` + un 7ᵉ
+panneau 6 m²), pas par le calcul. Détail et dashboard concordent sur les
+3 périodicités, et la somme des 12 mois retombe sur l'annuel.
+
+⚠ Hypothèse restée à confirmer côté facturation : `InvoiceCalculator`
+compte les **mois calendaires** touchés par la campagne, alors que la TM
+garde ses mois « de date à date ». Les deux peuvent différer d'un mois sur
+une campagne à cheval.
+
 
 ### TX-11 / TX-13 (2026-09-23) — ODP : cumul annuel et refacturation client
 

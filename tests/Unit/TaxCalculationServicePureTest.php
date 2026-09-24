@@ -85,6 +85,33 @@ class TaxCalculationServicePureTest extends TestCase
     }
 
     /**
+     * TX-14 (2026-09-24) — Canari statique : l'ODP se compte en MOIS.
+     *
+     * Règle établie sur pièce : docs/ODP 2024 SAN PEDRO.xlsx, la
+     * déclaration réelle de CIBLE, dont les formules sont
+     * « surface × 12 × quantité × tarif » avec une colonne « NB MOIS ».
+     * Repasser au comptage trimestriel diviserait l'ODP par 3.
+     */
+    public function test_odp_is_counted_in_months_not_quarters(): void
+    {
+        $source = file_get_contents(__DIR__ . '/../../app/Services/TaxCalculationService.php');
+
+        $this->assertStringContainsString(
+            '$lineMonths = $this->period->moisODPDansPeriode(',
+            $source,
+            'RÉGRESSION TX-14 : la branche ODP doit compter des MOIS ' .
+            '(moisODPDansPeriode), pas des trimestres.'
+        );
+
+        $this->assertStringNotContainsString(
+            '$lineMonths = $this->period->trimestresODPDansPeriode(',
+            $source,
+            'RÉGRESSION TX-14 : le comptage trimestriel de l\'ODP donne le ' .
+            'tiers de ce que CIBLE déclare réellement.'
+        );
+    }
+
+    /**
      * TX-12 (2026-09-23) — Canari statique : maintenance exclue par défaut.
      *
      * Le dashboard /admin/taxes excluait déjà les panneaux en maintenance
