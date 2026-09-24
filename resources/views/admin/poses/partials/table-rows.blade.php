@@ -349,6 +349,11 @@
                        data-team-id="{{ $task->pose_team_id ?? '' }}"
                        data-status="{{ $task->status }}"
                        data-campaign-id="{{ $task->campaign_id ?? 'none' }}"
+                       {{-- 2026-09-24 — Permet à la validation groupée d'annoncer,
+                            AVANT l'envoi, combien de poses seront refusées faute
+                            de pige photo. Le serveur reste seul juge. --}}
+                       data-pige-count="{{ $pigeCount }}"
+                       data-ref="{{ $task->panel?->reference ?? ('Pose #' . $task->id) }}"
                        title="{{ $isFinal ? 'Tâche terminée — non modifiable en masse' : 'Sélectionner' }}"
                        style="accent-color:var(--accent);width:14px;height:14px;cursor:{{ $isFinal ? 'not-allowed' : 'pointer' }};opacity:{{ $isFinal ? '.35' : '1' }};">
             </td>

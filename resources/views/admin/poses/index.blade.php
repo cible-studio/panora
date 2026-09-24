@@ -484,6 +484,33 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                 </div>
             </div>
 
+            {{-- Validation groupée (2026-09-24) — demande MP : sur une
+                 campagne de 50+ panneaux, valider pose par pose était
+                 intenable. Champ à part du select « Statut » car il porte
+                 ses propres règles : pige obligatoire, date de réalisation,
+                 et sélection possible au-delà de la page affichée. --}}
+            <div class="pose-bulk-field" style="grid-column:span 2">
+                <label class="pose-bulk-label"><span>✅ Valider les poses</span></label>
+                <div class="pose-bulk-input-row">
+                    <input type="date" id="bulk-complete-date" class="filter-input"
+                           value="{{ now()->toDateString() }}"
+                           max="{{ now()->toDateString() }}"
+                           title="Date réelle de réalisation sur le terrain">
+                    <button type="button" id="bulk-complete-apply" class="btn btn-sm"
+                            style="background:linear-gradient(135deg,#22c55e,#15803d);color:#fff;border:0;font-weight:700;box-shadow:0 3px 10px rgba(34,197,94,.3)">
+                        Marquer réalisées
+                    </button>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--text2);cursor:pointer">
+                    <input type="checkbox" id="bulk-complete-all" style="width:14px;height:14px;accent-color:#22c55e;cursor:pointer">
+                    <span>Toutes les poses du filtre — pas seulement cette page</span>
+                </label>
+                <div class="pose-bulk-hint" style="font-size:10.5px;color:var(--text3);margin-top:4px;font-style:italic">
+                    Une pose sans pige photo est refusée : la preuve d'affichage reste obligatoire.
+                    Pour rattraper des poses sans pige, passer par « Poses oubliées ».
+                </div>
+            </div>
+
             {{-- Rechange bulk (multi-poses 2026-08-08) — bouton qui ouvre
                  un modal léger avec date + tech + notes + type. Le service
                  vérifie chaque pose (status realisee + non replaced) et
@@ -1086,6 +1113,119 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             `Confirmer : passer ${selected.size} tâche(s) en « ${label} » ?`);
     });
 
+    // ── Validation groupée « marquer réalisées » (2026-09-24) ────────
+    // Endpoint dédié (bulk-complete) : bulkUpdate refuse le statut
+    // « réalisée » à dessein, on ne contourne pas ce garde-fou, on
+    // applique les mêmes contrôles en lot côté serveur.
+    const COMPLETE_ENDPOINT = @js(route('admin.pose-tasks.bulk-complete'));
+
+    document.getElementById('bulk-complete-apply')?.addEventListener('click', async () => {
+        const allMatching = document.getElementById('bulk-complete-all')?.checked || false;
+        const doneAt      = document.getElementById('bulk-complete-date')?.value || '';
+        const btn         = document.getElementById('bulk-complete-apply');
+
+        if (!allMatching && selected.size === 0) {
+            showToast('warning', 'Aucune pose sélectionnée.', 2500, 'Validation groupée');
+            return;
+        }
+
+        const fd = new FormData();
+        if (doneAt) fd.append('done_at', doneAt);
+
+        let message;
+        if (allMatching) {
+            // Le périmètre est rejoué côté serveur : on lui repasse les
+            // filtres courants plutôt qu'une liste d'ids potentiellement
+            // énorme et déjà périmée.
+            fd.append('all_matching', '1');
+            // currentFilters vit dans l'IIFE du bloc filtrage : on passe par
+            // l'accesseur exposé (window._posesCurrentFilters).
+            const f = (typeof window._posesCurrentFilters === 'function')
+                ? window._posesCurrentFilters()
+                : {};
+            if (f.search)        fd.append('q', f.search);
+            if (f.status)        fd.append('status', f.status);
+            if (f.technicien_id) fd.append('technicien_id', f.technicien_id);
+            if (f.team_name)     fd.append('team_name', f.team_name);
+            if (f.campaign_id)   fd.append('campaign_id', f.campaign_id);
+            if (f.date_from)     fd.append('date_from', f.date_from);
+            if (f.date_to)       fd.append('date_to', f.date_to);
+            if (f.show_orphan)   fd.append('show_orphan', '1');
+            message = 'Marquer réalisées TOUTES les poses du filtre courant '
+                    + '(toutes pages confondues) ?\n\n'
+                    + 'Celles sans pige photo seront ignorées et listées.';
+        } else {
+            // Décompte local des poses sans pige, pour annoncer le résultat
+            // avant l'envoi. Le serveur reste seul juge.
+            const sansPige = [];
+            document.querySelectorAll('.pose-check').forEach(cb => {
+                if (!selected.has(Number(cb.value))) return;
+                fd.append('task_ids[]', cb.value);
+                if (Number(cb.dataset.pigeCount || 0) === 0) {
+                    sansPige.push(cb.dataset.ref || cb.value);
+                }
+            });
+
+            message = `Marquer ${selected.size} pose(s) comme réalisées ?`;
+            if (sansPige.length) {
+                const apercu = sansPige.slice(0, 8).join(', ')
+                             + (sansPige.length > 8 ? `… (+${sansPige.length - 8})` : '');
+                message += `\n\n⚠ ${sansPige.length} sans pige photo — elles seront IGNORÉES :\n${apercu}`;
+            }
+        }
+
+        if (!confirm(message)) return;
+
+        if (btn) { btn.disabled = true; btn.textContent = 'Validation…'; }
+        try {
+            const r = await fetch(COMPLETE_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN':     CSRF,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept':           'application/json',
+                },
+                body: fd,
+            });
+            const data = await r.json().catch(() => ({ ok: false, error: 'Réponse invalide.' }));
+
+            if (!data.ok) {
+                showToast('error', data.error || 'Validation impossible.', 4000, 'Validation groupée');
+                return;
+            }
+
+            let msg = `${data.completed} pose(s) marquée(s) réalisée(s).`;
+            if (data.skipped > 0) msg += ` ${data.skipped} ignorée(s).`;
+            showToast(data.completed > 0 ? 'success' : 'warning', msg, 5000, 'Validation groupée');
+
+            // Détail des refus : sans ça le MP ne sait pas quoi rattraper.
+            if (Array.isArray(data.skipped_details) && data.skipped_details.length) {
+                const lignes = data.skipped_details
+                    .slice(0, 15)
+                    .map(d => `• ${d.reference} — ${d.reason}`)
+                    .join('\n');
+                const reste = data.skipped_details.length > 15
+                    ? `\n… et ${data.skipped_details.length - 15} autre(s).`
+                    : '';
+                setTimeout(() => alert('Poses ignorées :\n\n' + lignes + reste), 300);
+            }
+
+            if (data.completed > 0) {
+                selected.clear();
+                syncBar();
+                if (typeof window._reloadPosesTable === 'function') {
+                    window._reloadPosesTable();
+                } else {
+                    setTimeout(() => location.reload(), 1200);
+                }
+            }
+        } catch (e) {
+            showToast('error', 'Échec réseau : ' + e.message, 4000, 'Validation groupée');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'Marquer réalisées'; }
+        }
+    });
+
     document.getElementById('bulk-date-apply')?.addEventListener('click', () => {
         const input = document.getElementById('bulk-date');
         const val   = input.value;
@@ -1442,6 +1582,12 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
     // Exposé pour permettre au bloc "actions groupées" de recharger la
     // table après un bulk update sans dupliquer la logique de fetch.
     window._reloadPosesTable = () => applyFilters(1);
+
+    // 2026-09-24 — Même raison : currentFilters vit dans cette IIFE, or la
+    // validation groupée « toutes les poses du filtre » doit renvoyer les
+    // critères courants au serveur. On expose une COPIE en lecture seule
+    // plutôt que la variable, pour qu'aucun autre bloc ne puisse la muter.
+    window._posesCurrentFilters = () => ({ ...currentFilters });
 
     // Interception des liens de pagination → AJAX au lieu de rechargement
     // complet, ce qui préserve la sélection en mémoire JS.

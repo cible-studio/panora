@@ -419,12 +419,9 @@ class PoseService
             return $this->error($blocker);
         }
 
-        // Lock optimiste anti double-clic
-        $updated = PoseTask::where('id', $task->id)
-            ->whereNotIn('status', [PoseTaskStatus::COMPLETED->value, PoseTaskStatus::CANCELLED->value])
-            ->update(['status' => PoseTaskStatus::COMPLETED->value, 'done_at' => now()]);
-
-        if (!$updated) {
+        // Lock optimiste anti double-clic — même transition d'état que
+        // la validation groupée (cf. applyCompletion).
+        if (!$this->applyCompletion($task, now(), $actor)) {
             return $this->error('Cette tâche a déjà été traitée.');
         }
 
@@ -622,6 +619,180 @@ class PoseService
     private function bulkError(string $msg): array
     {
         return ['ok' => false, 'updated' => 0, 'skipped' => 0, 'error' => $msg];
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // VALIDATION GROUPÉE DES POSES (2026-09-24)
+    //
+    // Demande MP : sur une campagne de 50+ panneaux, valider les poses
+    // une par une était intenable. bulkUpdate() refusait volontairement
+    // le statut « réalisée » pour ne pas contourner les contrôles métier
+    // — on ne les contourne pas, on les applique en lot.
+    //
+    // Règle validée par écrit (2026-09-24) : **une pose sans aucune pige
+    // photo n'est PAS validable en groupé**. Elle est ignorée et remontée
+    // à l'utilisateur, qui devra uploader la preuve ou valider à l'unité.
+    //
+    // L'écran « Poses oubliées » appelle la même méthode avec
+    // $requirePige = false : son objet est justement le rattrapage de
+    // poses faites sur le terrain sans saisie, souvent sans pige.
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * @param  int[]        $taskIds
+     * @param  string|null  $doneAt       Date de réalisation (défaut : maintenant)
+     * @param  bool         $requirePige  true = refuse les poses sans pige
+     * @return array{ok:bool, completed:int, skipped:int, skipped_details:array, error?:string}
+     */
+    public function bulkComplete(
+        array $taskIds,
+        User $actor,
+        ?string $doneAt = null,
+        bool $requirePige = true
+    ): array {
+        $taskIds = array_values(array_unique(array_filter(array_map('intval', $taskIds))));
+        if (empty($taskIds)) {
+            return [
+                'ok' => false, 'completed' => 0, 'skipped' => 0,
+                'skipped_details' => [], 'error' => 'Aucune pose sélectionnée.',
+            ];
+        }
+
+        try {
+            $date = $doneAt ? \Carbon\Carbon::parse($doneAt) : now();
+        } catch (\Throwable) {
+            return [
+                'ok' => false, 'completed' => 0, 'skipped' => 0,
+                'skipped_details' => [], 'error' => 'Date de réalisation invalide.',
+            ];
+        }
+        if ($date->isFuture()) {
+            return [
+                'ok' => false, 'completed' => 0, 'skipped' => 0,
+                'skipped_details' => [], 'error' => 'La date de réalisation ne peut pas être dans le futur.',
+            ];
+        }
+
+        $tasks = PoseTask::with(['panel:id,reference'])
+            ->whereIn('id', $taskIds)
+            ->whereNotIn('status', [
+                PoseTaskStatus::COMPLETED->value,
+                PoseTaskStatus::CANCELLED->value,
+            ])
+            ->get();
+
+        $skipped = [];
+
+        // Déjà terminées / annulées / introuvables : écartées en amont.
+        $dejaTraitees = count($taskIds) - $tasks->count();
+
+        // Existence des piges en UNE requête (pas de N+1 sur 200 poses).
+        // Clé « panel_id|campaign_id » — une pige sans campagne ne vaut
+        // que pour les poses sans campagne, d'où la clé composite.
+        $pigeKeys = [];
+        if ($requirePige && $tasks->isNotEmpty()) {
+            $pigeKeys = Pige::whereIn('panel_id', $tasks->pluck('panel_id')->unique()->all())
+                ->get(['panel_id', 'campaign_id'])
+                ->map(fn($pg) => $pg->panel_id . '|' . ($pg->campaign_id ?? ''))
+                ->flip()
+                ->all();
+        }
+
+        // Campagnes chargées une fois (withTrashed : une pose orpheline
+        // doit être bloquée, pas ignorée silencieusement).
+        $campaigns = Campaign::withTrashed()
+            ->whereIn('id', $tasks->pluck('campaign_id')->filter()->unique()->all())
+            ->get()
+            ->keyBy('id');
+
+        $completed = 0;
+        foreach ($tasks as $task) {
+            $ref = $task->panel?->reference ?? ('Pose #' . $task->id);
+
+            $campaign = $task->campaign_id ? ($campaigns[$task->campaign_id] ?? null) : null;
+            if ($blocker = $this->resolveCampaignBlocker($campaign)) {
+                $skipped[] = ['reference' => $ref, 'reason' => $blocker];
+                continue;
+            }
+
+            if ($requirePige) {
+                $cle = $task->panel_id . '|' . ($task->campaign_id ?? '');
+                if (!isset($pigeKeys[$cle])) {
+                    $skipped[] = ['reference' => $ref, 'reason' => 'Aucune pige photo — preuve d\'affichage manquante.'];
+                    continue;
+                }
+            }
+
+            if ($this->applyCompletion($task, $date, $actor)) {
+                $completed++;
+            } else {
+                // Perdu la course avec un autre utilisateur entre le SELECT
+                // et l'UPDATE : ce n'est pas une erreur, la pose est traitée.
+                $skipped[] = ['reference' => $ref, 'reason' => 'Déjà traitée entre-temps.'];
+            }
+        }
+
+        Log::info('pose_task.bulk_completed', [
+            'by'           => $actor->id,
+            'requested'    => count($taskIds),
+            'completed'    => $completed,
+            'skipped'      => count($skipped) + $dejaTraitees,
+            'require_pige' => $requirePige,
+        ]);
+
+        return [
+            'ok'              => true,
+            'completed'       => $completed,
+            'skipped'         => count($skipped) + $dejaTraitees,
+            'skipped_details' => $skipped,
+        ];
+    }
+
+    /**
+     * Transition d'état « pose réalisée » — source unique pour la
+     * validation à l'unité et la validation groupée.
+     *
+     * Le WHERE NOT IN sur le statut fait office de lock optimiste : si
+     * deux utilisateurs valident la même pose en même temps, le second
+     * UPDATE touche 0 ligne et la méthode renvoie false.
+     *
+     * Renseigne completed_by_user_id / completed_source (2026-09-21) :
+     * sans eux, l'espace technicien ne peut pas afficher « fait par …
+     * (bureau) » sur une pose clôturée depuis l'admin.
+     *
+     * @return bool  true si CETTE exécution a bien clôturé la tâche
+     */
+    private function applyCompletion(PoseTask $task, \Carbon\CarbonInterface $doneAt, ?User $actor): bool
+    {
+        $payload = [
+            'status'           => PoseTaskStatus::COMPLETED->value,
+            'done_at'          => $doneAt,
+            'progress_percent' => 100,
+        ];
+
+        // Origine : 'tech' si c'est le technicien assigné qui valide,
+        // 'admin' sinon (MP / admin depuis le back-office). Même
+        // convention que PigeObserver::closePoseTask().
+        if ($actor) {
+            $payload['completed_by_user_id'] = $actor->id;
+            $payload['completed_source']     = (int) $actor->id === (int) $task->assigned_user_id
+                ? 'tech'
+                : 'admin';
+        }
+
+        // real_minutes si on connaît l'heure de démarrage terrain.
+        if ($task->started_at && !$task->real_minutes) {
+            $payload['real_minutes'] = max(1, (int) round(
+                $task->started_at->diffInMinutes($doneAt)
+            ));
+        }
+
+        return (bool) PoseTask::where('id', $task->id)
+            ->whereNotIn('status', [
+                PoseTaskStatus::COMPLETED->value,
+                PoseTaskStatus::CANCELLED->value,
+            ])
+            ->update($payload);
     }
 
     // ══════════════════════════════════════════════════════════════
