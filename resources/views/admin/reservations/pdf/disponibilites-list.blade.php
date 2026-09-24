@@ -415,6 +415,12 @@
                 </tr>
             </thead>
             <tbody>
+                @php
+                    $dispoPeriodeLabel = ($startDate ?? null) && ($endDate ?? null)
+                        ? 'Dispo. ' . \Carbon\Carbon::parse($startDate)->format('d/m/Y')
+                          . ' → ' . \Carbon\Carbon::parse($endDate)->format('d/m/Y')
+                        : 'Disponible';
+                @endphp
                 @foreach($groupPanels as $p)
                     @php
                         $statusValue = (is_object($p) ? ($p->display_status ?? null) : ($p['display_status'] ?? null))
@@ -433,14 +439,19 @@
                             ? \Carbon\Carbon::parse($releaseDate)->addDay()->format('d/m/Y')
                             : null;
 
+                        // 2026-09-24 : le tableau répond à la PÉRIODE
+                        // demandée. Un panneau libre sur la fenêtre mais
+                        // occupé aujourd'hui affichait « Occupé ».
                         $statusMeta = $isOccupied
                             ? [
                                 'label' => $freeFromLabel
                                     ? 'Dispo. dès le ' . $freeFromLabel
-                                    : 'Occupé',
+                                    : 'Occupé sur la période',
                                 'class' => 'badge-occupe',
                             ]
-                            : null;
+                            : (in_array($statusValue, ['libre', 'disponible'], true)
+                                ? ['label' => $dispoPeriodeLabel, 'class' => 'badge-libre']
+                                : null);
 
                         if (in_array($statusValue, ['option', 'option_periode'], true)) {
                             $hasOptionInList = true;

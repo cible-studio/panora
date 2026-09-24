@@ -116,11 +116,16 @@ class PanelsExport implements FromCollection, WithHeadings, WithMapping, WithSty
         ];
 
         // ── DISPONIBILITÉ (toujours renseignée) ───────────────────
-        // Le statut peut être un enum (Panel) OU un objet avec ->value
-        // (ExternalPanel adapté dans ReservationController::exportExcel).
-        $statusValue = is_object($panel->status ?? null)
-            ? ($panel->status->value ?? 'libre')
-            : (string) ($panel->status ?? 'libre');
+        // 2026-09-24 : display_status est le statut RECALCULÉ SUR LA
+        // PÉRIODE demandée, posé par ReservationController::exportExcel.
+        // On le préfère au statut brut, qui décrit l'état du jour et
+        // faisait passer pour « Occupé » un panneau libre sur la fenêtre.
+        // Fallback sur status : enum (Panel) ou objet ->value
+        // (ExternalPanel adapté), pour les appels sans enrichissement.
+        $statusValue = $panel->display_status
+            ?? (is_object($panel->status ?? null)
+                ? ($panel->status->value ?? 'libre')
+                : (string) ($panel->status ?? 'libre'));
 
         $isOccupied = in_array($statusValue, ['occupe', 'confirme'], true);
 
@@ -132,11 +137,18 @@ class PanelsExport implements FromCollection, WithHeadings, WithMapping, WithSty
         if ($isOccupied && $release) {
             $freeFrom = \Carbon\Carbon::parse($release)->addDay();
             $row[] = 'Disponible à partir du ' . $freeFrom->format('d/m/Y');
+        } elseif ($this->startDate && $this->endDate
+                  && in_array($statusValue, ['libre', 'disponible'], true)) {
+            // 2026-09-24 — Quand une période est demandée, on répond sur
+            // CETTE période. Un « Disponible » nu laissait le lecteur
+            // deviner à quoi il se rapportait.
+            $row[] = 'Disponible du ' . \Carbon\Carbon::parse($this->startDate)->format('d/m/Y')
+                   . ' au ' . \Carbon\Carbon::parse($this->endDate)->format('d/m/Y');
         } else {
             $row[] = match ($statusValue) {
                 'libre', 'disponible' => 'Disponible',
                 'occupe', 'confirme'  => 'Occupé',
-                'option'              => 'En option',
+                'option', 'option_periode' => 'En option',
                 'maintenance'         => 'Maintenance',
                 default               => ucfirst($statusValue),
             };
