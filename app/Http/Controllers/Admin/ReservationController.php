@@ -429,28 +429,66 @@ class ReservationController extends Controller
 
     // ══ HELPERS FORMATAGE ═══════════════════════════════════════════
 
+    // ══════════════════════════════════════════════════════════════
+    // STATUT DE DISPONIBILITÉ SUR LA PÉRIODE DEMANDÉE
+    //
+    // Source unique — écran web, PDF images, PDF liste et export Excel.
+    //
+    // Bug corrigé le 2026-09-24 : les trois exports réimplémentaient
+    // chacun leur version et aucun ne remettait le statut à « libre »
+    // quand le panneau n'était bloqué par RIEN sur la période demandée.
+    // Ils héritaient donc de panels.status, c'est-à-dire l'état du jour.
+    // Résultat : une recherche sur novembre sortait une fiche « Occupé »
+    // pour un panneau libre en novembre mais occupé en septembre —
+    // exactement ce qu'on vend au client.
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * @param  string|null $rawStatus   Statut courant en base (panels.status)
+     * @param  bool        $hasPeriod   Une période valide est-elle demandée ?
+     * @param  bool        $isOccupied  Réservation confirmée / campagne active sur CETTE période
+     * @param  bool        $isOption    Option en attente sur CETTE période
+     * @return string                   libre | occupe | option_periode | maintenance | <statut brut>
+     */
+    public static function displayStatusForPeriod(
+        ?string $rawStatus,
+        bool $hasPeriod,
+        bool $isOccupied,
+        bool $isOption
+    ): string {
+        $rawStatus = $rawStatus ?: 'libre';
+
+        return match (true) {
+            // Maintenance : prime sur tout, le panneau est indisponible
+            // quelle que soit la période demandée (HS terrain).
+            $rawStatus === 'maintenance' => 'maintenance',
+            // Chevauchement sur la période demandée.
+            $hasPeriod && $isOccupied    => 'occupe',
+            $hasPeriod && $isOption      => 'option_periode',
+            // Période valide ET aucun chevauchement → LIBRE SUR LA PÉRIODE,
+            // même si le statut courant est 'confirme' ou 'occupe' : le
+            // booking en cours se termine AVANT le début de la fenêtre.
+            $hasPeriod                   => 'libre',
+            // Pas de période demandée → le statut courant fait foi.
+            default                      => in_array($rawStatus, ['disponible'], true)
+                ? 'libre'
+                : $rawStatus,
+        };
+    }
+
     private static function formatInternalPanel($panel, $occupiedIds, $optionIds, $releaseDates, $startDate, $endDate, $dateError, $now): array
     {
         $isOccupied = $occupiedIds->contains($panel->id);
         $isOption = $optionIds->contains($panel->id);
         $hasPeriod = $startDate && $endDate && !$dateError;
-        $displayStatus = match (true) {
-            // Maintenance : prime sur tout, le panneau est indisponible quelle
-            // que soit la période demandée (HS terrain).
-            $panel->status->value === 'maintenance' => 'maintenance',
-            // Chevauchement sur la période demandée → occupé / en option.
-            $hasPeriod && $isOccupied => 'occupe',
-            $hasPeriod && $isOption   => 'option_periode',
-            // Période valide ET aucun chevauchement → LIBRE SUR LA PÉRIODE,
-            // même si le statut DB actuel est 'confirme' ou 'occupe' (le
-            // booking en cours se termine AVANT le début de la période
-            // demandée). Sinon le panneau apparaîtrait à tort comme "Confirmé"
-            // / "En affichage" et serait non sélectionnable, alors qu'il est
-            // bien disponible sur la fenêtre demandée.
-            $hasPeriod => 'libre',
-            // Pas de période demandée → on garde le statut DB pour info.
-            default => $panel->status->value,
-        };
+        // La règle vit dans displayStatusForPeriod() — partagée avec les
+        // trois exports, qui en avaient chacun une copie divergente.
+        $displayStatus = self::displayStatusForPeriod(
+            $panel->status->value,
+            $hasPeriod,
+            $isOccupied,
+            $isOption
+        );
 
         $releaseInfo = null;
         $selectableFrom = null;
@@ -924,21 +962,17 @@ class ReservationController extends Controller
                 ? $externalBlocking->get($row['id'] ?? null)
                 : $internalBlocking->get($row['id'] ?? null);
 
-            // Quand une période est explicitement fournie, on reconstitue
-            // display_status sur cette période — sinon on garde la valeur
-            // brute issue d'enrichPanel et on n'enrichit que release_date.
-            if ($booking) {
-                if ($startDate && $endDate) {
-                    if (!empty($booking->has_confirmed)) {
-                        $row['display_status'] = 'occupe';
-                    } elseif (!empty($booking->has_option)) {
-                        $row['display_status'] = 'option_periode';
-                    }
-                }
-                $row['release_date'] = $booking->release_date ?? null;
-            } else {
-                $row['release_date'] = null;
-            }
+            // FIX 2026-09-24 — Le statut décrit LA PÉRIODE demandée, jamais
+            // l'instant présent. Avant, l'absence de booking sur la période
+            // laissait display_status à sa valeur d'enrichPanel() (= statut
+            // du jour) : un panneau libre en novembre sortait « Occupé ».
+            $row['display_status'] = self::displayStatusForPeriod(
+                $row['display_status'] ?? null,
+                (bool) ($startDate && $endDate),
+                (bool) ($booking->has_confirmed ?? false),
+                (bool) ($booking->has_option ?? false)
+            );
+            $row['release_date'] = $booking->release_date ?? null;
             return $row;
         });
 
@@ -1061,15 +1095,16 @@ class ReservationController extends Controller
                 ->keyBy('id');
         }
 
-        $resolveDisplay = function ($rawStatus, $blocking) {
-            $rawStatus = $rawStatus ?: 'libre';
-            if ($rawStatus === 'maintenance') return 'maintenance';
-            if ($blocking) {
-                if (!empty($blocking->has_confirmed)) return 'occupe';
-                if (!empty($blocking->has_option))   return 'option_periode';
-            }
-            return in_array($rawStatus, ['libre', 'disponible'], true) ? 'libre' : $rawStatus;
-        };
+        // FIX 2026-09-24 — Cette closure renvoyait le statut COURANT quand
+        // rien ne bloquait sur la période : un panneau libre en novembre
+        // mais occupé aujourd'hui sortait « Occupé » dans le PDF liste.
+        $hasPeriod = (bool) ($startDate && $endDate);
+        $resolveDisplay = fn($rawStatus, $blocking) => self::displayStatusForPeriod(
+            $rawStatus,
+            $hasPeriod,
+            (bool) ($blocking->has_confirmed ?? false),
+            (bool) ($blocking->has_option ?? false)
+        );
 
         $panels = collect();
 
@@ -1237,29 +1272,41 @@ class ReservationController extends Controller
         // proposition) sans jamais dire à partir de quand le panneau
         // redevenait disponible — même info manquante que dans les PDF.
         $releaseMap = $this->buildReleaseDateMap($internalIds, $externalIds, $startDate, $endDate);
+        $hasPeriod  = (bool) ($startDate && $endDate);
 
-        $panels = $panels->map(function ($p) use ($releaseMap) {
+        $panels = $panels->map(function ($p) use ($releaseMap, $hasPeriod) {
             $isExt = (bool) ($p->_external ?? false);
             $key   = $isExt ? 'external' : 'internal';
             $id    = (int) ($p->id ?? 0);
 
             $release = $releaseMap[$key][$id] ?? null;
 
-            if ($release) {
-                // stdClass (externes) vs modèle Eloquent (internes) :
-                // l'affectation dynamique fonctionne sur les deux.
-                $p->release_date = $release;
+            // stdClass (externes) vs modèle Eloquent (internes) :
+            // l'affectation dynamique fonctionne sur les deux.
+            $p->release_date = $release;
 
-                // Le statut brut du panneau reflète son état courant, pas
-                // son état sur la période demandée. On le force à 'occupe'
-                // pour que PanelsExport::map() bascule sur le libellé
-                // « Disponible à partir du … ».
-                if (is_object($p->status ?? null)) {
-                    $p->status = (object) ['value' => 'occupe'];
-                } else {
-                    $p->status = 'occupe';
-                }
-            }
+            // FIX 2026-09-24 — Deux corrections ici.
+            //
+            // 1. Le statut brut reflète l'état COURANT du panneau. Avant, on
+            //    ne le corrigeait que s'il y avait une date de libération ;
+            //    sans blocage sur la fenêtre, l'Excel gardait « Occupé » pour
+            //    un panneau pourtant libre sur la période demandée.
+            //
+            // 2. On écrit dans display_status et PLUS dans status. Sur un
+            //    Panel (Eloquent), status est casté en enum PanelStatus :
+            //    lui affecter un stdClass lève un ValueError. L'ancien code
+            //    le faisait dès qu'un panneau interne avait une date de
+            //    libération — l'export partait en 500 sur ce cas précis.
+            $raw = is_object($p->status ?? null)
+                ? ($p->status->value ?? 'libre')
+                : (string) ($p->status ?? 'libre');
+
+            $p->display_status = self::displayStatusForPeriod(
+                $raw,
+                $hasPeriod,
+                (bool) $release,
+                false
+            );
 
             return $p;
         });

@@ -291,11 +291,35 @@
     // Maintenant : « Disponible à partir du 16/09 », toujours affiché.
     // C'est une info logistique essentielle, pas une donnée sensible :
     // seul le TARIF reste conditionné à $showPricing.
-    $statusFor = function (array $p) {
+    // 2026-09-24 : la fiche répond à la PÉRIODE demandée, pas à l'instant
+    // présent. Avant, un panneau libre en novembre mais occupé aujourd'hui
+    // affichait « ACTUELLEMENT OCCUPÉ » sur une recherche de novembre —
+    // le client croyait le panneau pris.
+    $periodeLabel = ($startDate ?? null) && ($endDate ?? null)
+        ? 'Disponible du ' . \Carbon\Carbon::parse($startDate)->format('d/m/Y')
+          . ' au ' . \Carbon\Carbon::parse($endDate)->format('d/m/Y')
+        : 'Disponible';
+
+    $statusFor = function (array $p) use ($periodeLabel) {
         $s = $p['display_status'] ?? null;
-        if (!in_array($s, ['occupe', 'occupé', 'confirme'], true)) {
+
+        if ($s === 'maintenance') {
+            return ['label' => 'En maintenance', 'class' => 'badge-occupe'];
+        }
+
+        // Libre sur la période demandée : on le dit, et on dit sur quoi.
+        if (in_array($s, ['libre', 'disponible'], true)) {
+            return ['label' => $periodeLabel, 'class' => 'badge-libre'];
+        }
+
+        if (!in_array($s, ['occupe', 'occupé', 'confirme', 'option', 'option_periode'], true)) {
             return null;
         }
+
+        if (in_array($s, ['option', 'option_periode'], true)) {
+            return ['label' => 'En option sur la période', 'class' => 'badge-option'];
+        }
+
         $release = $p['release_date'] ?? null;
         if ($release) {
             // La date stockée est le DERNIER jour d'occupation → le
@@ -306,7 +330,8 @@
                 'class' => 'badge-occupe',
             ];
         }
-        return ['label' => 'Actuellement occupé', 'class' => 'badge-occupe'];
+
+        return ['label' => 'Occupé sur la période demandée', 'class' => 'badge-occupe'];
     };
 
     // Logo CIBLE CI : passé par PdfAssets::getLogoPdf() — fallback inline.
