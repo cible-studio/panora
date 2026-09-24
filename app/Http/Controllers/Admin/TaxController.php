@@ -492,12 +492,9 @@ class TaxController extends Controller
     {
         $filters = ['commune_id' => $commune->id];
 
-        // FIX TX-11 (2026-09-23) — L'ODP se compte en TRIMESTRES et la règle
-        // « 1 jour dans le trimestre = trimestre entier » fait que CHAQUE
-        // mois renvoie un trimestre complet. Additionner les 12 mois donnait
-        // donc 12 trimestres au lieu de 4 → total annuel ×3 exactement
-        // (mesuré sur le parc réel : 105 M au lieu de 35 M).
-        // → un SEUL appel annuel pour l'ODP.
+        // L'ODP passe par un SEUL appel annuel. Depuis TX-14 elle est
+        // mensuelle, donc sommer les 12 mois donnerait le même résultat ;
+        // on garde l'appel unique, c'est 12 requêtes de moins.
         $odp = (int) ($calc->summarize(
             $calc->generateLines(TaxCalculationService::PERIOD_ANNUAL, 0, $year, $filters)
         )['odp_total'] ?? 0);
@@ -556,27 +553,17 @@ class TaxController extends Controller
         // ── Matrice mensuelle (Jan..Déc) ──────────────────────────
         $monthNames = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
                               'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
-        // FIX TX-11 (2026-09-23) — L'ODP est une taxe TRIMESTRIELLE. Avant,
-        // chaque mois d'un trimestre affichait le trimestre entier : la
-        // colonne « ODP dû » comptait donc 3× trop sur le cumul trimestriel
-        // ET sur le cumul annuel. On la porte désormais sur le PREMIER mois
-        // de chaque trimestre (janvier, avril, juillet, octobre), ce qui est
-        // aussi le moment où elle est réellement exigible.
-        $odpParTrimestre = [];
-        for ($q = 1; $q <= 4; $q++) {
-            $odpParTrimestre[$q] = (int) ($calc->summarize(
-                $calc->generateLines(TaxCalculationService::PERIOD_QUARTERLY, $q, $year, ['commune_id' => $commune->id])
-            )['odp_total'] ?? 0);
-        }
-
+        // TX-14 (2026-09-24) — L'ODP est MENSUELLE : chaque mois porte le
+        // sien, et la colonne s'additionne naturellement en trimestre puis
+        // en année. (TX-11 avait dû la reporter sur le 1er mois de chaque
+        // trimestre tant qu'elle était comptée au trimestre — plus besoin.)
         $matrix = [];
         for ($m = 1; $m <= 12; $m++) {
             // Calcul théorique mois m (TaxCalculationService — Phase 1
             // émet désormais odp_total/tm_total → fix TX-4).
             $lines  = $calc->generateLines(TaxCalculationService::PERIOD_MONTHLY, $m, $year, ['commune_id' => $commune->id]);
             $totals = $calc->summarize($lines);
-            // ODP portée sur le 1er mois du trimestre uniquement (cf. ci-dessus).
-            $odpTheo = ($m % 3 === 1) ? ($odpParTrimestre[intdiv($m - 1, 3) + 1] ?? 0) : 0;
+            $odpTheo = (int) ($totals['odp_total'] ?? 0);
             $tmTheo  = (int) ($totals['tm_total']  ?? 0);
 
             // Hotfix TX-8 (2026-06-22) : un paiement = 1 ligne sur le mois

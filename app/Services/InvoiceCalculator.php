@@ -12,7 +12,7 @@ use App\Models\InvoiceLine;
  *
  *   Par ligne :
  *     Montant HT = PU × quantité × durée
- *     ODP        = odp_rate × m² × quantité × trimestres entamés
+ *     ODP        = odp_rate × m² × quantité × mois calendaires touchés
  *                  (durée en mois si la ligne n'a pas de dates campagne)
  *                  (OU odp_amount_override si présent — ajout 2026-08-03)
  *     TM         = tm_rate (1000) × m² × quantité × durée
@@ -85,12 +85,13 @@ class InvoiceCalculator
      *        calculés depuis campaign_start → campaign_end SI fournies.
      *        Sinon fallback sur duree_mois (compatibilité anciennes factures).
      *
-     *   ODP : odp_rate × surface × quantite × trimestres_ODP
-     *         où trimestres_ODP = nb trimestres calendaires touchés
-     *         par la campagne SI dates fournies. Sinon fallback
-     *         sur duree_mois (compatibilité).
-     *         TX-13 (2026-09-23) : plus de ×3 — on refacture au client
-     *         exactement ce qui est dû à la commune (cf. TX-12).
+     *   ODP : odp_rate × surface × quantite × mois_ODP
+     *         où mois_ODP = nb de mois calendaires touchés par la
+     *         campagne SI dates fournies. Sinon fallback sur
+     *         duree_mois (compatibilité).
+     *         TX-13/TX-14 : plus de ×3 et plus de trimestres — on
+     *         refacture au client exactement ce qui est dû à la
+     *         commune (cf. TaxCalculationService).
      *
      * ═══ OVERRIDES par ligne (ajout 2026-08-03) ═══
      * Si `odp_amount_override` ou `tm_amount_override` sont fournis
@@ -143,18 +144,22 @@ class InvoiceCalculator
             $csDate = \Carbon\Carbon::parse($cs);
             $ceDate = \Carbon\Carbon::parse($ce);
 
-            $moisTM         = $this->period->moisAnniversaireEntames($csDate, $ceDate);
-            $trimestresODP  = $this->period->trimestresCalendairesTouches($csDate, $ceDate);
+            $moisTM  = $this->period->moisAnniversaireEntames($csDate, $ceDate);
+            // TX-14 (2026-09-24) — L'ODP se compte en MOIS (cf.
+            // TaxCalculationService et docs/ODP 2024 SAN PEDRO.xlsx).
+            // ⚠ HYPOTHÈSE À CONFIRMER : sur une facture, on retient les
+            //   mois CALENDAIRES touchés par la campagne. La TM, elle,
+            //   garde ses mois « de date à date » — les deux comptages
+            //   peuvent donc différer d'un mois sur une campagne à cheval.
+            $moisODP = $this->period->moisCalendairesTouches($csDate, $ceDate);
 
             // TX-13 (2026-09-23) — RÈGLE VALIDÉE PAR ÉCRIT :
             // « je facture au client ce que je paie à la mairie ».
-            // Le ×3 de TX-9 faisait refacturer 3× l'ODP réellement due
-            // (150 000 payés à la commune → 450 000 sur la facture).
-            // Aligné sur TaxCalculationService (TX-12) : le tarif mensuel
-            // s'applique tel quel, par trimestre entamé.
-            // Les factures déjà émises ne bougent pas : leurs montants sont
-            // figés dans invoice_lines.odp_ligne.
-            $odpAuto = $odpRate * $m2 * $qte * $trimestresODP;
+            // Aligné sur TaxCalculationService : tarif mensuel tel quel,
+            // × nombre de mois (TX-14). Les factures déjà émises ne
+            // bougent pas, leurs montants sont figés dans
+            // invoice_lines.odp_ligne.
+            $odpAuto = $odpRate * $m2 * $qte * $moisODP;
             $tmAuto  = $tmRate       * $m2 * $qte * $moisTM;
         } else {
             // Compatibilité totale : ligne saisie sans dates → on utilise

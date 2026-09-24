@@ -76,12 +76,12 @@ class TaxOdpFaceMergeTest extends TestCase
             'campaign_end'   => null,
             'period_start'   => null,
             'period_end'     => null,
-            'months'         => 4,
-            'unit'           => 'trimestre',
+            // TX-14 : l'ODP se compte en MOIS — 12 pour une année pleine.
+            'months'         => 12,
+            'unit'           => 'mois',
             'rate'           => 3000,
-            // TX-12 : le tarif ODP appliqué est le tarif mensuel brut.
             'rate_applied'   => 3000,
-            'amount'         => 144000.0,
+            'amount'         => 432000.0,
         ], $override);
     }
 
@@ -105,9 +105,9 @@ class TaxOdpFaceMergeTest extends TestCase
             $this->ligne(['panel_id' => 2, 'reference' => 'ADJ-004B']),
         ]);
 
-        // 3 000 (tarif mensuel) × 12 m² (UNE face) × 4 trimestres
+        // 3 000 (tarif mensuel) × 12 m² (UNE face) × 12 mois
         $this->assertSame(12.0, $res[0]['surface']);
-        $this->assertSame(144000.0, $res[0]['amount']);
+        $this->assertSame(432000.0, $res[0]['amount']);
     }
 
     public function test_surface_retenue_est_la_plus_grande_si_les_faces_different(): void
@@ -119,18 +119,18 @@ class TaxOdpFaceMergeTest extends TestCase
         ]);
 
         $this->assertSame(16.0, $res[0]['surface']);
-        $this->assertSame(192000.0, $res[0]['amount']); // 3000 × 16 × 4
+        $this->assertSame(576000.0, $res[0]['amount']); // 3000 × 16 × 12
     }
 
-    public function test_trimestres_retenus_sont_le_max_du_groupe(): void
+    public function test_mois_retenus_sont_le_max_du_groupe(): void
     {
-        // Le mât existe dès que sa 1re face existe.
+        // Le mât occupe le sol dès que sa 1re face existe.
         $res = $this->fusionner([
-            $this->ligne(['panel_id' => 1, 'reference' => 'ADJ-004A', 'months' => 4]),
-            $this->ligne(['panel_id' => 2, 'reference' => 'ADJ-004B', 'months' => 2]),
+            $this->ligne(['panel_id' => 1, 'reference' => 'ADJ-004A', 'months' => 12]),
+            $this->ligne(['panel_id' => 2, 'reference' => 'ADJ-004B', 'months' => 7]),
         ]);
 
-        $this->assertSame(4, $res[0]['months']);
+        $this->assertSame(12, $res[0]['months']);
     }
 
     public function test_la_tm_reste_facturee_par_face(): void

@@ -328,7 +328,7 @@
                             @php
                                 // TX-9 (2026-07-29) : affichage adapté au type
                                 //   TM  → tarif_mensuel × surface × Nm (mois anniversaires)
-                                //   ODP → tarif_mensuel × surface × Nt (trimestres entamés)
+                                //   ODP → tarif_mensuel × surface × Nm (mois calendaires touchés)
                                 $rateShown = $row['rate_applied'] ?? $row['rate'];
                                 $unitAbbr  = ($row['unit'] ?? 'mois') === 'trimestre' ? 't' : 'm';
                             @endphp
@@ -380,8 +380,9 @@
     <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center;">
         💡 <strong>TM</strong> : tarif mensuel × surface × <em>mois de date à date entamés</em>
         (règle « anniversaire glissant »).<br>
-        💡 <strong>ODP</strong> : tarif mensuel × surface × <em>trimestres calendaires touchés</em>
-        — l'ODP se paye chaque trimestre, 1 jour dans un trimestre = trimestre entier compté.<br>
+        💡 <strong>ODP</strong> : tarif mensuel × surface × <em>mois calendaires touchés</em>
+        — 1 jour dans un mois = mois entier compté. Le règlement, lui, se fait chaque
+        trimestre : 4 versements de 3 mois.<br>
         💡 <strong>Panneaux double-face</strong> : l'ODP taxe l'emprise au sol, donc un mât
         A/B (ex. ADJ-004A + ADJ-004B) est <strong>facturé une seule fois</strong> sur la surface
         d'une face. La TM, elle, taxe l'affichage → elle reste due <strong>par face</strong>.<br>

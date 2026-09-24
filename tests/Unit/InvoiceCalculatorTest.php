@@ -432,6 +432,30 @@ class InvoiceCalculatorTest extends TestCase
         $this->assertEquals(96000,  $c['odp_ligne'],        'ODP = 4000×12×2 trimestres');
     }
 
+    public function test_tx14_odp_compte_les_mois_pas_les_trimestres(): void
+    {
+        $calc = new InvoiceCalculator();
+
+        // Campagne 01/01 → 28/02 : 2 mois calendaires (janvier + février)
+        // mais UN SEUL trimestre (T1). C'est le cas qui départage les deux
+        // règles — sous l'ancienne, l'ODP aurait été moitié moindre.
+        $line = [
+            'pu_ht_mensuel'     => 100000,
+            'quantite'          => 1,
+            'duree_mois'        => 2,
+            'dimension_m2'      => 12,
+            'odp_rate_applique' => 4000,
+            'tm_rate_applique'  => 1000,
+            'campaign_start'    => '2026-01-01',
+            'campaign_end'      => '2026-02-28',
+        ];
+
+        $c = $calc->calculateLine($line);
+
+        // ODP = 4000 × 12 m² × 2 mois = 96 000 (et non 48 000 sur 1 trimestre)
+        $this->assertEquals(96000, $c['odp_ligne'], 'ODP = 4000×12×2 mois');
+    }
+
     public function test_tx9_sans_dates_campagne_fallback_ancien_comportement(): void
     {
         $calc = new InvoiceCalculator();

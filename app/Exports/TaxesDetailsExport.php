@@ -28,8 +28,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  *
  * Format colonnes :
  *   Commune · Panneau · Nom · Dim. · Surface · Type · Statut · Client ·
- *   Campagne · Période début · Période fin · Nb unités · Tarif · Montant
- *   (Nb unités = mois pour la TM, trimestres pour l'ODP — cf. TX-12)
+ *   Campagne · Période début · Période fin · Nb mois · Tarif · Montant
+ *   (TM : mois de campagne date à date · ODP : mois calendaires occupés)
  */
 class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize, WithEvents, WithCustomStartCell, WithTitle
 {
@@ -64,7 +64,7 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
             'Campagne',
             'Période début',
             'Période fin',
-            'Nb unités (TM = mois · ODP = trimestres)',
+            'Nb mois',
             'Tarif (FCFA)',
             'Montant (FCFA)',
         ];
