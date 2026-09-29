@@ -128,18 +128,16 @@ class BrevoClient
     }
 
     /**
-     * Lien public vers le mail tel que reçu par les clients. Facultatif :
-     * renvoie null si Brevo ne le fournit pas, sans faire échouer l'envoi.
+     * Lien vers le rapport de la campagne dans Brevo (délivrés, ouvertures,
+     * clics, désinscriptions). Nécessite un accès au compte Brevo.
+     *
+     * 2026-09-29 : remplace l'appel à /emailCampaigns/{id}/sharedUrl, qui
+     * renvoie en réalité une page « Voulez-vous importer ce template ? »
+     * affichant les variables brutes — constaté au premier test réel.
      */
-    public function lienApercuCampagne(int $campaignId): ?string
+    public static function lienRapportCampagne(int $campaignId): string
     {
-        try {
-            $r = $this->client()->get("/emailCampaigns/{$campaignId}/sharedUrl");
-
-            return $r->successful() ? ($r->json('sharedUrl') ?: null) : null;
-        } catch (\Throwable) {
-            return null;
-        }
+        return "https://app.brevo.com/marketing-reports/email/{$campaignId}/overview";
     }
 
     // ══════════════════════════════════════════════════════════════

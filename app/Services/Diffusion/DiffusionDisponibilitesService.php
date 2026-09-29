@@ -282,7 +282,7 @@ class DiffusionDisponibilitesService
 
             $campagneId = $this->brevo->creerCampagne($this->contenuCampagne($envoi, $listeId));
             $this->brevo->envoyerCampagne($campagneId);
-            $lienApercu = $this->brevo->lienApercuCampagne($campagneId);
+            $lienApercu = BrevoClient::lienRapportCampagne($campagneId);
 
             $envoi->update([
                 'statut'            => DiffusionEnvoi::STATUT_ENVOYE,

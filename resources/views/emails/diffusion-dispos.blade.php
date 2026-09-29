@@ -73,7 +73,8 @@
 
     @if($lienApercu)
         <p style="text-align:center;">
-            <a href="{{ $lienApercu }}">✉️ Voir le mail tel que les clients l'ont reçu</a>
+            <a href="{{ $lienApercu }}">📊 Suivi détaillé dans Brevo</a>
+            <br><span style="font-size:12px;color:#6b7280;">Délivrés, ouvertures, clics, désinscriptions — nécessite un accès au compte Brevo.</span>
         </p>
     @endif
 
