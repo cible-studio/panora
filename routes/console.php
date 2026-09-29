@@ -142,12 +142,20 @@ Schedule::command('invoices:alerts')
 //     PDF est trop long à générer pendant une requête web).
 //     Inactif tant que DIFFUSION_AUTO=false ; en DIFFUSION_MODE=test,
 //     tout part vers la liste Brevo « Tests internes ».
+//     runInBackground() : la tâche planifiée Coolify qui lance
+//     schedule:run coupe au bout de 300 s. La génération du catalogue
+//     (~7 min) serait tuée en plein milieu, l'envoi resterait bloqué
+//     sans même déclencher l'alerte d'échec. En arrière-plan,
+//     schedule:run rend la main aussitôt et la diffusion va au bout.
 Schedule::command('dispos:diffuser', ['--preparer'])
-    ->dailyAt(config('diffusion.heure_preparation', '09:30'))
-    ->withoutOverlapping();
+    ->dailyAt(config('diffusion.heure_preparation', '09:00'))
+    ->withoutOverlapping()
+    ->runInBackground();
 Schedule::command('dispos:diffuser')
     ->dailyAt(config('diffusion.heure_envoi', '10:00'))
-    ->withoutOverlapping();
+    ->withoutOverlapping()
+    ->runInBackground();
 Schedule::command('dispos:diffuser', ['--demandes'])
     ->everyMinute()
-    ->withoutOverlapping(30);
+    ->withoutOverlapping(30)
+    ->runInBackground();
