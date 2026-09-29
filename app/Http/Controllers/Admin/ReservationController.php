@@ -29,6 +29,7 @@ use Illuminate\Support\Str;
 use App\Exports\PanelsExport;
 use App\Models\ExternalPanel;
 use App\Services\PdfExportService;
+use App\Services\DisponibilitesPdfBuilder;
 use App\Support\PdfAssets;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -456,24 +457,11 @@ class ReservationController extends Controller
         bool $isOccupied,
         bool $isOption
     ): string {
-        $rawStatus = $rawStatus ?: 'libre';
-
-        return match (true) {
-            // Maintenance : prime sur tout, le panneau est indisponible
-            // quelle que soit la période demandée (HS terrain).
-            $rawStatus === 'maintenance' => 'maintenance',
-            // Chevauchement sur la période demandée.
-            $hasPeriod && $isOccupied    => 'occupe',
-            $hasPeriod && $isOption      => 'option_periode',
-            // Période valide ET aucun chevauchement → LIBRE SUR LA PÉRIODE,
-            // même si le statut courant est 'confirme' ou 'occupe' : le
-            // booking en cours se termine AVANT le début de la fenêtre.
-            $hasPeriod                   => 'libre',
-            // Pas de période demandée → le statut courant fait foi.
-            default                      => in_array($rawStatus, ['disponible'], true)
-                ? 'libre'
-                : $rawStatus,
-        };
+        // 2026-09-29 — La règle vit désormais dans AvailabilityService,
+        // pour que les services (diffusion automatique) puissent l'appeler
+        // sans dépendre d'un contrôleur. Méthode conservée : ses appels
+        // internes et les tests existants passent par elle.
+        return AvailabilityService::displayStatusForPeriod($rawStatus, $hasPeriod, $isOccupied, $isOption);
     }
 
     private static function formatInternalPanel($panel, $occupiedIds, $optionIds, $releaseDates, $startDate, $endDate, $dateError, $now): array
@@ -868,113 +856,16 @@ class ReservationController extends Controller
         $reservationRef = $request->reservation_ref ?? null;
         $clientName = $request->client_name ?? null;
 
-        $service = app(PdfExportService::class);
-        $enriched = collect();
-
-        if ($internalIds) {
-            $internals = Panel::with([
-                'commune:id,name',
-                'zone:id,name',
-                'format:id,name,width,height',
-                'category:id,name',
-                'photos' => fn($q) => $q->orderBy('ordre'),
-            ])
-                ->whereIn('id', $internalIds)
-                ->orderByRaw('FIELD(id,' . implode(',', $internalIds) . ')')
-                ->get();
-            $enriched = $enriched->merge($internals->map(fn($p) => $service->enrichPanel($p)));
-        }
-
-        if ($externalIds) {
-            $externals = ExternalPanel::with([
-                'commune:id,name',
-                'zone:id,name',
-                'format:id,name,width,height',
-                'category:id,name',
-                'agency:id,name',
-            ])
-                ->whereIn('id', $externalIds)
-                ->orderByRaw('FIELD(id,' . implode(',', $externalIds) . ')')
-                ->get();
-            $enriched = $enriched->merge($externals->map(fn($p) => $service->enrichExternalPanel($p)));
-        }
-
-        $panels = $enriched->values();
-
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
-        // Recalcul display_status + release_date :
-        // - Si période fournie → blocking sur cette période.
-        // - Sinon → fallback today → +1 an pour toujours récupérer la
-        //   date de libération du panneau s'il est actuellement occupé.
-        $lookupStart = $startDate ?: now()->toDateString();
-        $lookupEnd   = $endDate   ?: now()->addYear()->toDateString();
-
-        $internalBlocking = $internalIds
-            ? $this->availability->getInternalPanelBookingMap($internalIds, $lookupStart, $lookupEnd)->keyBy('panel_id')
-            : collect();
-        $externalBlocking = $externalIds
-            ? $this->availability->getExternalPanelBookingMap($externalIds, $lookupStart, $lookupEnd)->keyBy('id')
-            : collect();
-
-        // Idem que pdfListe : ajout des campagnes actives (un panneau peut
-        // être marqué occupé via une campagne sans réservation associée).
-        if ($internalIds) {
-            $campaignRelease = \DB::table('campaign_panels')
-                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
-                ->whereIn('campaign_panels.panel_id', $internalIds)
-                ->where('campaign_panels.type', 'interne')
-                ->whereIn('campaigns.status', ['actif', 'pause'])
-                ->where('campaigns.end_date', '>=', $lookupStart)
-                ->select(
-                    'campaign_panels.panel_id',
-                    \DB::raw('MAX(campaigns.end_date) as release_date')
-                )
-                ->groupBy('campaign_panels.panel_id')
-                ->get()
-                ->keyBy('panel_id');
-
-            $internalBlocking = $internalBlocking->map(function ($b) use ($campaignRelease) {
-                $camp = $campaignRelease->get($b->panel_id);
-                if ($camp && (!$b->release_date || $camp->release_date > $b->release_date)) {
-                    $b->release_date  = $camp->release_date;
-                    $b->has_confirmed = 1;
-                }
-                return $b;
-            });
-
-            foreach ($campaignRelease as $panelId => $camp) {
-                if (!$internalBlocking->has($panelId)) {
-                    $internalBlocking->put($panelId, (object) [
-                        'panel_id'      => $panelId,
-                        'has_confirmed' => 1,
-                        'has_option'    => 0,
-                        'release_date'  => $camp->release_date,
-                    ]);
-                }
-            }
-        }
-
-        $panels = $panels->map(function ($row) use ($internalBlocking, $externalBlocking, $startDate, $endDate) {
-            $isExt = ($row['source'] ?? null) === 'external';
-            $booking = $isExt
-                ? $externalBlocking->get($row['id'] ?? null)
-                : $internalBlocking->get($row['id'] ?? null);
-
-            // FIX 2026-09-24 — Le statut décrit LA PÉRIODE demandée, jamais
-            // l'instant présent. Avant, l'absence de booking sur la période
-            // laissait display_status à sa valeur d'enrichPanel() (= statut
-            // du jour) : un panneau libre en novembre sortait « Occupé ».
-            $row['display_status'] = self::displayStatusForPeriod(
-                $row['display_status'] ?? null,
-                (bool) ($startDate && $endDate),
-                (bool) ($booking->has_confirmed ?? false),
-                (bool) ($booking->has_option ?? false)
-            );
-            $row['release_date'] = $booking->release_date ?? null;
-            return $row;
-        });
+        // 2026-09-29 — Construction des lignes extraite dans
+        // DisponibilitesPdfBuilder : la diffusion automatique des
+        // disponibilités aux clients produit le MÊME PDF. Deux copies de
+        // ce calcul, c'est exactement ce qui avait produit le bug
+        // « Actuellement occupé » sur une recherche de novembre.
+        $panels = app(DisponibilitesPdfBuilder::class)
+            ->lignes($internalIds, $externalIds, $startDate, $endDate);
 
         // Nom de fichier : override par le MP possible (feedback user
         // 2026-09-17 : le MP veut personnaliser le nom avant download).
@@ -991,27 +882,12 @@ class ReservationController extends Controller
             ? !$showPricing
             : (bool) $request->boolean('hide_status', true);
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView(
-            'admin.reservations.pdf.disponibilites-images',
-            [
-                'panels'          => $panels,
-                'startDate'       => $startDate,
-                'endDate'         => $endDate,
-                'generated'       => now()->format('d/m/Y à H:i'),
-                'reservation_ref' => $reservationRef,
-                'client_name'     => $clientName,
-                'logoSrc'         => $this->getLogoPdf(),
-                'hideStatus'      => $hideStatus,
-                'showPricing'     => $showPricing,
-            ]
-        )
-            ->setPaper('a4', 'portrait')
-            ->setOptions([
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled'      => false,
-                'defaultFont'          => 'DejaVu Sans',
-                'dpi'                  => 96,
-            ]);
+        $pdf = app(DisponibilitesPdfBuilder::class)->rendre($panels, $startDate, $endDate, [
+            'reservation_ref' => $reservationRef,
+            'client_name'     => $clientName,
+            'hide_status'     => $hideStatus,
+            'show_pricing'    => $showPricing,
+        ]);
 
         // FIX 2026-09-23 — sanitizePdfFilename() garantit déjà l'extension :
         // le '.pdf' concaténé ici produisait « panneaux-20260923_1430.pdf.pdf ».

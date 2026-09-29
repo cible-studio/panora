@@ -127,3 +127,23 @@ Schedule::call(function () {
 Schedule::command('invoices:alerts')
     ->dailyAt('07:00')
     ->withoutOverlapping();
+
+// 14. Diffusion des disponibilités aux clients via Brevo (2026-09-29).
+//     Le 1er et le 15 à 10h, décalés au premier jour ouvrable suivant
+//     (week-end, jours fériés). La commande tourne chaque jour et décide
+//     elle-même : c'est DiffusionCalendrier qui porte la règle.
+//     9h : préparation du PDF (tout le parc avec photos : plusieurs
+//     minutes — ~7 min mesurées en dev), pour que 10h parte à l'heure.
+//     Chaque minute : envois manuels demandés depuis l'écran admin (le
+//     PDF est trop long à générer pendant une requête web).
+//     Inactif tant que DIFFUSION_AUTO=false ; en DIFFUSION_MODE=test,
+//     tout part vers la liste Brevo « Tests internes ».
+Schedule::command('dispos:diffuser', ['--preparer'])
+    ->dailyAt(config('diffusion.heure_preparation', '09:30'))
+    ->withoutOverlapping();
+Schedule::command('dispos:diffuser')
+    ->dailyAt(config('diffusion.heure_envoi', '10:00'))
+    ->withoutOverlapping();
+Schedule::command('dispos:diffuser', ['--demandes'])
+    ->everyMinute()
+    ->withoutOverlapping(30);

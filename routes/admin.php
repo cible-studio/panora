@@ -317,6 +317,21 @@ Route::prefix('client')->name('client.')->middleware(\App\Http\Middleware\SetFre
 // • 3 rôles staff connectables : admin / commercial / mediaplanner.
 // • Restrictions par module via middleware imbriqué role:... ci-dessous.
 // ══════════════════════════════════════════════════════════════════════
+// ── DIFFUSION DES DISPONIBILITÉS (2026-09-29) — routes publiques ─────
+// Lien du PDF envoyé aux clients : jeton de 48 caractères aléatoires, le
+// document ne contient ni prix ni donnée client.
+Route::get('/dispos/{token}', [\App\Http\Controllers\PublicDiffusionController::class, 'pdf'])
+    ->where('token', '[A-Za-z0-9]{40,64}')
+    ->middleware('throttle:60,1')
+    ->name('diffusion.pdf');
+
+// Retour d'information de Brevo (désinscriptions, adresses mortes, spam).
+// Le jeton secret de l'URL tient lieu d'authentification ; CSRF exempté
+// dans bootstrap/app.php.
+Route::post('/webhooks/brevo/{token}', [\App\Http\Controllers\Webhooks\BrevoWebhookController::class, 'handle'])
+    ->middleware('throttle:120,1')
+    ->name('webhooks.brevo');
+
 Route::prefix('admin')
     ->name('admin.')
     ->middleware(['auth', 'role:admin,commercial,mediaplanner,comptable'])
@@ -585,6 +600,21 @@ Route::prefix('admin')
 
         // Utilisateurs (admin uniquement)
         Route::middleware('role:admin')->group(function () {
+            // ── Diffusion des disponibilités aux clients (2026-09-29) ──
+            // Admin seul : l'envoi touche tous les clients d'un coup.
+            Route::prefix('diffusion-dispos')->name('diffusion-dispos.')
+                ->controller(\App\Http\Controllers\Admin\DiffusionDisponibilitesController::class)
+                ->group(function () {
+                    Route::get('/', 'index')->name('index');
+                    Route::get('/apercu', 'apercu')->name('apercu');
+                    Route::post('/envoyer', 'envoyer')->middleware('throttle:6,1')->name('envoyer');
+                    Route::post('/tester-connexion', 'testerConnexion')->middleware('throttle:10,1')->name('tester-connexion');
+                    Route::post('/jours-feries', 'ajouterJourFerie')->name('jours-feries.store');
+                    Route::delete('/jours-feries/{jourFerie}', 'supprimerJourFerie')->name('jours-feries.destroy');
+                    Route::post('/exclusions', 'exclure')->name('exclusions.store');
+                    Route::delete('/exclusions/{exclusion}', 'reintegrer')->name('exclusions.destroy');
+                });
+
             Route::resource('users', UserController::class);
             Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle');
             // Actions groupées : 'activate', 'deactivate'.

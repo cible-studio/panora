@@ -71,16 +71,35 @@ class PeriodDisplayStatusTest extends TestCase
 
     public function test_les_trois_exports_passent_par_la_regle_unique(): void
     {
-        $source = file_get_contents(
+        $controleur = file_get_contents(
             __DIR__ . '/../../app/Http/Controllers/Admin/ReservationController.php'
         );
+        $builder = file_get_contents(
+            __DIR__ . '/../../app/Services/DisponibilitesPdfBuilder.php'
+        );
+        $service = file_get_contents(
+            __DIR__ . '/../../app/Services/AvailabilityService.php'
+        );
 
-        // 1 définition + 4 appels : formatInternalPanel (écran web),
-        // pdfImages, pdfListe, exportExcel.
+        // La règle est DÉFINIE une seule fois, dans AvailabilityService
+        // (déplacée le 2026-09-29 pour que la diffusion automatique n'ait
+        // pas à dépendre d'un contrôleur).
+        $this->assertStringContainsString(
+            'public static function displayStatusForPeriod(',
+            $service
+        );
+
+        // 3 appels dans le contrôleur (écran web, PDF liste, Excel) + 1
+        // dans le constructeur du PDF images (partagé avec la diffusion).
         $this->assertSame(
-            4,
-            substr_count($source, 'self::displayStatusForPeriod('),
-            'Les 4 chemins (écran, PDF images, PDF liste, Excel) doivent ' .
+            3,
+            substr_count($controleur, 'self::displayStatusForPeriod('),
+            'Écran web, PDF liste et Excel doivent appeler la même règle.'
+        );
+        $this->assertSame(
+            1,
+            substr_count($builder, 'AvailabilityService::displayStatusForPeriod('),
+            'Le PDF images (export manuel ET diffusion automatique) doit ' .
             'appeler la même règle. Un export qui recalcule dans son coin ' .
             'finit toujours par diverger.'
         );
