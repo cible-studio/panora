@@ -484,6 +484,57 @@ class AvailabilityService
      * Panneaux externes occupés sur la période (par leurs propres réservations).
      * Renvoie l'ID externe → état dominant ('confirme' / 'en_attente').
      */
+    // ══════════════════════════════════════════════════════════════
+    // STATUT DE DISPONIBILITÉ SUR LA PÉRIODE DEMANDÉE — source unique
+    //
+    // Écran web, PDF images, PDF liste, export Excel et diffusion
+    // automatique aux clients passent tous par ici.
+    //
+    // Bug corrigé le 2026-09-24 : les trois exports réimplémentaient
+    // chacun leur version et aucun ne remettait le statut à « libre »
+    // quand le panneau n'était bloqué par RIEN sur la période demandée.
+    // Ils héritaient donc de panels.status, c'est-à-dire l'état du jour :
+    // une recherche sur novembre sortait « Occupé » pour un panneau libre
+    // en novembre mais occupé en septembre.
+    //
+    // 2026-09-29 : déplacée depuis ReservationController (qui délègue
+    // désormais ici) pour que les services — la diffusion automatique —
+    // n'aient pas à dépendre d'un contrôleur.
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * @param  string|null $rawStatus   Statut courant en base (panels.status)
+     * @param  bool        $hasPeriod   Une période valide est-elle demandée ?
+     * @param  bool        $isOccupied  Réservation confirmée / campagne active sur CETTE période
+     * @param  bool        $isOption    Option en attente sur CETTE période
+     * @return string                   libre | occupe | option_periode | maintenance | <statut brut>
+     */
+    public static function displayStatusForPeriod(
+        ?string $rawStatus,
+        bool $hasPeriod,
+        bool $isOccupied,
+        bool $isOption
+    ): string {
+        $rawStatus = $rawStatus ?: 'libre';
+
+        return match (true) {
+            // Maintenance : prime sur tout, le panneau est indisponible
+            // quelle que soit la période demandée (HS terrain).
+            $rawStatus === 'maintenance' => 'maintenance',
+            // Chevauchement sur la période demandée.
+            $hasPeriod && $isOccupied    => 'occupe',
+            $hasPeriod && $isOption      => 'option_periode',
+            // Période valide ET aucun chevauchement → LIBRE SUR LA PÉRIODE,
+            // même si le statut courant est 'confirme' ou 'occupe' : le
+            // booking en cours se termine AVANT le début de la fenêtre.
+            $hasPeriod                   => 'libre',
+            // Pas de période demandée → le statut courant fait foi.
+            default                      => in_array($rawStatus, ['disponible'], true)
+                ? 'libre'
+                : $rawStatus,
+        };
+    }
+
     public function getExternalPanelBookingMap(
         array  $externalPanelIds,
         string $startDate,

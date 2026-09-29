@@ -327,6 +327,11 @@
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
                         <span class="nav-text">Utilisateurs</span>
                     </a>
+                    {{-- 2026-09-29 : diffusion des disponibilités aux clients (Brevo). --}}
+                    <a href="{{ route('admin.diffusion-dispos.index') }}" data-tooltip="Diffusion des disponibilités" class="nav-item {{ request()->routeIs('admin.diffusion-dispos.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e8a020" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+                        <span class="nav-text">Diffusion dispos</span>
+                    </a>
                     <a href="{{ route('admin.audit.logs') }}" data-tooltip="Logs d'audit" class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
                         <span class="nav-text">Logs d'audit</span>
