@@ -113,6 +113,7 @@
                     ['Liste clients',        (bool) $config['liste_clients'], $config['liste_clients'] ? '#' . $config['liste_clients'] : 'manquante (BREVO_LIST_CLIENTS)'],
                     ['Liste Tests internes', (bool) $config['liste_tests'], $config['liste_tests'] ? '#' . $config['liste_tests'] : 'manquante (BREVO_LIST_TESTS)'],
                     ['Modèle de mail',       true, $config['modele'] ? 'modèle Brevo #' . $config['modele'] : 'gabarit Panora par défaut'],
+                    ['Page de désinscription', true, $config['desinscription'] ? 'personnalisée' : 'page Brevo par défaut'],
                     ['Retour d\'information (webhook)', $config['webhook'], $config['webhook'] ? 'jeton configuré' : 'manquant (BREVO_WEBHOOK_TOKEN)'],
                 ];
             @endphp

@@ -40,6 +40,11 @@ return [
     // utilise son gabarit par défaut (resources/views/diffusion/campagne-defaut).
     'template_id' => env('BREVO_TEMPLATE_DISPOS') ? (int) env('BREVO_TEMPLATE_DISPOS') : null,
 
+    // Page de désinscription personnalisée (logo, couleurs, textes),
+    // conçue dans Brevo. Identifiant de 24 caractères visible dans
+    // l'adresse de la page quand on la modifie. Vide → page Brevo par défaut.
+    'unsubscribe_page_id' => env('BREVO_UNSUBSCRIBE_PAGE_ID') ?: null,
+
     // Jeton secret placé dans l'URL du webhook configuré dans Brevo :
     //   https://<domaine>/webhooks/brevo/<BREVO_WEBHOOK_TOKEN>
     // Longue chaîne aléatoire, ex. : php artisan tinker → Str::random(48)

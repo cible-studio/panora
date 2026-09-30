@@ -582,6 +582,11 @@ class DiffusionDisponibilitesService
             ])->render();
         }
 
+        // Page de désinscription aux couleurs de la régie, si configurée.
+        if ($pageDesinscription = config('brevo.unsubscribe_page_id')) {
+            $payload['unsubscriptionPageId'] = (string) $pageDesinscription;
+        }
+
         return $payload;
     }
 
