@@ -67,7 +67,7 @@
 
     @if($lienPdf)
         <div class="cta-wrap">
-            <a href="{{ $lienPdf }}" class="cta">📄 Voir les disponibilités envoyées</a>
+            <a href="{{ $lienPdf }}" class="cta">📄 {{ $succes ? 'Voir les disponibilités envoyées' : 'Voir le catalogue préparé' }}</a>
         </div>
     @endif
 
