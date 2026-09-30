@@ -123,7 +123,19 @@ glisser-déposer. Placez dans le modèle :
 | `{{ unsubscribe }}` | Lien de désinscription — **obligatoire** |
 | `{{ mirror }}` | Lien « Consulter la version en ligne » |
 
-Notez l'identifiant du modèle.
+Notez l'identifiant du modèle, et **activez-le** : Brevo ne copie dans
+une campagne que le contenu d'un modèle au statut « Actif ».
+
+L'objet du mail ne vient pas du modèle : il est fixé par Panora
+(`DIFFUSION_OBJET`, défaut « Nos disponibilités {periode} »).
+
+### Étape 7 bis — La page de désinscription *(facultatif)*
+Brevo propose une page de désinscription par défaut, en français mais
+sans l'identité visuelle de la régie. Pour la personnaliser (logo,
+couleurs, textes, questionnaire « pourquoi partez-vous ») : créer un
+formulaire de désinscription dans Brevo, puis renseigner son identifiant
+(24 caractères, visible dans l'adresse de la page en modification) dans
+`BREVO_UNSUBSCRIBE_PAGE_ID`. Panora le transmet à chaque campagne.
 
 ### Étape 8 — Renseigner le `.env` du serveur
 
@@ -134,6 +146,7 @@ BREVO_SENDER_NAME="CIBLE CI — Service commercial"
 BREVO_LIST_CLIENTS=                   # étape 5 — identifiant de « Clients — Disponibilités »
 BREVO_LIST_TESTS=                     # étape 5 — identifiant de « Tests internes »
 BREVO_TEMPLATE_DISPOS=                # étape 7 — vide = gabarit Panora
+BREVO_UNSUBSCRIBE_PAGE_ID=            # étape 7 bis — vide = page Brevo par défaut
 BREVO_WEBHOOK_TOKEN=                  # longue chaîne aléatoire (48 caractères)
 
 DIFFUSION_MODE=test                   # test = tout part vers « Tests internes »

@@ -47,6 +47,7 @@ class DiffusionDisponibilitesController extends Controller
                 'liste_clients' => config('brevo.lists.clients'),
                 'liste_tests'  => config('brevo.lists.tests'),
                 'modele'       => config('brevo.template_id'),
+                'desinscription' => config('brevo.unsubscribe_page_id'),
                 'webhook'      => (bool) config('brevo.webhook_token'),
             ],
             'nbDestinataires'  => $this->diffusion->destinataires()->count(),
