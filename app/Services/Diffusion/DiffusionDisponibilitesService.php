@@ -620,18 +620,35 @@ class DiffusionDisponibilitesService
     /** @return string[] */
     public function destinatairesInternes(DiffusionEnvoi $envoi): array
     {
-        $confirmation = config('diffusion.confirmation_email');
+        $confirmation = self::adresses(config('diffusion.confirmation_email'));
 
         if ($envoi->mode === DiffusionEnvoi::MODE_TEST || $this->estModeTest()) {
-            $email = $envoi->auteur?->email ?: $confirmation;
+            $auteur = $envoi->auteur?->email;
 
-            return $email ? [mb_strtolower($email)] : [];
+            return $auteur ? [mb_strtolower($auteur)] : $confirmation;
         }
 
-        return collect([$confirmation])
+        return collect($confirmation)
             ->merge(User::where('role', 'mediaplanner')->where('is_active', true)->pluck('email'))
             ->filter(fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL))
             ->map(fn($e) => mb_strtolower($e))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Liste d'adresses écrite dans le .env : séparées par des virgules,
+     * points-virgules ou espaces. Les adresses invalides sont ignorées.
+     *   « commercial@cible-ci.com, studio@cible-ci.com » → 2 adresses
+     *
+     * @return string[]
+     */
+    public static function adresses(?string $valeur): array
+    {
+        return collect(preg_split('/[\s,;]+/', (string) $valeur, -1, PREG_SPLIT_NO_EMPTY))
+            ->map(fn($e) => mb_strtolower(trim($e)))
+            ->filter(fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL))
             ->unique()
             ->values()
             ->all();
