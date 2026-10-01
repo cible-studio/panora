@@ -32,6 +32,8 @@ Thumbs.db
 
 node_modules
 vendor
+# Gabarits Laravel publiés (mails aux couleurs de la charte) : à versionner.
+!resources/views/vendor/
 # Variables d'environnement (CRITIQUE)
 .env
 .env.backup

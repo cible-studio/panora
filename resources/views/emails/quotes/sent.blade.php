@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     /**
      * Email d'envoi de devis au client.
      *
@@ -53,10 +54,10 @@
         @endif
         <div class="info-row">
             <div class="lbl">Validité jusqu'au</div>
-            <div class="val" style="color:#c2570d;font-weight:600">{{ $quote->expires_at?->format('d/m/Y') ?? '—' }}</div>
+            <div class="val" style="color:{{ $ch['rouge'] }};font-weight:700">{{ $quote->expires_at?->format('d/m/Y') ?? '—' }}</div>
         </div>
-        <div class="info-row" style="border-top:1px dashed #e5e7eb;padding-top:10px;margin-top:6px">
-            <div class="lbl" style="font-size:14px;color:#111827;font-weight:600">Total à payer</div>
+        <div class="info-row" style="border-top:1px solid {{ $ch['gris'] }}">
+            <div class="lbl" style="font-size:14px;color:{{ $ch['noir'] }};font-weight:700">Total à payer</div>
             <div class="val"><span class="code-strong">{{ $totalFmt }} FCFA</span></div>
         </div>
     </div>
@@ -78,7 +79,7 @@
         <strong>accepter</strong>, <strong>refuser</strong>, ou <strong>demander une modification</strong>.
     </p>
 
-    <p style="margin-top:24px;color:#374151">
+    <p style="margin-top:24px;color:{{ $ch['noir'] }}">
         Je reste à votre disposition pour tout complément d'information.<br><br>
         Cordialement,<br>
         <strong>{{ $quote->commercial?->name ?? "L'équipe " . $operator }}</strong>
