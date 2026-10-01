@@ -3,77 +3,70 @@
 <head>
 <meta charset="UTF-8">
 <title>Sélection panneaux — CIBLE CI</title>
+@include('pdf.partials.charte-styles')
+{{-- 2026-10-01 — charte graphique : en-tête clair (liseré + logo CIBLE),
+     pied commun fixe, palette $charte, polices Poppins / Nunito.
+     Marges @page avec !important (DomPDF les annule sinon à cause de
+     « * { margin:0 } »). Plus de min-height sur .page : la zone utile fait
+     269 mm, une hauteur minimale plus grande créerait des pages blanches.
+     Line-height resserrés (Nunito est plus haute que DejaVu Sans) pour
+     garder 1 panneau = 1 page. Aucun poids 900 (cf. rapport). --}}
 <style>
-    @page { margin: 0; size: A4 portrait; }
+    @page { size: A4 portrait; margin: 10mm 12mm 18mm 12mm !important; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-        font-family: 'DejaVu Sans', Arial, sans-serif;
-        color: #1f2937;
+        color: {{ $charte['noir'] }};
         font-size: 10px;
-        line-height: 1.4;
+        line-height: 1.2;
     }
 
-    .page {
-        page-break-after: always;
-        position: relative;
-        min-height: 277mm;
-    }
+    .page { page-break-after: always; }
     .page:last-child { page-break-after: avoid; }
 
-    /* ── HEADER UNIFORME (cohérent avec fiche panneau / disponibilites-list) ── */
-    .pdf-header {
-        background: #0d1117;
-        color: #ffffff;
-        padding: 14px 22px;
-        display: table;
-        width: 100%;
-        border-bottom: 3px solid #e8a020;
-        margin-bottom: 16px;
-    }
-    .pdf-header > div { display: table-cell; vertical-align: middle; }
-    .pdf-header .logo-cell  { width: 30%; text-align: left; }
-    .pdf-header .title-cell { width: 40%; text-align: center; }
-    .pdf-header .meta-cell  { width: 30%; text-align: right; font-size: 9px; color: #9ca3af; }
-    .pdf-header img {
-        height: 38px;
-        width: auto;
-    }
-    .pdf-header h1 {
-        font-size: 16px;
+    /* ── EN-TÊTE DE FICHE (clair : liseré + logo + titre + méta) ── */
+    .fiche-head { width: 100%; border-collapse: collapse; margin: 0; }
+    .fiche-head td { vertical-align: middle; padding: 9px 0 8px; border: none; }
+    .fiche-head .logo-cell { width: 1%; padding-right: 14px; white-space: nowrap; }
+    .fiche-head .logo-cell img { height: 32px; width: auto; display: block; }
+    .fiche-head .meta-cell { width: 1%; padding-left: 14px; text-align: right; white-space: nowrap; font-size: 8px; line-height: 1.4; color: {{ $charte['texte_doux'] }}; }
+    .fiche-head h1 {
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 15px;
         font-weight: 700;
-        letter-spacing: 1px;
+        letter-spacing: .6px;
         text-transform: uppercase;
-        color: #fff;
+        color: {{ $charte['noir'] }};
+        line-height: 1.15;
     }
-    .pdf-header .accent { color: #e8a020; }
-
-    .container { padding: 0 22px 30px; }
+    .fiche-head .accent { color: {{ $charte['rouge'] }}; }
+    .fiche-rule { height: 2px; background: {{ $charte['noir'] }}; margin: 0 0 12px; font-size: 0; line-height: 0; }
 
     /* ── REF BANNER ── */
     .ref-banner {
-        background: #fff7ed;
-        border-left: 4px solid #e8a020;
-        padding: 12px 18px;
-        margin-bottom: 14px;
+        background: {{ $charte['gris_clair'] }};
+        border-left: 4px solid {{ $charte['rouge'] }};
+        padding: 10px 16px;
+        margin-bottom: 12px;
     }
     .ref-banner .ref-tag {
-        font-family: 'Courier New', monospace;
+        font-family: {!! $charte['ff_mono'] !!};
         font-weight: 700;
-        font-size: 18px;
-        color: #c2570d;
-        letter-spacing: 1.5px;
+        font-size: 17px;
+        color: {{ $charte['rouge'] }};
+        letter-spacing: 1.2px;
     }
     .ref-banner .ref-name {
-        font-size: 13px;
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 12.5px;
         font-weight: 600;
-        color: #1f2937;
+        color: {{ $charte['noir'] }};
         margin-top: 2px;
     }
     .ref-banner .ref-loc {
-        font-size: 10.5px;
-        color: #6b7280;
-        margin-top: 2px;
+        font-size: 10px;
+        color: {{ $charte['texte_doux'] }};
+        margin-top: 1px;
     }
 
     /* ── PHOTO ── */
@@ -82,38 +75,47 @@
        alors le ratio et pas de bandeau noir résiduel.  */
     .photo-wrap {
         text-align: center;
-        margin-bottom: 14px;
+        margin-bottom: 12px;
     }
     /* DomPDF préserve le ratio uniquement avec max-width + max-height
        (et SANS width/height/object-fit forcés, qui causent l'écrasement
        horizontal). L'image grandit autant que possible en respectant
-       les deux bornes ET son ratio natif. */
+       les deux bornes ET son ratio natif.
+       2026-10-01 : 460 → 430 px (la zone utile perd les marges de page). */
     .photo-wrap img {
         max-width: 100%;
-        max-height: 460px;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
+        max-height: 430px;
+        border: 1px solid {{ $charte['gris'] }};
+        border-radius: 4px;
     }
+    /* Emplacement sans photo : cadre clair, filet rouge en tête (rappel
+       du liseré), libellé discret. Une seule boîte CSS, aucune image. */
     .photo-empty {
         display: block;
-        background: #f3f4f6;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        padding: 180px 0;
-        color: #9ca3af;
-        font-size: 13px;
+        background: {{ $charte['gris_clair'] }};
+        border: 1px solid {{ $charte['gris'] }};
+        border-top: 3px solid {{ $charte['rouge'] }};
+        padding: 170px 0;
+        color: {{ $charte['texte_pale'] }};
+        font-family: {!! $charte['ff_titres'] !!};
+        font-weight: 600;
+        font-size: 10.5px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
     }
 
     /* ── SECTIONS ── */
     h2.section {
-        font-size: 10px;
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 10.5px;
         font-weight: 700;
-        color: #e8a020;
+        color: {{ $charte['noir'] }};
         text-transform: uppercase;
-        letter-spacing: 1.5px;
-        border-bottom: 1px solid #e5e7eb;
-        padding-bottom: 4px;
-        margin: 12px 0 8px;
+        letter-spacing: 1px;
+        border-left: 3px solid {{ $charte['rouge'] }};
+        border-bottom: 1px solid {{ $charte['gris'] }};
+        padding: 0 0 4px 8px;
+        margin: 10px 0 8px;
     }
 
     /* ── INFO TABLE ── */
@@ -123,21 +125,25 @@
         font-size: 10px;
     }
     .info-table td {
-        padding: 6px 10px;
-        border-bottom: 1px solid #f3f4f6;
+        padding: 6px 9px;
+        border-bottom: 1px solid {{ $charte['gris'] }};
         vertical-align: top;
     }
     .info-table td.lbl {
-        color: #6b7280;
-        font-weight: 600;
+        color: {{ $charte['texte_doux'] }};
+        font-weight: 700;
         text-transform: uppercase;
-        font-size: 8.5px;
-        letter-spacing: 0.8px;
+        font-size: 7.5px;
+        letter-spacing: 0.6px;
         width: 38%;
-        background: #fafafa;
+        background: {{ $charte['gris_clair'] }};
     }
-    .info-table td.val { color: #1f2937; font-weight: 500; }
-    .info-table a { color: #2563eb; text-decoration: none; }
+    .info-table td.val { color: {{ $charte['noir'] }}; }
+    .info-table a { color: {{ $charte['bleu'] }}; text-decoration: none; }
+    .val-sub  { color: {{ $charte['texte_doux'] }}; font-size: 9px; }
+    .val-vide { color: {{ $charte['texte_pale'] }}; }
+    .val-gps  { font-family: {!! $charte['ff_mono'] !!}; font-size: 9px; }
+    .val-link { color: {{ $charte['bleu'] }}; font-size: 9px; }
 
     /* ── 2 COLONNES ── */
     /* Real <table> outer wrapper — DomPDF gère mal display:table-cell sur
@@ -148,47 +154,46 @@
     table.two-cols > tbody > tr > td:first-child { padding-left: 0; padding-right: 10px; }
     table.two-cols > tbody > tr > td:last-child { padding-left: 10px; padding-right: 0; }
 
-    /* ── BADGES (uniquement si showPricing) ── */
+    /* ── BADGES (couleurs pleines de la charte) ── */
     .badge {
         display: inline-block;
         padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 9px;
+        border-radius: 3px;
+        font-size: 8.5px;
         font-weight: 700;
         text-transform: uppercase;
+        letter-spacing: .3px;
+        line-height: 1.3;
     }
-    .badge-libre       { background: #d1fae5; color: #065f46; }
-    .badge-occupe      { background: #fee2e2; color: #991b1b; }
-    .badge-option      { background: #fed7aa; color: #9a3412; }
-    .badge-confirme    { background: #dbeafe; color: #1e40af; }
-    .badge-maintenance { background: #fde68a; color: #92400e; }
+    .badge-libre       { background: {{ $charte['vert'] }};  color: {{ $charte['blanc'] }}; }
+    .badge-occupe      { background: {{ $charte['rouge'] }}; color: {{ $charte['blanc'] }}; }
+    .badge-option      { background: {{ $charte['jaune'] }}; color: {{ $charte['noir'] }}; }
+    .badge-confirme    { background: {{ $charte['bleu'] }};  color: {{ $charte['blanc'] }}; }
+    .badge-maintenance { background: {{ $charte['gris'] }};  color: {{ $charte['noir'] }}; }
 
-    .lit-yes { color: #c2570d; font-weight: 700; }
-    .lit-no  { color: #9ca3af; }
+    .lit-yes { color: {{ $charte['rouge'] }}; font-weight: 700; }
+    .lit-no  { color: {{ $charte['texte_pale'] }}; }
+    .tarif      { color: {{ $charte['rouge'] }}; }
+    .tarif-zero { color: {{ $charte['vert'] }}; }
 
     /* ── EXTRA DESCRIPTION ── */
     .extra {
         margin-top: 10px;
-        background: #fafafa;
-        border: 1px solid #e5e7eb;
-        border-radius: 5px;
-        padding: 10px 12px;
+        background: {{ $charte['gris_clair'] }};
+        border: 1px solid {{ $charte['gris'] }};
+        border-left: 3px solid {{ $charte['rouge'] }};
+        padding: 9px 12px;
         font-size: 10px;
-        color: #4b5563;
-        line-height: 1.5;
+        color: {{ $charte['texte_doux'] }};
+        line-height: 1.3;
     }
-
-    /* ── FOOTER ── */
-    .pdf-footer {
-        position: absolute;
-        bottom: 12mm;
-        left: 22px;
-        right: 22px;
-        border-top: 1px solid #e5e7eb;
-        padding-top: 6px;
+    .extra-title {
+        font-family: {!! $charte['ff_titres'] !!};
+        color: {{ $charte['rouge'] }};
         font-size: 8.5px;
-        text-align: center;
-        color: #9ca3af;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
     }
 
     /* ────────────────────────────────────────────────────────────────
@@ -196,80 +201,83 @@
        Aucun cadre, aucune décoration lourde : juste de la respiration
        et de la typographie. Le bloc est centré verticalement via un
        padding-top calculé (DomPDF gère mal vertical-align sur table
-       100% de page).  A4 portrait = 297mm ; centre visuel ≈ 130mm.
-       Le bloc fait ~40mm de hauteur → padding-top 110mm le pose
-       presque pile au milieu optique.
+       100% de page).
+       2026-10-01 — charte : liseré + logo en tête de page, filets aux
+       5 couleurs, nom de commune en Poppins. padding-top ajusté (marge
+       haute de page + logo) pour garder le bloc au même endroit.
        ──────────────────────────────────────────────────────────── */
     .cover-page {
         page-break-after: always;
-        padding-top: 90mm;
         text-align: center;
-        background: #ffffff;
     }
+    .cover-logo { padding-top: 12px; }
+    .cover-logo img { height: 34px; width: auto; }
+    .cover-body { padding-top: 62mm; }
     .cover-doc-type {
+        font-family: {!! $charte['ff_titres'] !!};
         font-size: 11px;
-        font-weight: 800;
-        color: #c2570d;
-        letter-spacing: 10px;
+        font-weight: 700;
+        color: {{ $charte['rouge'] }};
+        letter-spacing: 9px;
         text-transform: uppercase;
         margin-bottom: 22px;
     }
     .cover-rule {
         width: 60mm;
-        height: 1px;
-        background: #d4af37;
         margin: 0 auto 28px;
-        font-size: 0;
-        line-height: 0;
     }
     .cover-rule.bottom {
         margin: 32px auto 0;
     }
     .cover-kicker {
+        font-family: {!! $charte['ff_titres'] !!};
         font-size: 10px;
-        font-weight: 700;
-        color: #d4af37;
+        font-weight: 600;
+        color: {{ $charte['texte_doux'] }};
         letter-spacing: 7px;
         text-transform: uppercase;
-        margin-bottom: 22px;
+        margin-bottom: 20px;
     }
     .cover-name {
-        font-size: 60px;
-        font-weight: 900;
-        color: #0d1117;
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 54px;
+        font-weight: 800;
+        color: {{ $charte['noir'] }};
         text-transform: uppercase;
-        letter-spacing: 7px;
-        line-height: 1;
+        letter-spacing: 5px;
+        line-height: 1.1;
     }
     /* Période d'affichage — sous le nom de la commune, dans un encart
-       sobre fond ivoire / accent doré. Reste optionnel : si pas de
-       dates fournies par le contrôleur, l'encart n'est pas affiché. */
+       sobre. Reste optionnel : si pas de dates fournies par le
+       contrôleur, l'encart n'est pas affiché. */
     .cover-period {
         margin-top: 34px;
         display: inline-block;
         padding: 9px 22px;
-        background: #fff7ed;
-        border: 1px solid #fde6c9;
-        border-radius: 6px;
+        background: {{ $charte['gris_clair'] }};
+        border: 1px solid {{ $charte['gris'] }};
+        border-left: 3px solid {{ $charte['rouge'] }};
+        border-radius: 4px;
         font-size: 12px;
-        color: #4b5563;
+        color: {{ $charte['texte_doux'] }};
         letter-spacing: .5px;
     }
     .cover-period-label {
+        font-family: {!! $charte['ff_titres'] !!};
         font-size: 9px;
-        font-weight: 800;
-        color: #c2570d;
+        font-weight: 700;
+        color: {{ $charte['rouge'] }};
         letter-spacing: 2.5px;
         text-transform: uppercase;
         margin-right: 8px;
     }
     .cover-period strong {
-        color: #0d1117;
+        color: {{ $charte['noir'] }};
         font-weight: 700;
         letter-spacing: .3px;
     }
     .cover-period-arrow {
-        color: #d4af37;
+        color: {{ $charte['rouge'] }};
         margin: 0 8px;
         font-weight: 700;
     }
@@ -335,18 +343,22 @@
     };
 
     // Logo CIBLE CI : passé par PdfAssets::getLogoPdf() — fallback inline.
-    // logob.png (et pas logol) car le header est foncé (#0d1117).
+    // 2026-10-01 — charte : l'en-tête est désormais CLAIR → on affiche en
+    // priorité $logoCibleLight (logol.png, injecté par le view composer) ;
+    // $logoSrc (logob.png, texte blanc) reste le repli historique.
+    $ch = $charte ?? \App\Support\PdfCharte::data();
     if (!isset($logoSrc)) {
         $logoPath = public_path('images/logob.png');
         $logoSrc = file_exists($logoPath)
             ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
             : 'data:image/svg+xml;base64,' . base64_encode(
                 '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="50">'
-                .'<rect width="180" height="50" rx="6" fill="#0d1117"/>'
-                .'<text x="90" y="34" font-family="Arial" font-weight="900" font-size="20" fill="#e8a020" text-anchor="middle">CIBLE CI</text>'
+                .'<rect width="180" height="50" rx="6" fill="' . $ch['blanc'] . '"/>'
+                .'<text x="90" y="34" font-family="Arial" font-weight="700" font-size="20" fill="' . $ch['rouge'] . '" text-anchor="middle">CIBLE CI</text>'
                 .'</svg>'
               );
     }
+    $logoEntete = $logoCibleLight ?? $logoSrc;
 
     // Règle : par défaut, pas de prix ni de statut
     $showPricing = $showPricing ?? !($hideStatus ?? true);
@@ -381,7 +393,19 @@
         ->groupBy(fn ($p) => $resolveCommune($p));
 
     $totalGroups = $grouped->count();
+
+    // Pied commun (charte-footer) : on y reporte le texte du pied
+    // historique, avec la référence et le client s'ils sont fournis.
+    $piedHistorique = 'CIBLE CI · Régie Publicitaire · Abidjan, Côte d\'Ivoire · Document confidentiel'
+        . (isset($reservation_ref) ? ' · Réf. ' . $reservation_ref : '')
+        . (isset($client_name) ? ' · Client : ' . $client_name : '');
 @endphp
+
+{{-- Pied fixe commun : répété sur chaque page. « Page N » désactivé :
+     l'en-tête de chaque fiche porte déjà « Page x / y » (numéro de fiche,
+     hors pages de garde) — deux numérotations différentes prêteraient à
+     confusion. --}}
+@include('pdf.partials.charte-footer', ['footerHint' => $piedHistorique, 'footerPage' => false])
 
 @php $globalIndex = 0; @endphp
 @foreach ($grouped as $communeName => $groupPanels)
@@ -391,19 +415,25 @@
 
     {{-- ═══════════════════ PAGE DE GARDE COMMUNE (épuré) ═══════════════════ --}}
     <div class="cover-page">
-        <div class="cover-doc-type">Disponibilités</div>
-        <div class="cover-rule"></div>
-        <div class="cover-kicker">Commune</div>
-        <div class="cover-name">{{ $communeName }}</div>
-        <div class="cover-rule bottom"></div>
-        @if($startFr && $endFr)
-            <div class="cover-period">
-                <span class="cover-period-label">Période</span>
-                <strong>{{ $startFr }}</strong>
-                <span class="cover-period-arrow">→</span>
-                <strong>{{ $endFr }}</strong>
-            </div>
+        @include('pdf.partials.charte-lisere')
+        @if(!empty($logoEntete))
+            <div class="cover-logo"><img src="{{ $logoEntete }}" alt="CIBLE CI"></div>
         @endif
+        <div class="cover-body">
+            <div class="cover-doc-type">Disponibilités</div>
+            <div class="cover-rule">@include('pdf.partials.charte-lisere', ['lisereHeight' => 2])</div>
+            <div class="cover-kicker">Commune</div>
+            <div class="cover-name">{{ $communeName }}</div>
+            <div class="cover-rule bottom">@include('pdf.partials.charte-lisere', ['lisereHeight' => 2])</div>
+            @if($startFr && $endFr)
+                <div class="cover-period">
+                    <span class="cover-period-label">Période</span>
+                    <strong>{{ $startFr }}</strong>
+                    <span class="cover-period-arrow">→</span>
+                    <strong>{{ $endFr }}</strong>
+                </div>
+            @endif
+        </div>
     </div>
 
     {{-- ═══════════════════ FICHES PANNEAUX DE LA COMMUNE ═══════════════════ --}}
@@ -440,181 +470,193 @@
         $latitude  = $p['latitude']   ?? null;
         $longitude = $p['longitude']  ?? null;
         $rate      = (float) ($p['monthly_rate'] ?? 0);
+
+        // 2026-10-01 — mise en page uniquement : 1 panneau = 1 page.
+        // Quand une description est saisie, on réduit la hauteur de la
+        // photo (ou du cadre vide) d'autant que le texte l'exige, pour
+        // que la fiche tienne sur sa page. Estimation : ~105 caractères
+        // par ligne, ~20 px par ligne (Nunito) + 50 px de cadre ; ~145 px
+        // sont libres sous les caractéristiques. Plancher 200 px : au-delà,
+        // DomPDF poursuit la description sur la page suivante (comme avant).
+        $descLignes = 0;
+        if ($zoneDesc) {
+            foreach (preg_split('/\R/', (string) $zoneDesc) as $paragraphe) {
+                $descLignes += max(1, (int) ceil(mb_strlen($paragraphe) / 105));
+            }
+        }
+        $photoReduc   = $descLignes ? max(0, 50 + 20 * $descLignes - 145) : 0;
+        $photoMaxH    = max(200, 430 - $photoReduc);
+        $videPadding  = max(60, 170 - (int) ceil($photoReduc / 2));
     @endphp
 
     <div class="page">
 
-        {{-- ─── HEADER UNIFORME ─── --}}
-        <div class="pdf-header">
-            <div class="logo-cell">
-                <img src="{{ $logoSrc }}" alt="CIBLE CI">
-            </div>
-            <div class="title-cell">
-                <h1>{{ $communeName }} <span class="accent">· Panneau {{ $intraNum }}/{{ $groupSize }}</span></h1>
-            </div>
-            <div class="meta-cell">
-                Généré le {{ $generated ?? now()->format('d/m/Y à H:i') }}<br>
-                Page {{ $pageNum }} / {{ $totalCount }}
-            </div>
-        </div>
-
-        <div class="container">
-
-            {{-- ─── BANNER RÉFÉRENCE ─── --}}
-            <div class="ref-banner">
-                <div class="ref-tag">{{ $p['reference'] ?? '—' }}</div>
-                <div class="ref-name">{{ $p['name'] ?? '' }}</div>
-                <div class="ref-loc">
-                    {{ $commune }}{{ $zone !== '—' ? ' — '.$zone : '' }}
-                </div>
-            </div>
-
-            {{-- ─── PHOTO ─── --}}
-            <div class="photo-wrap">
-                @if($imgSrc)
-                    <img src="{{ $imgSrc }}" alt="{{ $p['reference'] ?? '' }}">
-                @else
-                    <span class="photo-empty">— Aucune photo disponible —</span>
+        {{-- ─── EN-TÊTE (charte : liseré + logo clair + titre + méta) ─── --}}
+        @include('pdf.partials.charte-lisere')
+        <table class="fiche-head">
+            <tr>
+                @if(!empty($logoEntete))
+                    <td class="logo-cell"><img src="{{ $logoEntete }}" alt="CIBLE CI"></td>
                 @endif
+                <td>
+                    <h1>{{ $communeName }} <span class="accent">· Panneau {{ $intraNum }}/{{ $groupSize }}</span></h1>
+                </td>
+                <td class="meta-cell">
+                    Généré le {{ $generated ?? now()->format('d/m/Y à H:i') }}<br>
+                    Page {{ $pageNum }} / {{ $totalCount }}
+                </td>
+            </tr>
+        </table>
+        <div class="fiche-rule"></div>
+
+        {{-- ─── BANNER RÉFÉRENCE ─── --}}
+        <div class="ref-banner">
+            <div class="ref-tag">{{ $p['reference'] ?? '—' }}</div>
+            <div class="ref-name">{{ $p['name'] ?? '' }}</div>
+            <div class="ref-loc">
+                {{ $commune }}{{ $zone !== '—' ? ' — '.$zone : '' }}
             </div>
+        </div>
 
-            {{-- ─── CARACTÉRISTIQUES (2 colonnes) ─── --}}
-            <h2 class="section">Caractéristiques techniques</h2>
-
-            <table class="two-cols">
-                <tr>
-                    <td>
-                    <table class="info-table">
-                        <tr>
-                            <td class="lbl">Référence</td>
-                            <td class="val"><strong>{{ $p['reference'] ?? '—' }}</strong></td>
-                        </tr>
-                        <tr>
-                            <td class="lbl">Type de support</td>
-                            <td class="val">{{ $category }}</td>
-                        </tr>
-                        <tr>
-                            <td class="lbl">Format</td>
-                            <td class="val">{{ $format }}</td>
-                        </tr>
-                        <tr>
-                            <td class="lbl">Dimensions impression</td>
-                            <td class="val">
-                                {{ $dims ?: '—' }}
-                                @if($surface)
-                                    <br><span style="color:#6b7280;font-size:9px;">Surface : {{ $surface }} m²</span>
-                                @endif
-                            </td>
-                        </tr>
-                        <tr>
-                            <td class="lbl">Éclairage</td>
-                            <td class="val">
-                                @if($isLit)
-                                    <span class="lit-yes">💡 Éclairé (LED)</span>
-                                @else
-                                    <span class="lit-no">Non éclairé</span>
-                                @endif
-                            </td>
-                        </tr>
-                    </table>
-                    </td>
-
-                    <td>
-                    <table class="info-table">
-                        <tr>
-                            <td class="lbl">Commune</td>
-                            <td class="val">{{ $commune }}</td>
-                        </tr>
-                        <tr>
-                            <td class="lbl">Zone</td>
-                            <td class="val">{{ $zone }}</td>
-                        </tr>
-                        <tr>
-                            <td class="lbl">Coordonnées GPS</td>
-                            <td class="val">
-                                @if($latitude && $longitude)
-                                    <span style="font-family:monospace;font-size:9px;">
-                                        {{ number_format((float) $latitude, 6, '.', '') }}, {{ number_format((float) $longitude, 6, '.', '') }}
-                                    </span>
-                                    @if(!empty($p['gps_link']))
-                                        <br><a href="{{ $p['gps_link'] }}" style="color:#2563eb;font-size:9px;">📍 Voir sur Google Maps</a>
-                                    @endif
-                                @else
-                                    <span style="color:#9ca3af">Non renseignées</span>
-                                @endif
-                            </td>
-                        </tr>
-                        <tr>
-                            <td class="lbl">Trafic journalier (estimatif)</td>
-                            <td class="val">
-                                @if($traffic > 0)
-                                    <strong>{{ number_format($traffic, 0, ',', ' ') }}</strong>
-                                    <span style="color:#6b7280;font-size:9px;">contacts / jour</span>
-                                @else
-                                    <span style="color:#9ca3af">—</span>
-                                @endif
-                            </td>
-                        </tr>
-
-                        {{-- ─── Tarif UNIQUEMENT si showPricing ─── --}}
-                        @if($showPricing)
-                            <tr>
-                                <td class="lbl">Tarif mensuel HT</td>
-                                <td class="val">
-                                    @if($rate > 0)
-                                        <strong style="color:#c2570d;">{{ number_format($rate, 0, ',', ' ') }} FCFA</strong>
-                                    @elseif($rate === 0 || $rate === 0.0)
-                                        <strong style="color:#16a34a;">0 FCFA</strong>
-                                    @else
-                                        <span style="color:#9ca3af">Sur devis</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        @endif
-
-                        {{-- ─── Disponibilité : TOUJOURS affichée ───
-                             2026-09-22 : ce bloc était imbriqué dans
-                             @if($showPricing). Conséquence : sur une
-                             proposition sans prix (cas par défaut du MP),
-                             un panneau occupé jusqu'au 15 apparaissait
-                             comme libre sur toute la période. Le tarif
-                             est une donnée commerciale sensible, la date
-                             de libération est une info logistique que le
-                             client DOIT voir. --}}
-                        @if($status)
-                            <tr>
-                                <td class="lbl">Disponibilité</td>
-                                <td class="val"><span class="badge {{ $status['class'] }}">{{ $status['label'] }}</span></td>
-                            </tr>
-                        @endif
-                    </table>
-                    </td>
-                </tr>
-            </table>
-
-            @if($zoneDesc)
-                {{--
-                  2026-07-17 (bug patronne) : Str::limit(320) tronquait la
-                  description avec « ... » — la patronne saisit des textes
-                  plus longs et voulait TOUT voir. Retrait du limit + nl2br
-                  pour respecter les sauts de ligne saisis + word-wrap pour
-                  éviter qu'un mot très long dépasse. La card autorise
-                  page-break-inside:auto pour laisser DomPDF couper
-                  proprement si le contenu déborde de la page.
-                --}}
-                <div class="extra" style="word-wrap:break-word;">
-                    <strong style="color:#e8a020;font-size:9px;text-transform:uppercase;letter-spacing:0.8px;">Description / Environnement</strong><br>
-                    {!! nl2br(e($zoneDesc)) !!}
-                </div>
+        {{-- ─── PHOTO ─── --}}
+        <div class="photo-wrap">
+            @if($imgSrc)
+                <img src="{{ $imgSrc }}" alt="{{ $p['reference'] ?? '' }}"@if($photoReduc) style="max-height:{{ $photoMaxH }}px"@endif>
+            @else
+                <span class="photo-empty"@if($photoReduc) style="padding:{{ $videPadding }}px 0"@endif>— Aucune photo disponible —</span>
             @endif
-
         </div>
 
-        <div class="pdf-footer">
-            CIBLE CI · Régie Publicitaire · Abidjan, Côte d'Ivoire · Document confidentiel
-            @isset($reservation_ref) · Réf. {{ $reservation_ref }}@endisset
-            @isset($client_name) · Client : {{ $client_name }}@endisset
-        </div>
+        {{-- ─── CARACTÉRISTIQUES (2 colonnes) ─── --}}
+        <h2 class="section">Caractéristiques techniques</h2>
+
+        <table class="two-cols">
+            <tr>
+                <td>
+                <table class="info-table">
+                    <tr>
+                        <td class="lbl">Référence</td>
+                        <td class="val"><strong>{{ $p['reference'] ?? '—' }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Type de support</td>
+                        <td class="val">{{ $category }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Format</td>
+                        <td class="val">{{ $format }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Dimensions impression</td>
+                        <td class="val">
+                            {{ $dims ?: '—' }}
+                            @if($surface)
+                                <br><span class="val-sub">Surface : {{ $surface }} m²</span>
+                            @endif
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Éclairage</td>
+                        <td class="val">
+                            @if($isLit)
+                                <span class="lit-yes">Éclairé (LED)</span>
+                            @else
+                                <span class="lit-no">Non éclairé</span>
+                            @endif
+                        </td>
+                    </tr>
+                </table>
+                </td>
+
+                <td>
+                <table class="info-table">
+                    <tr>
+                        <td class="lbl">Commune</td>
+                        <td class="val">{{ $commune }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Zone</td>
+                        <td class="val">{{ $zone }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Coordonnées GPS</td>
+                        <td class="val">
+                            @if($latitude && $longitude)
+                                <span class="val-gps">
+                                    {{ number_format((float) $latitude, 6, '.', '') }}, {{ number_format((float) $longitude, 6, '.', '') }}
+                                </span>
+                                @if(!empty($p['gps_link']))
+                                    <br><a href="{{ $p['gps_link'] }}" class="val-link">Voir sur Google Maps</a>
+                                @endif
+                            @else
+                                <span class="val-vide">Non renseignées</span>
+                            @endif
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Trafic journalier (estimatif)</td>
+                        <td class="val">
+                            @if($traffic > 0)
+                                <strong>{{ number_format($traffic, 0, ',', ' ') }}</strong>
+                                <span class="val-sub">contacts / jour</span>
+                            @else
+                                <span class="val-vide">—</span>
+                            @endif
+                        </td>
+                    </tr>
+
+                    {{-- ─── Tarif UNIQUEMENT si showPricing ─── --}}
+                    @if($showPricing)
+                        <tr>
+                            <td class="lbl">Tarif mensuel HT</td>
+                            <td class="val">
+                                @if($rate > 0)
+                                    <strong class="tarif">{{ number_format($rate, 0, ',', ' ') }} FCFA</strong>
+                                @elseif($rate === 0 || $rate === 0.0)
+                                    <strong class="tarif-zero">0 FCFA</strong>
+                                @else
+                                    <span class="val-vide">Sur devis</span>
+                                @endif
+                            </td>
+                        </tr>
+                    @endif
+
+                    {{-- ─── Disponibilité : TOUJOURS affichée ───
+                         2026-09-22 : ce bloc était imbriqué dans
+                         @if($showPricing). Conséquence : sur une
+                         proposition sans prix (cas par défaut du MP),
+                         un panneau occupé jusqu'au 15 apparaissait
+                         comme libre sur toute la période. Le tarif
+                         est une donnée commerciale sensible, la date
+                         de libération est une info logistique que le
+                         client DOIT voir. --}}
+                    @if($status)
+                        <tr>
+                            <td class="lbl">Disponibilité</td>
+                            <td class="val"><span class="badge {{ $status['class'] }}">{{ $status['label'] }}</span></td>
+                        </tr>
+                    @endif
+                </table>
+                </td>
+            </tr>
+        </table>
+
+        @if($zoneDesc)
+            {{--
+              2026-07-17 (bug patronne) : Str::limit(320) tronquait la
+              description avec « ... » — la patronne saisit des textes
+              plus longs et voulait TOUT voir. Retrait du limit + nl2br
+              pour respecter les sauts de ligne saisis + word-wrap pour
+              éviter qu'un mot très long dépasse. La card autorise
+              page-break-inside:auto pour laisser DomPDF couper
+              proprement si le contenu déborde de la page.
+            --}}
+            <div class="extra" style="word-wrap:break-word;">
+                <span class="extra-title">Description / Environnement</span><br>
+                {!! nl2br(e($zoneDesc)) !!}
+            </div>
+        @endif
+
     </div>
     @endforeach {{-- fin boucle panneaux du groupe --}}
 @endforeach {{-- fin boucle communes --}}

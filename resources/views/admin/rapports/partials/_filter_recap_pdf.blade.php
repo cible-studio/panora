@@ -10,25 +10,30 @@
        ]
 
      Si aucun filtre actif, on rend juste la ligne période (le contexte
-     reste utile : un PDF sans date d'application n'a aucune valeur). --}}
+     reste utile : un PDF sans date d'application n'a aucune valeur).
+
+     2026-10-01 — charte graphique : couleurs issues de $charte (injecté par
+     le view composer ; repli PdfCharte::data()). Globale → vert, filtrée →
+     rouge (accent). L'icône 'icon' n'est toujours pas affichée (emoji). --}}
 @if(isset($filterRecap))
     @php
+        $chR = $charte ?? \App\Support\PdfCharte::data();
         $isGlobale = empty($filterRecap['hasAnyFilter']);
         $typeLabel = $isGlobale ? 'Synthèse globale' : 'Synthèse filtrée';
-        $typeColor = $isGlobale ? '#0f766e' : '#b45309'; // teal vs ambre
+        $typeColor = $isGlobale ? $chR['vert'] : $chR['rouge'];
     @endphp
     {{-- Bandeau compact 1 ligne (2 si filtres actifs) — pensé pour ne pas
          détonner avec le header PDF et ne pas dupliquer la période. --}}
-    <div style="margin-top:4px;margin-bottom:10px;padding:5px 10px;background:#f8fafc;border-left:3px solid {{ $typeColor }};font-size:9px;color:#374151;line-height:1.5">
+    <div style="margin-top:4px;margin-bottom:10px;padding:5px 10px;background:{{ $chR['gris_clair'] }};border-left:3px solid {{ $typeColor }};font-size:9px;color:{{ $chR['texte_doux'] }};line-height:1.3">
         <span style="color:{{ $typeColor }};text-transform:uppercase;letter-spacing:.4px;font-weight:700;font-size:8.5px">Type :</span>
-        <strong style="color:#111827">{{ $typeLabel }}</strong>
-        <span style="color:#9ca3af">·</span>
-        <strong style="color:#374151">Période :</strong> {{ $filterRecap['periode_label'] }}
+        <strong style="color:{{ $chR['noir'] }}">{{ $typeLabel }}</strong>
+        <span style="color:{{ $chR['texte_pale'] }}">·</span>
+        <strong style="color:{{ $chR['noir'] }}">Période :</strong> {{ $filterRecap['periode_label'] }}
         @if(!empty($filterRecap['filters']))
             <br>
             <span style="color:{{ $typeColor }};text-transform:uppercase;letter-spacing:.4px;font-weight:700;font-size:8.5px">Critères :</span>
             @foreach($filterRecap['filters'] as $f)
-                <span style="margin-right:8px"><strong style="color:#374151">{{ $f['label'] }} :</strong> {{ $f['value'] }}</span>
+                <span style="margin-right:8px"><strong style="color:{{ $chR['noir'] }}">{{ $f['label'] }} :</strong> {{ $f['value'] }}</span>
             @endforeach
         @endif
     </div>

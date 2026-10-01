@@ -3,71 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <title>Liste des campagnes — CIBLE CI</title>
+    {{-- 2026-10-01 — charte graphique : styles communs (polices, ch-*) puis styles propres. --}}
+    @include('pdf.partials.charte-styles')
     <style>
         /* margin-bottom 22mm + body padding-bottom = double garde-fou
            contre le débordement du tableau sur le footer (bug DomPDF).
            Ici on est en portrait A4 par défaut → 22mm suffit (au lieu
-           de 26mm sur les rapports paysage). */
-        @page { margin: 12mm 12mm 22mm 12mm; }
-        body  { font-family: 'DejaVu Sans', Arial, sans-serif; color: #1f2937; font-size: 9px; line-height: 1.4; padding-bottom: 4mm; }
-
-        /* Header uniforme cohérent avec les autres PDFs */
-        .pdf-header {
-            background: #0d1117; color: #fff;
-            padding: 12px 18px; display: table; width: 100%;
-            border-bottom: 3px solid #e8a020; margin-bottom: 14px;
-        }
-        .pdf-header > div { display: table-cell; vertical-align: middle; }
-        .pdf-header .l { width: 30%; text-align: left; }
-        .pdf-header .c { width: 40%; text-align: center; }
-        .pdf-header .r { width: 30%; text-align: right; font-size: 9px; color: #9ca3af; }
-        .pdf-header img { height: 32px; width: auto; }
-        .pdf-header h1  { font-size: 14px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #fff; }
-        .pdf-header .accent { color: #e8a020; }
+           de 26mm sur les rapports paysage).
+           2026-10-01 — charte graphique : !important (marges respectées
+           par DomPDF) ; le pied commun charte-footer se place dans la marge basse. */
+        @page { margin: 12mm 12mm 22mm 12mm !important; }
+        body  { color: {{ $charte['noir'] }}; font-size: 9px; line-height: 1.2; padding-bottom: 4mm; }
 
         .summary {
-            background: #fff7ed; border: 1px solid #fed7aa;
-            border-radius: 4px; padding: 10px 14px; margin-bottom: 12px;
+            background: {{ $charte['gris_clair'] }}; border-left: 3px solid {{ $charte['rouge'] }};
+            padding: 10px 14px; margin-bottom: 12px;
             font-size: 10px; display: table; width: 100%;
         }
         .summary > div { display: table-cell; vertical-align: middle; }
-        .summary .total { text-align: right; font-weight: 700; color: #c2570d; font-size: 14px; }
+        .summary .total { text-align: right; font-weight: 700; color: {{ $charte['rouge'] }}; font-size: 14px; font-family: {!! $charte['ff_titres'] !!}; }
 
-        table { width: 100%; border-collapse: collapse; font-size: 8.5px; }
-        thead tr { background: #f3f4f6; }
-        th, td { border: 1px solid #e5e7eb; padding: 6px 7px; vertical-align: top; text-align: left; }
-        th { font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; font-size: 8px; }
-        tbody tr:nth-child(even) { background: #fafafa; }
+        table.ch-table th, table.ch-table td { vertical-align: top; }
+        table.ch-table thead th { font-size: 8px; letter-spacing: 0.5px; padding: 6px 7px; }
+        table.ch-table tbody td { padding: 6px 7px; }
 
-        .ref { font-family: 'Courier New', monospace; color: #c2570d; font-weight: 700; }
+        .ref { font-family: {!! $charte['ff_mono'] !!}; color: {{ $charte['rouge'] }}; font-weight: 700; }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
-        .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 8px; font-weight: 700; }
-        .b-actif    { background: #dcfce7; color: #166534; }
-        .b-pose     { background: #dbeafe; color: #1e40af; }
-        .b-planifie { background: #fef3c7; color: #92400e; }
-        .b-termine  { background: #f3f4f6; color: #374151; }
-        .b-annule   { background: #fee2e2; color: #991b1b; }
-
-        .footer {
-            position: fixed; bottom: 6mm; left: 12mm; right: 12mm;
-            border-top: 1px solid #e5e7eb; padding-top: 5px;
-            font-size: 8px; color: #9ca3af; text-align: center;
-        }
+        .empty-row { text-align: center; padding: 24px; color: {{ $charte['texte_pale'] }}; }
     </style>
 </head>
 <body>
 
-<div class="pdf-header">
-    <div class="l">
-        @if(!empty($logoSrc))
-            <img src="{{ $logoSrc }}" alt="CIBLE CI">
-        @else
-            <strong style="color:#e8a020;font-size:18px">CIBLE CI</strong>
-        @endif
-    </div>
-    <div class="c"><h1>Liste des <span class="accent">campagnes</span></h1></div>
-    <div class="r">Généré le {{ $generated }}<br>{{ $campaigns->count() }} campagne(s)</div>
-</div>
+{{-- 2026-10-01 — charte graphique : en-tête commun clair (liseré + logo
+     CIBLE pour fond clair + titre + méta), remplace le bandeau sombre. --}}
+@include('pdf.partials.charte-header', [
+    'docTitle' => 'Liste des campagnes',
+    'docMeta'  => [
+        'Généré le ' . $generated,
+        $campaigns->count() . ' campagne(s)',
+    ],
+])
 
 <div class="summary">
     <div>
@@ -79,7 +54,7 @@
     </div>
 </div>
 
-<table>
+<table class="ch-table">
     <thead>
         <tr>
             <th style="width:10%">Référence</th>
@@ -96,20 +71,21 @@
     <tbody>
         @forelse($campaigns as $c)
             @php
+                // 2026-10-01 — charte graphique : badges pleins de la palette.
                 $statusClass = match($c->status?->value) {
-                    'actif'    => 'b-actif',
-                    'pose'     => 'b-pose',
-                    'planifie' => 'b-planifie',
-                    'termine'  => 'b-termine',
-                    'annule'   => 'b-annule',
-                    default    => 'b-termine',
+                    'actif'    => 'ch-badge-vert',
+                    'pose'     => 'ch-badge-bleu',
+                    'planifie' => 'ch-badge-jaune',
+                    'termine'  => 'ch-badge-gris',
+                    'annule'   => 'ch-badge-rouge',
+                    default    => 'ch-badge-gris',
                 };
             @endphp
             <tr>
                 <td><span class="ref">#{{ $c->id }}</span></td>
                 <td>{{ $c->name }}</td>
                 <td>{{ $c->client?->name ?? '—' }}</td>
-                <td><span class="badge {{ $statusClass }}">{{ $c->status?->label() ?? '—' }}</span></td>
+                <td><span class="ch-badge {{ $statusClass }}">{{ $c->status?->label() ?? '—' }}</span></td>
                 <td>{{ $c->start_date?->format('d/m/Y') ?? '—' }}</td>
                 <td>{{ $c->end_date?->format('d/m/Y') ?? '—' }}</td>
                 <td class="num">{{ $c->panels_count ?? 0 }}</td>
@@ -117,14 +93,15 @@
                 <td>{{ $c->user?->name ?? '—' }}</td>
             </tr>
         @empty
-            <tr><td colspan="9" style="text-align:center;padding:24px;color:#9ca3af">Aucune campagne ne correspond aux filtres.</td></tr>
+            <tr><td colspan="9" class="empty-row">Aucune campagne ne correspond aux filtres.</td></tr>
         @endforelse
     </tbody>
 </table>
 
-<div class="footer">
-    CIBLE CI · Régie Publicitaire · Abidjan, Côte d'Ivoire · Document confidentiel
-</div>
+{{-- 2026-10-01 — charte graphique : pied commun ; l'ancien texte de pied est conservé en footerHint. --}}
+@include('pdf.partials.charte-footer', [
+    'footerHint' => "CIBLE CI · Régie Publicitaire · Abidjan, Côte d'Ivoire · Document confidentiel",
+])
 
 </body>
 </html>

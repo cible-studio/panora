@@ -7,7 +7,7 @@
     {{-- Style partagé avec pdf/taxes-report.blade.php — cf. le partial pour
          la charte. Marges identiques dans les deux vues (les offsets du
          footer fixe en dépendent) ; seule l'orientation diffère. --}}
-    <style>@page { size: A4 landscape; margin: 14mm 14mm 18mm 14mm; }</style>
+    <style>@page { size: A4 landscape; margin: 12mm 14mm 20mm 14mm !important; }</style>
     @include('pdf.partials.tax-doc-styles')
 </head>
 <body>

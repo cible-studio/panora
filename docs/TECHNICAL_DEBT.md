@@ -41,6 +41,60 @@ doit être validé visuellement sur chacun. `taxes-report` est sorti du lot
 le 2026-09-02 (refonte style taxes) — il n'utilise plus ce partial et
 affiche le logo sur fond clair.
 
+**Mise à jour 2026-10-01 (charte graphique des PDF)** : `network-report` est
+passé à l'en-tête clair commun `pdf/partials/charte-header`. Le partial ne
+sert plus qu'aux 5 vues apparemment mortes listées ci-dessous — la dette
+disparaîtra avec elles.
+
+---
+
+### Vues PDF apparemment mortes (repéré 2026-10-01)
+
+Aucun `Pdf::loadView()`, aucune route, aucun `@include` ne référence ces vues
+(grep sur `app/`, `routes/`, `resources/views/` hors de `resources/views/pdf/`) :
+
+- `resources/views/pdf/panel-list.blade.php`
+- `resources/views/pdf/panel-sheet.blade.php`
+- `resources/views/pdf/piges-report.blade.php`
+- `resources/views/pdf/proposition.blade.php` (le PDF de proposition actif est
+  `admin/propositions/pdf.blade.php`)
+- `resources/views/pdf/selection-images.blade.php`
+- `resources/views/pdf/selection-liste.blade.php`
+
+Elles n'ont **pas** été passées à la charte graphique (mission PDF du
+2026-10-01) : couleurs hors palette (doré `#E8A020`, bandeau noir). À
+confirmer (nom de vue construit dynamiquement ailleurs ? usage par un script
+hors dépôt ?) puis supprimer — ou, si l'une revit, l'habiller avec
+`pdf/partials/charte-styles|header|footer`.
+
+---
+
+### PDF : cache de polices `storage/fonts` obligatoire (2026-10-01)
+
+Les PDF embarquent Poppins / Nunito (`resources/fonts/`, licence SIL OFL).
+DomPDF écrit les métriques de police dans `storage/fonts/` : si le dossier
+manque ou n'est pas inscriptible, l'enregistrement de la police lève une
+exception. `App\Support\PdfCharte` crée le dossier au besoin et **retombe sur
+DejaVu Sans** s'il reste non inscriptible (PDF sans les polices de la charte,
+mais pas d'erreur). En prod (Docker), vérifier que `storage/fonts` est
+inscriptible par l'utilisateur PHP, sinon les PDF sortent en DejaVu.
+
+Le fichier Nunito utilisé est le sous-ensemble « latin » (Fontsource) : les
+glyphes absents (→, ■, ✓, ⚠…) basculent automatiquement sur DejaVu Sans
+(pile `font-family`), ce qui a été vérifié. Un caractère hors latin et hors
+DejaVu (emoji) reste rendu en carré vide, comme avant.
+
+### `config/dompdf.php` : clé `default` jamais lue (constaté 2026-10-01)
+
+Le package `barryvdh/laravel-dompdf` lit `dompdf.options`, pas
+`dompdf.default`. Les réglages historiques de la clé `default` — dont
+`enable_php => true` — ne sont donc **pas appliqués** : les
+`<script type="text/php">` (pagination « Page X sur Y » du devis
+`pdf/quote`) ne s'exécutent pas. Non corrigé : activer `enable_php` sur tous
+les PDF est une décision à prendre à part (sécurité). La clé `options` a été
+ajoutée le 2026-10-01 uniquement pour le sous-ensemble de polices
+(`enable_font_subsetting`).
+
 ---
 
 ### `calculODPCommune()` — cluster de code mort sur l'ancienne règle

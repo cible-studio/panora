@@ -2,113 +2,78 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    {{-- 2026-10-01 — charte graphique : styles communs + en-tête clair commun
+         (charte-header) à la place du bandeau foncé, pied commun charte-footer. --}}
+    @include('pdf.partials.charte-styles')
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'DejaVu Sans', sans-serif; font-size: 11px; color: #1a1a2e; }
+        @page { size: A4; margin: 12mm 12mm 20mm 12mm !important; }
+        body { font-size: 11px; color: {{ $charte['noir'] }}; line-height: 1.2; }
 
-        .header {
-            background: #0a0c10;
-            color: white;
-            padding: 25px 30px;
-            margin-bottom: 25px;
-        }
-        .logo { font-size: 24px; font-weight: 800; color: #e8a020; }
-        .logo-sub { font-size: 10px; color: #8a90a2; margin-top: 3px; }
-        .report-title { font-size: 14px; color: white; margin-top: 10px; }
+        /* Stats globales : 3 cartes KPI côte à côte (table, pas de grid). */
+        .stats-row { margin-bottom: 18px; }
+        .stats-row .ch-kpi { text-align: center; width: 33.33%; }
+        .stat-label { font-size: 9px; color: {{ $charte['texte_doux'] }}; text-transform: uppercase; margin-bottom: 5px; }
+        .stat-value { font-family: {!! $charte['ff_titres'] !!}; font-size: 22px; font-weight: 800; color: {{ $charte['noir'] }}; }
 
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            margin-bottom: 25px;
-            padding: 0 30px;
-        }
-        .stat-box {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 15px;
-            text-align: center;
-        }
-        .stat-label { font-size: 9px; color: #64748b; text-transform: uppercase; margin-bottom: 5px; }
-        .stat-value { font-size: 22px; font-weight: 800; color: #e8a020; }
-
-        .commune-section { padding: 0 30px; margin-bottom: 20px; }
+        .commune-section { margin-bottom: 16px; }
         .commune-title {
-            background: #0a0c10;
-            color: #e8a020;
-            padding: 8px 15px;
+            font-family: {!! $charte['ff_titres'] !!};
+            background: {{ $charte['gris_clair'] }};
+            color: {{ $charte['noir'] }};
+            border-left: 3px solid {{ $charte['rouge'] }};
+            padding: 7px 12px;
             font-weight: 700;
             font-size: 12px;
-            border-radius: 6px 6px 0 0;
         }
 
-        table { width: 100%; border-collapse: collapse; }
-        th {
-            background: #1e2330;
-            color: #8a90a2;
-            padding: 7px 10px;
-            text-align: left;
-            font-size: 9px;
-            text-transform: uppercase;
-        }
-        td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; font-size: 10px; }
+        /* Nunito plus haute que DejaVu : interligne resserré pour garder la densité. */
+        .ch-table tbody td { line-height: 1.15; }
 
-        .badge {
-            display: inline-block;
-            padding: 2px 7px;
-            border-radius: 10px;
-            font-size: 9px;
-            font-weight: 700;
-        }
-        .badge-green { background: #dcfce7; color: #16a34a; }
-        .badge-red   { background: #fee2e2; color: #dc2626; }
-
-        .footer {
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            padding: 8px 30px;
-            background: #0a0c10;
-            color: #8a90a2;
-            font-size: 8px;
-            display: flex;
-            justify-content: space-between;
-        }
+        .ref-cell { font-family: {!! $charte['ff_mono'] !!}; color: {{ $charte['rouge'] }}; font-weight: 700; }
     </style>
 </head>
 <body>
 
-    {{-- HEADER --}}
-    <div class="header">
-        @include('pdf.partials.branding-header')
-        <div class="report-title">📊 Rapport Réseau Panneaux — {{ now()->format('d/m/Y') }}</div>
-    </div>
+    @include('pdf.partials.charte-footer', [
+        'footerHint' => 'CIBLE CI — Document confidentiel — Ne pas diffuser · Généré le ' . now()->format('d/m/Y à H:i') . ' · www.cible-ci.com',
+    ])
+
+    {{-- HEADER — reprend le contenu de pdf.partials.branding-header
+         (régie · opéré par Panora) dans l'en-tête clair commun. --}}
+    @include('pdf.partials.charte-header', [
+        'docKicker'   => 'Rapport',
+        'docTitle'    => 'Rapport Réseau Panneaux — ' . now()->format('d/m/Y'),
+        'docSubtitle' => ($operatorName ?? 'CIBLE CI') . ' · opéré par Panora',
+    ])
 
     {{-- STATS GLOBALES --}}
-    <div class="stats-row">
-        <div class="stat-box">
-            <div class="stat-label">Total panneaux</div>
-            <div class="stat-value">{{ $totalPanneaux }}</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">Disponibles</div>
-            <div class="stat-value" style="color:#22c55e;">{{ $panneauxLibres }}</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">Taux occupation</div>
-            <div class="stat-value">{{ $tauxOccupation }}%</div>
-        </div>
-    </div>
+    <table class="ch-kpis stats-row">
+        <tr>
+            <td class="ch-kpi k-rouge">
+                <div class="stat-label">Total panneaux</div>
+                <div class="stat-value">{{ $totalPanneaux }}</div>
+            </td>
+            <td class="ch-kpi k-vert">
+                <div class="stat-label">Disponibles</div>
+                <div class="stat-value c-vert">{{ $panneauxLibres }}</div>
+            </td>
+            <td class="ch-kpi k-jaune">
+                <div class="stat-label">Taux occupation</div>
+                <div class="stat-value">{{ $tauxOccupation }}%</div>
+            </td>
+        </tr>
+    </table>
 
     {{-- PAR COMMUNE --}}
     @foreach($communes as $commune)
     @if($commune->panels->count() > 0)
     <div class="commune-section">
         <div class="commune-title">
-            📍 {{ strtoupper($commune->name) }}
+            {{ strtoupper($commune->name) }}
             — {{ $commune->panels->count() }} panneau(x)
         </div>
-        <table>
+        <table class="ch-table">
             <thead>
                 <tr>
                     <th>Référence</th>
@@ -121,19 +86,19 @@
             <tbody>
                 @foreach($commune->panels as $panel)
                 <tr>
-                    <td style="font-family:monospace; color:#e8a020; font-weight:700;">
+                    <td class="ref-cell">
                         {{ $panel->reference }}
                     </td>
                     <td>{{ $panel->name }}</td>
                     <td>{{ $panel->format->name }}</td>
-                    <td style="font-weight:600;">
+                    <td style="font-weight:700; white-space:nowrap;">
                         {{ number_format($panel->monthly_rate, 0, ',', ' ') }} FCFA
                     </td>
                     <td>
                         @if($panel->status->value === 'libre')
-                            <span class="badge badge-green">Libre</span>
+                            <span class="ch-badge ch-badge-vert">Libre</span>
                         @else
-                            <span class="badge badge-red">Occupé</span>
+                            <span class="ch-badge ch-badge-rouge">Occupé</span>
                         @endif
                     </td>
                 </tr>
@@ -143,13 +108,6 @@
     </div>
     @endif
     @endforeach
-
-    {{-- FOOTER --}}
-    <div class="footer">
-        <div>CIBLE CI — Document confidentiel — Ne pas diffuser</div>
-        <div>Généré le {{ now()->format('d/m/Y à H:i') }}</div>
-        <div>www.cible-ci.com</div>
-    </div>
 
 </body>
 </html>

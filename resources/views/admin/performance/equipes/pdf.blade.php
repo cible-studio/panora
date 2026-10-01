@@ -3,49 +3,53 @@
 <head>
 <meta charset="UTF-8">
 <title>Performance équipes — CIBLE CI</title>
+{{-- 2026-10-01 — charte graphique : styles communs (polices, ch-*) puis styles propres. --}}
+@include('pdf.partials.charte-styles')
 <style>
-    @page { size: A4 landscape; margin: 14mm 12mm 22mm 12mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 10px; color: #1f2937; line-height: 1.45; }
-    h1 { font-size: 17px; color: #e8a020; margin: 0 0 4px; }
-    h2 { font-size: 11.5px; color: #111827; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1.5px solid #e8a020; }
-    .header { display: table; width: 100%; margin-bottom: 12px; }
-    .header .left { display: table-cell; vertical-align: top; }
-    .header .right { display: table-cell; vertical-align: top; text-align: right; font-size: 9px; color: #6b7280; }
-    .period { font-size: 11px; color: #6b7280; margin-top: 2px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    th { background: #f3f4f6; padding: 5px 7px; text-align: left; font-size: 8.5px; font-weight: bold; color: #374151; border-bottom: 1px solid #d1d5db; text-transform: uppercase; letter-spacing: 0.4px; }
-    td { padding: 5px 7px; font-size: 9.5px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
-    .r { text-align: right; } .c { text-align: center; } .b { font-weight: bold; } .muted { color: #6b7280; }
-    .badge { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 8.5px; font-weight: bold; }
-    .b-1 { background: #fef3c7; color: #92400e; }
-    .b-2 { background: #e5e7eb; color: #4b5563; }
-    .b-3 { background: #fed7aa; color: #c2410c; }
-    .footer { position: fixed; bottom: 4mm; left: 12mm; right: 12mm; font-size: 8px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 4px; background: #fff; }
+    @page { size: A4 landscape; margin: 14mm 12mm 22mm 12mm !important; }
+    body { font-size: 10px; color: {{ $charte['noir'] }}; line-height: 1.25; }
+    h2 {
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 11.5px; font-weight: 700; color: {{ $charte['noir'] }};
+        margin: 14px 0 6px; padding: 0 0 4px 8px;
+        border-left: 3px solid {{ $charte['rouge'] }};
+        border-bottom: 1px solid {{ $charte['gris'] }};
+    }
+    table.ch-table { margin-bottom: 8px; font-size: 9.5px; }
+    .ch-table tbody td { vertical-align: top; }
+    .ch-table th.r, .ch-table td.r { text-align: right; }
+    .ch-table th.c, .ch-table td.c { text-align: center; }
+    .r { text-align: right; } .c { text-align: center; } .b { font-weight: bold; } .muted { color: {{ $charte['texte_doux'] }}; }
+    /* Médailles du podium : or → jaune, argent → gris, bronze → jaune clair. */
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 8.5px; font-weight: bold; }
+    .b-1 { background: {{ $charte['jaune'] }}; color: {{ $charte['noir'] }}; }
+    .b-2 { background: {{ $charte['gris'] }}; color: {{ $charte['noir'] }}; }
+    .b-3 { background: {{ $charte['jaune_clair'] }}; color: {{ $charte['noir'] }}; }
+    .ch-info .scope-note { font-style: italic; color: {{ $charte['texte_doux'] }}; font-size: 8.5px; margin-top: 3px; }
 </style>
 </head>
 <body>
 
-<div class="header">
-    <div class="left">
-        @if(!empty($logoCibleLight))
-            <img src="{{ $logoCibleLight }}" alt="CIBLE CI" style="height:30px;margin-bottom:5px;">
-        @endif
-        <h1>PERFORMANCE ÉQUIPES</h1>
-        <div class="period">Classement des équipes de pose · CIBLE CI</div>
-        <div class="period">Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ $from->diffInDays($to) + 1 }} jours)</div>
-        <div class="period" style="font-style:italic;color:#6b7280;font-size:9px;margin-top:3px">
-            Compte uniquement les poses attribuées à chaque équipe (pose_team_id).
-            Les poses solo des membres sont dans le rapport individuel technicien.
-        </div>
-    </div>
-    <div class="right">
-        Édité le {{ $generatedAt->format('d/m/Y à H:i') }}<br>
-        Par {{ $user->name ?? '—' }}
+{{-- 2026-10-01 — charte graphique : en-tête commun (liseré + logo + titre + méta). --}}
+@include('pdf.partials.charte-header', [
+    'docTitle'    => 'PERFORMANCE ÉQUIPES',
+    'docSubtitle' => 'Classement des équipes de pose · CIBLE CI',
+    'docMeta'     => [
+        'Édité le ' . $generatedAt->format('d/m/Y à H:i'),
+        'Par ' . ($user->name ?? '—'),
+    ],
+])
+
+<div class="ch-info">
+    <strong>Période :</strong> {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ $from->diffInDays($to) + 1 }} jours)
+    <div class="scope-note">
+        Compte uniquement les poses attribuées à chaque équipe (pose_team_id).
+        Les poses solo des membres sont dans le rapport individuel technicien.
     </div>
 </div>
 
-<h2>🏆 Classement des équipes</h2>
-<table>
+<h2>Classement des équipes</h2>
+<table class="ch-table">
     <thead>
         <tr>
             <th class="c" style="width:30px">#</th>
@@ -66,7 +70,8 @@
                 $rankBadge = $rank <= 3 ? 'b-' . $rank : '';
                 $k = $row['kpis'];
                 $team = $row['team'] ?? null;
-                $rejetCol = ($k['taux_piges_rejetees'] ?? 0) <= 5 ? '#16a34a' : (($k['taux_piges_rejetees'] ?? 0) <= 15 ? '#f59e0b' : '#dc2626');
+                // Charte : ≤ 5 % vert · ≤ 15 % jaune (badge, jamais de texte jaune) · sinon rouge.
+                $rejetTone = ($k['taux_piges_rejetees'] ?? 0) <= 5 ? 'vert' : (($k['taux_piges_rejetees'] ?? 0) <= 15 ? 'jaune' : 'rouge');
             @endphp
             <tr>
                 <td class="c">
@@ -79,10 +84,10 @@
                 <td class="b">{{ $team?->name ?? '—' }}</td>
                 <td class="muted">{{ $team?->leader?->name ?? '—' }}</td>
                 <td class="r">{{ $row['members_count'] ?? 0 }}</td>
-                <td class="r b" style="color:#15803d">{{ $k['nb_poses_realisees'] ?? 0 }}</td>
+                <td class="r b c-vert">{{ $k['nb_poses_realisees'] ?? 0 }}</td>
                 <td class="r">{{ \App\Support\HumanDuration::fromMinutes($k['reactivite_avg_min'] ?? null) }}</td>
                 <td class="r">{{ ($k['taux_poses_en_retard'] ?? 0) }} %</td>
-                <td class="r b" style="color:{{ $rejetCol }}">{{ ($k['taux_piges_rejetees'] ?? 0) }} %</td>
+                <td class="r b"><span class="ch-badge ch-badge-{{ $rejetTone }}">{{ ($k['taux_piges_rejetees'] ?? 0) }} %</span></td>
                 <td class="r muted">{{ $k['nb_signalements'] ?? 0 }}</td>
             </tr>
         @empty
@@ -91,10 +96,11 @@
     </tbody>
 </table>
 
-<div class="footer">
-    CIBLE CI — Performance équipes · Édité par Panora le {{ $generatedAt->format('d/m/Y à H:i') }}
-    · Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
-</div>
+{{-- 2026-10-01 — charte graphique : pied commun ; l'ancien texte de pied est conservé en footerHint. --}}
+@include('pdf.partials.charte-footer', [
+    'footerHint' => 'CIBLE CI — Performance équipes · Édité par Panora le ' . $generatedAt->format('d/m/Y à H:i')
+                  . ' · Période : ' . $from->format('d/m/Y') . ' → ' . $to->format('d/m/Y'),
+])
 
 </body>
 </html>

@@ -3,71 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <title>Fiche panneau — {{ $panel['reference'] }}</title>
+    @include('pdf.partials.charte-styles')
+    {{-- 2026-10-01 — charte graphique : en-tête clair (liseré + logo CIBLE +
+         titre + méta), pied commun fixe (texte historique reporté en 2e
+         ligne), palette $charte, polices Poppins / Nunito. Marges @page avec
+         !important (DomPDF les annule sinon à cause de « * { margin:0 } ») :
+         la marge basse réserve la place du pied, qui ne peut plus masquer
+         la fin d'une description longue. Aucun poids 900 (cf. rapport). --}}
     <style>
-        @page { margin: 0; }
+        @page { margin: 10mm 14mm 18mm 14mm !important; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: 'DejaVu Sans', Arial, sans-serif;
-            color: #1f2937;
+            color: {{ $charte['noir'] }};
             font-size: 11px;
-            line-height: 1.45;
+            line-height: 1.25;
         }
 
         /* Padding-bottom au container pour laisser la place au footer
            position:fixed. 2026-07-17 : bug rapporté par la patronne où
            la fin de la description était masquée par le footer sur
-           page 2 (contenu long débordant). Le footer fait ~40px avec
-           border-top + padding — on marge 60px pour sécurité. */
-        .container { padding: 24px 28px 60px; }
+           page 2 (contenu long débordant).
+           2026-10-01 : la place du pied est désormais réservée par la
+           marge basse de @page (pied commun charte-footer). */
+        .container { padding: 0; }
 
-        /* ── HEADER UNIFORME (logo gauche / titre centre / méta droite) ── */
-        .pdf-header {
-            background: #0d1117;
-            color: #ffffff;
-            padding: 14px 22px;
-            display: table;
-            width: 100%;
-            border-bottom: 3px solid #e8a020;
-            margin-bottom: 18px;
-        }
-        .pdf-header > div { display: table-cell; vertical-align: middle; }
-        .pdf-header .logo-cell  { width: 30%; text-align: left; }
-        .pdf-header .title-cell { width: 40%; text-align: center; }
-        .pdf-header .meta-cell  { width: 30%; text-align: right; font-size: 9px; color: #9ca3af; }
-        .pdf-header img { height: 38px; width: auto; vertical-align: middle; }
-        .pdf-header h1 {
+        /* ── EN-TÊTE (logo gauche / titre / méta droite) ── */
+        .fiche-head { width: 100%; border-collapse: collapse; margin: 0; }
+        .fiche-head td { vertical-align: middle; padding: 9px 0 8px; border: none; }
+        .fiche-head .logo-cell { width: 1%; padding-right: 14px; white-space: nowrap; }
+        .fiche-head .logo-cell img { height: 34px; width: auto; display: block; }
+        .fiche-head .meta-cell { width: 1%; padding-left: 14px; text-align: right; white-space: nowrap; font-size: 8.5px; line-height: 1.45; color: {{ $charte['texte_doux'] }}; }
+        .fiche-head h1 {
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 16px;
             font-weight: 700;
-            letter-spacing: 1px;
-            color: #ffffff;
+            letter-spacing: .8px;
+            color: {{ $charte['noir'] }};
             text-transform: uppercase;
+            line-height: 1.15;
         }
-        .pdf-header .accent { color: #e8a020; }
+        .fiche-head .accent { color: {{ $charte['rouge'] }}; }
+        .fiche-rule { height: 2px; background: {{ $charte['noir'] }}; margin: 0 0 14px; font-size: 0; line-height: 0; }
 
         /* ── REF EN GRAND ── */
         .ref-banner {
-            background: #fff7ed;
-            border-left: 4px solid #e8a020;
-            padding: 12px 18px;
-            margin-bottom: 18px;
+            background: {{ $charte['gris_clair'] }};
+            border-left: 4px solid {{ $charte['rouge'] }};
+            padding: 11px 18px;
+            margin-bottom: 16px;
         }
         .ref-banner .ref-tag {
-            font-family: 'Courier New', monospace;
+            font-family: {!! $charte['ff_mono'] !!};
             font-weight: 700;
-            font-size: 22px;
-            color: #c2570d;
-            letter-spacing: 2px;
+            font-size: 20px;
+            color: {{ $charte['rouge'] }};
+            letter-spacing: 1.5px;
         }
         .ref-banner .ref-name {
-            font-size: 14px;
+            font-family: {!! $charte['ff_titres'] !!};
+            font-size: 13.5px;
             font-weight: 600;
-            color: #1f2937;
+            color: {{ $charte['noir'] }};
             margin-top: 2px;
         }
         .ref-banner .ref-loc {
             font-size: 11px;
-            color: #6b7280;
+            color: {{ $charte['texte_doux'] }};
             margin-top: 2px;
         }
 
@@ -75,34 +77,45 @@
         .photo-wrap {
             text-align: center;
             margin-bottom: 16px;
-            background: #f3f4f6;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
+            background: {{ $charte['gris_clair'] }};
+            border: 1px solid {{ $charte['gris'] }};
+            border-top: 3px solid {{ $charte['rouge'] }};
             padding: 6px;
             height: 220px;
             line-height: 0;
         }
         .photo-wrap img {
             max-width: 100%;
-            max-height: 208px;
+            max-height: 205px;
             object-fit: contain;
         }
+        /* 2026-10-01 : bloc de hauteur fixe + padding (et non plus
+           line-height 200px) — avec Poppins, l'ancien centrage par
+           line-height faisait sortir le libellé du cadre. */
         .photo-empty {
-            display: inline-block;
-            line-height: 200px;
-            color: #9ca3af;
-            font-size: 13px;
+            display: block;
+            height: 206px;
+            padding-top: 96px;
+            line-height: 1.2;
+            color: {{ $charte['texte_pale'] }};
+            font-family: {!! $charte['ff_titres'] !!};
+            font-weight: 600;
+            font-size: 11px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
 
         /* ── TABLEAU DES CARACTÉRISTIQUES ── */
         h2.section {
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 11px;
             font-weight: 700;
-            color: #e8a020;
+            color: {{ $charte['noir'] }};
             text-transform: uppercase;
-            letter-spacing: 1.5px;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 4px;
+            letter-spacing: 1px;
+            border-left: 3px solid {{ $charte['rouge'] }};
+            border-bottom: 1px solid {{ $charte['gris'] }};
+            padding: 0 0 4px 8px;
             margin: 14px 0 8px;
         }
 
@@ -113,55 +126,61 @@
         }
         table.specs td {
             padding: 7px 10px;
-            border-bottom: 1px solid #f3f4f6;
+            border-bottom: 1px solid {{ $charte['gris'] }};
             vertical-align: top;
         }
         table.specs td.lbl {
-            color: #6b7280;
-            font-weight: 600;
+            color: {{ $charte['texte_doux'] }};
+            font-weight: 700;
             text-transform: uppercase;
-            font-size: 9.5px;
-            letter-spacing: 1px;
+            font-size: 8.5px;
+            letter-spacing: .7px;
             width: 40%;
-            background: #fafafa;
+            background: {{ $charte['gris_clair'] }};
         }
         table.specs td.val {
-            color: #1f2937;
-            font-weight: 500;
+            color: {{ $charte['noir'] }};
         }
-        table.specs a { color: #2563eb; text-decoration: none; }
+        table.specs a { color: {{ $charte['bleu'] }}; text-decoration: none; }
         table.specs .badge {
             display: inline-block;
             padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 10px;
+            border-radius: 3px;
+            font-size: 9.5px;
             font-weight: 700;
             text-transform: uppercase;
+            letter-spacing: .3px;
         }
-        .badge-libre       { background: #d1fae5; color: #065f46; }
-        .badge-occupe      { background: #fee2e2; color: #991b1b; }
-        .badge-option      { background: #fed7aa; color: #9a3412; }
-        .badge-confirme    { background: #dbeafe; color: #1e40af; }
-        .badge-maintenance { background: #fde68a; color: #92400e; }
-        .badge-default     { background: #e5e7eb; color: #4b5563; }
+        .badge-libre       { background: {{ $charte['vert'] }};  color: {{ $charte['blanc'] }}; }
+        .badge-occupe      { background: {{ $charte['rouge'] }}; color: {{ $charte['blanc'] }}; }
+        .badge-option      { background: {{ $charte['jaune'] }}; color: {{ $charte['noir'] }}; }
+        .badge-confirme    { background: {{ $charte['bleu'] }};  color: {{ $charte['blanc'] }}; }
+        .badge-maintenance { background: {{ $charte['gris'] }};  color: {{ $charte['noir'] }}; }
+        .badge-default     { background: {{ $charte['gris'] }};  color: {{ $charte['noir'] }}; }
+
+        .val-sub  { color: {{ $charte['texte_doux'] }}; font-size: 10px; }
+        .val-vide { color: {{ $charte['texte_pale'] }}; }
+        .val-gps  { font-family: {!! $charte['ff_mono'] !!}; font-size: 10px; }
+        .lit-yes  { color: {{ $charte['vert'] }}; font-weight: 700; }
+        .tarif      { color: {{ $charte['rouge'] }}; }
+        .tarif-zero { color: {{ $charte['vert'] }}; }
+
+        .description {
+            font-size: 11px;
+            color: {{ $charte['texte_doux'] }};
+            line-height: 1.35;
+            border: 1px solid {{ $charte['gris'] }};
+            border-left: 3px solid {{ $charte['rouge'] }};
+            padding: 10px 12px;
+            background: {{ $charte['gris_clair'] }};
+            word-wrap: break-word;
+            page-break-inside: auto;
+        }
 
         /* ── 2 COLONNES POUR ÉCONOMISER L'ESPACE ── */
         .two-cols { display: table; width: 100%; }
         .two-cols .col { display: table-cell; width: 50%; vertical-align: top; padding-right: 12px; }
         .two-cols .col:last-child { padding-right: 0; padding-left: 12px; }
-
-        /* ── FOOTER ── */
-        .pdf-footer {
-            position: fixed;
-            bottom: 18px;
-            left: 28px;
-            right: 28px;
-            border-top: 1px solid #e5e7eb;
-            padding-top: 8px;
-            font-size: 9px;
-            color: #9ca3af;
-            text-align: center;
-        }
     </style>
 </head>
 <body>
@@ -174,21 +193,35 @@
             'maintenance' => ['Maintenance', 'badge-maintenance'],
         ];
         $st = $statusLabels[$panel['display_status'] ?? 'libre'] ?? [ucfirst($panel['display_status'] ?? '—'), 'badge-default'];
+
+        // 2026-10-01 — charte : en-tête clair → logo pour fond clair
+        // ($logoCibleLight, view composer) ; $logoSrc (logob.png, texte
+        // blanc) reste le repli historique.
+        $logoEntete = $logoCibleLight ?? ($logoSrc ?? null);
     @endphp
 
-    {{-- ─── HEADER UNIFORME ─── --}}
-    <div class="pdf-header">
-        <div class="logo-cell">
-            <img src="{{ $logoSrc }}" alt="CIBLE CI">
-        </div>
-        <div class="title-cell">
-            <h1>Fiche <span class="accent">Panneau</span></h1>
-        </div>
-        <div class="meta-cell">
-            Généré le {{ $generated }}<br>
-            Réf. {{ $panel['reference'] }}
-        </div>
-    </div>
+    {{-- ─── PIED FIXE COMMUN (texte historique en 2e ligne) ─── --}}
+    @include('pdf.partials.charte-footer', [
+        'footerHint' => 'CIBLE CI · Régie Publicitaire · Abidjan, Côte d\'Ivoire · Document confidentiel',
+    ])
+
+    {{-- ─── EN-TÊTE (charte : liseré + logo clair + titre + méta) ─── --}}
+    @include('pdf.partials.charte-lisere')
+    <table class="fiche-head">
+        <tr>
+            @if(!empty($logoEntete))
+                <td class="logo-cell"><img src="{{ $logoEntete }}" alt="CIBLE CI"></td>
+            @endif
+            <td>
+                <h1>Fiche <span class="accent">Panneau</span></h1>
+            </td>
+            <td class="meta-cell">
+                Généré le {{ $generated }}<br>
+                Réf. {{ $panel['reference'] }}
+            </td>
+        </tr>
+    </table>
+    <div class="fiche-rule"></div>
 
     <div class="container">
 
@@ -227,7 +260,7 @@
                         <td class="val">
                             {{ $panel['dimensions'] ?: '—' }}
                             @if(!empty($panel['surface_m2']))
-                                <br><span style="color:#6b7280;font-size:10px;">Surface : {{ $panel['surface_m2'] }} m²</span>
+                                <br><span class="val-sub">Surface : {{ $panel['surface_m2'] }} m²</span>
                             @endif
                         </td>
                     </tr>
@@ -235,9 +268,9 @@
                         <td class="lbl">Éclairage</td>
                         <td class="val">
                             @if($panel['is_lit'])
-                                <span style="color:#059669;font-weight:700;">💡 Éclairé (LED)</span>
+                                <span class="lit-yes">Éclairé (LED)</span>
                             @else
-                                <span style="color:#9ca3af;">Non éclairé</span>
+                                <span class="val-vide">Non éclairé</span>
                             @endif
                         </td>
                     </tr>
@@ -252,15 +285,15 @@
                         <td class="lbl">Coordonnées GPS</td>
                         <td class="val">
                             @if($panel['latitude'] !== null && $panel['longitude'] !== null)
-                                <span style="font-family:monospace;">
+                                <span class="val-gps">
                                     {{ number_format($panel['latitude'], 6, '.', '') }},
                                     {{ number_format($panel['longitude'], 6, '.', '') }}
                                 </span>
                                 @if(!empty($panel['gps_link']))
-                                    <br><a href="{{ $panel['gps_link'] }}">📍 Voir sur Google Maps</a>
+                                    <br><a href="{{ $panel['gps_link'] }}">Voir sur Google Maps</a>
                                 @endif
                             @else
-                                <span style="color:#9ca3af;">Non renseignées</span>
+                                <span class="val-vide">Non renseignées</span>
                             @endif
                         </td>
                     </tr>
@@ -269,9 +302,9 @@
                         <td class="val">
                             @if($panel['daily_traffic'] > 0)
                                 <strong>{{ number_format($panel['daily_traffic'], 0, ',', ' ') }}</strong>
-                                <span style="color:#6b7280;font-size:10px;">contacts / jour</span>
+                                <span class="val-sub">contacts / jour</span>
                             @else
-                                <span style="color:#9ca3af;">—</span>
+                                <span class="val-vide">—</span>
                             @endif
                         </td>
                     </tr>
@@ -279,11 +312,11 @@
                         <td class="lbl">Tarif mensuel</td>
                         <td class="val">
                             @if(($panel['monthly_rate'] ?? null) > 0)
-                                <strong style="color:#e8a020;">{{ number_format($panel['monthly_rate'], 0, ',', ' ') }} FCFA</strong>
+                                <strong class="tarif">{{ number_format($panel['monthly_rate'], 0, ',', ' ') }} FCFA</strong>
                             @elseif(($panel['monthly_rate'] ?? null) === 0 || ($panel['monthly_rate'] ?? null) === 0.0)
-                                <strong style="color:#16a34a;">0 FCFA</strong>
+                                <strong class="tarif-zero">0 FCFA</strong>
                             @else
-                                <span style="color:#9ca3af;">Sur devis</span>
+                                <span class="val-vide">Sur devis</span>
                             @endif
                         </td>
                     </tr>
@@ -299,21 +332,18 @@
               en PDF pour deux raisons :
                 1. le footer position:fixed masquait la fin sur page 2 → fixé
                    par padding-bottom:60px sur .container (voir CSS ci-dessus)
+                   — 2026-10-01 : désormais par la marge basse de @page.
                 2. les sauts de ligne du textarea n'étaient pas rendus → fixé
                    par nl2br() qui convertit \n en <br>
               word-wrap:break-word garantit qu'un mot très long ne dépasse pas
               la largeur de la boîte. page-break-inside:auto permet à DomPDF de
               couper le bloc entre 2 pages si besoin (plutôt qu'un débordement).
             --}}
-            <div style="font-size:11px;color:#374151;line-height:1.5;border:1px solid #e5e7eb;border-radius:4px;padding:10px 12px;background:#fafafa;word-wrap:break-word;page-break-inside:auto;">
+            <div class="description">
                 {!! nl2br(e($panel['zone_description'])) !!}
             </div>
         @endif
 
-    </div>
-
-    <div class="pdf-footer">
-        CIBLE CI · Régie Publicitaire · Abidjan, Côte d'Ivoire · Document confidentiel
     </div>
 </body>
 </html>

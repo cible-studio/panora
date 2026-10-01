@@ -3,119 +3,128 @@
 <head>
 <meta charset="UTF-8">
 <title>Fiche de pose — {{ $campaign->name }}</title>
+{{-- 2026-10-01 — charte graphique : styles communs (polices, ch-*) puis styles propres. --}}
+@include('pdf.partials.charte-styles')
 <style>
-    @page { size: A4; margin: 14mm 12mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 10px; color: #1f2937; line-height: 1.45; }
-    h1 { font-size: 20px; color: #e8a020; margin: 0 0 4px; letter-spacing: -.3px; }
-    .header { display: table; width: 100%; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid #e8a020; }
-    .header .left  { display: table-cell; vertical-align: top; }
-    .header .right { display: table-cell; vertical-align: top; text-align: right; font-size: 9px; color: #6b7280; }
-    .meta-row { font-size: 11.5px; color: #374151; margin-top: 4px; line-height: 1.55; }
-    .meta-row strong { color: #111827; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 9px; font-weight: bold; }
-    .badge-actif    { background: rgba(34,197,94,.18);  color: #15803d; }
-    .badge-planifie { background: rgba(59,130,246,.18); color: #1d4ed8; }
-    .badge-termine  { background: rgba(107,114,128,.18); color: #374151; }
-    .badge-annule   { background: rgba(239,68,68,.18);  color: #b91c1c; }
+    /* 2026-10-01 — charte graphique : marge basse portée à 18mm pour le pied commun. */
+    @page { size: A4; margin: 12mm 12mm 18mm 12mm !important; }
+    body { font-size: 10px; color: {{ $charte['noir'] }}; line-height: 1.25; }
+    .meta-row { font-size: 11px; color: {{ $charte['texte_doux'] }}; line-height: 1.35; }
+    .meta-row strong { color: {{ $charte['noir'] }}; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+    .badge-actif    { background: {{ $charte['vert'] }};  color: {{ $charte['blanc'] }}; }
+    .badge-planifie { background: {{ $charte['jaune'] }}; color: {{ $charte['noir'] }}; }
+    .badge-pause    { background: {{ $charte['jaune'] }}; color: {{ $charte['noir'] }}; }
+    .badge-termine  { background: {{ $charte['gris'] }};  color: {{ $charte['noir'] }}; }
+    .badge-annule   { background: {{ $charte['rouge'] }}; color: {{ $charte['blanc'] }}; }
 
-    .summary {
-        display: table; width: 100%; margin-bottom: 14px;
-        border-collapse: separate; border-spacing: 4px;
-    }
-    .summary .cell {
-        display: table-cell; padding: 8px 10px; background: #fafafa;
-        border-left: 3px solid #e8a020; border-radius: 4px; width: 25%;
-    }
-    .summary .label { font-size: 8px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; }
-    .summary .value { font-size: 13px; font-weight: bold; color: #111827; margin-top: 2px; }
+    /* Densité : la fiche de 6 panneaux doit tenir sur une page comme avant. */
+    .ch-head { margin-bottom: 6px; }
+    .ch-head-rule { margin-bottom: 10px; }
+    .ch-kpis { margin-bottom: 8px; }
+    .ch-kpi { width: 25%; padding: 6px 10px; }
+    .ch-kpi-value { font-size: 13px; }
 
-    h2 { font-size: 12px; color: #111827; margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1.5px solid #e8a020; }
+    h2 {
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 12px; font-weight: 700; color: {{ $charte['noir'] }};
+        margin: 12px 0 7px; padding: 0 0 4px 8px;
+        border-left: 3px solid {{ $charte['rouge'] }};
+        border-bottom: 1px solid {{ $charte['gris'] }};
+    }
 
     .panel-card {
-        display: table; width: 100%; margin-bottom: 10px;
-        border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px;
+        display: table; width: 100%; margin-bottom: 7px;
+        border: 1px solid {{ $charte['gris'] }}; border-radius: 6px; padding: 6px 8px;
         page-break-inside: avoid;
     }
     .panel-photo {
         display: table-cell; vertical-align: top; width: 110px; padding-right: 10px;
     }
-    .panel-photo img { width: 100px; height: 75px; object-fit: cover; border-radius: 4px; border: 1px solid #e5e7eb; }
+    .panel-photo img { width: 100px; height: 75px; object-fit: cover; border-radius: 4px; border: 1px solid {{ $charte['gris'] }}; }
     .panel-placeholder {
-        width: 100px; height: 75px; background: #f3f4f6;
-        border-radius: 4px; border: 1px dashed #d1d5db;
-        text-align: center; line-height: 75px; color: #9ca3af; font-size: 8.5px;
+        width: 100px; height: 75px; background: {{ $charte['gris_clair'] }};
+        border-radius: 4px; border: 1px dashed {{ $charte['gris'] }};
+        text-align: center; line-height: 75px; color: {{ $charte['texte_pale'] }}; font-size: 8.5px;
     }
     .panel-info { display: table-cell; vertical-align: top; }
-    .panel-ref { font-family: 'Courier New', monospace; font-weight: bold; color: #b45309; font-size: 11px; }
-    .panel-name { font-size: 11.5px; font-weight: bold; color: #111827; margin-top: 1px; }
-    .panel-meta { font-size: 9.5px; color: #6b7280; margin-top: 3px; line-height: 1.5; }
-    .panel-meta strong { color: #374151; }
+    .panel-ref { font-family: {!! $charte['ff_mono'] !!}; font-weight: bold; color: {{ $charte['rouge'] }}; font-size: 11px; }
+    .panel-name { font-family: {!! $charte['ff_titres'] !!}; font-size: 11.5px; font-weight: bold; color: {{ $charte['noir'] }}; margin-top: 1px; }
+    .panel-meta { font-size: 9.5px; color: {{ $charte['texte_doux'] }}; margin-top: 3px; line-height: 1.3; }
+    .panel-meta strong { color: {{ $charte['noir'] }}; }
     .pose-info {
-        margin-top: 4px; padding: 4px 8px; background: #ecfdf5;
-        border-left: 2px solid #16a34a; border-radius: 3px; font-size: 9.5px; color: #15803d;
+        margin-top: 4px; padding: 4px 8px; background: {{ $charte['vert_clair'] }};
+        border-left: 2px solid {{ $charte['vert'] }}; border-radius: 3px; font-size: 9.5px; color: {{ $charte['noir'] }};
     }
-    .pose-info.late { background: #fef2f2; border-left-color: #dc2626; color: #b91c1c; }
-    .pose-info.none { background: #f3f4f6; border-left-color: #9ca3af; color: #4b5563; }
+    .pose-info.late { background: {{ $charte['rouge_clair'] }}; border-left-color: {{ $charte['rouge'] }}; color: {{ $charte['noir'] }}; }
+    .pose-info.none { background: {{ $charte['gris_clair'] }}; border-left-color: {{ $charte['texte_pale'] }}; color: {{ $charte['texte_doux'] }}; }
     .pose-info strong { color: inherit; }
 
-    .num { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center;
-        background: #e8a020; color: #fff; border-radius: 50%; font-size: 10px; font-weight: bold; margin-right: 6px; }
+    /* 2026-10-01 — pastille en padding (le line-height fixe décalait le chiffre sous DomPDF). */
+    .num { display: inline-block; min-width: 9px; padding: 2px 6px; line-height: 1.2; text-align: center;
+        background: {{ $charte['rouge'] }}; color: {{ $charte['blanc'] }}; border-radius: 9px; font-size: 10px; font-weight: bold; margin-right: 6px; }
 
-    .footer { position: fixed; bottom: 4mm; left: 12mm; right: 12mm; font-size: 8px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 4px; }
+    .empty-msg { padding: 20px; text-align: center; color: {{ $charte['texte_doux'] }}; font-style: italic; }
 </style>
 </head>
 <body>
 
-{{-- ════ EN-TÊTE ════ --}}
-<div class="header">
-    <div class="left">
-        <h1>{{ $campaign->name }}</h1>
-        <div class="meta-row">
-            <strong>👤 Client :</strong> {{ $campaign->client?->name ?? '—' }}
-            @if($campaign->status)
-                @php
-                    $st = $campaign->status->value ?? (string) $campaign->status;
-                @endphp
-                · <span class="badge badge-{{ $st }}">{{ strtoupper($st) }}</span>
-            @endif
-        </div>
-        <div class="meta-row">
-            <strong>📅 Période campagne :</strong>
-            {{ $campaign->start_date?->format('d/m/Y') ?? '—' }} → {{ $campaign->end_date?->format('d/m/Y') ?? '—' }}
-            @if($campaign->start_date && $campaign->end_date)
-                ({{ (int) $campaign->start_date->diffInDays($campaign->end_date) + 1 }} jours)
-            @endif
-        </div>
+{{-- ════ EN-TÊTE ════
+     2026-10-01 — charte graphique : en-tête commun (liseré + logo + titre +
+     méta) ; client / statut / période restent juste en dessous. --}}
+@include('pdf.partials.charte-header', [
+    'docTitle'  => $campaign->name,
+    'docKicker' => 'Fiche de pose',
+    'docMeta'   => [
+        'Édité le ' . now()->format('d/m/Y H:i'),
+        'Par ' . ($user->name ?? '—'),
+        'Réf. ' . strtoupper(substr(md5($campaign->id . now()), 0, 8)),
+    ],
+])
+
+<div class="ch-info">
+    <div class="meta-row">
+        <strong>Client :</strong> {{ $campaign->client?->name ?? '—' }}
+        @if($campaign->status)
+            @php
+                $st = $campaign->status->value ?? (string) $campaign->status;
+            @endphp
+            · <span class="badge badge-{{ $st }}">{{ strtoupper($st) }}</span>
+        @endif
     </div>
-    <div class="right">
-        Édité le {{ now()->format('d/m/Y H:i') }}<br>
-        Par {{ $user->name ?? '—' }}<br>
-        Réf. {{ strtoupper(substr(md5($campaign->id . now()), 0, 8)) }}
+    <div class="meta-row">
+        <strong>Période campagne :</strong>
+        {{ $campaign->start_date?->format('d/m/Y') ?? '—' }} → {{ $campaign->end_date?->format('d/m/Y') ?? '—' }}
+        @if($campaign->start_date && $campaign->end_date)
+            ({{ (int) $campaign->start_date->diffInDays($campaign->end_date) + 1 }} jours)
+        @endif
     </div>
 </div>
 
 {{-- ════ RÉCAPITULATIF CAMPAGNE ════ --}}
-<div class="summary">
-    <div class="cell">
-        <div class="label">Total panneaux</div>
-        <div class="value">{{ $panels->count() }}</div>
-    </div>
-    <div class="cell">
-        <div class="label">Communes</div>
-        <div class="value">{{ $panels->pluck('commune.name')->filter()->unique()->count() }}</div>
-    </div>
-    <div class="cell">
-        <div class="label">Poses planifiées</div>
-        <div class="value">{{ $panels->filter(fn($p) => isset($poseByPanel[$p->id]))->count() }}</div>
-    </div>
-    <div class="cell">
-        <div class="label">Sans pose</div>
-        <div class="value">{{ $panels->filter(fn($p) => !isset($poseByPanel[$p->id]))->count() }}</div>
-    </div>
-</div>
+<table class="ch-kpis">
+    <tr>
+        <td class="ch-kpi k-rouge">
+            <div class="ch-kpi-label">Total panneaux</div>
+            <div class="ch-kpi-value">{{ $panels->count() }}</div>
+        </td>
+        <td class="ch-kpi k-rouge">
+            <div class="ch-kpi-label">Communes</div>
+            <div class="ch-kpi-value">{{ $panels->pluck('commune.name')->filter()->unique()->count() }}</div>
+        </td>
+        <td class="ch-kpi k-rouge">
+            <div class="ch-kpi-label">Poses planifiées</div>
+            <div class="ch-kpi-value">{{ $panels->filter(fn($p) => isset($poseByPanel[$p->id]))->count() }}</div>
+        </td>
+        <td class="ch-kpi k-rouge">
+            <div class="ch-kpi-label">Sans pose</div>
+            <div class="ch-kpi-value">{{ $panels->filter(fn($p) => !isset($poseByPanel[$p->id]))->count() }}</div>
+        </td>
+    </tr>
+</table>
 
 {{-- ════ LISTE PANNEAUX AVEC PHOTOS ════ --}}
-<h2>📋 Panneaux à poser ({{ $panels->count() }})</h2>
+<h2>Panneaux à poser ({{ $panels->count() }})</h2>
 
 @forelse($panels as $i => $panel)
     @php
@@ -139,7 +148,7 @@
             </div>
             <div class="panel-name">{{ $panel->name ?? '—' }}</div>
             <div class="panel-meta">
-                <strong>📍 Commune :</strong> {{ $panel->commune?->name ?? '—' }}
+                <strong>Commune :</strong> {{ $panel->commune?->name ?? '—' }}
                 @if($panel->format)
                     · <strong>Format :</strong> {{ $panel->format->name }}
                 @endif
@@ -157,12 +166,12 @@
                  du tech (même s'il est renseigné en interne). --}}
             @if($pose && $pose->pose_team_id)
                 <div class="pose-info">
-                    <strong>👥 Prise par : Équipe {{ $pose->poseTeam?->name ?? $pose->team_name ?? '—' }}</strong>
+                    <strong>Prise par : Équipe {{ $pose->poseTeam?->name ?? $pose->team_name ?? '—' }}</strong>
                 </div>
             @elseif($pose && ($pose->technicien || $pose->team_name))
                 <div class="pose-info">
                     @if($pose->technicien)
-                        <strong>👷 Technicien :</strong> {{ $pose->technicien->name }}
+                        <strong>Technicien :</strong> {{ $pose->technicien->name }}
                     @endif
                     @if($pose->team_name)
                         @if($pose->technicien) · @endif
@@ -177,14 +186,15 @@
         </div>
     </div>
 @empty
-    <div style="padding:20px;text-align:center;color:#6b7280;font-style:italic">
+    <div class="empty-msg">
         Aucun panneau associé à cette campagne.
     </div>
 @endforelse
 
-<div class="footer">
-    CIBLE SARL — Régie OOH Côte d'Ivoire · Fiche de pose campagne · Document interne.
-</div>
+{{-- 2026-10-01 — charte graphique : pied commun ; l'ancien texte de pied est conservé en footerHint. --}}
+@include('pdf.partials.charte-footer', [
+    'footerHint' => "CIBLE SARL — Régie OOH Côte d'Ivoire · Fiche de pose campagne · Document interne.",
+])
 
 </body>
 </html>
