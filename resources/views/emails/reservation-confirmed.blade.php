@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator  = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $title     = "Réservation confirmée — {$reservation->reference}";
     $preheader = "Votre réservation {$reservation->reference} est confirmée — "
@@ -45,7 +46,7 @@
         </div>
     </div>
 
-    <p style="margin-top:24px;color:#6b7280;font-size:13px;">
+    <p style="margin-top:24px;color:{{ $ch['noir'] }};font-size:13px;">
         Pour toute question : <a href="mailto:contact@cible-ci.com">contact@cible-ci.com</a>.
     </p>
 

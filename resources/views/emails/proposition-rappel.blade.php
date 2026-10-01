@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $clientName   = $client?->name ?? 'Client';
     $expiresLabel = $expiresAt?->format('d/m/Y à H:i') ?? '—';
     $ref          = $reservation->reference;
@@ -29,7 +30,7 @@
         </div>
         <div class="info-row">
             <div class="lbl">Expire le</div>
-            <div class="val"><strong style="color:#92400e;">{{ $expiresLabel }}</strong></div>
+            <div class="val"><strong style="color:{{ $ch['rouge'] }};">{{ $expiresLabel }}</strong></div>
         </div>
     </div>
 

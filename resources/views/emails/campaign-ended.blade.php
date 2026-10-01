@@ -1,3 +1,4 @@
+@php $ch = config('charte.couleurs'); @endphp
 <x-mail.layout
     title="Fin de campagne"
     preheader="Votre campagne {{ $campaign->name }} vient de se terminer. Merci de votre confiance — partagez votre avis en 1 minute.">
@@ -53,7 +54,7 @@
         </div>
     </div>
 
-    <p style="color:#6b7280;font-size:13px;margin-top:24px;">
+    <p style="color:{{ $ch['noir'] }};font-size:13px;margin-top:24px;">
         Vous avez des questions ou souhaitez planifier une prochaine campagne ?
         Contactez votre chargé de compte — nous sommes à votre disposition.
     </p>

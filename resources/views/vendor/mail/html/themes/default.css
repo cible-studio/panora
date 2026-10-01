@@ -1,0 +1,333 @@
+/*
+ * Thème des mails « Markdown » Laravel (notifications : relance d'échéance,
+ * mot de passe oublié, vérification d'e-mail) — charte graphique de la
+ * régie, alignée sur resources/views/components/mail/layout.blade.php.
+ *
+ * Ce fichier n'est pas interprété par Blade : les couleurs sont donc
+ * écrites en dur, mais UNIQUEMENT celles de la palette (config/charte.php).
+ * Les blocs structurants (liseré, en-tête, pied, boutons) lisent, eux,
+ * config('charte.*') en ligne dans les composants html/*.blade.php.
+ *
+ * Palette : rouge #E20613 · jaune #FAB80B · vert #3AA835 · bleu #3F7FC0 ·
+ * violet #81358A · gris #E6E6E6 · noir #111111 · blanc #FFFFFF.
+ */
+
+/* Base */
+
+body,
+body *:not(html):not(style):not(br):not(tr):not(code) {
+    box-sizing: border-box;
+    font-family: 'Nunito', Arial, Helvetica, sans-serif;
+    position: relative;
+}
+
+body {
+    -webkit-text-size-adjust: none;
+    background-color: #E6E6E6;
+    color: #111111;
+    height: 100%;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+    width: 100% !important;
+}
+
+p,
+ul,
+ol,
+blockquote {
+    line-height: 1.6;
+    text-align: start;
+}
+
+a {
+    color: #E20613;
+}
+
+a img {
+    border: none;
+}
+
+/* Typography */
+
+h1 {
+    color: #111111;
+    font-family: 'Poppins', Arial, Helvetica, sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.3;
+    margin-top: 0;
+    margin-bottom: 14px;
+    text-align: start;
+}
+
+h2 {
+    color: #E20613;
+    font-family: 'Poppins', Arial, Helvetica, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    margin-top: 0;
+    text-align: start;
+}
+
+h3 {
+    color: #111111;
+    font-family: 'Poppins', Arial, Helvetica, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    margin-top: 0;
+    text-align: left;
+}
+
+p {
+    color: #111111;
+    font-size: 15px;
+    line-height: 1.6em;
+    margin-top: 0;
+    text-align: left;
+}
+
+p.sub {
+    font-size: 12px;
+}
+
+strong {
+    color: #111111;
+    font-weight: 700;
+}
+
+img {
+    max-width: 100%;
+}
+
+/* Layout */
+
+.wrapper {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    background-color: #E6E6E6;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.content {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    margin: 0 auto;
+    padding: 0;
+    width: 100%;
+    max-width: 600px;
+}
+
+/* Header */
+
+.header {
+    background-color: #FFFFFF;
+    padding: 24px 32px 20px;
+    text-align: left;
+    border-bottom: 1px solid #E6E6E6;
+}
+
+.header a {
+    color: #111111;
+    font-family: 'Poppins', Arial, Helvetica, sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+/* Logo */
+
+.logo {
+    display: block;
+    height: auto;
+    width: 110px;
+}
+
+/* Body */
+
+.body {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    background-color: #FFFFFF;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.inner-body {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    background-color: #FFFFFF;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.inner-body a {
+    word-break: break-all;
+}
+
+/* Subcopy */
+
+.subcopy {
+    border-top: 1px solid #E6E6E6;
+    margin-top: 25px;
+    padding-top: 18px;
+}
+
+.subcopy p {
+    color: #111111;
+    font-size: 12px;
+}
+
+.subcopy a {
+    color: #111111;
+}
+
+/* Footer */
+
+.footer {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    background-color: #111111;
+    margin: 0;
+    padding: 0;
+    text-align: left;
+    width: 100%;
+}
+
+.footer p {
+    color: #E6E6E6;
+    font-size: 11px;
+    line-height: 1.6;
+    margin: 0;
+    text-align: left;
+}
+
+.footer a {
+    color: #E6E6E6;
+    text-decoration: underline;
+}
+
+/* Tables */
+
+.table table {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    border-top: 2px solid #111111;
+    margin: 24px auto;
+    width: 100%;
+}
+
+.table th {
+    border-bottom: 1px solid #E6E6E6;
+    color: #111111;
+    font-family: 'Poppins', Arial, Helvetica, sans-serif;
+    font-size: 13px;
+    margin: 0;
+    padding: 10px 0 8px;
+}
+
+.table td {
+    border-bottom: 1px solid #E6E6E6;
+    color: #111111;
+    font-size: 14px;
+    line-height: 18px;
+    margin: 0;
+    padding: 10px 0;
+}
+
+.content-cell {
+    max-width: 100vw;
+    padding: 28px 32px 32px;
+}
+
+/* Buttons */
+
+.action {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    margin: 28px auto;
+    padding: 0;
+    text-align: center;
+    width: 100%;
+    float: unset;
+}
+
+.button {
+    -webkit-text-size-adjust: none;
+    border-radius: 0;
+    color: #FFFFFF;
+    display: inline-block;
+    font-family: 'Poppins', Arial, Helvetica, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 18px;
+    overflow: hidden;
+    text-decoration: none;
+}
+
+.button-blue,
+.button-primary,
+.button-red,
+.button-error {
+    background-color: #E20613;
+    border-bottom: 14px solid #E20613;
+    border-left: 28px solid #E20613;
+    border-right: 28px solid #E20613;
+    border-top: 14px solid #E20613;
+}
+
+.button-green,
+.button-success {
+    background-color: #3AA835;
+    border-bottom: 14px solid #3AA835;
+    border-left: 28px solid #3AA835;
+    border-right: 28px solid #3AA835;
+    border-top: 14px solid #3AA835;
+}
+
+/* Panels */
+
+.panel {
+    border-left: #FAB80B solid 4px;
+    margin: 21px 0;
+}
+
+.panel-content {
+    background-color: #FFFFFF;
+    border: 1px solid #E6E6E6;
+    border-left: 0;
+    color: #111111;
+    padding: 12px 16px;
+}
+
+.panel-content p {
+    color: #111111;
+}
+
+.panel-item {
+    padding: 0;
+}
+
+.panel-item p:last-of-type {
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+/* Utilities */
+
+.break-all {
+    word-break: break-all;
+}

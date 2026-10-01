@@ -1,5 +1,6 @@
 @php
     use Illuminate\Support\Str;
+    $ch = config('charte.couleurs');
 
     $clientName  = $client?->name ?? 'Client';
     $panelCount  = $panels->count();
@@ -52,7 +53,7 @@
             <div class="lbl">Période</div>
             <div class="val">
                 {{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}
-                <div style="font-size:11px;color:#6b7280;margin-top:2px">
+                <div style="font-size:11px;color:{{ $ch['noir'] }};margin-top:2px">
                     {{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }} · {{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}
                 </div>
             </div>
@@ -88,28 +89,28 @@
             {{-- Vue résumée : groupes par commune × format (Top 8) --}}
             <h2>Répartition des {{ $panels->count() }} emplacements</h2>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-                   style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:8px 0 18px;">
+                   style="border-top:2px solid {{ $ch['noir'] }};border-bottom:1px solid {{ $ch['gris'] }};margin:8px 0 18px;">
                 @foreach($grouped->take(8) as $i => $row)
-                    <tr style="{{ $i > 0 ? 'border-top:1px solid #f1f5f9;' : '' }}">
-                        <td style="padding:11px 16px;">
-                            <div style="font-size:14px;color:#111827;font-weight:600;">
+                    <tr style="{{ $i > 0 ? 'border-top:1px solid ' . $ch['gris'] . ';' : '' }}">
+                        <td style="padding:11px 0;">
+                            <div style="font-size:14px;color:{{ $ch['noir'] }};font-weight:600;">
                                 {{ $row['count'] }} × {{ $row['format'] !== '—' ? $row['format'] : 'panneau' }}
                             </div>
-                            <div style="font-size:12px;color:#6b7280;margin-top:2px;">
+                            <div style="font-size:12px;color:{{ $ch['noir'] }};margin-top:2px;">
                                 📍 {{ $row['commune'] }}
                             </div>
                         </td>
                     </tr>
                 @endforeach
                 @if($grouped->count() > 8)
-                    <tr style="border-top:1px solid #f1f5f9;background:#f9fafb;">
-                        <td style="padding:10px 16px;font-size:12px;color:#6b7280;text-align:center;">
+                    <tr style="border-top:1px solid {{ $ch['gris'] }};background:{{ $ch['gris'] }};">
+                        <td style="padding:10px 16px;font-size:12px;color:{{ $ch['noir'] }};text-align:center;">
                             + {{ $grouped->count() - 8 }} autres regroupements géographiques
                         </td>
                     </tr>
                 @endif
             </table>
-            <p style="font-size:12px;color:#6b7280;margin:8px 0 18px;">
+            <p style="font-size:12px;color:{{ $ch['noir'] }};margin:8px 0 18px;">
                 ℹ️ Vue résumée — la liste complète des {{ $panels->count() }} emplacements (références, dimensions, photos)
                 est disponible sur la page de la proposition.
             </p>
@@ -117,13 +118,13 @@
             {{-- Vue détaillée : ≤ 10 panneaux, on affiche jusqu'à 5 lignes complètes --}}
             <h2>Détail des emplacements</h2>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-                   style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:8px 0 18px;">
+                   style="border-top:2px solid {{ $ch['noir'] }};border-bottom:1px solid {{ $ch['gris'] }};margin:8px 0 18px;">
                 @foreach($panels->take(5) as $i => $panel)
-                    <tr style="{{ $i > 0 ? 'border-top:1px solid #f1f5f9;' : '' }}">
-                        <td style="padding:12px 16px;">
-                            <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#c2570d;font-weight:600;">{{ $panel['reference'] }}</div>
-                            <div style="font-size:14px;color:#111827;font-weight:500;margin-top:2px;">{{ Str::limit($panel['name'] ?? '', 50) }}</div>
-                            <div style="font-size:12px;color:#6b7280;margin-top:2px;">
+                    <tr style="{{ $i > 0 ? 'border-top:1px solid ' . $ch['gris'] . ';' : '' }}">
+                        <td style="padding:12px 0;">
+                            <div style="font-family:Consolas,Menlo,'Courier New',monospace;font-size:12px;color:{{ $ch['rouge'] }};font-weight:700;">{{ $panel['reference'] }}</div>
+                            <div style="font-size:14px;color:{{ $ch['noir'] }};font-weight:500;margin-top:2px;">{{ Str::limit($panel['name'] ?? '', 50) }}</div>
+                            <div style="font-size:12px;color:{{ $ch['noir'] }};margin-top:2px;">
                                 {{ $panel['commune'] ?? '—' }}
                                 @if(!empty($panel['format']) && $panel['format'] !== '—') · {{ $panel['format'] }} @endif
                             </div>
@@ -131,15 +132,15 @@
                     </tr>
                 @endforeach
                 @if($panels->count() > 5)
-                    <tr style="border-top:1px solid #f1f5f9;background:#f9fafb;">
-                        <td style="padding:10px 16px;font-size:12px;color:#6b7280;text-align:center;">
+                    <tr style="border-top:1px solid {{ $ch['gris'] }};background:{{ $ch['gris'] }};">
+                        <td style="padding:10px 16px;font-size:12px;color:{{ $ch['noir'] }};text-align:center;">
                             + {{ $panels->count() - 5 }} autre{{ $panels->count() - 5 > 1 ? 's' : '' }} emplacement{{ $panels->count() - 5 > 1 ? 's' : '' }} —
                             liste complète sur la page de la proposition.
                         </td>
                     </tr>
                 @endif
             </table>
-            <p style="font-size:12px;color:#6b7280;margin:8px 0 18px;">
+            <p style="font-size:12px;color:{{ $ch['noir'] }};margin:8px 0 18px;">
                 ℹ️ Le tarif et les conditions complètes sont disponibles sur la page de la proposition.
             </p>
         @endif
@@ -174,21 +175,21 @@
         $hideInternalRole = !in_array($comRole, ['admin', 'commercial'], true);
     @endphp
     @if($com)
-        <h2 style="font-size:14px;font-weight:700;color:#0f172a;margin:20px 0 10px;">Votre interlocuteur commercial</h2>
+        <h2 style="font-size:14px;font-weight:700;color:{{ $ch['rouge'] }};margin:20px 0 10px;">Votre interlocuteur commercial</h2>
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-               style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #c2570d;border-radius:8px;margin-bottom:14px;">
+               style="background:{{ $ch['blanc'] }};border:1px solid {{ $ch['gris'] }};border-left:4px solid {{ $ch['rouge'] }};margin-bottom:14px;">
             <tr>
                 <td style="padding:14px 16px;">
-                    <div style="font-size:14px;font-weight:700;color:#0f172a;">{{ $com->name }}</div>
+                    <div style="font-size:14px;font-weight:700;color:{{ $ch['noir'] }};">{{ $com->name }}</div>
                     @if(!$hideInternalRole && $com->role?->label())
-                        <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ $com->role->label() }}</div>
+                        <div style="font-size:11px;color:{{ $ch['noir'] }};margin-top:2px;">{{ $com->role->label() }}</div>
                     @endif
-                    <div style="margin-top:10px;font-size:12px;color:#475569;line-height:1.7;">
+                    <div style="margin-top:10px;font-size:12px;color:{{ $ch['noir'] }};line-height:1.7;">
                         @if($com->email)
-                            📧 <a href="mailto:{{ $com->email }}" style="color:#c2570d;text-decoration:none;">{{ $com->email }}</a><br>
+                            📧 <a href="mailto:{{ $com->email }}" style="color:{{ $ch['rouge'] }};text-decoration:none;">{{ $com->email }}</a><br>
                         @endif
                         @if($com->whatsapp_number)
-                            📱 <a href="https://wa.me/{{ preg_replace('/\D/', '', $com->whatsapp_number) }}" style="color:#c2570d;text-decoration:none;">{{ $com->whatsapp_number }}</a> (WhatsApp)
+                            📱 <a href="https://wa.me/{{ preg_replace('/\D/', '', $com->whatsapp_number) }}" style="color:{{ $ch['rouge'] }};text-decoration:none;">{{ $com->whatsapp_number }}</a> (WhatsApp)
                         @endif
                     </div>
                 </td>
@@ -196,7 +197,7 @@
         </table>
     @endif
 
-    <p style="color:#6b7280;font-size:13px;margin-top:24px;">
+    <p style="color:{{ $ch['noir'] }};font-size:13px;margin-top:24px;">
         @if($com)
             Pour toute question, contactez {{ $com->name }} directement aux coordonnées ci-dessus.
         @else

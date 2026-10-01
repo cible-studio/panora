@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $title = $isReset ? 'Nouveau mot de passe' : 'Invitation Panora';
     $preheader = $isReset
@@ -60,7 +61,7 @@
         </div>
     </div>
 
-    <p style="margin-top:24px;color:#6b7280;font-size:13px;">
+    <p style="margin-top:24px;color:{{ $ch['noir'] }};font-size:13px;">
         Si vous n'attendiez pas cet email, ignorez-le ou contactez l'équipe
         commerciale de <strong>{{ $operator }}</strong>.
     </p>

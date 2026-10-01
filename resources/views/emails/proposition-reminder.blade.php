@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $clientName = $client?->name ?? 'Client';
     $ref        = $reservation->reference;
 
@@ -46,7 +47,7 @@
             <div class="lbl">Période</div>
             <div class="val">
                 {{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}
-                <div style="font-size:11px;color:#6b7280;margin-top:2px">
+                <div style="font-size:11px;color:{{ $ch['noir'] }};margin-top:2px">
                     {{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }}
                 </div>
             </div>
@@ -58,7 +59,7 @@
         <div class="info-row">
             <div class="lbl">Expire le</div>
             <div class="val">
-                <strong style="color:{{ $isUrgent ? '#ef4444' : '#c2570d' }}">{{ $expiresAtLabel }}</strong>
+                <strong style="color:{{ $isUrgent ? $ch['rouge'] : $ch['noir'] }}">{{ $expiresAtLabel }}</strong>
             </div>
         </div>
     </div>
@@ -72,7 +73,7 @@
     </div>
 
     @if($commercial)
-        <p style="font-size:13px;color:#4b5563;margin-top:24px;line-height:1.6">
+        <p style="font-size:13px;color:{{ $ch['noir'] }};margin-top:24px;line-height:1.6">
             Pour toute question, contactez votre interlocuteur
             <strong>{{ $commercial->name }}</strong>@if($commercial->email)
                 à <a href="mailto:{{ $commercial->email }}">{{ $commercial->email }}</a>@endif.

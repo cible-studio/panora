@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator   = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $clientName = $client?->name ?? 'Client';
     $count      = $maintenances->count();
@@ -18,7 +19,7 @@
 <x-mail.layout title="{{ $title }}" :preheader="$preheader">
 
     @if($context === 'down')
-        <span class="pill" style="background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;">🔧 Maintenance en cours</span>
+        <span class="pill pill-warning">🔧 Maintenance en cours</span>
 
         <h1>Information importante</h1>
 
@@ -43,7 +44,7 @@
             </div>
             <div class="info-row">
                 <div class="lbl">Panneaux en maintenance</div>
-                <div class="val"><strong style="color:#ea580c;">{{ $count }}</strong></div>
+                <div class="val"><strong style="color:{{ $ch['rouge'] }};">{{ $count }}</strong></div>
             </div>
         </div>
 
@@ -58,11 +59,11 @@
                     <div class="val">
                         {{ $m->panel?->name ?? '—' }}
                         <br>
-                        <span style="font-size:12px;color:#6b7280;">
+                        <span style="font-size:12px;color:{{ $ch['noir'] }};">
                             Signalé le {{ $m->date_signalement?->format('d/m/Y') }}
                             @if($m->date_fin_prevue)
                                 · Retour prévu le
-                                <strong style="color:#16a34a;">{{ $m->date_fin_prevue->format('d/m/Y') }}</strong>
+                                <strong style="color:{{ $ch['vert'] }};">{{ $m->date_fin_prevue->format('d/m/Y') }}</strong>
                                 @php $days = $m->daysRemaining(); @endphp
                                 @if($days !== null && $days >= 0)
                                     ({{ $days === 0 ? 'aujourd\'hui' : 'dans ' . $days . ' jour' . ($days > 1 ? 's' : '') }})
@@ -74,7 +75,7 @@
             @endforeach
         </div>
 
-        <p style="margin-top:18px;color:#4b5563;font-size:13px;">
+        <p style="margin-top:18px;color:{{ $ch['noir'] }};font-size:13px;">
             Vos autres panneaux de la campagne continuent leur diffusion normalement.
             La durée totale de votre campagne sera ajustée si nécessaire pour vous
             garantir le service payé.
@@ -110,14 +111,14 @@
                 <div class="info-row">
                     <div class="lbl">Encore en maintenance</div>
                     <div class="val">
-                        <strong style="color:#ea580c;">
+                        <strong style="color:{{ $ch['rouge'] }};">
                             {{ $remaining }} panneau{{ $remaining > 1 ? 'x' : '' }}
                         </strong>
                     </div>
                 </div>
             </div>
 
-            <p style="margin-top:14px;color:#4b5563;font-size:13px;">
+            <p style="margin-top:14px;color:{{ $ch['noir'] }};font-size:13px;">
                 Nos équipes poursuivent les interventions sur les panneaux restants.
                 Vous serez tenu informé à chaque rétablissement.
             </p>
@@ -126,12 +127,12 @@
                 <div class="info-row">
                     <div class="lbl">Statut campagne</div>
                     <div class="val">
-                        <strong style="color:#16a34a;">Diffusion intégrale rétablie ✓</strong>
+                        <strong style="color:{{ $ch['vert'] }};">Diffusion intégrale rétablie ✓</strong>
                     </div>
                 </div>
             </div>
 
-            <p style="margin-top:14px;color:#4b5563;font-size:13px;">
+            <p style="margin-top:14px;color:{{ $ch['noir'] }};font-size:13px;">
                 Tous vos panneaux sont de nouveau diffusés. Merci de votre patience.
             </p>
         @endif

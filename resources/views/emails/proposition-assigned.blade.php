@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator   = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $ref        = $reservation->reference;
     $period     = $reservation->start_date->format('d/m/Y') . ' → ' . $reservation->end_date->format('d/m/Y');
@@ -57,7 +58,7 @@
         </div>
     </div>
 
-    <p style="margin-top:24px;color:#6b7280;font-size:13px;">
+    <p style="margin-top:24px;color:{{ $ch['noir'] }};font-size:13px;">
         Une question sur ce dossier ? Répondez à cet email, votre Media
         Planner ({{ $submittedBy->email ?? $submittedBy->name }}) recevra
         votre réponse directement.

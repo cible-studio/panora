@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator   = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $ref        = $reservation->reference;
     $period     = $reservation->start_date->format('d/m/Y') . ' → ' . $reservation->end_date->format('d/m/Y');
@@ -69,12 +70,12 @@
             d'affichage en direct (piges) dès qu'elles sont validées, et
             télécharger vos factures.
         </p>
-        <p style="color:#4b5563;font-size:13px;">
+        <p style="color:{{ $ch['noir'] }};font-size:13px;">
             Pour activer votre espace, contactez votre interlocuteur commercial
             @if($contact)
                 <strong>{{ $contact->name }}</strong>
                 @if($contact->email) à
-                    <a href="mailto:{{ $contact->email }}" style="color:#c2570d;">{{ $contact->email }}</a>
+                    <a href="mailto:{{ $contact->email }}" style="color:{{ $ch['rouge'] }};">{{ $contact->email }}</a>
                 @endif
             @endif
             — il vous transmettra vos identifiants sécurisés.
@@ -87,8 +88,8 @@
             <div class="lbl">Votre commercial</div>
             <div class="val">
                 <strong>{{ $contact->name }}</strong>
-                @if($contact->email)<br><a href="mailto:{{ $contact->email }}" style="color:#c2570d;">{{ $contact->email }}</a>@endif
-                @if($contact->whatsapp_number)<br><a href="https://wa.me/{{ preg_replace('/\D/', '', $contact->whatsapp_number) }}" style="color:#16a34a;">📱 {{ $contact->whatsapp_number }}</a>@endif
+                @if($contact->email)<br><a href="mailto:{{ $contact->email }}" style="color:{{ $ch['rouge'] }};">{{ $contact->email }}</a>@endif
+                @if($contact->whatsapp_number)<br><a href="https://wa.me/{{ preg_replace('/\D/', '', $contact->whatsapp_number) }}" style="color:{{ $ch['vert'] }};">📱 {{ $contact->whatsapp_number }}</a>@endif
             </div>
         </div>
     </div>

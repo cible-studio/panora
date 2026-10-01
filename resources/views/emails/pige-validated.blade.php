@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $title = "Pige photo disponible — {$panel?->reference}";
     $preheader = "Photo du panneau {$panel?->reference} validée pour votre campagne « " . ($campaign?->name ?? '—') . " ».";
@@ -22,7 +23,7 @@
     @if($pige->photo_path)
         <p style="margin:18px 0;text-align:center">
             <img src="{{ asset('storage/'.$pige->photo_path) }}" alt="Pige photo"
-                 style="max-width:100%;border-radius:10px;border:1px solid #e5e7eb">
+                 style="display:block;margin:0 auto;max-width:100%;height:auto;border:1px solid {{ $ch['gris'] }}">
         </p>
     @endif
 
