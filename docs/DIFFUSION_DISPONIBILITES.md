@@ -110,8 +110,15 @@ le propose, limitez son usage à l'adresse IP du serveur de production.
 Sans modèle, Panora utilise son gabarit par défaut
 (`resources/views/diffusion/campagne-defaut.blade.php`).
 
-Pour un design sur mesure : *Campagnes → Modèles → Créer un modèle*, éditeur
-glisser-déposer. Placez dans le modèle :
+**Modèle CIBLE retenu (2026-10-01)** : `docs/diffusion/modele-brevo-disponibilites.html`
+— design choisi par la direction, aux couleurs et polices de la charte
+CIBLE. Il se colle dans *Modèles → Créer un modèle → Code HTML
+personnalisé*. Les photos sources sont dans `docs/diffusion/`. Dans le code,
+on utilise l'adresse « original » de la bibliothèque d'images Brevo, jamais
+celle en `img-thumb`, qui renvoie une vignette de 400 px.
+
+Pour un autre design sur mesure : *Campagnes → Modèles → Créer un modèle*.
+Placez dans le modèle :
 
 | À écrire dans le modèle | Remplacé par |
 |---|---|
@@ -185,6 +192,13 @@ dépendent déjà.
 **Durée** : le catalogue PDF de tout le parc prend plusieurs minutes à
 générer (~7 min mesurées sur un poste de dev, 364 panneaux). D'où la
 préparation dès 9h pour un envoi à 10h.
+
+**Erreur « HTTP 402 — Your account is under validation »** (constatée le
+2026-09-30) : Brevo bloque les campagnes créées par l'API tant que le
+compte n'est pas entièrement validé. Dans ce cas, celles créées depuis
+l'interface Brevo partent normalement. Le blocage a été levé en
+**confirmant le numéro de téléphone** du compte Brevo. Ce n'est pas un
+problème de Panora.
 
 Commande utile pour vérifier une date sans rien envoyer :
 
