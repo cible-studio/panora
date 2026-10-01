@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
 
     // Mapping couleur héritée → pill class. Le layout x-mail.layout n'expose
@@ -27,7 +28,7 @@
         <div class="info">
             @foreach($lines as $line)
                 <div class="info-row">
-                    <div class="val" style="width:100%;text-align:left;font-size:14px;color:#374151">{{ $line }}</div>
+                    <div class="val" style="width:100%;text-align:left;font-size:14px;color:{{ $ch['noir'] }}">{{ $line }}</div>
                 </div>
             @endforeach
         </div>
@@ -43,7 +44,7 @@
     @endif
 
     @if(!empty($footer))
-        <p style="margin-top:24px;font-size:12px;color:#9ca3af;text-align:center">{{ $footer }}</p>
+        <p style="margin-top:24px;font-size:12px;color:{{ $ch['noir'] }};text-align:center">{{ $footer }}</p>
     @endif
 
     <x-slot:footerNote>

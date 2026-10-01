@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $title = $isReminder
         ? "Rappel — Facture impayée {$invoice->reference}"
@@ -70,7 +71,7 @@
         </div>
     </div>
 
-    <p style="margin-top:24px;color:#6b7280;font-size:13px;">
+    <p style="margin-top:24px;color:{{ $ch['noir'] }};font-size:13px;">
         Pour toute question, écrivez-nous à <a href="mailto:contact@cible-ci.com">contact@cible-ci.com</a>.
     </p>
 

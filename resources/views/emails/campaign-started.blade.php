@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $start    = $campaign->start_date?->format('d/m/Y');
     $end      = $campaign->end_date?->format('d/m/Y');
     $amount   = $campaign->total_amount ? number_format($campaign->total_amount, 0, ',', ' ') . ' FCFA' : null;
@@ -64,16 +65,16 @@
             </div>
         </div>
     @else
-        <p style="margin-top:18px;color:#374151;">
+        <p style="margin-top:18px;color:{{ $ch['noir'] }};">
             PANORA met à votre disposition un <strong>espace client gratuit</strong>
             pour suivre l'avancement de votre campagne en temps réel (poses,
             photos d'affichage validées, factures).
         </p>
-        <p style="color:#4b5563;font-size:13px;">
+        <p style="color:{{ $ch['noir'] }};font-size:13px;">
             Pour activer votre espace, contactez votre interlocuteur commercial
             @if($contact)
                 <strong>{{ $contact->name }}</strong>@if($contact->email) à
-                <a href="mailto:{{ $contact->email }}" style="color:#c2570d;">{{ $contact->email }}</a>@endif
+                <a href="mailto:{{ $contact->email }}" style="color:{{ $ch['rouge'] }};">{{ $contact->email }}</a>@endif
             @endif
             — il vous transmettra vos identifiants sécurisés.
         </p>
@@ -85,8 +86,8 @@
             <div class="lbl">Votre commercial</div>
             <div class="val">
                 <strong>{{ $contact->name }}</strong>
-                @if($contact->email)<br><a href="mailto:{{ $contact->email }}" style="color:#c2570d;">{{ $contact->email }}</a>@endif
-                @if($contact->whatsapp_number)<br><a href="https://wa.me/{{ preg_replace('/\D/', '', $contact->whatsapp_number) }}" style="color:#16a34a;">📱 {{ $contact->whatsapp_number }}</a>@endif
+                @if($contact->email)<br><a href="mailto:{{ $contact->email }}" style="color:{{ $ch['rouge'] }};">{{ $contact->email }}</a>@endif
+                @if($contact->whatsapp_number)<br><a href="https://wa.me/{{ preg_replace('/\D/', '', $contact->whatsapp_number) }}" style="color:{{ $ch['vert'] }};">📱 {{ $contact->whatsapp_number }}</a>@endif
             </div>
         </div>
     </div>

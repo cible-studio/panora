@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $title = $isAccepted ? 'Proposition acceptée' : 'Proposition refusée';
     $pillClass = $isAccepted ? 'pill pill-success' : 'pill pill-danger';
     $pillText  = $isAccepted ? 'Acceptée' : 'Refusée';
@@ -45,7 +46,7 @@
         @if($totalAmount > 0)
             <div class="info-row">
                 <div class="lbl">Montant</div>
-                <div class="val"><strong style="color:#c2570d;">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</strong></div>
+                <div class="val"><strong style="color:{{ $ch['rouge'] }};">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</strong></div>
             </div>
         @endif
         @if($campaignName)
@@ -54,7 +55,7 @@
                 <div class="val">
                     <strong>{{ $campaignName }}</strong>
                     @if($campaign?->status?->value)
-                        <span style="font-size:11px;color:#6b7280;margin-left:6px;">· {{ ucfirst($campaign->status->value) }}</span>
+                        <span style="font-size:11px;color:{{ $ch['noir'] }};margin-left:6px;">· {{ ucfirst($campaign->status->value) }}</span>
                     @endif
                 </div>
             </div>
@@ -96,7 +97,7 @@
         <a href="{{ $showLink }}" class="cta">Ouvrir la fiche réservation</a>
         @if($campaignLink)
             <div style="margin-top:12px;">
-                <a href="{{ $campaignLink }}" style="font-size:13px;color:#c2570d;text-decoration:none;font-weight:600">
+                <a href="{{ $campaignLink }}" style="font-size:13px;color:{{ $ch['rouge'] }};text-decoration:none;font-weight:600">
                     → Voir la campagne « {{ $campaignName }} »
                 </a>
             </div>

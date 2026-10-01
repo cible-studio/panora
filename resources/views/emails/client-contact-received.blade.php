@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $preheader = "Nouveau message de " . $cm->from_name . " — sujet : " . \Illuminate\Support\Str::limit($cm->subject, 100);
 @endphp
 
@@ -37,7 +38,7 @@
     <p style="margin-top:0;"><strong>{{ $cm->subject }}</strong></p>
 
     <h2>Contenu du message</h2>
-    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;font-size:14px;color:#374151;line-height:1.6;white-space:pre-wrap;">{{ $cm->body }}</div>
+    <div style="background:{{ $ch['blanc'] }};border:1px solid {{ $ch['gris'] }};border-left:4px solid {{ $ch['bleu'] }};padding:16px 20px;font-size:14px;color:{{ $ch['noir'] }};line-height:1.6;white-space:pre-wrap;">{{ $cm->body }}</div>
 
     <div class="cta-wrap">
         <a href="{{ $showUrl }}" class="cta">Répondre depuis Panora</a>
@@ -48,7 +49,7 @@
         </div>
     </div>
 
-    <p style="margin-top:24px;color:#6b7280;font-size:13px;">
+    <p style="margin-top:24px;color:{{ $ch['noir'] }};font-size:13px;">
         Vous pouvez aussi répondre directement à cet email — l'adresse
         de réponse pointe sur <strong>{{ $cm->from_email }}</strong>.
         Mais la trace ne sera pas conservée dans /admin/messages.

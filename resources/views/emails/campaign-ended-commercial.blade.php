@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator     = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $title        = "Campagne terminée — « {$campaign->name} »";
     $preheader    = "Campagne « {$campaign->name} » pour "
@@ -65,7 +66,7 @@
         @endif
     </div>
 
-    <p style="margin-top:16px;color:#6b7280;font-size:13px;">
+    <p style="margin-top:16px;color:{{ $ch['noir'] }};font-size:13px;">
         💡 <strong>Rappel</strong> : un mail de satisfaction automatique est déjà
         parti au client (avec lien vers le questionnaire). Ton mail de suivi
         personnel vient en complément pour maintenir la relation commerciale.

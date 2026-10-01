@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $title = match ($context) {
         'activated'      => 'Compte activé',
@@ -71,7 +72,7 @@
         </div>
     </div>
 
-    <p style="margin-top:28px;color:#6b7280;font-size:13px;">
+    <p style="margin-top:28px;color:{{ $ch['noir'] }};font-size:13px;">
         Si vous n'attendiez pas cet email, vous pouvez l'ignorer.
         Pour toute question, contactez votre administrateur.
     </p>

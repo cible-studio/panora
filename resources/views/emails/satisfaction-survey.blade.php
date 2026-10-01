@@ -1,3 +1,4 @@
+@php $ch = config('charte.couleurs'); @endphp
 <x-mail.layout title="Votre avis sur la campagne" preheader="Merci de prendre 1 minute pour nous donner votre retour sur la campagne qui vient de se terminer.">
 
     <h1>Bonjour {{ $client?->name ?? 'Client' }},</h1>
@@ -35,7 +36,7 @@
         </div>
     </div>
 
-    <p style="color:#6b7280;font-size:13px;margin-top:24px;">
+    <p style="color:{{ $ch['noir'] }};font-size:13px;margin-top:24px;">
         Vos réponses nous aident à améliorer la qualité de nos services pour vous
         et tous nos clients. Merci d'avance pour votre retour.
     </p>

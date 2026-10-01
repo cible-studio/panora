@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $clientName = $client?->name ?? 'Client';
     $ref = $reservation->reference;
@@ -6,8 +7,8 @@
     if ($context === \App\Mail\PropositionDateChangeMail::CONTEXT_REQUESTED) {
         $title     = "Demande de décalage — {$ref}";
         $preheader = "{$clientName} souhaite décaler la proposition {$ref}.";
-        $pillClass = 'pill';
-        $pillStyle = 'background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;';
+        $pillClass = 'pill pill-warning';
+        $pillStyle = '';
         $pillText  = '🗓 Décalage demandé';
     } elseif ($context === \App\Mail\PropositionDateChangeMail::CONTEXT_ACCEPTED) {
         $title     = "Décalage accepté — {$ref}";
@@ -18,14 +19,14 @@
     } elseif ($context === \App\Mail\PropositionDateChangeMail::CONTEXT_COUNTER) {
         $title     = "Contre-proposition de dates — {$ref}";
         $preheader = "Notre équipe te propose une autre période pour la proposition {$ref}.";
-        $pillClass = 'pill';
-        $pillStyle = 'background:#eff6ff;color:#1e40af;border:1px solid #93c5fd;';
+        $pillClass = 'pill pill-info';
+        $pillStyle = '';
         $pillText  = '🔁 Contre-proposition';
     } else { // refused
         $title     = "Demande de décalage — {$ref}";
         $preheader = "La proposition {$ref} reste valide sur la période initiale.";
-        $pillClass = 'pill';
-        $pillStyle = 'background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;';
+        $pillClass = 'pill pill-warning';
+        $pillStyle = '';
         $pillText  = '🗓 Demande non retenue';
     }
 
@@ -69,7 +70,7 @@
             <div class="info-row">
                 <div class="lbl">Dates demandées</div>
                 <div class="val">
-                    <strong style="color:#ea580c">
+                    <strong style="color:{{ $ch['rouge'] }}">
                         {{ $reservation->requested_start_date?->format('d/m/Y') }}
                         → {{ $reservation->requested_end_date?->format('d/m/Y') }}
                     </strong>
@@ -81,13 +82,13 @@
             <div class="info" style="margin-top:14px">
                 <div class="info-row">
                     <div class="lbl">Montant actuel</div>
-                    <div class="val" style="color:#6b7280;text-decoration:line-through">{{ $fmtFcfa($oldAmount) }}</div>
+                    <div class="val" style="color:{{ $ch['noir'] }};text-decoration:line-through;font-weight:400">{{ $fmtFcfa($oldAmount) }}</div>
                 </div>
                 <div class="info-row">
                     <div class="lbl">Si accepté</div>
                     <div class="val">
-                        <strong style="color:{{ $newAmount > $oldAmount ? '#16a34a' : '#ea580c' }}">{{ $fmtFcfa($newAmount) }}</strong>
-                        <span style="font-size:11px;color:var(--text3,#6b7280);margin-left:6px">
+                        <strong style="color:{{ $newAmount > $oldAmount ? $ch['vert'] : $ch['rouge'] }}">{{ $fmtFcfa($newAmount) }}</strong>
+                        <span style="font-size:11px;color:{{ $ch['noir'] }};margin-left:6px">
                             ({{ $newAmount > $oldAmount ? '+' : '' }}{{ $fmtFcfa($newAmount - $oldAmount) }})
                         </span>
                     </div>
@@ -97,7 +98,7 @@
 
         @if(!empty($reservation->date_change_note))
             <h2 style="font-size:14px;margin-top:22px">Note du client</h2>
-            <div style="background:#fff7ed;border:1px solid #fed7aa;border-left:4px solid #f97316;border-radius:8px;padding:12px 14px;font-size:13.5px;color:#7c2d12;line-height:1.55;white-space:pre-wrap">{{ $reservation->date_change_note }}</div>
+            <div style="background:{{ $ch['blanc'] }};border:1px solid {{ $ch['gris'] }};border-left:4px solid {{ $ch['jaune'] }};padding:12px 14px;font-size:14px;color:{{ $ch['noir'] }};line-height:1.55;white-space:pre-wrap">{{ $reservation->date_change_note }}</div>
         @endif
 
         <div class="cta-wrap">
@@ -129,7 +130,7 @@
             <div class="info-row">
                 <div class="lbl">Nouvelle période</div>
                 <div class="val">
-                    <strong style="color:#16a34a">
+                    <strong style="color:{{ $ch['vert'] }}">
                         {{ $newPeriod ?: ($reservation->start_date->format('d/m/Y') . ' → ' . $reservation->end_date->format('d/m/Y')) }}
                     </strong>
                 </div>
@@ -137,19 +138,19 @@
             @if($oldPeriod)
                 <div class="info-row">
                     <div class="lbl">Ancienne période</div>
-                    <div class="val" style="color:#6b7280;text-decoration:line-through">{{ $oldPeriod }}</div>
+                    <div class="val" style="color:{{ $ch['noir'] }};text-decoration:line-through;font-weight:400">{{ $oldPeriod }}</div>
                 </div>
             @endif
             @if($hasAmountChange)
                 <div class="info-row">
                     <div class="lbl">Ancien montant</div>
-                    <div class="val" style="color:#6b7280;text-decoration:line-through">{{ $fmtFcfa($oldAmount) }}</div>
+                    <div class="val" style="color:{{ $ch['noir'] }};text-decoration:line-through;font-weight:400">{{ $fmtFcfa($oldAmount) }}</div>
                 </div>
                 <div class="info-row">
                     <div class="lbl">Nouveau montant</div>
                     <div class="val">
-                        <strong style="color:{{ $newAmount > $oldAmount ? '#16a34a' : '#ea580c' }}">{{ $fmtFcfa($newAmount) }}</strong>
-                        <span style="font-size:11px;color:#6b7280;margin-left:6px">
+                        <strong style="color:{{ $newAmount > $oldAmount ? $ch['vert'] : $ch['rouge'] }}">{{ $fmtFcfa($newAmount) }}</strong>
+                        <span style="font-size:11px;color:{{ $ch['noir'] }};margin-left:6px">
                             ({{ $newAmount > $oldAmount ? '+' : '' }}{{ $fmtFcfa($newAmount - $oldAmount) }} par rapport au montant précédent)
                         </span>
                     </div>
@@ -189,7 +190,7 @@
 
         @if(!empty($reason))
             <h2 style="font-size:14px;margin-top:18px">Notre message</h2>
-            <div style="background:#eff6ff;border:1px solid #93c5fd;border-left:4px solid #3b82f6;border-radius:8px;padding:12px 14px;font-size:13.5px;color:#1e3a8a;line-height:1.55;white-space:pre-wrap">{{ $reason }}</div>
+            <div style="background:{{ $ch['blanc'] }};border:1px solid {{ $ch['gris'] }};border-left:4px solid {{ $ch['bleu'] }};padding:12px 14px;font-size:14px;color:{{ $ch['noir'] }};line-height:1.55;white-space:pre-wrap">{{ $reason }}</div>
         @endif
 
         <div class="info">
@@ -200,24 +201,24 @@
             <div class="info-row">
                 <div class="lbl">Période proposée</div>
                 <div class="val">
-                    <strong style="color:#1e40af">{{ $newPeriod ?: ($reservation->start_date->format('d/m/Y') . ' → ' . $reservation->end_date->format('d/m/Y')) }}</strong>
+                    <strong style="color:{{ $ch['bleu'] }}">{{ $newPeriod ?: ($reservation->start_date->format('d/m/Y') . ' → ' . $reservation->end_date->format('d/m/Y')) }}</strong>
                 </div>
             </div>
             @if($oldPeriod)
                 <div class="info-row">
                     <div class="lbl">Période précédente</div>
-                    <div class="val" style="color:#6b7280;text-decoration:line-through">{{ $oldPeriod }}</div>
+                    <div class="val" style="color:{{ $ch['noir'] }};text-decoration:line-through;font-weight:400">{{ $oldPeriod }}</div>
                 </div>
             @endif
             @if($hasAmountChange)
                 <div class="info-row">
                     <div class="lbl">Ancien montant</div>
-                    <div class="val" style="color:#6b7280;text-decoration:line-through">{{ $fmtFcfa($oldAmount) }}</div>
+                    <div class="val" style="color:{{ $ch['noir'] }};text-decoration:line-through;font-weight:400">{{ $fmtFcfa($oldAmount) }}</div>
                 </div>
                 <div class="info-row">
                     <div class="lbl">Nouveau montant</div>
                     <div class="val">
-                        <strong style="color:{{ $newAmount > $oldAmount ? '#16a34a' : '#ea580c' }}">{{ $fmtFcfa($newAmount) }}</strong>
+                        <strong style="color:{{ $newAmount > $oldAmount ? $ch['vert'] : $ch['rouge'] }}">{{ $fmtFcfa($newAmount) }}</strong>
                     </div>
                 </div>
             @elseif($newAmount !== null)
@@ -256,7 +257,7 @@
 
         @if(!empty($reason))
             <h2 style="font-size:14px;margin-top:22px">Précisions de notre équipe</h2>
-            <div style="background:#fff7ed;border:1px solid #fed7aa;border-left:4px solid #f97316;border-radius:8px;padding:12px 14px;font-size:13.5px;color:#7c2d12;line-height:1.55;white-space:pre-wrap">{{ $reason }}</div>
+            <div style="background:{{ $ch['blanc'] }};border:1px solid {{ $ch['gris'] }};border-left:4px solid {{ $ch['jaune'] }};padding:12px 14px;font-size:14px;color:{{ $ch['noir'] }};line-height:1.55;white-space:pre-wrap">{{ $reason }}</div>
         @endif
 
         <div class="info">

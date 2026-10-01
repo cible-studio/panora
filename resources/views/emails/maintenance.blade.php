@@ -1,4 +1,5 @@
 @php
+    $ch = config('charte.couleurs');
     $priorityLabel = ['urgente'=>'🔴 Urgente','haute'=>'🟠 Haute','normale'=>'🔵 Normale','faible'=>'⚪ Faible'][$maintenance->priorite] ?? $maintenance->priorite;
 
     [$title, $intro, $pillText, $pillClass, $preheader] = match($context) {
@@ -39,7 +40,7 @@
             <div class="lbl">Panneau</div>
             <div class="val">
                 <code>{{ $panel?->reference }}</code> — {{ $panel?->name }}
-                @if($panel?->commune)<br><span style="color:#6b7280;font-size:12px;">📍 {{ $panel->commune->name }}</span>@endif
+                @if($panel?->commune)<br><span style="color:{{ $ch['noir'] }};font-size:12px;">📍 {{ $panel->commune->name }}</span>@endif
             </div>
         </div>
         <div class="info-row">
@@ -71,7 +72,7 @@
             <div class="lbl">Signalé par</div>
             <div class="val">
                 {{ $signaler->name }}
-                @if($signaler->whatsapp_number)<br><span style="color:#6b7280;font-size:12px;">WhatsApp : {{ $signaler->whatsapp_number }}</span>@endif
+                @if($signaler->whatsapp_number)<br><span style="color:{{ $ch['noir'] }};font-size:12px;">WhatsApp : {{ $signaler->whatsapp_number }}</span>@endif
             </div>
         </div>
         @endif
