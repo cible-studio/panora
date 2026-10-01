@@ -179,6 +179,6 @@ class DisponibilitesPdfBuilder
                 'isRemoteEnabled'      => false,
                 'defaultFont'          => 'DejaVu Sans',
                 'dpi'                  => 96,
-            ]);
+            ], true);
     }
 }

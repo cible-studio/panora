@@ -208,7 +208,7 @@ class ClientController extends Controller
               'isRemoteEnabled'      => false,
               'defaultFont'          => 'DejaVu Sans',
               'dpi'                  => 96,
-          ]);
+          ], true);
 
         return $pdf->download('clients-' . now()->format('Ymd_His') . '.pdf');
     }
