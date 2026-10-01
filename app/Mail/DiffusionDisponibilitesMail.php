@@ -32,9 +32,11 @@ class DiffusionDisponibilitesMail extends Mailable
         $periode = DiffusionCalendrier::libellePeriode($this->envoi->periode_debut, $this->envoi->periode_fin);
         $test = $this->envoi->mode === DiffusionEnvoi::MODE_TEST || config('diffusion.mode') !== 'production';
 
-        $sujet = $this->envoi->statut === DiffusionEnvoi::STATUT_ENVOYE
-            ? "✅ Disponibilités envoyées aux clients — {$periode}"
-            : "⚠️ Échec de l'envoi des disponibilités — {$periode}";
+        $sujet = match (true) {
+            $this->envoi->statut !== DiffusionEnvoi::STATUT_ENVOYE => "⚠️ Échec de l'envoi des disponibilités — {$periode}",
+            $test  => "✅ Test réussi — disponibilités {$periode}",
+            default => "✅ Disponibilités envoyées aux clients — {$periode}",
+        };
 
         return new Envelope(
             subject:  ($test ? '[TEST] ' : '') . $sujet,
