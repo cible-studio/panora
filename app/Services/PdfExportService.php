@@ -344,12 +344,15 @@ class PdfExportService
 
     private function dompdfOptions(): array
     {
-        return [
+        // Fusion avec config('dompdf.options') : sans elle, le dossier des
+        // polices et le chroot repartent aux valeurs internes de DomPDF et
+        // les polices de la charte (resources/fonts) sont refusées.
+        return array_merge(app('dompdf.options'), [
             'isRemoteEnabled' => false,
             'isHtml5ParserEnabled' => true,
             'defaultFont' => 'DejaVu Sans',
             'dpi' => 96,
             'defaultPaperSize' => 'a4',
-        ];
+        ]);
     }
 }

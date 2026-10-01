@@ -263,7 +263,7 @@ class ExternalAgencyController extends Controller
                 'isRemoteEnabled'      => false,
                 'defaultFont'          => 'DejaVu Sans',
                 'dpi'                  => 96,
-            ]);
+            ], true);
 
         $filename = 'regie-' . \Illuminate\Support\Str::slug($externalAgency->name)
                   . '-fiches-' . now()->format('Ymd_His') . '.pdf';
@@ -333,7 +333,7 @@ class ExternalAgencyController extends Controller
             'isRemoteEnabled'      => false,
             'defaultFont'          => 'DejaVu Sans',
             'dpi'                  => 96,
-        ]);
+        ], true);
 
         $suffix   = $hideStatus ? '-proposition' : '';
         $filename = 'regie-' . \Illuminate\Support\Str::slug($externalAgency->name)

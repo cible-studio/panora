@@ -1074,7 +1074,7 @@ class ReservationController extends Controller
             'isRemoteEnabled'      => false,
             'defaultFont'          => 'DejaVu Sans',
             'dpi'                  => 96,
-        ]);
+        ], true);
 
         $suffix = $hideStatus ? '-proposition' : '';
         $filename = $this->sanitizePdfFilename(

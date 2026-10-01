@@ -2415,7 +2415,7 @@ class CampaignController extends Controller
             'isRemoteEnabled'      => false,
             'defaultFont'          => 'DejaVu Sans',
             'dpi'                  => 96,
-        ]);
+        ], true);
 
         Log::info('campaigns.export.pdf', [
             'count'   => $campaigns->count(),
