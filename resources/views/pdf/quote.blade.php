@@ -2,10 +2,11 @@
     /**
      * PDF Devis — modèle CIBLE SARL officiel (BARRY PN-2025-09).
      *
-     * Palette CIBLE :
-     *   • Orange  #E8A020 (accent / call-out)
-     *   • Bleu marine #1a3a5c (headers de section)
-     *   • Fond neutre #ffffff / #f5f5f5
+     * Habillage : charte graphique CIBLE (2026-10-01) — palette lue dans
+     * $charte (config/charte.php via App\Support\PdfCharte) :
+     *   • rouge (accent / call-out), noir (headers de section),
+     *     jaune (chiffre mis en avant sur fond noir), gris / gris_clair (fonds).
+     *   (remplace l'ancienne palette orange / bleu marine)
      *
      * Structure 3 pages :
      *   Page 1 — Header + Émetteur/Client + tableau lignes + taxes + services + net + modalités
@@ -109,90 +110,102 @@
 <head>
     <meta charset="UTF-8">
     <title>Devis N° {{ $quote->reference }}</title>
+    {{-- 2026-10-01 — charte graphique : socle commun (polices, palette, classes ch-*).
+         La palette orange / bleu marine du modèle d'origine est remplacée par la
+         charte (rouge / noir / jaune…) ; structure et contenus inchangés. --}}
+    @include('pdf.partials.charte-styles')
     <style>
-        @page { margin: 12mm 10mm 16mm 10mm; size: A4 portrait; }
+        /* !important : « * { margin:0 } » annule sinon la marge @page sous DomPDF.
+           Marge basse 18 mm : réserve la place du pied fixe charte-footer. */
+        @page { margin: 12mm 10mm 18mm 10mm !important; size: A4 portrait; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'DejaVu Sans', Helvetica, sans-serif; font-size: 9.5px; color: #1a1a1a; line-height: 1.4; }
+        body { font-size: 9.5px; color: {{ $charte['noir'] }}; line-height: 1.2; }
         table { border-collapse: collapse; width: 100%; }
         td, th { vertical-align: middle; }
         strong, b { font-weight: 700; }
         .page-break { page-break-after: always; }
         .no-break { page-break-inside: avoid; }
 
-        /* ═══ HEADER : logo à gauche, bandeau ORANGE à droite ═══ */
+        /* ═══ HEADER : logo à gauche, bandeau titre à droite (accent rouge) ═══ */
         .header-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
         .header-left  {
             width: 28%;
             padding: 8px 10px;
-            background: #ffffff;
-            border: 1px solid #e0e0e0;
+            background: {{ $charte['blanc'] }};
+            border: 1px solid {{ $charte['gris'] }};
             border-right: none;
             vertical-align: middle;
             text-align: center;
         }
         .header-left img { max-height: 60px; max-width: 160px; }
+        .header-left .company-name { font-family: {!! $charte['ff_titres'] !!}; font-size: 22px; font-weight: 900; color: {{ $charte['noir'] }}; }
         .header-right {
             width: 72%;
-            background: #E8A020;
+            background: {{ $charte['gris_clair'] }};
+            border-left: 5px solid {{ $charte['rouge'] }};
             padding: 10px 16px;
             vertical-align: middle;
         }
         .header-right .title {
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 28px;
-            font-weight: 900;
-            color: #1a1a1a;
+            font-weight: 800;
+            color: {{ $charte['noir'] }};
             letter-spacing: 3px;
             line-height: 1;
         }
         .header-right .meta {
             font-size: 11px;
-            color: #1a1a1a;
+            color: {{ $charte['noir'] }};
             margin-top: 6px;
-            line-height: 1.6;
+            line-height: 1.4;
         }
         .header-right .meta .lbl { font-weight: 700; display: inline-block; width: 42px; }
-        .header-right .meta .val { color: #7f1d1d; font-weight: 700; }
+        .header-right .meta .val { color: {{ $charte['rouge'] }}; font-weight: 700; }
 
-        /* ═══ SECTION HEADER (bleu marine) — utilisé partout ═══ */
+        /* ═══ SECTION HEADER (noir) — utilisé partout ═══ */
         .section-header {
-            background: #1a3a5c;
-            color: #ffffff;
+            background: {{ $charte['noir'] }};
+            color: {{ $charte['blanc'] }};
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 10px;
             font-weight: 700;
             padding: 6px 10px;
             letter-spacing: 1px;
             text-transform: uppercase;
+            border-left: 4px solid {{ $charte['rouge'] }};
         }
 
         /* ═══ BLOC ÉMETTEUR / CLIENT ═══ */
         .party-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        .party-table td { vertical-align: top; width: 50%; border: 1px solid #cbd5e1; padding: 0; }
+        .party-table td { vertical-align: top; width: 50%; border: 1px solid {{ $charte['gris'] }}; padding: 0; }
         .party-body {
             padding: 8px 10px;
             font-size: 9.5px;
-            line-height: 1.6;
+            line-height: 1.4;
         }
         .party-body .row { padding: 1px 0; }
-        .party-body .lbl { font-weight: 700; color: #333; display: inline-block; min-width: 78px; }
-        .party-body .link { color: #1a3a5c; text-decoration: underline; }
+        .party-body .lbl { font-weight: 700; color: {{ $charte['noir'] }}; display: inline-block; min-width: 78px; }
+        .party-body .link { color: {{ $charte['bleu'] }}; text-decoration: underline; }
 
         /* ═══ TABLEAU DES LIGNES PANNEAUX ═══ */
         .panneaux-table { width: 100%; border-collapse: collapse; margin-bottom: 0; font-size: 9px; }
         .panneaux-table th {
-            background: #1a3a5c;
-            color: #ffffff;
+            background: {{ $charte['noir'] }};
+            color: {{ $charte['blanc'] }};
+            font-family: {!! $charte['ff_titres'] !!};
             padding: 6px 4px;
             text-align: center;
             font-size: 9px;
             font-weight: 700;
-            border-right: 1px solid #2c5282;
+            border-right: 1px solid {{ $charte['texte_doux'] }};
         }
         .panneaux-table th:last-child { border-right: none; }
         .panneaux-table th.left { text-align: left; padding-left: 10px; }
         .panneaux-table td {
             padding: 6px 4px;
-            border-bottom: 1px solid #e0e0e0;
-            border-right: 1px solid #f1f5f9;
+            border-bottom: 1px solid {{ $charte['gris'] }};
+            border-right: 1px solid {{ $charte['gris_clair'] }};
             vertical-align: middle;
             font-size: 9px;
             text-align: center;
@@ -202,114 +215,122 @@
             text-align: left;
             padding-left: 10px;
             font-style: italic;
-            line-height: 1.55;
+            line-height: 1.35;
         }
         .panneaux-table td.designation-cell .row-desc { display: block; }
         .panneaux-table td.num { text-align: right; padding-right: 8px; }
-        .panneaux-table td.montant-ht-col { background: #f5f5f5; text-align: right; padding-right: 8px; font-weight: 600; }
+        .panneaux-table td.montant-ht-col { background: {{ $charte['gris_clair'] }}; text-align: right; padding-right: 8px; font-weight: 700; }
 
         /* ═══ SOUS-TOTAUX (colonne 55% droite) ═══ */
         .subtotals { width: 55%; margin-left: 45%; border-collapse: collapse; margin-top: 0; }
         .subtotals td {
             padding: 6px 10px;
             font-size: 10px;
-            border: 1px solid #cbd5e1;
+            border: 1px solid {{ $charte['gris'] }};
         }
-        .subtotals .lbl { text-align: right; background: #f8fafc; font-weight: 600; }
+        .subtotals .lbl { text-align: right; background: {{ $charte['gris_clair'] }}; font-weight: 700; }
         .subtotals .val { text-align: right; font-weight: 700; width: 40%; }
         .subtotals tr.ttc td {
-            background: #1a3a5c;
-            color: #ffffff;
+            background: {{ $charte['noir'] }};
+            color: {{ $charte['blanc'] }};
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 12px;
             font-weight: 800;
             padding: 9px 10px;
+            border-color: {{ $charte['noir'] }};
         }
-        .subtotals tr.ttc td.val { font-size: 13px; }
+        .subtotals tr.ttc td.val { font-size: 13px; color: {{ $charte['jaune'] }}; }
 
         /* ═══ SECTIONS TAXES / SERVICES ═══ */
-        .section-tbl { width: 100%; border-collapse: collapse; margin-top: 12px; border: 1px solid #cbd5e1; }
+        .section-tbl { width: 100%; border-collapse: collapse; margin-top: 12px; border: 1px solid {{ $charte['gris'] }}; }
         .section-tbl thead th {
-            background: #E8A020;
-            color: #ffffff;
+            background: {{ $charte['gris'] }};
+            color: {{ $charte['noir'] }};
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 9.5px;
             font-weight: 700;
             padding: 6px 8px;
             text-align: left;
-            border-right: 1px solid #d18d18;
+            border-right: 1px solid {{ $charte['blanc'] }};
         }
         .section-tbl thead th:last-child { border-right: none; }
         .section-tbl thead th.num { text-align: right; }
         .section-tbl tbody td {
             padding: 6px 8px;
-            border-top: 1px solid #e8e8e8;
+            border-top: 1px solid {{ $charte['gris'] }};
             font-size: 9.5px;
         }
         .section-tbl tbody td.num { text-align: right; }
+        .section-tbl tbody td.empty { text-align: center; color: {{ $charte['texte_pale'] }}; font-style: italic; }
         .section-tbl tfoot td {
             padding: 7px 10px;
             font-weight: 700;
             font-size: 10px;
-            background: #f8fafc;
+            background: {{ $charte['gris_clair'] }};
             text-align: right;
-            border-top: 2px solid #1a3a5c;
+            border-top: 2px solid {{ $charte['noir'] }};
         }
-        .section-tbl tfoot td.num { color: #1a3a5c; }
+        .section-tbl tfoot td.num { color: {{ $charte['rouge'] }}; }
 
-        /* Services : pas de sous-header orange (juste le titre bleu) */
-        .section-tbl.no-thead-color thead th { background: transparent; color: #333; padding: 4px 8px; }
+        /* Services : pas de sous-header coloré (juste le titre de section) */
+        .section-tbl.no-thead-color thead th { background: transparent; color: {{ $charte['noir'] }}; padding: 4px 8px; }
 
         /* ═══ MONTANT NET TOTAL À PAYER ═══ */
         .montant-net {
             margin-top: 14px;
-            border: 2px solid #E8A020;
-            border-left: 6px solid #E8A020;
+            border: 2px solid {{ $charte['rouge'] }};
+            border-left: 6px solid {{ $charte['rouge'] }};
             padding: 12px 16px;
             width: 100%;
             border-collapse: collapse;
         }
         .montant-net td { padding: 0; vertical-align: middle; }
         .montant-net .lbl-net {
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 14px;
-            font-weight: 900;
-            color: #1a1a1a;
+            font-weight: 800;
+            color: {{ $charte['noir'] }};
             text-transform: uppercase;
             letter-spacing: 1px;
         }
         .montant-net .val-net {
+            font-family: {!! $charte['ff_titres'] !!};
             text-align: right;
             font-size: 20px;
-            font-weight: 900;
-            color: #E8A020;
+            font-weight: 800;
+            color: {{ $charte['rouge'] }};
         }
         .montant-lettres {
             padding: 6px 14px;
             font-style: italic;
             font-size: 9px;
-            color: #555;
-            border: 1px solid #e0e0e0;
+            color: {{ $charte['texte_doux'] }};
+            border: 1px solid {{ $charte['gris'] }};
             border-top: none;
         }
 
         /* ═══ MODALITÉS DE RÈGLEMENT ═══ */
-        .modalites { width: 100%; border-collapse: collapse; margin-top: 12px; border: 1px solid #cbd5e1; }
-        .modalites td { padding: 6px 10px; font-size: 9.5px; border-top: 1px solid #e8e8e8; }
-        .modalites td.lbl { background: #f8fafc; font-weight: 700; width: 32%; color: #1a1a1a; }
+        .modalites { width: 100%; border-collapse: collapse; margin-top: 12px; border: 1px solid {{ $charte['gris'] }}; }
+        .modalites td { padding: 6px 10px; font-size: 9.5px; border-top: 1px solid {{ $charte['gris'] }}; }
+        .modalites td.lbl { background: {{ $charte['gris_clair'] }}; font-weight: 700; width: 32%; color: {{ $charte['noir'] }}; }
         .modalites .cb {
             display: inline-block;
             width: 10px; height: 10px;
-            border: 1.2px solid #1a1a1a;
+            border: 1.2px solid {{ $charte['noir'] }};
             margin-right: 4px;
             vertical-align: middle;
         }
         .bon-accord {
-            background: #1a3a5c;
-            color: #ffffff;
+            background: {{ $charte['noir'] }};
+            color: {{ $charte['blanc'] }};
+            font-family: {!! $charte['ff_titres'] !!};
             padding: 8px 12px;
             font-size: 11px;
             font-weight: 800;
             letter-spacing: .8px;
             text-align: center;
             text-transform: uppercase;
+            border-bottom: 3px solid {{ $charte['rouge'] }};
         }
 
         /* ═══ SIGNATURES (page 2) ═══ */
@@ -318,56 +339,60 @@
             margin-top: 30px;
             margin-bottom: 20px;
         }
-        .sig-title-block .st-title { font-size: 18px; font-weight: 800; color: #1a3a5c; letter-spacing: 2px; }
-        .sig-title-block .st-sub   { font-size: 11px; color: #E8A020; margin-top: 4px; font-weight: 700; }
+        .sig-title-block .st-title { font-family: {!! $charte['ff_titres'] !!}; font-size: 18px; font-weight: 800; color: {{ $charte['noir'] }}; letter-spacing: 2px; }
+        .sig-title-block .st-sub   { font-size: 11px; color: {{ $charte['rouge'] }}; margin-top: 4px; font-weight: 700; }
         .sig-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         .sig-table td {
             width: 50%;
-            border: 1px solid #cbd5e1;
+            border: 1px solid {{ $charte['gris'] }};
             padding: 16px 18px;
             vertical-align: top;
             height: 180px;
-            background: #f8fafc;
+            background: {{ $charte['gris_clair'] }};
         }
         .sig-table .sig-label {
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 11px;
             font-weight: 800;
-            color: #1a3a5c;
+            color: {{ $charte['noir'] }};
             text-align: center;
         }
         .sig-table .sig-role {
             font-size: 10px;
-            color: #555;
+            color: {{ $charte['texte_doux'] }};
             text-align: center;
             margin-top: 4px;
         }
         .sig-table .sig-line {
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid {{ $charte['noir'] }};
             width: 70%;
             margin: 100px auto 0 auto;
         }
 
         /* ═══ CGV (page 3) ═══ */
         .cgv-header {
-            background: #1a3a5c;
-            color: #ffffff;
+            background: {{ $charte['noir'] }};
+            color: {{ $charte['blanc'] }};
+            font-family: {!! $charte['ff_titres'] !!};
             padding: 8px 12px;
             font-size: 11px;
             font-weight: 800;
             letter-spacing: 1px;
             text-transform: uppercase;
+            border-left: 4px solid {{ $charte['rouge'] }};
         }
         .cgv-header .site {
             float: right;
             font-size: 10px;
-            font-weight: 500;
-            color: #E8A020;
+            font-weight: 600;
+            color: {{ $charte['jaune'] }};
             text-transform: none;
             letter-spacing: 0;
         }
         .cgv-art-title {
-            background: #E8A020;
-            color: #ffffff;
+            background: {{ $charte['rouge'] }};
+            color: {{ $charte['blanc'] }};
+            font-family: {!! $charte['ff_titres'] !!};
             padding: 5px 10px;
             font-size: 10px;
             font-weight: 800;
@@ -378,27 +403,14 @@
         .cgv-body {
             padding: 7px 12px;
             font-size: 9.5px;
-            line-height: 1.55;
-            color: #1a1a1a;
-            border: 1px solid #e8e8e8;
+            line-height: 1.35;
+            color: {{ $charte['noir'] }};
+            border: 1px solid {{ $charte['gris'] }};
             border-top: none;
         }
         .cgv-body ul { margin: 4px 0 4px 20px; }
         .cgv-body li { margin: 2px 0; }
         .cgv-body .hi { font-weight: 700; }
-
-        /* ═══ FOOTER commun toutes pages ═══ */
-        .footer-legal {
-            position: fixed;
-            bottom: 6mm;
-            left: 0;
-            right: 0;
-            text-align: center;
-            font-size: 7.5px;
-            color: #555;
-            padding-top: 4px;
-            border-top: 1px solid #e0e0e0;
-        }
     </style>
 </head>
 <body>
@@ -407,14 +419,16 @@
          PAGE 1
     ═══════════════════════════════════════════════════════════════ --}}
 
-    {{-- HEADER logo + bandeau ORANGE --}}
+    {{-- HEADER logo + bandeau titre (2026-10-01 — charte graphique : liseré 5 couleurs
+         au-dessus, bandeau clair à accent rouge au lieu de l'orange) --}}
+    @include('pdf.partials.charte-lisere')
     <table class="header-table">
         <tr>
             <td class="header-left">
                 @if($logoSrc)
                     <img src="{{ $logoSrc }}" alt="{{ $company['name'] }}">
                 @else
-                    <div style="font-size:22px;font-weight:900;color:#1a3a5c">{{ $company['name'] }}</div>
+                    <div class="company-name">{{ $company['name'] }}</div>
                 @endif
             </td>
             <td class="header-right">
@@ -549,7 +563,7 @@
                     <td class="num">{{ $fmt($tax['montant']) }}</td>
                 </tr>
             @empty
-                <tr><td colspan="4" style="text-align:center;color:#94a3b8;font-style:italic">Aucune taxe publicitaire applicable</td></tr>
+                <tr><td colspan="4" class="empty">Aucune taxe publicitaire applicable</td></tr>
             @endforelse
         </tbody>
         <tfoot>
@@ -642,6 +656,7 @@
     {{-- ═══════════════════════════════════════════════════════════════
          PAGE 2 — SIGNATURES
     ═══════════════════════════════════════════════════════════════ --}}
+    @include('pdf.partials.charte-lisere')
     <table class="header-table">
         <tr>
             <td class="header-left">
@@ -794,12 +809,17 @@
     {{-- ═══════════════════════════════════════════════════════════════
          FOOTER LÉGAL (fixed, apparaît sur toutes les pages)
     ═══════════════════════════════════════════════════════════════ --}}
-    <div class="footer-legal">
-        {{ $company['name'] ?? 'CIBLE SARL' }} — Capital : 10 000 000 FCFA
-        · {{ $company['address'] ?? '' }}
-        · Tél. {{ $company['phone'] ?? '' }}
-        · {{ $company['email'] ?? '' }}
-    </div>
+    {{-- 2026-10-01 — charte graphique : pied fixe commun ; la mention légale
+         d'origine est reprise mot pour mot en 2e ligne. Pas de « Page N » CSS
+         ici : la numérotation reste confiée au script text/php ci-dessous
+         (évite un double numéro si enable_php est réactivé). --}}
+    @include('pdf.partials.charte-footer', [
+        'footerHint' => ($company['name'] ?? 'CIBLE SARL') . ' — Capital : 10 000 000 FCFA'
+            . ' · ' . ($company['address'] ?? '')
+            . ' · Tél. ' . ($company['phone'] ?? '')
+            . ' · ' . ($company['email'] ?? ''),
+        'footerPage' => false,
+    ])
 
     {{-- Numérotation "Page X sur Y" (DomPDF spécifique) --}}
     <script type="text/php">
