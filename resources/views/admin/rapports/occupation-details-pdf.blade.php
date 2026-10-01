@@ -3,61 +3,57 @@
 <head>
 <meta charset="UTF-8">
 <title>Occupation détaillée — CIBLE CI</title>
+@include('pdf.partials.charte-styles')
 <style>
     /* margin-bottom 26mm + body padding-bottom = double garde-fou
-       contre le débordement du tableau sur le footer (bug DomPDF). */
-    @page { size: A4 landscape; margin: 12mm 10mm 26mm 10mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2937; line-height: 1.4; padding-bottom: 4mm; }
-    h1 { font-size: 16px; color: #e8a020; margin: 0 0 4px; }
-    .header { display: table; width: 100%; margin-bottom: 12px; }
-    .header .left  { display: table-cell; vertical-align: middle; }
-    .header .mid   { display: table-cell; vertical-align: middle; }
-    .header .right { display: table-cell; vertical-align: middle; text-align: right; font-size: 8.5px; color: #6b7280; }
-    .header .logo { height: 38px; margin-right: 14px; }
-    .period { font-size: 10px; color: #6b7280; margin-top: 2px; }
-    .meta { font-size: 9px; color: #374151; margin-top: 8px; padding: 6px 10px; background: #fafafa; border-left: 3px solid #e8a020; border-radius: 3px; }
-    .meta strong { color: #111827; }
+       contre le débordement du tableau sur le footer (bug DomPDF).
+       2026-10-01 — charte graphique : palette $charte, polices de la
+       charte, en-tête charte-header, pied charte-footer. */
+    @page { size: A4 landscape; margin: 12mm 10mm 26mm 10mm !important; }
+    body { font-size: 9px; color: {{ $charte['noir'] }}; line-height: 1.2; padding-bottom: 4mm; }
+    .meta { font-size: 9px; color: {{ $charte['texte_doux'] }}; margin-top: 8px; padding: 6px 10px; background: {{ $charte['gris_clair'] }}; border-left: 3px solid {{ $charte['rouge'] }}; }
+    .meta strong { color: {{ $charte['noir'] }}; }
     .kpis { display: table; width: 100%; margin: 8px 0 12px; border-collapse: separate; border-spacing: 5px 0; }
-    .kpis .cell { display: table-cell; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 4px; padding: 6px 10px; text-align: center; }
-    .kpis .cell .n { font-size: 15px; font-weight: bold; color: #b45309; display: block; }
-    .kpis .cell .l { font-size: 7.5px; text-transform: uppercase; color: #78716c; letter-spacing: .4px; }
-    table { width: 100%; border-collapse: collapse; }
-    th { background: #0a0c10; padding: 6px 6px; text-align: left; font-size: 8px; font-weight: bold; color: #fff; text-transform: uppercase; letter-spacing: 0.4px; }
-    th.r, td.r { text-align: right; }
-    th.c, td.c { text-align: center; }
-    td { padding: 4px 6px; font-size: 8px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
-    tr:nth-child(even) td { background: #fafafa; }
-    .ref { font-family: 'Courier New', monospace; color: #b45309; font-weight: bold; }
-    .muted { color: #6b7280; font-size: 7.5px; }
-    .badge { display: inline-block; padding: 1px 6px; font-size: 7.5px; border-radius: 999px; font-weight: bold; text-transform: uppercase; letter-spacing: .3px; }
-    .badge-actif    { background: rgba(34,197,94,.15);  color: #15803d; }
-    .badge-planifie { background: rgba(59,130,246,.15); color: #1d4ed8; }
-    .badge-termine  { background: rgba(107,114,128,.18);color: #374151; }
-    .badge-pause    { background: rgba(249,115,22,.15); color: #c2410c; }
-    .badge-ext      { background: rgba(107,114,128,.15);color: #4b5563; margin-top: 2px; display: inline-block; }
-    .badge-decap    { background: rgba(220,38,38,.15);  color: #b91c1c; margin-top: 2px; display: inline-block; }
-    .footer { position: fixed; bottom: 6mm; left: 10mm; right: 10mm; font-size: 8px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 4px; background: #fff; }
-    .footer .pagenum:before { content: counter(page) " / " counter(pages); }
+    .kpis .cell { display: table-cell; background: {{ $charte['gris_clair'] }}; border-top: 3px solid {{ $charte['rouge'] }}; padding: 6px 10px; text-align: center; }
+    .kpis .cell .n { font-family: {!! $charte['ff_titres'] !!}; font-size: 15px; font-weight: 700; color: {{ $charte['noir'] }}; display: block; }
+    .kpis .cell .l { font-size: 7.5px; font-weight: 700; text-transform: uppercase; color: {{ $charte['texte_doux'] }}; letter-spacing: .4px; }
+    table.grid { width: 100%; border-collapse: collapse; }
+    table.grid th { background: {{ $charte['noir'] }}; padding: 6px 6px; text-align: left; font-family: {!! $charte['ff_titres'] !!}; font-size: 8px; font-weight: 600; color: {{ $charte['blanc'] }}; text-transform: uppercase; letter-spacing: 0.4px; }
+    table.grid th.r, table.grid td.r { text-align: right; }
+    table.grid th.c, table.grid td.c { text-align: center; }
+    table.grid td { padding: 4px 6px; font-size: 8px; border-bottom: 1px solid {{ $charte['gris'] }}; vertical-align: top; }
+    table.grid tr:nth-child(even) td { background: {{ $charte['gris_clair'] }}; }
+    .ref { font-family: {!! $charte['ff_mono'] !!}; color: {{ $charte['rouge'] }}; font-weight: 700; }
+    .muted { color: {{ $charte['texte_doux'] }}; font-size: 7.5px; }
+    .badge { display: inline-block; padding: 1px 6px; font-size: 7.5px; border-radius: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+    .badge-actif    { background: {{ $charte['vert'] }};   color: {{ $charte['blanc'] }}; }
+    .badge-planifie { background: {{ $charte['bleu'] }};   color: {{ $charte['blanc'] }}; }
+    .badge-termine  { background: {{ $charte['gris'] }};   color: {{ $charte['noir'] }}; }
+    .badge-pause    { background: {{ $charte['jaune'] }};  color: {{ $charte['noir'] }}; }
+    .badge-ext      { background: {{ $charte['gris'] }};   color: {{ $charte['noir'] }}; margin-top: 2px; display: inline-block; }
+    .badge-decap    { background: {{ $charte['rouge'] }};  color: {{ $charte['blanc'] }}; margin-top: 2px; display: inline-block; }
+    .empty-row { text-align: center; color: {{ $charte['texte_doux'] }}; font-style: italic; padding: 24px; }
 </style>
 </head>
 <body>
 
-<div class="header">
-    @if(!empty($logoCibleLight))
-        <div class="mid">
-            <img src="{{ $logoCibleLight }}" alt="CIBLE CI" class="logo">
-        </div>
-    @endif
-    <div class="left">
-        <h1>OCCUPATION DÉTAILLÉE</h1>
-        <div class="period">Panneaux occupés × campagnes · {{ $operatorName ?? 'CIBLE CI' }}</div>
-    </div>
-    <div class="right">
-        Édité le {{ now()->format('d/m/Y H:i') }}<br>
-        Par {{ $user->name ?? '—' }}<br>
-        Réf. {{ strtoupper(substr(md5(now()), 0, 8)) }}
-    </div>
-</div>
+{{-- 2026-10-01 — charte graphique : pied commun (texte d'origine en
+     footerHint ; « Page N » fourni par le partiel). --}}
+@include('pdf.partials.charte-footer', [
+    'footerHint' => "CIBLE SARL — Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora",
+])
+
+{{-- 2026-10-01 — charte graphique : en-tête commun (liseré + logo clair). --}}
+@include('pdf.partials.charte-header', [
+    'docKicker'   => 'Rapport',
+    'docTitle'    => 'OCCUPATION DÉTAILLÉE',
+    'docSubtitle' => 'Panneaux occupés × campagnes · ' . ($operatorName ?? 'CIBLE CI'),
+    'docMeta'     => [
+        'Édité le ' . now()->format('d/m/Y H:i'),
+        'Par ' . ($user->name ?? '—'),
+        'Réf. ' . strtoupper(substr(md5(now()), 0, 8)),
+    ],
+])
 
 @include('admin.rapports.partials._filter_recap_pdf')
 
@@ -78,7 +74,7 @@
     · Statuts inclus : planifié, actif, en pause, terminé (annulés exclus).
 </div>
 
-<table>
+<table class="grid">
     <thead>
         <tr>
             <th>Commune</th>
@@ -150,14 +146,10 @@
                 </td>
             </tr>
         @empty
-            <tr><td colspan="8" style="text-align:center;color:#6b7280;font-style:italic;padding:24px">Aucune occupation sur la période et les filtres choisis.</td></tr>
+            <tr><td colspan="8" class="empty-row">Aucune occupation sur la période et les filtres choisis.</td></tr>
         @endforelse
     </tbody>
 </table>
-
-<div class="footer">
-    CIBLE SARL — Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora · Page <span class="pagenum"></span>
-</div>
 
 </body>
 </html>

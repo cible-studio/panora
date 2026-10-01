@@ -3,58 +3,50 @@
 <head>
 <meta charset="UTF-8">
 <title>Synthèse exécutive — CIBLE CI</title>
+{{-- 2026-10-01 — charte graphique : styles communs, en-tête charte-header,
+     pied charte-footer. Le pied était auparavant positionné DANS la zone de
+     contenu (bottom:4mm) et chevauchait le tableau en bas de la page 1 ; il
+     vit désormais dans la marge basse réservée (20mm). --}}
+@include('pdf.partials.charte-styles')
 <style>
-    @page { size: A4; margin: 18mm 14mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 10px; color: #1f2937; line-height: 1.45; }
-    h1 { font-size: 18px; color: #e8a020; margin: 0 0 4px; }
-    h2 { font-size: 12px; color: #111827; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1.5px solid #e8a020; }
-    .header { display: table; width: 100%; margin-bottom: 14px; }
-    .header .left { display: table-cell; vertical-align: top; }
-    .header .right { display: table-cell; vertical-align: top; text-align: right; font-size: 9px; color: #6b7280; }
-    .period { font-size: 11px; color: #6b7280; margin-top: 2px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    th { background: #f3f4f6; padding: 5px 8px; text-align: left; font-size: 9px; font-weight: bold; color: #374151; border-bottom: 1px solid #d1d5db; text-transform: uppercase; letter-spacing: 0.4px; }
-    td { padding: 5px 8px; font-size: 9.5px; border-bottom: 1px solid #f3f4f6; }
+    @page { size: A4; margin: 12mm 14mm 20mm 14mm !important; }
+    body { font-size: 10px; color: {{ $charte['noir'] }}; line-height: 1.25; }
+    h2 {
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 12px; font-weight: 700; color: {{ $charte['noir'] }};
+        margin: 18px 0 8px; padding: 0 0 4px 8px;
+        border-left: 3px solid {{ $charte['rouge'] }};
+        border-bottom: 1px solid {{ $charte['gris'] }};
+    }
+    table.ch-table { margin-bottom: 8px; }
+    table.ch-table tbody td { font-size: 9.5px; padding: 5px 8px; }
     .r { text-align: right; }
-    .b { font-weight: bold; }
-    .kpi-grid { display: table; width: 100%; margin-bottom: 8px; border-collapse: separate; border-spacing: 4px; }
-    .kpi-row { display: table-row; }
-    .kpi { display: table-cell; padding: 8px 10px; background: #fafafa; border-left: 3px solid #e8a020; border-radius: 4px; width: 25%; }
-    .kpi-label { font-size: 8px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.6px; }
-    .kpi-value { font-size: 14px; font-weight: bold; color: #111827; margin-top: 2px; }
-    .kpi-sub { font-size: 8px; color: #6b7280; margin-top: 1px; }
-    .color-occ { border-left-color: #3b82f6; }
-    .color-ca  { border-left-color: #16a34a; }
-    .color-clt { border-left-color: #a855f7; }
-    .color-dec { border-left-color: #f59e0b; }
-    .badge-up   { color: #16a34a; font-weight: bold; }
-    .badge-down { color: #dc2626; font-weight: bold; }
-    .badge-flat { color: #6b7280; font-weight: bold; }
-    .footer { position: fixed; bottom: 4mm; left: 14mm; right: 14mm; font-size: 8px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 4px; }
-    .insight { background: #fef3c7; border-left: 3px solid #f59e0b; padding: 6px 10px; margin-bottom: 5px; font-size: 9.5px; }
-    .insight-danger { background: #fee2e2; border-left-color: #dc2626; }
-    .insight-success { background: #dcfce7; border-left-color: #16a34a; }
-    .insight-info { background: #dbeafe; border-left-color: #3b82f6; }
+    .b { font-weight: 700; }
+    .ch-table thead th.r { text-align: right; }
+    .badge-up   { color: {{ $charte['vert'] }}; font-weight: 700; }
+    .badge-down { color: {{ $charte['rouge'] }}; font-weight: 700; }
+    .badge-flat { color: {{ $charte['texte_doux'] }}; font-weight: 700; }
+    .insight { margin: 0 0 5px; font-size: 9.5px; }
 </style>
 </head>
 <body>
 
-<div class="header">
-    <div class="left">
-        @if(!empty($logoCibleLight))
-            <img src="{{ $logoCibleLight }}" alt="CIBLE CI" style="height:34px;margin-bottom:6px;">
-        @endif
-        <h1>SYNTHÈSE EXÉCUTIVE</h1>
-        <div class="period">Dashboard analytique OOH — {{ $operatorName ?? 'CIBLE CI' }}</div>
-        {{-- Période retirée du header : elle est désormais portée par le
-             bandeau "Type d'export" plus bas (plus complet, avec le preset). --}}
-    </div>
-    <div class="right">
-        Édité le {{ now()->format('d/m/Y H:i') }}<br>
-        Par {{ $user->name ?? '—' }}<br>
-        Réf. {{ strtoupper(substr(md5(now()), 0, 8)) }}
-    </div>
-</div>
+@include('pdf.partials.charte-footer', [
+    'footerHint' => 'CIBLE CI — Dashboard analytique OOH · Document généré automatiquement · Confidentiel',
+])
+
+@include('pdf.partials.charte-header', [
+    'docKicker'   => 'Rapport',
+    'docTitle'    => 'SYNTHÈSE EXÉCUTIVE',
+    'docSubtitle' => 'Dashboard analytique OOH — ' . ($operatorName ?? 'CIBLE CI'),
+    'docMeta'     => [
+        'Édité le ' . now()->format('d/m/Y H:i'),
+        'Par ' . ($user->name ?? '—'),
+        'Réf. ' . strtoupper(substr(md5(now()), 0, 8)),
+    ],
+])
+{{-- Période retirée du header : elle est désormais portée par le
+     bandeau "Type d'export" plus bas (plus complet, avec le preset). --}}
 
 {{-- ════ Récap filtres actifs ════
      Source unique : RapportFilterContextService — cohérent avec
@@ -62,66 +54,66 @@
 @include('admin.rapports.partials._filter_recap_pdf')
 
 {{-- ════ KPIs principaux ════ --}}
-<div class="kpi-grid">
-    <div class="kpi-row">
-        <div class="kpi color-occ">
-            <div class="kpi-label">Taux d'occupation</div>
-            <div class="kpi-value">{{ $parc['occupation_rate'] }}%</div>
-            <div class="kpi-sub">{{ $parc['occupied'] }} / {{ $parc['total'] }} panneaux</div>
-        </div>
-        <div class="kpi color-ca">
-            <div class="kpi-label">CA contractuel période</div>
-            <div class="kpi-value">{{ number_format($revenue / 1000000, 1, ',', ' ') }} M</div>
-            <div class="kpi-sub">FCFA — {{ $stats['total'] }} campagnes</div>
-        </div>
-        <div class="kpi color-clt">
-            <div class="kpi-label">Clients à risque</div>
-            <div class="kpi-value">{{ $inactivity['6_to_12'] + $inactivity['12_plus'] }}</div>
-            <div class="kpi-sub">Inactifs > 6 mois</div>
-        </div>
-        <div class="kpi color-dec">
-            <div class="kpi-label">Décapages en retard</div>
-            <div class="kpi-value">{{ $decapStats['overdue'] }}</div>
-            <div class="kpi-sub">Sur {{ $decapStats['total'] }} concernés</div>
-        </div>
-    </div>
-</div>
+<table class="ch-kpis">
+    <tr>
+        <td class="ch-kpi k-bleu" style="width:25%">
+            <div class="ch-kpi-label">Taux d'occupation</div>
+            <div class="ch-kpi-value">{{ $parc['occupation_rate'] }}%</div>
+            <div class="ch-kpi-sub">{{ $parc['occupied'] }} / {{ $parc['total'] }} panneaux</div>
+        </td>
+        <td class="ch-kpi k-vert" style="width:25%">
+            <div class="ch-kpi-label">CA contractuel période</div>
+            <div class="ch-kpi-value">{{ number_format($revenue / 1000000, 1, ',', ' ') }} M</div>
+            <div class="ch-kpi-sub">FCFA — {{ $stats['total'] }} campagnes</div>
+        </td>
+        <td class="ch-kpi k-violet" style="width:25%">
+            <div class="ch-kpi-label">Clients à risque</div>
+            <div class="ch-kpi-value">{{ $inactivity['6_to_12'] + $inactivity['12_plus'] }}</div>
+            <div class="ch-kpi-sub">Inactifs > 6 mois</div>
+        </td>
+        <td class="ch-kpi k-jaune" style="width:25%">
+            <div class="ch-kpi-label">Décapages en retard</div>
+            <div class="ch-kpi-value">{{ $decapStats['overdue'] }}</div>
+            <div class="ch-kpi-sub">Sur {{ $decapStats['total'] }} concernés</div>
+        </td>
+    </tr>
+</table>
 
 {{-- ════ Bloc CA RÉEL (Bloc 4 Commit 14 — 2026-06-18) ════
      Source : CaRealService → cohérent au franc près avec FinancialDashboardService.
      Filtres commune/zone/category ignorés par construction. ──────────────── --}}
 @if(!empty($caReel))
-<h2>💰 CA réel sur la période</h2>
-<div style="background:#fef9e7;border-left:3px solid #f59e0b;padding:8px 10px;margin-bottom:8px;font-size:9px;color:#7c2d12;line-height:1.4">
-    <strong>ℹ️ Note méthodologique :</strong> les chiffres ci-dessous proviennent de la comptabilité (factures émises HT + paiements reçus TTC),
+<h2>CA réel sur la période</h2>
+<div class="ch-note ch-note-jaune" style="font-size:9px;line-height:1.4;margin:0 0 8px">
+    <strong>ℹ Note méthodologique :</strong> les chiffres ci-dessous proviennent de la comptabilité (factures émises HT + paiements reçus TTC),
     et non du contractuel campagne (CA contractuel période ci-dessus).
     Pour la même période, ils ne tiennent pas compte des filtres « commune / zone / catégorie panneau » :
     la facturation suit le client, pas le panneau. Pour un CA réel filtré géographiquement, consulter le tableau de bord Finance.
 </div>
-<div class="kpi-grid">
-    <div class="kpi-row">
-        <div class="kpi" style="border-left-color:#f59e0b;width:33%">
-            <div class="kpi-label">📤 CA HT facturé</div>
-            <div class="kpi-value">{{ number_format(($caReel['ht_facture'] ?? 0) / 1000000, 1, ',', ' ') }} M</div>
-            <div class="kpi-sub">FCFA · factures émises hors annulées</div>
-        </div>
-        <div class="kpi" style="border-left-color:#16a34a;width:33%">
-            <div class="kpi-label">💰 Encaissé TTC</div>
-            <div class="kpi-value">{{ number_format(($caReel['ttc_encaisse'] ?? 0) / 1000000, 1, ',', ' ') }} M</div>
-            <div class="kpi-sub">FCFA · paiements reçus</div>
-        </div>
-        <div class="kpi" style="border-left-color:#3b82f6;width:33%">
-            <div class="kpi-label">Taux de recouvrement</div>
-            <div class="kpi-value">{{ number_format($caReel['taux_recouvrement'] ?? 0, 1, ',', ' ') }} %</div>
-            <div class="kpi-sub">encaissé / facturé TTC</div>
-        </div>
-    </div>
-</div>
+<table class="ch-kpis">
+    <tr>
+        <td class="ch-kpi k-jaune" style="width:33%">
+            <div class="ch-kpi-label">CA HT facturé</div>
+            <div class="ch-kpi-value">{{ number_format(($caReel['ht_facture'] ?? 0) / 1000000, 1, ',', ' ') }} M</div>
+            <div class="ch-kpi-sub">FCFA · factures émises hors annulées</div>
+        </td>
+        <td class="ch-kpi k-vert" style="width:33%">
+            <div class="ch-kpi-label">Encaissé TTC</div>
+            <div class="ch-kpi-value">{{ number_format(($caReel['ttc_encaisse'] ?? 0) / 1000000, 1, ',', ' ') }} M</div>
+            <div class="ch-kpi-sub">FCFA · paiements reçus</div>
+        </td>
+        <td class="ch-kpi k-bleu" style="width:33%">
+            <div class="ch-kpi-label">Taux de recouvrement</div>
+            <div class="ch-kpi-value">{{ number_format($caReel['taux_recouvrement'] ?? 0, 1, ',', ' ') }} %</div>
+            <div class="ch-kpi-sub">encaissé / facturé TTC</div>
+        </td>
+    </tr>
+</table>
 @endif
 
 {{-- ════ État du parc ════ --}}
-<h2>📊 Vue d'ensemble du parc</h2>
-<table>
+<h2>Vue d'ensemble du parc</h2>
+<table class="ch-table">
     <thead>
         <tr>
             <th>Indicateur</th>
@@ -138,8 +130,8 @@
 </table>
 
 {{-- ════ Campagnes ════ --}}
-<h2>🎯 Activité commerciale</h2>
-<table>
+<h2>Activité commerciale</h2>
+<table class="ch-table">
     <thead>
         <tr>
             <th>Statut</th>
@@ -152,13 +144,13 @@
         <tr><td>Actives</td><td class="r">{{ $stats['active'] }}</td><td>{{ $stats['total'] > 0 ? round(($stats['active'] / $stats['total']) * 100, 1) : 0 }}%</td></tr>
         <tr><td>Planifiées</td><td class="r">{{ $stats['planned'] }}</td><td>{{ $stats['total'] > 0 ? round(($stats['planned'] / $stats['total']) * 100, 1) : 0 }}%</td></tr>
         <tr><td>Terminées</td><td class="r">{{ $stats['done'] }}</td><td>{{ $stats['total'] > 0 ? round(($stats['done'] / $stats['total']) * 100, 1) : 0 }}%</td></tr>
-        <tr><td>Annulées</td><td class="r" style="color:#dc2626">{{ $stats['cancelled'] }}</td><td style="color:#dc2626">{{ $stats['cancel_rate'] }}%</td></tr>
+        <tr><td>Annulées</td><td class="r c-rouge">{{ $stats['cancelled'] }}</td><td class="c-rouge">{{ $stats['cancel_rate'] }}%</td></tr>
     </tbody>
 </table>
 
 {{-- ════ Prévisions ════ --}}
-<h2>🔮 Prévisions sur 3 mois (régression linéaire)</h2>
-<table>
+<h2>Prévisions sur 3 mois (régression linéaire)</h2>
+<table class="ch-table">
     <thead>
         <tr>
             <th>Mois</th>
@@ -187,15 +179,15 @@
         @endforeach
     </tbody>
 </table>
-<div style="font-size:8.5px;color:#6b7280;margin-top:4px">
+<div class="ch-muted" style="font-size:8.5px;margin-top:4px">
     Confiance du modèle CA : <strong>{{ $forecast['revenue']['confidence'] }}%</strong> (R² = {{ $forecast['revenue']['r_squared'] }}) ·
     Confiance occupation : <strong>{{ $forecast['occupation']['confidence'] }}%</strong> (R² = {{ $forecast['occupation']['r_squared'] }})
     <br>Méthode : régression linéaire des moindres carrés sur l'historique 12 mois. Ne capture pas la saisonnalité — à utiliser comme tendance globale, pas comme valeur exacte.
 </div>
 
 {{-- ════ Top 5 clients ════ --}}
-<h2>🏆 Top 5 clients (CA période)</h2>
-<table>
+<h2>Top 5 clients (CA période)</h2>
+<table class="ch-table">
     <thead>
         <tr>
             <th>#</th>
@@ -210,36 +202,36 @@
                 <td>{{ $i + 1 }}</td>
                 <td class="b">{{ $c->name }}</td>
                 <td class="r">{{ $c->campaigns_count }}</td>
-                <td class="r b" style="color:#16a34a">{{ number_format($c->total_revenue, 0, ',', ' ') }}</td>
+                <td class="r b c-vert">{{ number_format($c->total_revenue, 0, ',', ' ') }}</td>
             </tr>
         @empty
-            <tr><td colspan="4" style="text-align:center;color:#9ca3af">Aucun client sur la période</td></tr>
+            <tr><td colspan="4" class="ch-pale" style="text-align:center">Aucun client sur la période</td></tr>
         @endforelse
     </tbody>
 </table>
 
 {{-- ════ Insights & alertes ════ --}}
 @if($insights->isNotEmpty())
-<h2>⚠️ Insights & recommandations</h2>
+<h2>⚠ Insights & recommandations</h2>
 @foreach($insights->take(6) as $insight)
     @php
+        // 2026-10-01 — charte graphique : encadrés ch-note-* (sévérité inchangée).
         $cls = match($insight['severity'] ?? 'info') {
-            'danger'  => 'insight insight-danger',
-            'warning' => 'insight',
-            'success' => 'insight insight-success',
-            default   => 'insight insight-info',
+            'danger'  => 'insight ch-note ch-note-rouge',
+            'warning' => 'insight ch-note ch-note-jaune',
+            'success' => 'insight ch-note ch-note-vert',
+            default   => 'insight ch-note',
         };
     @endphp
     <div class="{{ $cls }}">
-        <strong>{{ $insight['icon'] ?? '' }} {{ $insight['title'] }}</strong><br>
-        <span style="color:#374151">{{ $insight['message'] }}</span>
+        {{-- $insight['icon'] (emoji décoratif fourni par DashboardKpiService)
+             n'est plus affiché : il rendait un carré vide dans le PDF. La
+             sévérité reste portée par la couleur de l'encadré. --}}
+        <strong>{{ $insight['title'] }}</strong><br>
+        <span class="ch-muted">{{ $insight['message'] }}</span>
     </div>
 @endforeach
 @endif
-
-<div class="footer">
-    CIBLE CI — Dashboard analytique OOH · Document généré automatiquement · Confidentiel
-</div>
 
 </body>
 </html>

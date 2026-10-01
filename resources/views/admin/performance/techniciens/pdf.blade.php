@@ -3,86 +3,85 @@
 <head>
 <meta charset="UTF-8">
 <title>Performance techniciens — CIBLE CI</title>
+{{-- 2026-10-01 — charte graphique : styles communs (polices, ch-*) puis styles propres. --}}
+@include('pdf.partials.charte-styles')
 <style>
-    @page { size: A4 landscape; margin: 14mm 12mm 22mm 12mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 10px; color: #1f2937; line-height: 1.45; }
-    h1 { font-size: 17px; color: #e8a020; margin: 0 0 4px; }
-    h2 { font-size: 11.5px; color: #111827; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1.5px solid #e8a020; }
-    .header { display: table; width: 100%; margin-bottom: 12px; }
-    .header .left { display: table-cell; vertical-align: top; }
-    .header .right { display: table-cell; vertical-align: top; text-align: right; font-size: 9px; color: #6b7280; }
-    .period { font-size: 11px; color: #6b7280; margin-top: 2px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    th { background: #f3f4f6; padding: 5px 7px; text-align: left; font-size: 8.5px; font-weight: bold; color: #374151; border-bottom: 1px solid #d1d5db; text-transform: uppercase; letter-spacing: 0.4px; }
-    td { padding: 5px 7px; font-size: 9.5px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+    @page { size: A4 landscape; margin: 14mm 12mm 22mm 12mm !important; }
+    body { font-size: 10px; color: {{ $charte['noir'] }}; line-height: 1.25; }
+    h2 {
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 11.5px; font-weight: 700; color: {{ $charte['noir'] }};
+        margin: 14px 0 6px; padding: 0 0 4px 8px;
+        border-left: 3px solid {{ $charte['rouge'] }};
+        border-bottom: 1px solid {{ $charte['gris'] }};
+    }
+    table.ch-table { margin-bottom: 8px; font-size: 9.5px; }
+    .ch-table tbody td { vertical-align: top; }
+    .ch-table th.r, .ch-table td.r { text-align: right; }
+    .ch-table th.c, .ch-table td.c { text-align: center; }
     .r { text-align: right; }
     .c { text-align: center; }
     .b { font-weight: bold; }
-    .muted { color: #6b7280; }
-    .badge { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 8.5px; font-weight: bold; }
-    .b-1 { background: #fef3c7; color: #92400e; }
-    .b-2 { background: #e5e7eb; color: #4b5563; }
-    .b-3 { background: #fed7aa; color: #c2410c; }
-    .kpi-grid { display: table; width: 100%; margin-bottom: 10px; border-collapse: separate; border-spacing: 4px; }
-    .kpi-row { display: table-row; }
-    .kpi { display: table-cell; padding: 8px 10px; background: #fafafa; border-left: 3px solid #6366f1; border-radius: 4px; width: 16%; }
-    .kpi-label { font-size: 8px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.6px; }
-    .kpi-value { font-size: 13px; font-weight: bold; color: #111827; margin-top: 2px; }
-    .kpi-sub { font-size: 8px; color: #6b7280; margin-top: 1px; }
-    .footer { position: fixed; bottom: 4mm; left: 12mm; right: 12mm; font-size: 8px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 4px; background: #fff; }
+    .muted { color: {{ $charte['texte_doux'] }}; }
+    /* Médailles du podium : or → jaune, argent → gris, bronze → jaune clair. */
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 8.5px; font-weight: bold; }
+    .b-1 { background: {{ $charte['jaune'] }}; color: {{ $charte['noir'] }}; }
+    .b-2 { background: {{ $charte['gris'] }}; color: {{ $charte['noir'] }}; }
+    .b-3 { background: {{ $charte['jaune_clair'] }}; color: {{ $charte['noir'] }}; }
+    .ch-kpi { width: 16%; }
+    .ch-kpi-value { font-size: 13px; }
 </style>
 </head>
 <body>
 
-<div class="header">
-    <div class="left">
-        @if(!empty($logoCibleLight))
-            <img src="{{ $logoCibleLight }}" alt="CIBLE CI" style="height:30px;margin-bottom:5px;">
-        @endif
-        <h1>PERFORMANCE TECHNICIENS</h1>
-        <div class="period">Classement des techniciens · CIBLE CI</div>
-        <div class="period">Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ $from->diffInDays($to) + 1 }} jours)</div>
-    </div>
-    <div class="right">
-        Édité le {{ $generatedAt->format('d/m/Y à H:i') }}<br>
-        Par {{ $user->name ?? '—' }}
-    </div>
+{{-- 2026-10-01 — charte graphique : en-tête commun (liseré + logo + titre + méta). --}}
+@include('pdf.partials.charte-header', [
+    'docTitle'    => 'PERFORMANCE TECHNICIENS',
+    'docSubtitle' => 'Classement des techniciens · CIBLE CI',
+    'docMeta'     => [
+        'Édité le ' . $generatedAt->format('d/m/Y à H:i'),
+        'Par ' . ($user->name ?? '—'),
+    ],
+])
+
+<div class="ch-info">
+    <strong>Période :</strong> {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ $from->diffInDays($to) + 1 }} jours)
 </div>
 
 {{-- KPIs globaux équipe --}}
-<div class="kpi-grid">
-    <div class="kpi-row">
-        <div class="kpi">
-            <div class="kpi-label">Techniciens actifs</div>
-            <div class="kpi-value">{{ $globalKpis['nb_techs_actifs'] }}</div>
-        </div>
-        <div class="kpi" style="border-left-color:#16a34a">
-            <div class="kpi-label">Poses réalisées</div>
-            <div class="kpi-value">{{ $globalKpis['nb_poses_realisees'] }}</div>
-        </div>
-        <div class="kpi" style="border-left-color:#0ea5e9">
-            <div class="kpi-label">Réactivité moyenne</div>
-            <div class="kpi-value">{{ \App\Support\HumanDuration::fromMinutes($globalKpis['reactivite_avg_min']) }}</div>
-            <div class="kpi-sub">attribution → début</div>
-        </div>
-        <div class="kpi" style="border-left-color:#a855f7">
-            <div class="kpi-label">Durée pose moyenne</div>
-            <div class="kpi-value">{{ \App\Support\HumanDuration::fromMinutes($globalKpis['duree_pose_avg_min']) }}</div>
-        </div>
-        <div class="kpi" style="border-left-color:#f59e0b">
-            <div class="kpi-label">% en retard</div>
-            <div class="kpi-value">{{ $globalKpis['taux_poses_en_retard'] }} %</div>
-        </div>
-        <div class="kpi" style="border-left-color:#ef4444">
-            <div class="kpi-label">% piges rejetées</div>
-            <div class="kpi-value">{{ $globalKpis['taux_piges_rejetees'] }} %</div>
-        </div>
-    </div>
-</div>
+<table class="ch-kpis">
+    <tr>
+        <td class="ch-kpi k-violet">
+            <div class="ch-kpi-label">Techniciens actifs</div>
+            <div class="ch-kpi-value">{{ $globalKpis['nb_techs_actifs'] }}</div>
+        </td>
+        <td class="ch-kpi k-vert">
+            <div class="ch-kpi-label">Poses réalisées</div>
+            <div class="ch-kpi-value">{{ $globalKpis['nb_poses_realisees'] }}</div>
+        </td>
+        <td class="ch-kpi k-bleu">
+            <div class="ch-kpi-label">Réactivité moyenne</div>
+            <div class="ch-kpi-value">{{ \App\Support\HumanDuration::fromMinutes($globalKpis['reactivite_avg_min']) }}</div>
+            <div class="ch-kpi-sub">attribution → début</div>
+        </td>
+        <td class="ch-kpi k-violet">
+            <div class="ch-kpi-label">Durée pose moyenne</div>
+            <div class="ch-kpi-value">{{ \App\Support\HumanDuration::fromMinutes($globalKpis['duree_pose_avg_min']) }}</div>
+        </td>
+        <td class="ch-kpi k-jaune">
+            <div class="ch-kpi-label">% en retard</div>
+            <div class="ch-kpi-value">{{ $globalKpis['taux_poses_en_retard'] }} %</div>
+        </td>
+        <td class="ch-kpi k-rouge">
+            <div class="ch-kpi-label">% piges rejetées</div>
+            <div class="ch-kpi-value">{{ $globalKpis['taux_piges_rejetees'] }} %</div>
+        </td>
+    </tr>
+</table>
 
 {{-- Leaderboard détaillé --}}
-<h2>🏆 Classement des techniciens</h2>
-<table>
+<h2>Classement des techniciens</h2>
+<table class="ch-table">
     <thead>
         <tr>
             <th class="c" style="width:30px">#</th>
@@ -104,7 +103,8 @@
                 $rank = $i + 1;
                 $rankBadge = $rank <= 3 ? 'b-' . $rank : '';
                 $k = $row['kpis'];
-                $rejetCol = $k['taux_piges_rejetees'] <= 5 ? '#16a34a' : ($k['taux_piges_rejetees'] <= 15 ? '#f59e0b' : '#dc2626');
+                // Charte : ≤ 5 % vert · ≤ 15 % jaune (badge, jamais de texte jaune) · sinon rouge.
+                $rejetTone = $k['taux_piges_rejetees'] <= 5 ? 'vert' : ($k['taux_piges_rejetees'] <= 15 ? 'jaune' : 'rouge');
             @endphp
             <tr>
                 <td class="c">
@@ -118,12 +118,12 @@
                 {{-- 2026-06-19 — Multi-équipe : liste les noms séparés par virgules. --}}
                 <td class="muted">{{ $row['user']->poseTeams->pluck('name')->join(', ') ?: '—' }}</td>
                 <td class="r">{{ $k['nb_poses_total'] }}</td>
-                <td class="r b" style="color:#15803d">{{ $k['nb_poses_realisees'] }}</td>
+                <td class="r b c-vert">{{ $k['nb_poses_realisees'] }}</td>
                 <td class="r muted">{{ $k['nb_poses_planifiees'] }}</td>
-                <td class="r" style="color:{{ $k['nb_poses_en_retard'] > 0 ? '#dc2626' : '#6b7280' }}">{{ $k['nb_poses_en_retard'] }}</td>
+                <td class="r {{ $k['nb_poses_en_retard'] > 0 ? 'c-rouge' : 'c-doux' }}">{{ $k['nb_poses_en_retard'] }}</td>
                 <td class="r">{{ \App\Support\HumanDuration::fromMinutes($k['reactivite_avg_min']) }}</td>
                 <td class="r">{{ \App\Support\HumanDuration::fromMinutes($k['duree_pose_avg_min']) }}</td>
-                <td class="r b" style="color:{{ $rejetCol }}">{{ $k['taux_piges_rejetees'] }} %</td>
+                <td class="r b"><span class="ch-badge ch-badge-{{ $rejetTone }}">{{ $k['taux_piges_rejetees'] }} %</span></td>
                 <td class="r muted">{{ $k['nb_signalements'] }}</td>
             </tr>
         @empty
@@ -134,8 +134,8 @@
 
 {{-- Top par commune --}}
 @if($topByCommune->isNotEmpty())
-    <h2>🌍 Top techniciens par commune</h2>
-    <table>
+    <h2>Top techniciens par commune</h2>
+    <table class="ch-table">
         <thead>
             <tr>
                 <th>Commune</th>
@@ -157,8 +157,8 @@
 
 {{-- Top par campagne --}}
 @if($topByCampaign->isNotEmpty())
-    <h2>🎯 Top techniciens par campagne</h2>
-    <table>
+    <h2>Top techniciens par campagne</h2>
+    <table class="ch-table">
         <thead>
             <tr>
                 <th>Campagne</th>
@@ -178,10 +178,11 @@
     </table>
 @endif
 
-<div class="footer">
-    CIBLE CI — Performance techniciens · Édité par Panora le {{ $generatedAt->format('d/m/Y à H:i') }}
-    · Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
-</div>
+{{-- 2026-10-01 — charte graphique : pied commun ; l'ancien texte de pied est conservé en footerHint. --}}
+@include('pdf.partials.charte-footer', [
+    'footerHint' => 'CIBLE CI — Performance techniciens · Édité par Panora le ' . $generatedAt->format('d/m/Y à H:i')
+                  . ' · Période : ' . $from->format('d/m/Y') . ' → ' . $to->format('d/m/Y'),
+])
 
 </body>
 </html>

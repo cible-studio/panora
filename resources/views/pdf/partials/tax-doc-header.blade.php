@@ -2,11 +2,13 @@
      Variables attendues :
        $docTitle  (string)  — ex. « Détail des taxes communales »
        $docPeriod (?string) — ex. « Janvier → Septembre 2026 » (optionnel)
-     $logoCibleLight / $operatorName sont injectés par le View composer
-     d'AppServiceProvider sur toutes les vues `pdf.*`.
+     $logoCibleLight / $operatorName / $charte sont injectés par le View
+     composer d'AppServiceProvider sur toutes les vues `pdf.*`.
 
      ⚠️ On utilise volontairement logoCibleLight (logol.png, texte noir) :
-     le bandeau est clair, logoCibleDark (texte blanc) y serait invisible. --}}
+     le bandeau est clair, logoCibleDark (texte blanc) y serait invisible.
+     2026-10-01 — liseré 5 couleurs de la charte en tête (commun à tous les PDF). --}}
+@include('pdf.partials.charte-lisere')
 <table class="tdoc-top">
     <tr>
         <td>

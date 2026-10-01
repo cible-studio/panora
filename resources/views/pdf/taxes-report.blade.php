@@ -7,7 +7,7 @@
     {{-- Même charte que pdf/taxes-details.blade.php (partial commun).
          Marges identiques, seule l'orientation change : ce rapport reste
          en portrait (7 colonnes), le détail est en paysage (8 colonnes). --}}
-    <style>@page { size: A4 portrait; margin: 14mm 14mm 18mm 14mm; }</style>
+    <style>@page { size: A4 portrait; margin: 12mm 14mm 20mm 14mm !important; }</style>
     @include('pdf.partials.tax-doc-styles')
 </head>
 <body>

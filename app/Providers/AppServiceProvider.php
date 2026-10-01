@@ -58,6 +58,11 @@ class AppServiceProvider extends ServiceProvider
             'admin.*.*.pdf.*',
             'admin.rapports.*-pdf',
             'admin.rapports.pdf.*',
+            // 2026-10-01 — charte graphique : vues PDF nommées « xxx-pdf » hors
+            // rapports (finance.recap-pdf, finance.relances-pdf,
+            // campaigns.fiche-pose-pdf, campaigns.fiche-pose-pdf-liste).
+            'admin.*-pdf',
+            'admin.*-pdf-*',
         ], function ($view) {
             $assets = new class { use \App\Support\PdfAssets {
                 getPanoraLogoDark as public;
@@ -75,6 +80,9 @@ class AppServiceProvider extends ServiceProvider
                 'logoCibleLight'  => $assets->getCibleLogoLight(),
                 'operatorName'    => config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')),
                 'platformName'    => 'Panora',
+                // Charte graphique (config/charte.php) : palette, teintes
+                // dérivées, polices intégrées — cf. App\Support\PdfCharte.
+                'charte'          => \App\Support\PdfCharte::data(),
             ]);
         });
 

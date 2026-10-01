@@ -131,41 +131,47 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ $isCreditNote ? 'Avoir' : 'Facture de vente' }} N° {{ $invoice->reference }}</title>
+    {{-- 2026-10-01 — charte graphique (config/charte.php) : habillage seul,
+         AUCUNE mention, donnée ni montant modifié (modèle officiel FNE). --}}
+    @include('pdf.partials.charte-styles')
     <style>
-        @page { margin: 10mm 12mm 10mm 12mm; size: A4 portrait; }
+        /* !important : sans lui, « * { margin:0 } » annule les marges de page sous DomPDF. */
+        @page { margin: 8mm 10mm 8mm 10mm !important; size: A4 portrait; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'DejaVu Sans', Helvetica, sans-serif;
+            font-family: {!! $charte['ff_texte'] !!};
             font-size: 10px;
-            color: #0f172a;
-            line-height: 1.42;
+            color: {{ $charte['noir'] }};
+            line-height: 1.2;
         }
         table { border-collapse: collapse; width: 100%; }
         td, th { vertical-align: top; }
         strong { font-weight: 700; }
 
         /* ═════════ HEADER 2 colonnes ═════════ */
-        .header { margin-bottom: 14px; }
+        .header { margin-bottom: 10px; }
         .header td { padding: 0; }
         .header .left  { width: 54%; padding-right: 12px; }
         .header .right { width: 46%; text-align: right; }
 
         .emit-box {
-            border: 1.2px solid #94a3b8;
-            border-radius: 10px;
+            border: 1px solid {{ $charte['gris'] }};
+            border-left: 3px solid {{ $charte['rouge'] }};
+            border-radius: 6px;
             padding: 10px 14px;
         }
         .emit-box .co-name {
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 15px;
-            font-weight: 800;
+            font-weight: 700;
             letter-spacing: 0.5px;
-            color: #0f172a;
+            color: {{ $charte['noir'] }};
             margin-bottom: 4px;
         }
         .emit-box .co-line {
             font-size: 10px;
-            color: #1e293b;
-            line-height: 1.55;
+            color: {{ $charte['noir'] }};
+            line-height: 1.25;
         }
 
         .header .right .brand-strip img {
@@ -174,9 +180,10 @@
             margin-bottom: 8px;
         }
         .header .right .fac-num {
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 12.5px;
-            font-weight: 800;
-            color: #0f172a;
+            font-weight: 700;
+            color: {{ $charte['noir'] }};
             margin-bottom: 8px;
         }
         /* QR + badge FNE côte à côte via <table> — DomPDF gère mieux
@@ -194,41 +201,43 @@
         }
         .qr-fne-tbl img.qr {
             width: 74px; height: 74px;
-            border: 1px solid #cbd5e1;
+            border: 1px solid {{ $charte['gris'] }};
             padding: 3px;
-            background: #fff;
+            background: {{ $charte['blanc'] }};
             display: block;
         }
         .fne-badge {
             display: inline-block;
             width: 96px;
-            background: #fff;
-            border: 1px solid #cbd5e1;
+            background: {{ $charte['blanc'] }};
+            border: 1px solid {{ $charte['gris'] }};
             padding: 6px 6px 8px;
             text-align: center;
-            font-family: 'DejaVu Sans', sans-serif;
         }
         .fne-badge .fne-flag {
             display: inline-block;
             width: 26px; height: 16px;
-            border: 1px solid #94a3b8;
+            border: 1px solid {{ $charte['gris'] }};
         }
+        /* Drapeau de Côte d'Ivoire du badge FNE : couleurs NATIONALES conservées
+           volontairement (marque officielle de la facture normalisée, hors charte). */
         .fne-badge .fne-flag-orange { background: #f77f00; width: 8.5px; height: 16px; display: inline-block; vertical-align: top; }
-        .fne-badge .fne-flag-white  { background: #ffffff; width: 8.5px; height: 16px; display: inline-block; vertical-align: top; border-left: 1px solid #94a3b8; border-right: 1px solid #94a3b8; }
+        .fne-badge .fne-flag-white  { background: {{ $charte['blanc'] }}; width: 8.5px; height: 16px; display: inline-block; vertical-align: top; border-left: 1px solid {{ $charte['gris'] }}; border-right: 1px solid {{ $charte['gris'] }}; }
         .fne-badge .fne-flag-green  { background: #009e60; width: 8.5px; height: 16px; display: inline-block; vertical-align: top; }
         .fne-badge .fne-title {
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 8.5px;
-            font-weight: 800;
-            color: #0f172a;
+            font-weight: 700;
+            color: {{ $charte['noir'] }};
             margin-top: 4px;
-            line-height: 1.1;
+            line-height: 1.0;
             letter-spacing: 0.3px;
         }
         .fne-badge .fne-sub {
             font-size: 6.5px;
-            color: #475569;
+            color: {{ $charte['texte_doux'] }};
             margin-top: 2px;
-            line-height: 1.15;
+            line-height: 1.0;
         }
 
         /* ═════════ Bandeau infos vendeur / client ═════════ */
@@ -238,50 +247,59 @@
         .infos .client { width: 42%; }
         .infos .row {
             font-size: 10px;
-            padding: 1px 0;
-            line-height: 1.55;
+            padding: 0;
+            line-height: 1.2;
         }
-        .infos .row .lbl { font-weight: 600; color: #0f172a; }
+        .infos .row .lbl { font-weight: 700; color: {{ $charte['noir'] }}; }
         .infos .client-title {
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 13px;
-            font-weight: 800;
-            color: #0f172a;
+            font-weight: 700;
+            color: {{ $charte['noir'] }};
+            border-bottom: 2px solid {{ $charte['rouge'] }};
+            padding-bottom: 2px;
             margin-bottom: 4px;
         }
         .infos .highlight {
             font-weight: 700;
-            color: #0f172a;
+            color: {{ $charte['noir'] }};
         }
 
         /* ═════════ Tableau des lignes ═════════ */
         .lines {
             margin-top: 4px;
             margin-bottom: 0;
-            border: 1px solid #cbd5e1;
+            border: 1px solid {{ $charte['gris'] }};
         }
         .lines thead th {
-            background: #1e293b;
-            color: #ffffff;
-            font-size: 9.5px;
-            font-weight: 700;
+            background: {{ $charte['noir'] }};
+            color: {{ $charte['blanc'] }};
+            font-family: {!! $charte['ff_titres'] !!};
+            font-size: 8.5px;
+            font-weight: 600;
             text-align: left;
-            padding: 6px 8px;
-            border-right: 1px solid #334155;
+            padding: 5px 6px;
+            white-space: nowrap;
+            border-right: 1px solid {{ $charte['texte_doux'] }};
         }
         .lines thead th:last-child { border-right: none; }
         .lines thead th.num { text-align: right; }
         .lines thead th.center { text-align: center; }
         .lines tbody td {
-            padding: 6px 8px;
-            border-bottom: 1px solid #e2e8f0;
-            border-right: 1px solid #f1f5f9;
+            padding: 4px 8px;
+            border-bottom: 1px solid {{ $charte['gris'] }};
+            border-right: 1px solid {{ $charte['gris'] }};
             font-size: 9.5px;
         }
         .lines tbody tr:last-child td { border-bottom: none; }
         .lines tbody td:last-child { border-right: none; }
         .lines tbody td.num { text-align: right; }
         .lines tbody td.center { text-align: center; }
-        .lines tbody td.ref { font-family: 'DejaVu Sans Mono', monospace; font-weight: 700; color: #b45309; }
+        .lines tbody td.ref { font-family: {!! $charte['ff_mono'] !!}; font-weight: 700; color: {{ $charte['rouge'] }}; }
+        .lines tbody tr.commune-sep td {
+            background: {{ $charte['gris_clair'] }}; padding: 4px 8px; font-size: 8.5px; font-weight: 700;
+            color: {{ $charte['noir'] }}; border-top: 1px solid {{ $charte['gris'] }}; border-left: 3px solid {{ $charte['rouge'] }};
+        }
 
         /* Largeurs colonnes */
         .col-ref { width: 8%; }
@@ -301,55 +319,63 @@
             border-collapse: collapse;
         }
         .totals-wrap td {
-            padding: 6px 10px;
+            padding: 4px 10px;
             font-size: 10px;
-            border: 1px solid #cbd5e1;
+            border: 1px solid {{ $charte['gris'] }};
         }
-        .totals-wrap .lbl-tot { text-align: left; font-weight: 600; background: #f8fafc; }
+        .totals-wrap .lbl-tot { text-align: left; font-weight: 700; background: {{ $charte['gris_clair'] }}; }
         .totals-wrap .val-tot { text-align: right; font-weight: 700; }
         .totals-wrap tr.grand td {
-            background: #1e293b;
-            color: #ffffff;
+            background: {{ $charte['noir'] }};
+            color: {{ $charte['blanc'] }};
+            font-family: {!! $charte['ff_titres'] !!};
+            font-weight: 700;
             font-size: 12px;
-            padding: 9px 10px;
+            padding: 7px 10px;
+            border-color: {{ $charte['noir'] }};
         }
+        .totals-wrap tr.grand td.val-tot { color: {{ $charte['jaune'] }}; }
 
         /* ═════════ Bloc résumé de la facture ═════════ */
         .resume-title {
+            font-family: {!! $charte['ff_titres'] !!};
             font-size: 10px;
-            font-weight: 800;
-            margin: 12px 0 5px;
-            color: #0f172a;
+            font-weight: 700;
+            margin: 10px 0 4px;
+            padding-left: 6px;
+            border-left: 3px solid {{ $charte['rouge'] }};
+            color: {{ $charte['noir'] }};
             letter-spacing: 0.5px;
             text-transform: uppercase;
         }
         .resume {
-            border: 1px solid #cbd5e1;
+            border: 1px solid {{ $charte['gris'] }};
         }
         .resume thead th {
-            background: #1e293b;
-            color: #ffffff;
-            font-size: 9.5px;
-            font-weight: 700;
+            background: {{ $charte['noir'] }};
+            color: {{ $charte['blanc'] }};
+            font-family: {!! $charte['ff_titres'] !!};
+            font-size: 9px;
+            font-weight: 600;
             text-align: left;
             padding: 6px 8px;
             text-transform: uppercase;
         }
         .resume thead th.num { text-align: right; }
         .resume tbody td {
-            padding: 6px 8px;
+            padding: 4px 8px;
             font-size: 9.5px;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid {{ $charte['gris'] }};
         }
         .resume tbody tr:last-child td { border-bottom: none; }
         .resume tbody td.num { text-align: right; }
 
         /* ═════════ Ventilation ODP/TM/TSP ═════════ */
         .ventil {
-            margin-top: 6px;
+            margin-top: 5px;
             text-align: center;
             font-size: 9.5px;
-            line-height: 1.5;
+            line-height: 1.15;
         }
         .ventil .v-line {
             display: block;
@@ -358,22 +384,25 @@
         /* Footer en flow normal (le position:fixed de DomPDF ne respecte
            pas @page margin-bottom et provoque des chevauchements). */
         .footer {
-            margin-top: 10px;
+            margin-top: 8px;
             padding-top: 5px;
-            border-top: 1px solid #e2e8f0;
+            border-top: 1px solid {{ $charte['gris'] }};
             font-size: 8px;
-            color: #64748b;
+            color: {{ $charte['texte_doux'] }};
             text-align: center;
-            line-height: 1.35;
+            line-height: 1.15;
         }
         .footer .payment-terms {
             margin-bottom: 2px;
-            color: #0f172a;
-            font-weight: 600;
+            color: {{ $charte['noir'] }};
+            font-weight: 700;
         }
     </style>
 </head>
 <body>
+
+    {{-- Liseré 5 couleurs de la charte (signature commune à tous les PDF). --}}
+    <div style="margin-bottom:8px;">@include('pdf.partials.charte-lisere')</div>
 
     {{-- ═════════ HEADER : émetteur (gauche) + réf + QR + FNE (droite) ═════════ --}}
     <table class="header">
@@ -512,9 +541,9 @@
                 @if($groupedLinesPdf->count() > 1)
                     {{-- On n'affiche le séparateur que si multi-communes.
                          Facture mono-commune = liste simple, plus propre. --}}
-                    <tr>
-                        <td colspan="8" style="background:#f8fafc;padding:4px 8px;font-size:8.5px;font-weight:700;color:#475569;border-top:1px solid #e5e7eb">
-                            📍 {{ $communeName }}
+                    <tr class="commune-sep">
+                        <td colspan="8">
+                            {{ $communeName }}
                         </td>
                     </tr>
                 @endif

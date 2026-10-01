@@ -3,98 +3,94 @@
 <head>
 <meta charset="UTF-8">
 <title>Zones & Communes — CIBLE CI</title>
+{{-- 2026-10-01 — charte graphique : styles communs, en-tête charte-header,
+     pied charte-footer (remplace l'ancien pied « Page N / 0 » : le compteur
+     counter(pages) n'est pas résolu par DomPDF). --}}
+@include('pdf.partials.charte-styles')
 <style>
-    /* margin-bottom 26mm + body padding-bottom = double garde-fou
+    /* margin-bottom 22mm + body padding-bottom = double garde-fou
        contre le débordement du tableau sur le footer (bug DomPDF). */
-    @page { size: A4 landscape; margin: 12mm 10mm 26mm 10mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2937; line-height: 1.4; padding-bottom: 4mm; }
-    h1 { font-size: 16px; color: #e8a020; margin: 0 0 4px; }
-    .header { display: table; width: 100%; margin-bottom: 12px; }
-    .header .left  { display: table-cell; vertical-align: middle; }
-    .header .mid   { display: table-cell; vertical-align: middle; }
-    .header .right { display: table-cell; vertical-align: middle; text-align: right; font-size: 8.5px; color: #6b7280; }
-    .header .logo { height: 38px; margin-right: 14px; }
-    .period { font-size: 10px; color: #6b7280; margin-top: 2px; }
-    .meta { font-size: 9px; color: #374151; margin-top: 8px; padding: 6px 10px; background: #fafafa; border-left: 3px solid #e8a020; border-radius: 3px; }
-    .meta strong { color: #111827; }
+    @page { size: A4 landscape; margin: 12mm 10mm 22mm 10mm !important; }
+    body { font-size: 9px; color: {{ $charte['noir'] }}; line-height: 1.2; padding-bottom: 4mm; }
+    .meta { font-size: 9px; color: {{ $charte['noir'] }}; margin-top: 8px; padding: 6px 10px; background: {{ $charte['gris_clair'] }}; border-left: 3px solid {{ $charte['rouge'] }}; }
+    .meta strong { color: {{ $charte['noir'] }}; }
     .kpis { display: table; width: 100%; margin: 8px 0 12px; border-collapse: separate; border-spacing: 5px 0; }
-    .kpis .cell { display: table-cell; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 4px; padding: 6px 10px; text-align: center; }
-    .kpis .cell .n { font-size: 15px; font-weight: bold; color: #b45309; display: block; }
-    .kpis .cell .l { font-size: 7.5px; text-transform: uppercase; color: #78716c; letter-spacing: .4px; }
+    .kpis .cell { display: table-cell; background: {{ $charte['gris_clair'] }}; border-top: 3px solid {{ $charte['rouge'] }}; padding: 6px 10px; text-align: center; }
+    .kpis .cell .n { font-family: {!! $charte['ff_titres'] !!}; font-size: 15px; font-weight: 700; color: {{ $charte['noir'] }}; display: block; }
+    .kpis .cell .l { font-size: 7.5px; font-weight: 700; text-transform: uppercase; color: {{ $charte['texte_doux'] }}; letter-spacing: .4px; }
 
     /* ── Section commune ── */
-    .commune-block { margin-top: 16px; page-break-inside: avoid; }
+    .commune-block { margin-top: 14px; page-break-inside: avoid; }
     .commune-head {
-        background: #0a0c10; color: #fff; padding: 8px 12px; border-radius: 6px 6px 0 0;
+        background: {{ $charte['gris_clair'] }}; color: {{ $charte['noir'] }};
+        border-left: 3px solid {{ $charte['rouge'] }};
+        padding: 7px 12px;
         display: table; width: 100%;
     }
-    .commune-head .name { display: table-cell; font-size: 12px; font-weight: bold; letter-spacing: .5px; }
+    .commune-head .name { display: table-cell; font-family: {!! $charte['ff_titres'] !!}; font-size: 12px; font-weight: 700; letter-spacing: .5px; }
     .commune-head .stats {
-        display: table-cell; text-align: right; font-size: 9px; color: #cbd5e1;
+        display: table-cell; text-align: right; font-size: 9px; color: {{ $charte['texte_doux'] }};
     }
-    .commune-head .stats strong { color: #fff; }
+    .commune-head .stats strong { color: {{ $charte['noir'] }}; }
     .commune-head .badge-zone {
-        display: inline-block; padding: 1px 8px; font-size: 8px; border-radius: 999px;
-        margin-left: 8px; font-weight: bold;
+        display: inline-block; padding: 1px 8px; font-family: {!! $charte['ff_texte'] !!}; font-size: 8px; border-radius: 3px;
+        margin-left: 8px; font-weight: 700; letter-spacing: 0;
     }
-    .commune-head .badge-abj { background: rgba(59,130,246,.35); color: #dbeafe; }
-    .commune-head .badge-int { background: rgba(16,185,129,.35); color: #d1fae5; }
+    .commune-head .badge-abj { background: {{ $charte['bleu'] }}; color: {{ $charte['blanc'] }}; }
+    .commune-head .badge-int { background: {{ $charte['vert'] }}; color: {{ $charte['blanc'] }}; }
+    .commune-head .city { font-family: {!! $charte['ff_texte'] !!}; font-weight: 400; margin-left: 6px; letter-spacing: 0; color: {{ $charte['texte_pale'] }}; }
 
     .commune-empty {
-        background: #f9fafb; border: 1px solid #e5e7eb; border-top: 0;
-        padding: 10px 14px; font-size: 8.5px; color: #6b7280; font-style: italic;
-        border-radius: 0 0 6px 6px;
+        background: {{ $charte['blanc'] }}; border: 1px solid {{ $charte['gris'] }}; border-top: 0;
+        padding: 8px 14px; font-size: 8.5px; color: {{ $charte['texte_doux'] }}; font-style: italic;
     }
 
     table.details {
-        width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb;
-        border-top: 0; border-radius: 0 0 6px 6px; overflow: hidden;
+        width: 100%; border-collapse: collapse;
     }
     table.details th {
-        background: #f3f4f6; padding: 5px 8px; text-align: left; font-size: 7.5px;
-        font-weight: bold; color: #374151; text-transform: uppercase; letter-spacing: 0.3px;
-        border-bottom: 1px solid #e5e7eb;
+        background: {{ $charte['noir'] }}; color: {{ $charte['blanc'] }};
+        font-family: {!! $charte['ff_titres'] !!};
+        padding: 5px 8px; text-align: left; font-size: 7.5px;
+        font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
     }
     table.details th.r, table.details td.r { text-align: right; }
     table.details th.c, table.details td.c { text-align: center; }
-    table.details td { padding: 4px 8px; font-size: 8px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
-    table.details tr:nth-child(even) td { background: #fafafa; }
-    .ref { font-family: 'Courier New', monospace; color: #b45309; font-weight: bold; }
-    .muted { color: #6b7280; font-size: 7.5px; }
-    .badge { display: inline-block; padding: 1px 5px; font-size: 7px; border-radius: 999px; font-weight: bold; text-transform: uppercase; letter-spacing: .3px; }
-    .badge-actif    { background: rgba(34,197,94,.15);  color: #15803d; }
-    .badge-planifie { background: rgba(59,130,246,.15); color: #1d4ed8; }
-    .badge-termine  { background: rgba(107,114,128,.18);color: #374151; }
-    .badge-pause    { background: rgba(249,115,22,.15); color: #c2410c; }
-    .badge-ext      { background: rgba(107,114,128,.15);color: #4b5563; margin-top: 2px; display: inline-block; }
-    .badge-decap    { background: rgba(220,38,38,.15);  color: #b91c1c; margin-top: 2px; display: inline-block; }
-    .pct { font-weight: bold; }
-    .pct-hi { color: #16a34a; }
-    .pct-mid { color: #f97316; }
-    .pct-lo { color: #dc2626; }
-
-    .footer { position: fixed; bottom: 6mm; left: 10mm; right: 10mm; font-size: 8px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 4px; background: #fff; }
-    .footer .pagenum:before { content: counter(page) " / " counter(pages); }
+    table.details td { padding: 4px 8px; font-size: 8px; border-bottom: 1px solid {{ $charte['gris'] }}; vertical-align: top; }
+    table.details tr:nth-child(even) td { background: {{ $charte['gris_clair'] }}; }
+    .ref { font-family: {!! $charte['ff_mono'] !!}; color: {{ $charte['rouge'] }}; font-weight: 700; }
+    .muted { color: {{ $charte['texte_doux'] }}; font-size: 7.5px; }
+    .badge { display: inline-block; padding: 1px 5px; font-size: 7px; border-radius: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+    .badge-actif    { background: {{ $charte['vert'] }};   color: {{ $charte['blanc'] }}; }
+    .badge-planifie { background: {{ $charte['bleu'] }};   color: {{ $charte['blanc'] }}; }
+    .badge-termine  { background: {{ $charte['gris'] }};   color: {{ $charte['noir'] }}; }
+    .badge-pause    { background: {{ $charte['jaune'] }};  color: {{ $charte['noir'] }}; }
+    .badge-ext      { background: {{ $charte['gris'] }};   color: {{ $charte['noir'] }}; margin-top: 2px; display: inline-block; }
+    .badge-decap    { background: {{ $charte['rouge'] }};  color: {{ $charte['blanc'] }}; margin-top: 2px; display: inline-block; }
+    /* Taux d'occupation : pastille pleine (pas de texte jaune sur fond clair). */
+    .pct { font-weight: 700; padding: 0 5px; border-radius: 3px; }
+    .pct-hi  { background: {{ $charte['vert'] }};  color: {{ $charte['blanc'] }}; }
+    .pct-mid { background: {{ $charte['jaune'] }}; color: {{ $charte['noir'] }}; }
+    .pct-lo  { background: {{ $charte['rouge'] }}; color: {{ $charte['blanc'] }}; }
+    .commune-head .stats strong.pct-hi, .commune-head .stats strong.pct-lo { color: {{ $charte['blanc'] }}; }
 </style>
 </head>
 <body>
 
-<div class="header">
-    @if(!empty($logoCibleLight))
-        <div class="mid">
-            <img src="{{ $logoCibleLight }}" alt="CIBLE CI" class="logo">
-        </div>
-    @endif
-    <div class="left">
-        <h1>ZONES & COMMUNES — DÉTAIL PAR PANNEAU</h1>
-        <div class="period">Panneaux occupés × campagnes, groupés par commune · {{ $operatorName ?? 'CIBLE CI' }}</div>
-    </div>
-    <div class="right">
-        Édité le {{ now()->format('d/m/Y H:i') }}<br>
-        Par {{ $user->name ?? '—' }}<br>
-        Réf. {{ strtoupper(substr(md5(now()), 0, 8)) }}
-    </div>
-</div>
+@include('pdf.partials.charte-footer', [
+    'footerHint' => "CIBLE SARL — Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora",
+])
+
+@include('pdf.partials.charte-header', [
+    'docKicker'   => 'Rapport',
+    'docTitle'    => 'ZONES & COMMUNES — DÉTAIL PAR PANNEAU',
+    'docSubtitle' => 'Panneaux occupés × campagnes, groupés par commune · ' . ($operatorName ?? 'CIBLE CI'),
+    'docMeta'     => [
+        'Édité le ' . now()->format('d/m/Y H:i'),
+        'Par ' . ($user->name ?? '—'),
+        'Réf. ' . strtoupper(substr(md5(now()), 0, 8)),
+    ],
+])
 
 @include('admin.rapports.partials._filter_recap_pdf')
 
@@ -128,13 +124,13 @@
             <div class="name">
                 {{ $c['commune'] }}
                 <span class="badge-zone {{ $zoneBadge }}">{{ $c['zone'] }}</span>
-                <span class="muted" style="color:#9ca3af;font-weight:normal;margin-left:6px">— {{ $c['city'] }}</span>
+                <span class="muted city">— {{ $c['city'] }}</span>
             </div>
             <div class="stats">
                 <strong>{{ (int) $c['total'] }}</strong> pann. ·
                 <strong>{{ (int) $c['occupes'] }}</strong> occ. ·
                 <strong>{{ (int) $c['libres'] }}</strong> libres ·
-                Taux <strong class="pct {{ $rateClass }}" style="color:{{ $rate >= 60 ? '#86efac' : ($rate >= 25 ? '#fdba74' : '#fca5a5') }}">{{ $rate }} %</strong> ·
+                Taux <strong class="pct {{ $rateClass }}">{{ $rate }} %</strong> ·
                 CA <strong>{{ number_format((float) $c['ca_annee'], 0, ',', ' ') }}</strong> FCFA
             </div>
         </div>
@@ -214,14 +210,10 @@
         @endif
     </div>
 @empty
-    <div style="text-align:center;color:#6b7280;font-style:italic;padding:40px">
+    <div class="ch-muted" style="text-align:center;font-style:italic;padding:40px">
         Aucune commune ne correspond aux filtres sélectionnés.
     </div>
 @endforelse
-
-<div class="footer">
-    CIBLE SARL — Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora · Page <span class="pagenum"></span>
-</div>
 
 </body>
 </html>

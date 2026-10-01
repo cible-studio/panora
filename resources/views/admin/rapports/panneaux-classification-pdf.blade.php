@@ -3,66 +3,65 @@
 <head>
 <meta charset="UTF-8">
 <title>Classification panneaux — CIBLE CI</title>
+{{-- 2026-10-01 — charte graphique : styles communs, en-tête clair commun
+     (charte-header) à la place du bandeau foncé flottant, synthèse en table
+     (les float débordaient), pied commun charte-footer. --}}
+@include('pdf.partials.charte-styles')
 <style>
-    @page { size: A4 landscape; margin: 12mm 10mm 16mm 10mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2937; line-height: 1.3; margin: 0; padding: 0; }
+    @page { size: A4 landscape; margin: 12mm 10mm 20mm 10mm !important; }
+    body { font-size: 9px; color: {{ $charte['noir'] }}; line-height: 1.15; margin: 0; padding: 0; }
 
-    .header-band { background: #0a0c10; padding: 8px 12px; border-left: 4px solid #e8a020; margin-bottom: 6px; overflow: hidden; }
-    .header-band .h-left  { float: left;  width: 60%; }
-    .header-band .h-right { float: right; width: 38%; text-align: right; color: #cbd5e1; font-size: 8.5px; }
-    .header-band h1 { margin: 0; color: #fff; font-size: 14px; font-weight: bold; letter-spacing: 0.4px; text-transform: uppercase; }
-    .header-band .subtitle { margin-top: 2px; font-size: 9px; color: #e8a020; }
-    .header-band .lbl { color: #94a3b8; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; }
-    .header-band .val { color: #fff; font-size: 9px; font-weight: 600; }
+    .meta { margin: 0 0 6px; padding: 6px 10px; background: {{ $charte['gris_clair'] }}; border-left: 3px solid {{ $charte['rouge'] }}; font-size: 9px; color: {{ $charte['noir'] }}; }
+    .meta strong { color: {{ $charte['noir'] }}; }
 
-    .meta { margin: 4px 0 6px; padding: 6px 10px; background: #fefaf1; border: 1px solid #f3d999; border-left: 3px solid #e8a020; border-radius: 3px; font-size: 9px; color: #78350f; }
-    .meta strong { color: #92400e; }
+    /* Synth buckets — 1 ligne colorée compacte (table, pas de float). */
+    table.synth-line { width: 100%; border-collapse: separate; border-spacing: 4px 0; margin: 4px 0 8px; table-layout: fixed; }
+    .synth-line td.b { padding: 6px 8px; text-align: center; color: {{ $charte['blanc'] }}; font-size: 8px; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 700; }
+    .synth-line td.b strong { display: block; font-family: {!! $charte['ff_titres'] !!}; font-size: 18px; margin-bottom: 2px; font-weight: 700; }
+    .synth-line .b1 { background: {{ $charte['vert'] }}; }
+    .synth-line .b2 { background: {{ $charte['jaune'] }}; color: {{ $charte['noir'] }}; }
+    .synth-line .b3 { background: {{ $charte['rouge'] }}; }
 
-    /* Synth buckets — 1 ligne colorée compacte */
-    .synth-line { margin: 4px 0 8px; padding: 0; overflow: hidden; }
-    .synth-line .b { float: left; width: 33%; padding: 6px 8px; text-align: center; color: #fff; font-size: 8px; text-transform: uppercase; letter-spacing: 0.3px; }
-    .synth-line .b strong { display: block; font-size: 18px; margin-bottom: 2px; font-weight: bold; }
-    .synth-line .b1 { background: #22c55e; }
-    .synth-line .b2 { background: #f97316; }
-    .synth-line .b3 { background: #ef4444; }
-
-    h2.section { font-size: 11px; margin: 8px 0 3px; padding: 4px 8px; color: #fff; border-radius: 3px; letter-spacing: 0.3px; }
+    h2.section {
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 11px; font-weight: 700; margin: 8px 0 3px; padding: 4px 8px;
+        color: {{ $charte['noir'] }}; background: {{ $charte['gris_clair'] }};
+        border-left: 4px solid {{ $charte['rouge'] }}; letter-spacing: 0.3px;
+    }
 
     table.data { width: 100%; border-collapse: collapse; margin-top: 2px; }
-    table.data th { background: #0a0c10; color: #fff; padding: 5px 6px; text-align: left; font-size: 7.5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px; }
+    table.data th { background: {{ $charte['noir'] }}; color: {{ $charte['blanc'] }}; font-family: {!! $charte['ff_titres'] !!}; padding: 5px 6px; text-align: left; font-size: 7.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
     table.data th.r, table.data td.r { text-align: right; }
     table.data th.c, table.data td.c { text-align: center; }
-    table.data td { padding: 3px 6px; font-size: 8.5px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
-    table.data tr.even td { background: #fafafa; }
-    table.data tr.maint td { background: #fffbeb; }
-    .num  { color: #6b7280; font-size: 8px; font-family: 'Courier New', monospace; }
-    .ref  { font-family: 'Courier New', monospace; color: #b45309; font-weight: bold; font-size: 8.5px; }
-    .fmt  { color: #4b5563; font-size: 8px; }
-    .zone-abj { color: #1d4ed8; font-weight: bold; font-size: 8px; }
-    .zone-int { color: #047857; font-weight: bold; font-size: 8px; }
-    .maint-tag { color: #92400e; font-weight: bold; font-size: 7.5px; }
+    table.data td { padding: 3px 6px; font-size: 8.5px; border-bottom: 1px solid {{ $charte['gris'] }}; vertical-align: middle; }
+    table.data tr.even td { background: {{ $charte['gris_clair'] }}; }
+    table.data tr.maint td { background: {{ $charte['jaune_clair'] }}; }
+    .num  { color: {{ $charte['texte_doux'] }}; font-size: 8px; font-family: {!! $charte['ff_mono'] !!}; }
+    .ref  { font-family: {!! $charte['ff_mono'] !!}; color: {{ $charte['rouge'] }}; font-weight: 700; font-size: 8.5px; }
+    .fmt  { color: {{ $charte['texte_doux'] }}; font-size: 8px; }
+    .zone-abj { color: {{ $charte['bleu'] }}; font-weight: 700; font-size: 8px; }
+    .zone-int { color: {{ $charte['vert'] }}; font-weight: 700; font-size: 8px; }
+    .maint-tag { background: {{ $charte['jaune'] }}; color: {{ $charte['noir'] }}; font-weight: 700; font-size: 7.5px; padding: 0 3px; border-radius: 2px; }
 
-    .empty { padding: 10px; text-align: center; color: #9ca3af; font-style: italic; background: #fafafa; border-radius: 3px; }
-
-    .footer { position: fixed; bottom: 3mm; left: 10mm; right: 10mm; height: 8mm; font-size: 7.5px; color: #6b7280; border-top: 1px solid #d1d5db; padding-top: 2mm; }
-    .footer .l { float: left; }
-    .footer .r { float: right; }
-    .footer .c { text-align: center; }
+    .empty { padding: 10px; text-align: center; color: {{ $charte['texte_pale'] }}; font-style: italic; background: {{ $charte['gris_clair'] }}; }
 </style>
 </head>
 <body>
 
-<div class="header-band">
-    <div class="h-left">
-        <h1>Classification des panneaux par occupation</h1>
-        <div class="subtitle">Analyse par durée d'occupation cumulée · CIBLE CI</div>
-    </div>
-    <div class="h-right">
-        <div><span class="lbl">Période</span> <span class="val">{{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}</span></div>
-        <div><span class="lbl">Édité le</span> <span class="val">{{ now()->format('d/m/Y H:i') }}</span></div>
-        <div><span class="lbl">Par</span> <span class="val">{{ $user?->name ?? '—' }}</span></div>
-    </div>
-</div>
+@include('pdf.partials.charte-footer', [
+    'footerHint' => "CIBLE SARL · Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora",
+])
+
+@include('pdf.partials.charte-header', [
+    'docKicker'   => 'Rapport',
+    'docTitle'    => 'CLASSIFICATION DES PANNEAUX PAR OCCUPATION',
+    'docSubtitle' => "Analyse par durée d'occupation cumulée · CIBLE CI",
+    'docMeta'     => [
+        'Période : ' . $from->format('d/m/Y') . ' → ' . $to->format('d/m/Y'),
+        'Édité le ' . now()->format('d/m/Y H:i'),
+        'Par ' . ($user?->name ?? '—'),
+    ],
+])
 
 <div class="meta">
     <strong>Périmètre :</strong> {{ $classification['total'] }} panneaux analysés
@@ -70,17 +69,21 @@
     · <strong>Règle :</strong> à l'année = ≥ 365 j, intermédiaire = 1-364 j, jamais = 0 j
 </div>
 
-<div class="synth-line">
-    <div class="b b1"><strong>{{ $classification['a_lannee']->count() }}</strong>À l'année (≥ 365 j)</div>
-    <div class="b b2"><strong>{{ $classification['intermediaire']->count() }}</strong>Intermédiaire (1-364 j)</div>
-    <div class="b b3"><strong>{{ $classification['jamais']->count() }}</strong>Jamais occupés (0 j)</div>
-</div>
+<table class="synth-line">
+    <tr>
+        <td class="b b1"><strong>{{ $classification['a_lannee']->count() }}</strong>À l'année (≥ 365 j)</td>
+        <td class="b b2"><strong>{{ $classification['intermediaire']->count() }}</strong>Intermédiaire (1-364 j)</td>
+        <td class="b b3"><strong>{{ $classification['jamais']->count() }}</strong>Jamais occupés (0 j)</td>
+    </tr>
+</table>
 
 @php
+    // 2026-10-01 — charte graphique : couleurs de section issues de $charte
+    // (filet gauche du titre) ; pastilles emoji retirées (carrés vides en PDF).
     $sections = [
-        ['key' => 'a_lannee',      'label' => "🟢 Panneaux occupés à l'année",           'color' => '#16a34a'],
-        ['key' => 'intermediaire', 'label' => '🟡 Panneaux occupation intermédiaire',    'color' => '#ea580c'],
-        ['key' => 'jamais',        'label' => '🔴 Panneaux jamais occupés sur la période','color' => '#dc2626'],
+        ['key' => 'a_lannee',      'label' => "Panneaux occupés à l'année",            'color' => $charte['vert']],
+        ['key' => 'intermediaire', 'label' => 'Panneaux occupation intermédiaire',     'color' => $charte['jaune']],
+        ['key' => 'jamais',        'label' => 'Panneaux jamais occupés sur la période', 'color' => $charte['rouge']],
     ];
 @endphp
 
@@ -92,7 +95,7 @@
             . ($nbMaintList > 0 ? ' · dont ' . $nbMaintList . ' en maintenance' : '')
             . ')';
     @endphp
-    <h2 class="section" style="background:{{ $section['color'] }}">{{ $sectionLabel }}</h2>
+    <h2 class="section" style="border-left-color:{{ $section['color'] }}">{{ $sectionLabel }}</h2>
 
     @if($list->isEmpty())
         <div class="empty">Aucun panneau dans cette catégorie.</div>
@@ -121,7 +124,8 @@
                     <tr @if($rowClass) class="{{ $rowClass }}" @endif>
                         <td class="c num">{{ $index + 1 }}</td>
                         <td>
-                            <span class="ref">{{ $p->reference }}</span>@if($isMaint) <span class="maint-tag">🔧</span>@endif
+                            {{-- Marqueur maintenance : ⚠ (l'emoji 🔧 rendait un carré vide). --}}
+                            <span class="ref">{{ $p->reference }}</span>@if($isMaint) <span class="maint-tag">⚠</span>@endif
                         </td>
                         <td>{{ \Illuminate\Support\Str::limit($p->name ?? '—', 45) }}</td>
                         <td>{{ $p->commune_name ?? '—' }}</td>
@@ -142,12 +146,6 @@
         </table>
     @endif
 @endforeach
-
-<div class="footer">
-    <div class="l">CIBLE SARL · Régie OOH Côte d'Ivoire</div>
-    <div class="c">Document généré automatiquement par Panora</div>
-    <div class="r">&nbsp;</div>
-</div>
 
 </body>
 </html>

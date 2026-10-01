@@ -3,73 +3,47 @@
 <head>
 <meta charset="UTF-8">
 <title>Proposition {{ $reservation->reference }}</title>
+@include('pdf.partials.charte-styles')
+{{-- 2026-10-01 — charte graphique : l'ancien bandeau foncé est remplacé
+     par l'en-tête clair commun (liseré + logo CIBLE + titre + méta), le
+     pied de fin de document par le pied fixe commun (même texte reporté
+     en 2e ligne). Palette $charte, polices Poppins / Nunito, marges @page
+     avec !important. --}}
 <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    @page { margin: 0; size: A4 portrait; }
+    @page { size: A4 portrait; margin: 12mm 13mm 18mm 13mm !important; }
 
     body {
-        font-family: 'DejaVu Sans', 'Helvetica', sans-serif;
         font-size: 11px;
-        color: #1e293b;
-        background: #ffffff;
+        line-height: 1.25;
+        color: {{ $charte['noir'] }};
+        background: {{ $charte['blanc'] }};
     }
-
-    /* HEADER ─────────────────────────────────────── */
-    .header {
-        background: #0a0c10;
-        color: #fff;
-        padding: 22px 30px;
-        border-bottom: 4px solid #e8a020;
-    }
-    .header table { width: 100%; }
-    .header td { vertical-align: top; }
-    .logo { font-size: 22px; font-weight: 800; color: #e8a020; letter-spacing: -.5px; }
-    .logo-sub {
-        font-size: 9px; color: #8a90a2;
-        text-transform: uppercase; letter-spacing: 2px; margin-top: 4px;
-    }
-    .doc-title { font-size: 13px; font-weight: 700; color: #fff; margin-top: 14px; }
-    .doc-meta {
-        margin-top: 8px;
-        font-size: 11px;
-        color: #cbd5e1;
-        line-height: 1.5;
-    }
-    .doc-meta .ref-badge {
-        display: inline-block;
-        background: #e8a020; color: #0a0c10;
-        padding: 3px 9px; border-radius: 4px;
-        font-family: monospace, 'DejaVu Sans Mono', sans-serif;
-        font-weight: 800; font-size: 11px;
-        margin-right: 8px;
-    }
-    .doc-meta .client-name { color: #fff; font-weight: 700; }
-
-    .header-right { text-align: right; font-size: 10px; color: #cbd5e1; line-height: 1.7; }
-    .header-right strong { color: #fff; }
 
     /* CONTENT ────────────────────────────────────── */
-    .content { padding: 22px 30px 30px; }
+    .content { padding: 0; }
 
     .grid-2 {
         display: table; width: 100%; border-collapse: separate; border-spacing: 12px 0;
-        margin-bottom: 18px;
+        margin-bottom: 16px;
     }
     .grid-2 .col { display: table-cell; width: 50%; vertical-align: top; }
 
     .section {
-        background: #f8fafc; border: 1px solid #e2e8f0;
-        border-radius: 6px; padding: 14px 16px; margin-bottom: 14px;
+        background: {{ $charte['gris_clair'] }}; border: 1px solid {{ $charte['gris'] }};
+        border-top: 3px solid {{ $charte['rouge'] }};
+        border-radius: 4px; padding: 12px 16px; margin-bottom: 14px;
     }
     .section-title {
-        font-size: 9px; font-weight: 700; color: #e8a020;
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 9px; font-weight: 700; color: {{ $charte['rouge'] }};
         text-transform: uppercase; letter-spacing: 1.2px;
-        margin-bottom: 10px; padding-bottom: 6px;
-        border-bottom: 1px solid #e2e8f0;
+        margin-bottom: 9px; padding-bottom: 5px;
+        border-bottom: 1px solid {{ $charte['gris'] }};
     }
     .row { margin-bottom: 6px; }
-    .row .lbl { font-size: 8px; color: #64748b; text-transform: uppercase; letter-spacing: .8px; }
-    .row .val { font-size: 11px; font-weight: 600; color: #0a0c10; }
+    .row .lbl { font-size: 8px; color: {{ $charte['texte_doux'] }}; text-transform: uppercase; letter-spacing: .8px; }
+    .row .val { font-size: 11px; font-weight: 600; color: {{ $charte['noir'] }}; }
 
     /* PANELS TABLE ───────────────────────────────── */
     .panels {
@@ -77,28 +51,31 @@
         font-size: 10px;
     }
     .panels thead th {
-        background: #0a0c10; color: #e8a020;
-        font-size: 8.5px; font-weight: 700;
-        text-transform: uppercase; letter-spacing: 1px;
+        background: {{ $charte['noir'] }}; color: {{ $charte['blanc'] }};
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 7.5px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .6px;
         padding: 7px 8px; text-align: left;
     }
     .panels tbody td {
-        padding: 7px 8px; border-bottom: 1px solid #e2e8f0;
-        vertical-align: top;
+        padding: 7px 8px; border-bottom: 1px solid {{ $charte['gris'] }};
+        vertical-align: top; line-height: 1.15; background: {{ $charte['blanc'] }};
     }
-    .panels tbody tr:nth-child(even) td { background: #fafbfc; }
+    .panels tbody tr:nth-child(even) td { background: {{ $charte['gris_clair'] }}; }
     .panels .ref {
-        font-family: monospace; font-weight: 700;
-        color: #e8a020; font-size: 9px;
+        font-family: {!! $charte['ff_mono'] !!}; font-weight: 700;
+        color: {{ $charte['rouge'] }}; font-size: 9px;
     }
-    .panels .panel-name { font-weight: 600; color: #0a0c10; }
-    .panels .panel-sub { font-size: 8.5px; color: #64748b; margin-top: 2px; }
+    .panels .panel-name { font-weight: 600; color: {{ $charte['noir'] }}; }
+    .panels .panel-sub { font-size: 8.5px; color: {{ $charte['texte_doux'] }}; margin-top: 2px; }
     .panels .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .panels thead th.num { text-align: right; white-space: normal; }
     .panels .badge-ext {
         display: inline-block; padding: 1px 5px;
         border-radius: 3px; font-size: 7.5px; font-weight: 700;
-        background: #dbeafe; color: #2563eb; margin-left: 4px;
+        background: {{ $charte['bleu'] }}; color: {{ $charte['blanc'] }}; margin-left: 4px;
     }
+    .panels .vide { text-align:center; color: {{ $charte['texte_pale'] }}; padding:18px; }
 
     /* TOTALS ─────────────────────────────────────── */
     .totals {
@@ -106,29 +83,32 @@
         border-collapse: collapse;
     }
     .totals td { padding: 7px 12px; font-size: 11px; }
-    .totals .lbl { color: #64748b; text-align: right; }
+    .totals .lbl { color: {{ $charte['texte_doux'] }}; text-align: right; }
     .totals .val { font-weight: 700; text-align: right; min-width: 110px; }
     .totals .grand-total td {
-        background: #0a0c10; color: #e8a020;
+        background: {{ $charte['noir'] }}; color: {{ $charte['jaune'] }};
+        font-family: {!! $charte['ff_titres'] !!};
         font-size: 13px; font-weight: 800;
+    }
+    .totals .grand-total td.lbl { color: {{ $charte['gris'] }}; }
+    .badge-offert {
+        display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 7px;
+        border-radius: 9px; background: {{ $charte['vert'] }}; color: {{ $charte['blanc'] }};
+        letter-spacing: .4px; margin-left: 6px;
     }
 
     /* CONDITIONS ─────────────────────────────────── */
     .conditions {
-        background: #fff8e6; border: 1px solid #f3d488;
-        border-radius: 6px; padding: 18px 20px;
-        font-size: 11px; color: #6b4a13; line-height: 1.8;
-        margin-top: 20px;
+        background: {{ $charte['jaune_clair'] }};
+        border: 1px solid {{ $charte['jaune'] }};
+        border-left: 4px solid {{ $charte['jaune'] }};
+        border-radius: 4px; padding: 11px 16px;
+        font-size: 11px; color: {{ $charte['noir'] }}; line-height: 1.35;
+        margin-top: 14px;
     }
-    .conditions strong { color: #a06010; }
+    .conditions strong { color: {{ $charte['noir'] }}; }
 
-    /* FOOTER ─────────────────────────────────────── */
-    .footer {
-        margin-top: 18px;
-        padding-top: 12px; border-top: 1px solid #e2e8f0;
-        font-size: 8.5px; color: #94a3b8; text-align: center; line-height: 1.6;
-    }
-    .footer strong { color: #475569; }
+    .notes-texte { font-size: 10.5px; color: {{ $charte['texte_doux'] }}; line-height: 1.4; white-space: pre-line; }
 </style>
 </head>
 <body>
@@ -141,38 +121,30 @@
         ? $panels->sum(fn($p) => (float) ($p['total'] ?? 0))
         : (float) $reservation->total_amount;
     $isOffert = $reservation->total_amount !== null && (float) $reservation->total_amount === 0.0;
+
+    // En-tête (charte) : toutes les informations de l'ancien bandeau.
+    $metaEntete = ["Date d'émission : " . ($reservation->proposition_sent_at ?? $reservation->created_at)->format('d/m/Y')];
+    if ($reservation->proposition_expires_at) {
+        $metaEntete[] = "Valable jusqu'au : " . $reservation->proposition_expires_at->format('d/m/Y');
+    }
 @endphp
 
-<div class="header">
-    <table>
-        <tr>
-            <td>
-                {{-- 2026-06-18 (feedback patronne : logo CIBLE sur TOUS les PDF).
-                     Variable injectée par AppServiceProvider::boot() View::composer. --}}
-                @if(!empty($logoCibleLight))
-                    <img src="{{ $logoCibleLight }}" alt="CIBLE CI" style="height:38px;margin-bottom:6px;">
-                @else
-                    <div class="logo">CIBLE CI</div>
-                @endif
-                <div class="logo-sub">Régie OOH — Côte d'Ivoire</div>
-                <div class="doc-title">Proposition commerciale</div>
-                <div class="doc-meta">
-                    <span class="ref-badge">{{ $reservation->reference }}</span>
-                    Client&nbsp;: <span class="client-name">{{ $reservation->client?->name ?? '—' }}</span>
-                </div>
-            </td>
-            <td class="header-right">
-                <strong>Date d'émission</strong><br>
-                {{ ($reservation->proposition_sent_at ?? $reservation->created_at)->format('d/m/Y') }}
-                @if($reservation->proposition_expires_at)
-                    <br><br>
-                    <strong>Valable jusqu'au</strong><br>
-                    {{ $reservation->proposition_expires_at->format('d/m/Y') }}
-                @endif
-            </td>
-        </tr>
-    </table>
-</div>
+{{-- Pied fixe commun : le texte de l'ancien pied de fin de document est
+     reporté en 2e ligne. --}}
+@include('pdf.partials.charte-footer', [
+    'footerHint' => 'CIBLE CI — Régie publicitaire OOH · Abidjan, Côte d\'Ivoire · Document émis le '
+        . now()->format('d/m/Y \à H:i') . ' · Référence : ' . $reservation->reference,
+])
+
+{{-- 2026-06-18 (feedback patronne : logo CIBLE sur TOUS les PDF).
+     Variable injectée par AppServiceProvider::boot() View::composer.
+     2026-10-01 — charte : en-tête clair commun, logo $logoCibleLight. --}}
+@include('pdf.partials.charte-header', [
+    'docKicker'   => "Régie OOH — Côte d'Ivoire",
+    'docTitle'    => 'Proposition commerciale',
+    'docSubtitle' => $reservation->reference . ' · Client : ' . ($reservation->client?->name ?? '—'),
+    'docMeta'     => $metaEntete,
+])
 
 <div class="content">
 
@@ -232,8 +204,8 @@
 
     {{-- ─── Tableau des panneaux ─── --}}
     <div class="section" style="padding:0;">
-        <div style="padding:14px 16px 8px;">
-            <div class="section-title" style="border-bottom:0;margin-bottom:0;">
+        <div style="padding:12px 16px 8px;">
+            <div class="section-title" style="border-bottom:0;margin-bottom:0;padding-bottom:0;">
                 Détail des emplacements
             </div>
         </div>
@@ -283,7 +255,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" style="text-align:center;color:#94a3b8;padding:18px;">
+                    <td colspan="6" class="vide">
                         Aucun panneau associé à cette proposition.
                     </td>
                 </tr>
@@ -299,11 +271,11 @@
             <td class="val">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</td>
         </tr>
         <tr class="grand-total">
-            <td class="lbl" style="color:#cbd5e1;">TOTAL HT</td>
+            <td class="lbl">TOTAL HT</td>
             <td class="val">
                 {{ number_format($totalAmount, 0, ',', ' ') }} FCFA
                 @if($isOffert)
-                    <span style="display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:9px;background:rgba(34,197,94,0.2);color:#bbf7d0;letter-spacing:.4px;margin-left:6px;">OFFERT</span>
+                    <span class="badge-offert">OFFERT</span>
                 @endif
             </td>
         </tr>
@@ -326,14 +298,9 @@
     @if(!empty($reservation->notes))
     <div class="section" style="margin-top:14px;">
         <div class="section-title">Notes</div>
-        <div style="font-size:10.5px;color:#475569;line-height:1.6;white-space:pre-line;">{{ $reservation->notes }}</div>
+        <div class="notes-texte">{{ $reservation->notes }}</div>
     </div>
     @endif
-
-    <div class="footer">
-        <strong>CIBLE CI</strong> — Régie publicitaire OOH · Abidjan, Côte d'Ivoire<br>
-        Document émis le {{ now()->format('d/m/Y \à H:i') }} · Référence : {{ $reservation->reference }}
-    </div>
 
 </div>
 

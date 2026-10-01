@@ -3,38 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <title>Performance commerciale — CIBLE CI</title>
+{{-- 2026-10-01 — charte graphique : styles communs (polices, ch-*) puis styles propres. --}}
+@include('pdf.partials.charte-styles')
 <style>
-    @page { size: A4 landscape; margin: 14mm 12mm 22mm 12mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 10px; color: #1f2937; line-height: 1.45; }
-    h1 { font-size: 17px; color: #e8a020; margin: 0 0 4px; }
-    h2 { font-size: 11.5px; color: #111827; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1.5px solid #e8a020; }
-    .header { display: table; width: 100%; margin-bottom: 12px; }
-    .header .left { display: table-cell; vertical-align: top; }
-    .header .right { display: table-cell; vertical-align: top; text-align: right; font-size: 9px; color: #6b7280; }
-    .period { font-size: 11px; color: #6b7280; margin-top: 2px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    th { background: #f3f4f6; padding: 5px 7px; text-align: left; font-size: 8.5px; font-weight: bold; color: #374151; border-bottom: 1px solid #d1d5db; text-transform: uppercase; letter-spacing: 0.4px; }
-    td { padding: 5px 7px; font-size: 9.5px; border-bottom: 1px solid #f3f4f6; }
+    @page { size: A4 landscape; margin: 14mm 12mm 22mm 12mm !important; }
+    body { font-size: 10px; color: {{ $charte['noir'] }}; line-height: 1.25; }
+    h2 {
+        font-family: {!! $charte['ff_titres'] !!};
+        font-size: 11.5px; font-weight: 700; color: {{ $charte['noir'] }};
+        margin: 14px 0 6px; padding: 0 0 4px 8px;
+        border-left: 3px solid {{ $charte['rouge'] }};
+        border-bottom: 1px solid {{ $charte['gris'] }};
+    }
+    table.ch-table { margin-bottom: 8px; font-size: 9.5px; }
+    .ch-table th.r, .ch-table td.r { text-align: right; }
+    .ch-table th.c, .ch-table td.c { text-align: center; }
     .r { text-align: right; }
     .c { text-align: center; }
     .b { font-weight: bold; }
-    .muted { color: #6b7280; }
-    .badge { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 8.5px; font-weight: bold; }
-    .b-1 { background: #fef3c7; color: #92400e; }
-    .b-2 { background: #e5e7eb; color: #4b5563; }
-    .b-3 { background: #fed7aa; color: #c2410c; }
-    .kpi-grid { display: table; width: 100%; margin-bottom: 10px; border-collapse: separate; border-spacing: 4px; }
-    .kpi-row { display: table-row; }
-    .kpi { display: table-cell; padding: 8px 10px; background: #fafafa; border-left: 3px solid #e8a020; border-radius: 4px; width: 20%; }
-    .kpi-label { font-size: 8px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.6px; }
-    .kpi-value { font-size: 14px; font-weight: bold; color: #111827; margin-top: 2px; }
-    .kpi-sub { font-size: 8px; color: #6b7280; margin-top: 1px; }
-    .color-ht  { border-left-color: #f59e0b; }
-    .color-ttc { border-left-color: #e8a020; }
-    .color-rec { border-left-color: #16a34a; }
-    .color-pan { border-left-color: #3b82f6; }
-    .color-act { border-left-color: #a855f7; }
-    .footer { position: fixed; bottom: 4mm; left: 12mm; right: 12mm; font-size: 8px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 4px; background: #fff; }
+    .muted { color: {{ $charte['texte_doux'] }}; }
+    /* Médailles du podium : or → jaune, argent → gris, bronze → jaune clair. */
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 8.5px; font-weight: bold; }
+    .b-1 { background: {{ $charte['jaune'] }}; color: {{ $charte['noir'] }}; }
+    .b-2 { background: {{ $charte['gris'] }}; color: {{ $charte['noir'] }}; }
+    .b-3 { background: {{ $charte['jaune_clair'] }}; color: {{ $charte['noir'] }}; }
+    .ch-kpi { width: 20%; }
 </style>
 </head>
 <body>
@@ -53,55 +46,54 @@
     $nbActifs     = $leaderboard->count();
 @endphp
 
-<div class="header">
-    <div class="left">
-        @if(!empty($logoCibleLight))
-            <img src="{{ $logoCibleLight }}" alt="CIBLE CI" style="height:30px;margin-bottom:5px;">
-        @endif
-        <h1>PERFORMANCE COMMERCIALE</h1>
-        <div class="period">Classement des commerciaux · CIBLE CI</div>
-        <div class="period">Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ $from->diffInDays($to) + 1 }} jours)</div>
-    </div>
-    <div class="right">
-        Édité le {{ $generatedAt->format('d/m/Y à H:i') }}<br>
-        Par {{ $user->name ?? '—' }}
-    </div>
+{{-- 2026-10-01 — charte graphique : en-tête commun (liseré + logo + titre + méta). --}}
+@include('pdf.partials.charte-header', [
+    'docTitle'    => 'PERFORMANCE COMMERCIALE',
+    'docSubtitle' => 'Classement des commerciaux · CIBLE CI',
+    'docMeta'     => [
+        'Édité le ' . $generatedAt->format('d/m/Y à H:i'),
+        'Par ' . ($user->name ?? '—'),
+    ],
+])
+
+<div class="ch-info">
+    <strong>Période :</strong> {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ $from->diffInDays($to) + 1 }} jours)
 </div>
 
 {{-- KPIs équipe --}}
-<div class="kpi-grid">
-    <div class="kpi-row">
-        <div class="kpi color-ht">
-            <div class="kpi-label">CA HT équipe</div>
-            <div class="kpi-value">{{ $fmtM($caHtEquipe) }}</div>
-            <div class="kpi-sub">FCFA · net_ht facturé</div>
-        </div>
-        <div class="kpi color-ttc">
-            <div class="kpi-label">CA TTC équipe</div>
-            <div class="kpi-value">{{ $fmtM($caTtcEquipe) }}</div>
-            <div class="kpi-sub">FCFA · total campagnes</div>
-        </div>
-        <div class="kpi color-rec">
-            <div class="kpi-label">Taux recouvrement</div>
-            <div class="kpi-value">{{ number_format($tauxMoyen, 1, ',', ' ') }} %</div>
-            <div class="kpi-sub">encaissé / facturé période</div>
-        </div>
-        <div class="kpi color-pan">
-            <div class="kpi-label">Panier moyen</div>
-            <div class="kpi-value">{{ $fmtM($panierMoy) }}</div>
-            <div class="kpi-sub">FCFA / campagne</div>
-        </div>
-        <div class="kpi color-act">
-            <div class="kpi-label">Commerciaux actifs</div>
-            <div class="kpi-value">{{ $nbActifs }}</div>
-            <div class="kpi-sub">{{ $nbCamps }} campagnes au total</div>
-        </div>
-    </div>
-</div>
+<table class="ch-kpis">
+    <tr>
+        <td class="ch-kpi k-jaune">
+            <div class="ch-kpi-label">CA HT équipe</div>
+            <div class="ch-kpi-value">{{ $fmtM($caHtEquipe) }}</div>
+            <div class="ch-kpi-sub">FCFA · net_ht facturé</div>
+        </td>
+        <td class="ch-kpi k-rouge">
+            <div class="ch-kpi-label">CA TTC équipe</div>
+            <div class="ch-kpi-value">{{ $fmtM($caTtcEquipe) }}</div>
+            <div class="ch-kpi-sub">FCFA · total campagnes</div>
+        </td>
+        <td class="ch-kpi k-vert">
+            <div class="ch-kpi-label">Taux recouvrement</div>
+            <div class="ch-kpi-value">{{ number_format($tauxMoyen, 1, ',', ' ') }} %</div>
+            <div class="ch-kpi-sub">encaissé / facturé période</div>
+        </td>
+        <td class="ch-kpi k-bleu">
+            <div class="ch-kpi-label">Panier moyen</div>
+            <div class="ch-kpi-value">{{ $fmtM($panierMoy) }}</div>
+            <div class="ch-kpi-sub">FCFA / campagne</div>
+        </td>
+        <td class="ch-kpi k-violet">
+            <div class="ch-kpi-label">Commerciaux actifs</div>
+            <div class="ch-kpi-value">{{ $nbActifs }}</div>
+            <div class="ch-kpi-sub">{{ $nbCamps }} campagnes au total</div>
+        </td>
+    </tr>
+</table>
 
 {{-- Leaderboard détaillé --}}
-<h2>🏆 Classement des commerciaux</h2>
-<table>
+<h2>Classement des commerciaux</h2>
+<table class="ch-table">
     <thead>
         <tr>
             <th class="c" style="width:30px">#</th>
@@ -121,8 +113,9 @@
             @php
                 $rank = $i + 1;
                 $rankBadge = $rank <= 3 ? 'b-' . $rank : '';
-                $tauxCol = $row['taux_recouvrement'] >= 70 ? '#16a34a'
-                         : ($row['taux_recouvrement'] >= 40 ? '#f59e0b' : '#dc2626');
+                // Charte : ≥ 70 % vert · ≥ 40 % jaune (badge, jamais de texte jaune) · sinon rouge.
+                $tauxTone = $row['taux_recouvrement'] >= 70 ? 'vert'
+                          : ($row['taux_recouvrement'] >= 40 ? 'jaune' : 'rouge');
             @endphp
             <tr>
                 <td class="c">
@@ -136,9 +129,9 @@
                 <td class="muted">{{ $row['user']->employee_code ?? '—' }}</td>
                 <td class="r">{{ $fmtM($row['ca_ht']) }}</td>
                 <td class="r b">{{ $fmtM($row['ca_ttc']) }}</td>
-                <td class="r" style="color:#16a34a">{{ $fmtM($row['encaisse']) }}</td>
-                <td class="r" style="color:{{ $row['reste_du'] > 0 ? '#dc2626' : '#6b7280' }}">{{ $fmtM($row['reste_du']) }}</td>
-                <td class="r b" style="color:{{ $tauxCol }}">{{ number_format($row['taux_recouvrement'], 1, ',', ' ') }} %</td>
+                <td class="r c-vert">{{ $fmtM($row['encaisse']) }}</td>
+                <td class="r {{ $row['reste_du'] > 0 ? 'c-rouge' : 'c-doux' }}">{{ $fmtM($row['reste_du']) }}</td>
+                <td class="r b"><span class="ch-badge ch-badge-{{ $tauxTone }}">{{ number_format($row['taux_recouvrement'], 1, ',', ' ') }} %</span></td>
                 <td class="r muted">{{ $fmtM($row['panier_moyen']) }}</td>
                 <td class="r b">{{ $row['nb_campagnes'] }}</td>
             </tr>
@@ -152,8 +145,8 @@
      Clés réelles renvoyées par CommercialPerformanceService::topCommercialBySector() :
        sector · commercial_id · commercial_name · ca · count · sector_total_ca · share_pct --}}
 @if($topBySector->isNotEmpty())
-    <h2>🎯 Top commercial par secteur d'activité</h2>
-    <table>
+    <h2>Top commercial par secteur d'activité</h2>
+    <table class="ch-table">
         <thead>
             <tr>
                 <th>Secteur</th>
@@ -179,10 +172,11 @@
     </table>
 @endif
 
-<div class="footer">
-    CIBLE CI — Performance commerciale · Édité par Panora le {{ $generatedAt->format('d/m/Y à H:i') }}
-    · Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
-</div>
+{{-- 2026-10-01 — charte graphique : pied commun ; l'ancien texte de pied est conservé en footerHint. --}}
+@include('pdf.partials.charte-footer', [
+    'footerHint' => 'CIBLE CI — Performance commerciale · Édité par Panora le ' . $generatedAt->format('d/m/Y à H:i')
+                  . ' · Période : ' . $from->format('d/m/Y') . ' → ' . $to->format('d/m/Y'),
+])
 
 </body>
 </html>
