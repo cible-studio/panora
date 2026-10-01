@@ -35,7 +35,10 @@ return [
     'heure_preparation' => env('DIFFUSION_HEURE_PREPARATION', '09:00'),
 
     // Confirmation interne après chaque envoi (et alerte en cas d'échec) :
-    // cette adresse + tous les utilisateurs actifs au rôle Media Planner.
+    // ces adresses + tous les utilisateurs actifs au rôle Media Planner.
+    // Plusieurs adresses : séparées par des virgules, ex.
+    //   DIFFUSION_CONFIRMATION_EMAIL="commercial@cible-ci.com,studio@cible-ci.com"
+    // En mode test, seule la personne qui a lancé le test la reçoit.
     'confirmation_email' => env('DIFFUSION_CONFIRMATION_EMAIL', env('BREVO_SENDER_EMAIL')),
 
     // Objet du mail client. {periode} est remplacé par « du 1er au

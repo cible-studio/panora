@@ -19,7 +19,7 @@ panneau, avec photo).
 | **Prix** | Aucun |
 | **Expéditeur** | `commercial@cible-ci.com` |
 | **Destinataires** | Tous les clients d'office (contact principal, à défaut l'adresse de la fiche client). Désinscription possible à chaque mail |
-| **Confirmation interne** | `commercial@cible-ci.com` + tous les Media Planners actifs, après chaque envoi, et alerte en cas d'échec |
+| **Confirmation interne** | `commercial@cible-ci.com` + `studio@cible-ci.com` (admin) + tous les Media Planners actifs, après chaque envoi, et alerte en cas d'échec |
 | **Envoi manuel** | Admin seul. N'annule pas l'automatique. Rappelle le dernier envoi ; si le dernier date de moins de 24 h, il faut taper ENVOYER. Le bouton enregistre une demande, traitée par le planificateur dans la minute (le PDF est trop long à générer pendant une requête web) |
 
 Exemples :
@@ -158,7 +158,7 @@ BREVO_WEBHOOK_TOKEN=                  # longue chaîne aléatoire (48 caractère
 
 DIFFUSION_MODE=test                   # test = tout part vers « Tests internes »
 DIFFUSION_AUTO=false                  # true = envois automatiques du 1er et du 15
-DIFFUSION_CONFIRMATION_EMAIL=commercial@cible-ci.com
+DIFFUSION_CONFIRMATION_EMAIL="commercial@cible-ci.com,studio@cible-ci.com"   # plusieurs adresses : séparées par des virgules
 ```
 
 Puis `php artisan config:clear` (le conteneur le fait au redémarrage).
