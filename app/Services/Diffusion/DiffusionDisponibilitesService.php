@@ -647,7 +647,9 @@ class DiffusionDisponibilitesService
     public static function adresses(?string $valeur): array
     {
         return collect(preg_split('/[\s,;]+/', (string) $valeur, -1, PREG_SPLIT_NO_EMPTY))
-            ->map(fn($e) => mb_strtolower(trim($e)))
+            // Guillemets tolérés : Coolify les garde tels quels si on écrit
+            // la valeur entre guillemets (constaté en prod le 2026-10-01).
+            ->map(fn($e) => mb_strtolower(trim($e, "\"'<>")))
             ->filter(fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL))
             ->unique()
             ->values()

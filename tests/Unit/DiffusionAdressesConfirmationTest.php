@@ -36,6 +36,14 @@ class DiffusionAdressesConfirmationTest extends TestCase
         );
     }
 
+    public function test_guillemets_gardes_par_coolify(): void
+    {
+        $this->assertSame(
+            ['commercial@cible-ci.com', 'studio@cible-ci.com'],
+            DiffusionDisponibilitesService::adresses('"commercial@cible-ci.com,studio@cible-ci.com"')
+        );
+    }
+
     public function test_adresses_invalides_ou_vide_ignorees(): void
     {
         $this->assertSame(['studio@cible-ci.com'], DiffusionDisponibilitesService::adresses('pas-une-adresse, studio@cible-ci.com'));
