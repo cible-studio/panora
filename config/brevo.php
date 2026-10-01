@@ -25,9 +25,11 @@ return [
 
     // Expéditeur — doit être validé dans Brevo (Expéditeurs) et appartenir
     // à un domaine authentifié, sinon les envois partent en spam.
+    // Guillemets retirés : Coolify les garde tels quels si on écrit la
+    // valeur entre guillemets (« \"CIBLE CI\" » vu en prod le 2026-10-01).
     'sender' => [
-        'email' => env('BREVO_SENDER_EMAIL'),
-        'name'  => env('BREVO_SENDER_NAME', 'Service commercial'),
+        'email' => trim((string) env('BREVO_SENDER_EMAIL'), " \"'\\") ?: null,
+        'name'  => trim((string) env('BREVO_SENDER_NAME', 'Service commercial'), " \"'\\") ?: 'Service commercial',
     ],
 
     // Identifiants numériques des listes Brevo (Contacts → Listes).
