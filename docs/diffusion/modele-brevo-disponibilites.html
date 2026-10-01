@@ -18,7 +18,8 @@
 
   Mise en page « fluide » : colonnes en inline-block + tables fantômes
   Outlook. Elle tient sur téléphone même si le bloc <style> est supprimé
-  (l'éditeur Brevo et certaines messageries le retirent).
+  (certaines messageries le retirent) ; avec lui, les photos s'empilent
+  en pleine largeur sur téléphone.
 
   Photos hébergées dans la bibliothèque Brevo (sources : docs/diffusion/).
   Toujours l'adresse /original/, jamais img-thumb (vignette 400 px).
@@ -41,6 +42,9 @@
   @media screen and (max-width:599px) {
     .px { padding-left:24px !important; padding-right:24px !important; }
     .h1 { font-size:30px !important; line-height:36px !important; }
+    /* Photos l'une sous l'autre, en pleine largeur */
+    .col { display:block !important; width:100% !important; padding:0 0 24px 0 !important; }
+    .col img { max-width:100% !important; }
   }
 </style>
 </head>
@@ -141,15 +145,17 @@
 <tr><td class="px" style="padding:10px 32px 24px 32px; font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:15px; line-height:23px; color:#111111;">
   Un réseau d'affichage en propre, à Abidjan et dans tout le pays&nbsp;: des faces sélectionnées pour leur visibilité, sur les axes qui comptent.
 </td></tr>
-<!-- Photos : toujours côte à côte — elles rétrécissent sur téléphone. -->
+<!-- Photos : côte à côte sur ordinateur, l'une sous l'autre en pleine
+     largeur sur téléphone (classe .col). Si une messagerie retire le bloc
+     <style>, elles restent côte à côte et rétrécissent, sans déborder. -->
 <tr><td class="px" style="padding:0 32px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-    <td width="50%" valign="top" style="width:50%; padding:0 8px 0 0;">
+    <td class="col" width="50%" valign="top" style="width:50%; padding:0 8px 0 0;">
       <a href="{{ params.LIEN_PDF }}" style="display:block; text-decoration:none;"><img src="https://img.mailinblue.com/10364584/images/content_library/original/6abcff69cab53bfa07ef8ad4.jpg" width="258" alt="Portique grand format CIBLE à Abidjan" border="0" style="display:block; width:100%; max-width:258px; height:auto; border:0; background-color:#E6E6E6; font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#111111;"></a>
       <p style="margin:12px 0 0 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:11px; line-height:14px; letter-spacing:1.5px; text-transform:uppercase; font-weight:700; color:#E20613;">Format</p>
       <p style="margin:4px 0 0 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700;"><a href="{{ params.LIEN_PDF }}" style="color:#111111; text-decoration:underline;">Grands formats</a></p>
     </td>
-    <td width="50%" valign="top" style="width:50%; padding:0 0 0 8px;">
+    <td class="col" width="50%" valign="top" style="width:50%; padding:0 0 0 8px;">
       <a href="{{ params.LIEN_PDF }}" style="display:block; text-decoration:none;"><img src="https://img.mailinblue.com/10364584/images/content_library/original/6abcfef4f56090a551aa991b.jpg" width="258" alt="Panneau CIBLE sur un axe stratégique d'Abidjan" border="0" style="display:block; width:100%; max-width:258px; height:auto; border:0; background-color:#E6E6E6; font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#111111;"></a>
       <p style="margin:12px 0 0 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:11px; line-height:14px; letter-spacing:1.5px; text-transform:uppercase; font-weight:700; color:#E20613;">Localisation</p>
       <p style="margin:4px 0 0 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700;"><a href="{{ params.LIEN_PDF }}" style="color:#111111; text-decoration:underline;">Axes stratégiques</a></p>
