@@ -59,6 +59,13 @@ return [
             'strict' => true,
             'engine' => null,
             'options'    => [],
+            // Export pour les sauvegardes (config/backup.php) : sans verrou
+            // des tables, pour ne pas bloquer l'application pendant l'export.
+            'dump' => [
+                'dump_binary_path' => env('DB_DUMP_BINARY_PATH', ''),
+                'use_single_transaction' => true,
+                'timeout' => 60 * 10,
+            ],
         ],
 
         'mariadb' => [
