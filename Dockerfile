@@ -12,7 +12,9 @@ FROM php:8.3-fpm-alpine
 # précompilés → 15 s au lieu de 2 min, peak RAM ~200 Mo au lieu de
 # 1.5 Go, plus de gcc/g++ résiduels dans l'image finale.
 # ─────────────────────────────────────────────────────────────────────
-RUN apk add --no-cache nodejs npm nginx git unzip curl zip && \
+# mariadb-client (2026-10-02) : fournit mysqldump pour les sauvegardes
+# nocturnes de la base (spatie/laravel-backup, docs/SAUVEGARDES.md).
+RUN apk add --no-cache nodejs npm nginx git unzip curl zip mariadb-client && \
     curl -sSLf -o /usr/local/bin/install-php-extensions \
         https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions && \
     chmod +x /usr/local/bin/install-php-extensions && \
