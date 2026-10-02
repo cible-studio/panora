@@ -155,3 +155,26 @@ Schedule::command('dispos:diffuser', ['--demandes'])
     ->everyMinute()
     ->withoutOverlapping(30)
     ->runInBackground();
+
+// 15. Sauvegarde nocturne de la base + des fichiers déposés (2026-10-02).
+//     spatie/laravel-backup, configuré dans config/backup.php ; guide :
+//     docs/SAUVEGARDES.md. Inactif tant que BACKUP_ENABLED=false.
+//     01:30 nettoyage des anciennes copies (7 j / 4 sem. / 6 mois),
+//     02:00 sauvegarde (heure creuse, loin de la diffusion de 9h-10h),
+//     08:30 contrôle : alerte mail si la dernière copie a plus d'un jour.
+//     runInBackground() : l'export + l'archive des photos peut dépasser
+//     les 300 s de la tâche Coolify qui lance schedule:run.
+Schedule::command('backup:clean')
+    ->dailyAt('01:30')
+    ->when(fn () => config('backup.actif'))
+    ->withoutOverlapping()
+    ->runInBackground();
+Schedule::command('backup:run')
+    ->dailyAt('02:00')
+    ->when(fn () => config('backup.actif'))
+    ->withoutOverlapping(180)
+    ->runInBackground();
+Schedule::command('backup:monitor')
+    ->dailyAt('08:30')
+    ->when(fn () => config('backup.actif'))
+    ->withoutOverlapping();
