@@ -1,7 +1,7 @@
 FROM php:8.3-fpm-alpine
 
 RUN apk add --no-cache \
-        nodejs npm nginx git unzip curl \
+        nodejs npm nginx git unzip curl mariadb-client \
         autoconf gcc g++ make linux-headers \
         freetype-dev libjpeg-turbo-dev libpng-dev \
         libzip-dev zip libxml2-dev && \
