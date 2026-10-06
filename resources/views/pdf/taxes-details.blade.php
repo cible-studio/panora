@@ -68,12 +68,12 @@
             <td class="mono tdoc-ref">{{ $row['reference'] }}</td>
             <td>
                 {{ $row['dimensions'] }}
-                <br><span class="tdoc-muted" style="font-size:7.5px;">{{ rtrim(rtrim(number_format($row['surface'], 2), '0'), '.') }} m²</span>
+                <br><span class="tdoc-muted" style="font-size:9px;">{{ rtrim(rtrim(number_format($row['surface'], 2), '0'), '.') }} m²</span>
             </td>
             <td><span class="tdoc-badge tdoc-badge-{{ $row['type'] }}">{{ strtoupper($row['type']) }}</span></td>
             <td>{{ $row['client_name'] ?? '—' }}</td>
             <td>{{ $row['campaign_name'] ?? '—' }}</td>
-            <td style="font-size:8px;" class="tdoc-muted">
+            <td style="font-size:9.5px;" class="tdoc-muted">
                 {{-- FIX 2026-06-26 — Vraies dates de la campagne (pas le filtre).
                      Lignes ODP sans campagne : on retombe sur la période du filtre. --}}
                 @if(!empty($row['campaign_start']) && !empty($row['campaign_end']))
@@ -82,7 +82,7 @@
                     {{ $row['period_start']->format('d/m/Y') }} →<br>{{ $row['period_end']->format('d/m/Y') }}
                 @endif
             </td>
-            <td class="right mono tdoc-muted" style="font-size:7.5px;">
+            <td class="right mono tdoc-muted" style="font-size:9px;">
                 {{-- TX-14 (2026-09-24) — Les deux taxes se comptent en mois :
                      la TM en mois de campagne (date à date), l'ODP en mois
                      calendaires d'occupation. L'unité reste lue depuis la
