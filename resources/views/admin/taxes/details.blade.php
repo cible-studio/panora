@@ -146,6 +146,37 @@
                         <span>Inclure</span>
                     </label>
                 </div>
+                {{-- 2026-10-06 — Catégories de panneau : toutes cochées par
+                     défaut, décocher pour exclure (ex. « tout sauf Chevalet »).
+                     Les cases ne portent pas de name : seules les catégories
+                     décochées partent au serveur (exclure_categories[]), pour
+                     que « tout coché » reste l'URL par défaut. --}}
+                @php $exclues = $filters['exclure_categories'] ?? []; @endphp
+                <div class="filter-group" style="flex-basis:100%">
+                    <label class="filter-label">
+                        Catégories de panneau
+                        @if($exclues)
+                            <span style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--accent)">· {{ count($exclues) }} exclue(s)</span>
+                        @endif
+                    </label>
+                    <div id="tax-categories" style="display:flex;gap:6px;flex-wrap:wrap">
+                        @foreach($categories as $cat)
+                            @php $coche = !in_array($cat->id, $exclues, true); @endphp
+                            <label style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 12px;border-radius:10px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;border:1px solid {{ $coche ? 'var(--accent)' : 'var(--border)' }};background:{{ $coche ? 'var(--surface2)' : 'var(--surface)' }};color:{{ $coche ? 'var(--text)' : 'var(--text3, #9ca3af)' }};{{ $coche ? '' : 'text-decoration:line-through;' }}"
+                                   title="{{ $coche ? 'Décocher pour exclure' : 'Cocher pour inclure' }} les panneaux « {{ $cat->name }} »">
+                                <input type="checkbox" data-categorie="{{ $cat->id }}" {{ $coche ? 'checked' : '' }}
+                                       onchange="TAX_CATEGORIES.changer(this)"
+                                       style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
+                                {{ $cat->name }}
+                            </label>
+                        @endforeach
+                    </div>
+                    <div id="tax-categories-exclues">
+                        @foreach($exclues as $id)
+                            <input type="hidden" name="exclure_categories[]" value="{{ $id }}">
+                        @endforeach
+                    </div>
+                </div>
                 {{-- FIX 2026-06-25 — Pills cliquables au lieu d'un select dropdown.
                      L'état actif est immédiatement visible (couleur de la taxe),
                      et le filtrage se fait en 1 clic. Cohérent avec le code couleur
@@ -245,7 +276,10 @@
                     <form method="GET" action="{{ route('admin.taxes.details') }}"
                           style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3)">
                         @foreach(request()->except(['per_page','page']) as $k => $v)
-                            <input type="hidden" name="{{ $k }}" value="{{ $v }}">
+                            {{-- Listes (exclure_categories[]) : un champ par valeur. --}}
+                            @foreach((array) $v as $vv)
+                                <input type="hidden" name="{{ is_array($v) ? $k . '[]' : $k }}" value="{{ $vv }}">
+                            @endforeach
                         @endforeach
                         <label for="per-page-select" style="white-space:nowrap">Par page :</label>
                         <select name="per_page" id="per-page-select"
@@ -447,6 +481,30 @@
 
     @push('scripts')
     <script>
+    // 2026-10-06 — Filtre catégories : on envoie la liste des catégories
+    // DÉCOCHÉES (exclure_categories[]), puis on recharge comme les autres
+    // filtres. Au moins une catégorie doit rester cochée.
+    window.TAX_CATEGORIES = {
+        changer(caseCochee) {
+            const cases = [...document.querySelectorAll('#tax-categories input[data-categorie]')];
+            if (!cases.some(c => c.checked)) {
+                caseCochee.checked = true;
+                alert('Gardez au moins une catégorie de panneau.');
+                return;
+            }
+            const zone = document.getElementById('tax-categories-exclues');
+            zone.innerHTML = '';
+            cases.filter(c => !c.checked).forEach(c => {
+                const champ = document.createElement('input');
+                champ.type = 'hidden';
+                champ.name = 'exclure_categories[]';
+                champ.value = c.dataset.categorie;
+                zone.appendChild(champ);
+            });
+            caseCochee.form.submit();
+        },
+    };
+
     window.TAX_EXPORT_RENAME = (function () {
         let url = null, ext = 'pdf';
 

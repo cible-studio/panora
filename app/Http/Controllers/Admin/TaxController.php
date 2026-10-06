@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\Commune;
 use App\Models\CommuneTaxPayment;
 use App\Models\Panel;
+use App\Models\PanelCategory;
 use App\Services\TaxCalculationService;
 use App\Support\DownloadFilename;
 use Illuminate\Http\JsonResponse;
@@ -112,6 +113,42 @@ class TaxController extends Controller
         return $periodValue;
     }
 
+    /**
+     * Filtres du détail des taxes — source unique pour l'écran, le PDF et
+     * l'Excel (avant 2026-10-06 : trois copies identiques).
+     *
+     * include_maintenance (TX-12) : ajouté APRÈS array_filter(), la valeur
+     * false serait sinon éliminée et la vue doit pouvoir la relire.
+     * exclure_categories (2026-10-06) : ids de catégories à retirer.
+     */
+    private function detailFilters(Request $request): array
+    {
+        $filters = array_filter([
+            'commune_id'  => $request->input('commune_id') ?: null,
+            'client_id'   => $request->input('client_id')  ?: null,
+            'campaign_id' => $request->input('campaign_id') ?: null,
+            'type'        => $request->input('type')        ?: null,
+        ]);
+        $filters['include_maintenance'] = $request->boolean('include_maintenance');
+
+        $exclues = array_values(array_unique(array_filter(
+            array_map('intval', (array) $request->input('exclure_categories', [])),
+            fn ($id) => $id > 0
+        )));
+        if ($exclues) {
+            $filters['exclure_categories'] = $exclues;
+        }
+
+        return $filters;
+    }
+
+    /** Noms des catégories exclues, pour l'en-tête des exports. */
+    private function excludedCategoryNames(array $filters): string
+    {
+        return empty($filters['exclure_categories']) ? '' : PanelCategory::whereIn('id', $filters['exclure_categories'])
+            ->orderBy('name')->pluck('name')->implode(', ');
+    }
+
     public function details(Request $request, TaxCalculationService $calc)
     {
         $year         = (int) ($request->input('year', date('Y')));
@@ -125,16 +162,7 @@ class TaxController extends Controller
             if ($periodEndValue > 12)           $periodEndValue = 12;
         }
 
-        $filters = array_filter([
-            'commune_id'  => $request->input('commune_id') ?: null,
-            'client_id'   => $request->input('client_id')  ?: null,
-            'campaign_id' => $request->input('campaign_id') ?: null,
-            'type'        => $request->input('type')        ?: null,
-        ]);
-        // TX-12 (2026-09-23) — Maintenance exclue par défaut. Ajouté
-        // APRÈS array_filter() : la valeur false serait sinon éliminée,
-        // et on veut pouvoir la relire telle quelle côté vue.
-        $filters['include_maintenance'] = $request->boolean('include_maintenance');
+        $filters = $this->detailFilters($request);
 
         $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue);
         $totals = $calc->summarize($lines);
@@ -155,6 +183,7 @@ class TaxController extends Controller
 
         // Filtres pour les selects de la vue
         $communes  = Commune::orderBy('name')->get(['id', 'name']);
+        $categories = PanelCategory::orderBy('name')->get(['id', 'name']);
         $clients   = Client::orderBy('name')->get(['id', 'name']);
         $campaigns = Campaign::whereYear('start_date', '<=', $year)
             ->whereYear('end_date', '>=', $year)
@@ -189,7 +218,7 @@ class TaxController extends Controller
 
         return view('admin.taxes.details', compact(
             'lines', 'totals', 'year', 'periodType', 'periodValue', 'periodEndValue',
-            'communes', 'clients', 'campaigns', 'anneesDispos', 'filters',
+            'communes', 'categories', 'clients', 'campaigns', 'anneesDispos', 'filters',
             'paginator', 'perPage', 'defaultExportName'
         ));
     }
@@ -210,16 +239,7 @@ class TaxController extends Controller
             ? min(12, max($periodValue, (int) $request->input('period_end_value', $periodValue)))
             : null;
 
-        $filters = array_filter([
-            'commune_id'  => $request->input('commune_id') ?: null,
-            'client_id'   => $request->input('client_id')  ?: null,
-            'campaign_id' => $request->input('campaign_id') ?: null,
-            'type'        => $request->input('type')        ?: null,
-        ]);
-        // TX-12 (2026-09-23) — Maintenance exclue par défaut. Ajouté
-        // APRÈS array_filter() : la valeur false serait sinon éliminée,
-        // et on veut pouvoir la relire telle quelle côté vue.
-        $filters['include_maintenance'] = $request->boolean('include_maintenance');
+        $filters = $this->detailFilters($request);
 
         $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue);
         $totals = $calc->summarize($lines);
@@ -257,6 +277,10 @@ class TaxController extends Controller
         if (!empty($filters['include_maintenance'])) {
             $filterMeta[]  = ['label' => 'Maintenance', 'value' => 'Panneaux en maintenance inclus'];
             $filterParts[] = 'maintenance=incluse';
+        }
+        if ($cats = $this->excludedCategoryNames($filters)) {
+            $filterMeta[]  = ['label' => 'Catégories exclues', 'value' => $cats];
+            $filterParts[] = "categories_exclues={$cats}";
         }
         if (!empty($filters['type'])) {
             $typeLabels = ['tm' => 'Taxe Municipale (TM)', 'odp' => 'Occupation Domaine Public (ODP)'];
@@ -296,16 +320,7 @@ class TaxController extends Controller
             ? min(12, max($periodValue, (int) $request->input('period_end_value', $periodValue)))
             : null;
 
-        $filters = array_filter([
-            'commune_id'  => $request->input('commune_id') ?: null,
-            'client_id'   => $request->input('client_id')  ?: null,
-            'campaign_id' => $request->input('campaign_id') ?: null,
-            'type'        => $request->input('type')        ?: null,
-        ]);
-        // TX-12 (2026-09-23) — Maintenance exclue par défaut. Ajouté
-        // APRÈS array_filter() : la valeur false serait sinon éliminée,
-        // et on veut pouvoir la relire telle quelle côté vue.
-        $filters['include_maintenance'] = $request->boolean('include_maintenance');
+        $filters = $this->detailFilters($request);
 
         $lines = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue)
             ->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])
@@ -320,6 +335,7 @@ class TaxController extends Controller
         if (!empty($filters['campaign_id'])) { $c = Campaign::find($filters['campaign_id']);if ($c) $parts[] = "campagne={$c->name}"; }
         if (!empty($filters['type']))        $parts[] = 'type=' . strtoupper($filters['type']);
         if (!empty($filters['include_maintenance'])) $parts[] = 'maintenance=incluse';
+        if ($cats = $this->excludedCategoryNames($filters)) $parts[] = "categories_exclues={$cats}";
         $filterSummary = implode(' · ', $parts);
 
         // 2026-09-23 — Nom personnalisable, cf. detailsPdf().
