@@ -58,6 +58,9 @@ class TaxCalculationService
      *                               'type'=>?, 'include_maintenance'=>bool]
      *                               include_maintenance : false (défaut) = les panneaux
      *                               en maintenance sont exclus du calcul.
+     *                               exclure_categories : ids de PanelCategory à retirer
+     *                               (ex. Chevalet). Vide = toutes les catégories. Les
+     *                               panneaux sans catégorie sont toujours gardés.
      * @return Collection            Collection de lignes :
      *      {commune, commune_id, panel_id, reference, name, dimensions,
      *       format_id, surface, type, statut, client_name, client_id,
@@ -95,6 +98,14 @@ class TaxCalculationService
         }
         if (!empty($filters['commune_id'])) {
             $panelsQuery->where('commune_id', $filters['commune_id']);
+        }
+        // 2026-10-06 — Filtre par catégorie de panneau (demande MP : sortir
+        // l'ODP « tout sauf les chevalets »). Ne change aucun montant :
+        // retire seulement des panneaux de la liste.
+        if (!empty($filters['exclure_categories'])) {
+            $exclues = array_map('intval', (array) $filters['exclure_categories']);
+            $panelsQuery->where(fn ($q) => $q->whereNull('category_id')
+                ->orWhereNotIn('category_id', $exclues));
         }
         $panels = $panelsQuery->get();
 
