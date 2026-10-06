@@ -38,7 +38,6 @@
 <!--[if !mso]><!--><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;800&family=Nunito:wght@400;700&display=swap" rel="stylesheet"><!--<![endif]-->
 <style>
   body { margin:0 !important; padding:0 !important; width:100% !important; -webkit-text-size-adjust:100%; }
-  a.cta:hover { background-color:#111111 !important; }
   @media screen and (max-width:599px) {
     .px { padding-left:24px !important; padding-right:24px !important; }
     .h1 { font-size:30px !important; line-height:36px !important; }
@@ -111,17 +110,17 @@
 <!-- Chiffres clés : deux colonnes fixes, identiques sur ordinateur et
      téléphone — le nombre à gauche, période et catalogue à droite. -->
 <tr><td class="px" style="padding:32px 32px 0 32px;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#E6E6E6; border-left:6px solid #E20613;">
   <tr>
     <td width="42%" valign="middle" style="width:42%; padding:22px 8px 22px 16px;">
-      <div style="font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:40px; line-height:44px; font-weight:800; color:#FAB80B; mso-line-height-rule:exactly;">{{ params.NB_PANNEAUX }}</div>
-      <div style="padding-top:6px; font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:10px; line-height:14px; letter-spacing:0.5px; text-transform:uppercase; color:#E6E6E6; word-break:normal; overflow-wrap:normal;">Emplacements<br>disponibles</div>
+      <div style="font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:40px; line-height:44px; font-weight:800; color:#E20613; mso-line-height-rule:exactly;">{{ params.NB_PANNEAUX }}</div>
+      <div style="padding-top:6px; font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:10px; line-height:14px; letter-spacing:0.5px; text-transform:uppercase; color:#111111; word-break:normal; overflow-wrap:normal;">Emplacements<br>disponibles</div>
     </td>
-    <td valign="middle" style="padding:22px 16px 22px 12px; border-left:1px solid #E6E6E6;">
-      <div style="font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:11px; line-height:15px; letter-spacing:1px; text-transform:uppercase; color:#E6E6E6;">Période</div>
-      <div style="padding-top:6px; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700; color:#FFFFFF;">{{ params.PERIODE }}</div>
-      <div style="padding-top:14px; font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:11px; line-height:15px; letter-spacing:1px; text-transform:uppercase; color:#E6E6E6;">Catalogue</div>
-      <div style="padding-top:6px; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700; color:#FFFFFF;">1 page par emplacement</div>
+    <td valign="middle" style="padding:22px 16px 22px 12px; border-left:2px solid #FFFFFF;">
+      <div style="font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:11px; line-height:15px; letter-spacing:1px; text-transform:uppercase; color:#E20613;">Période</div>
+      <div style="padding-top:6px; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700; color:#111111;">{{ params.PERIODE }}</div>
+      <div style="padding-top:14px; font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:11px; line-height:15px; letter-spacing:1px; text-transform:uppercase; color:#E20613;">Catalogue</div>
+      <div style="padding-top:6px; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700; color:#111111;">1 page par emplacement</div>
     </td>
   </tr>
   </table>
@@ -200,17 +199,27 @@
 </table>
 </td></tr>
 
-<!-- Pied de page -->
-<tr><td class="px" style="background-color:#111111; padding:32px 32px;">
+<!-- Pied de page (fond blanc — pas de noir dans la charte) -->
+<!-- Liseré de pied -->
+<tr><td style="font-size:0; line-height:0;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td width="20%" height="4" style="height:4px; background-color:#E20613; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="20%" height="4" style="height:4px; background-color:#FAB80B; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="20%" height="4" style="height:4px; background-color:#3AA835; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="20%" height="4" style="height:4px; background-color:#3F7FC0; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="20%" height="4" style="height:4px; background-color:#81358A; font-size:0; line-height:0;">&nbsp;</td>
+  </tr></table>
+</td></tr>
+<tr><td class="px" style="background-color:#FFFFFF; padding:28px 32px 32px 32px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-  <tr><td style="padding-bottom:18px;"><img src="https://panora-cible.com/images/logob.png" width="110" alt="CIBLE" border="0" style="display:block; width:110px; height:auto; border:0; font-family:Arial, Helvetica, sans-serif; font-size:18px; font-weight:bold; color:#FFFFFF;"></td></tr>
-  <tr><td style="font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:12px; line-height:19px; color:#E6E6E6; mso-line-height-rule:exactly;">
-    <p style="margin:0 0 6px 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:13px; font-weight:700; color:#FFFFFF;">Vous visez juste.</p>
+  <tr><td style="padding-bottom:18px;"><img src="https://panora-cible.com/images/logol.png" width="110" alt="CIBLE" border="0" style="display:block; width:110px; height:auto; border:0; font-family:Arial, Helvetica, sans-serif; font-size:18px; font-weight:bold; color:#111111;"></td></tr>
+  <tr><td style="font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:12px; line-height:19px; color:#111111; mso-line-height-rule:exactly;">
+    <p style="margin:0 0 6px 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:13px; font-weight:700; color:#E20613;">Vous visez juste.</p>
     <p style="margin:0 0 4px 0;">CIBLE · Régie publicitaire · Côte d'Ivoire</p>
     <p style="margin:0 0 4px 0;">Rue des Ambassadeurs, Riviera M'Badon · 10 BP 1029 Abidjan 10</p>
-    <p style="margin:0 0 16px 0;"><a href="tel:+2250798496674" style="color:#E6E6E6; text-decoration:none; white-space:nowrap;">+225&nbsp;07&nbsp;98&nbsp;49&nbsp;66&nbsp;74</a> · <a href="tel:+2252722208008" style="color:#E6E6E6; text-decoration:none; white-space:nowrap;">+225&nbsp;27&nbsp;22&nbsp;20&nbsp;80&nbsp;08</a> · <a href="mailto:commercial@cible-ci.com" style="color:#FFFFFF; text-decoration:underline;">commercial@cible-ci.com</a> · <a href="https://cible-ci.com" style="color:#FFFFFF; text-decoration:underline; white-space:nowrap;">cible-ci.com</a></p>
+    <p style="margin:0 0 16px 0;"><a href="tel:+2250798496674" style="color:#111111; text-decoration:none; white-space:nowrap;">+225&nbsp;07&nbsp;98&nbsp;49&nbsp;66&nbsp;74</a> · <a href="tel:+2252722208008" style="color:#111111; text-decoration:none; white-space:nowrap;">+225&nbsp;27&nbsp;22&nbsp;20&nbsp;80&nbsp;08</a> · <a href="mailto:commercial@cible-ci.com" style="color:#111111; text-decoration:underline;">commercial@cible-ci.com</a> · <a href="https://cible-ci.com" style="color:#111111; text-decoration:underline; white-space:nowrap;">cible-ci.com</a></p>
     <p style="margin:0 0 4px 0;">Vous recevez ce mail deux fois par mois en tant que client de CIBLE.</p>
-    <p style="margin:0;"><a href="{{ unsubscribe }}" style="color:#FFFFFF; text-decoration:underline;">Ne plus recevoir nos disponibilités</a></p>
+    <p style="margin:0;"><a href="{{ unsubscribe }}" style="color:#111111; text-decoration:underline;">Ne plus recevoir nos disponibilités</a></p>
   </td></tr>
   </table>
 </td></tr>
