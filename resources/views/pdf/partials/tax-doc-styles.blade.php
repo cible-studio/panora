@@ -19,7 +19,7 @@
 @php($chT = $charte ?? \App\Support\PdfCharte::data())
 <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:{!! $chT['ff_texte'] !!}; font-size:9px; color:{{ $chT['noir'] }}; }
+    body { font-family:{!! $chT['ff_texte'] !!}; font-size:11px; color:{{ $chT['noir'] }}; }
 
     /* ── Barre de marque (fond CLAIR) ────────────────────────────────
        Le logo doit être la version « light » (logol.png, texte noir) :
@@ -27,37 +27,38 @@
     .tdoc-top { width:100%; border-collapse:collapse; margin-top:8px; }
     .tdoc-top td { vertical-align:bottom; padding:0 0 7px; }
     .tdoc-logo { height:30px; display:block; margin-bottom:6px; }
-    .tdoc-title { font-family:{!! $chT['ff_titres'] !!}; font-size:13px; font-weight:700; color:{{ $chT['noir'] }}; letter-spacing:.2px; }
-    .tdoc-top-right { text-align:right; font-size:8.5px; color:{{ $chT['texte_doux'] }}; }
+    .tdoc-title { font-family:{!! $chT['ff_titres'] !!}; font-size:17px; font-weight:700; color:{{ $chT['noir'] }}; letter-spacing:.2px; }
+    .tdoc-top-right { text-align:right; font-size:10.5px; color:{{ $chT['texte_doux'] }}; }
     .tdoc-rule { height:2px; background:{{ $chT['noir'] }}; margin-bottom:15px; }
 
     /* ── Bloc méta horizontal ───────────────────────────────────────── */
     .tdoc-meta { width:100%; border-collapse:collapse; margin-bottom:17px; border:1px solid {{ $chT['gris'] }}; }
     .tdoc-meta th {
         background:{{ $chT['gris_clair'] }}; color:{{ $chT['texte_doux'] }};
-        font-size:7.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
+        font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
         text-align:left; padding:7px 12px;
         border-bottom:1px solid {{ $chT['gris'] }}; border-right:1px solid {{ $chT['gris'] }};
     }
     .tdoc-meta td {
-        padding:10px 12px; font-size:11px; font-weight:700; color:{{ $chT['noir'] }};
+        padding:10px 12px; font-size:13px; font-weight:700; color:{{ $chT['noir'] }};
         border-right:1px solid {{ $chT['gris'] }}; vertical-align:middle;
     }
     .tdoc-meta th:last-child, .tdoc-meta td:last-child { border-right:none; }
     .tdoc-meta td.accent { color:{{ $chT['rouge'] }}; }
-    .tdoc-meta td.small  { font-size:8.5px; font-weight:700; color:{{ $chT['texte_doux'] }}; }
+    .tdoc-meta td.small  { font-size:10.5px; font-weight:700; color:{{ $chT['texte_doux'] }}; }
 
     /* ── Tableau principal ────────────────────────────────────────── */
-    /* Légèrement encadré (94 %) pour reprendre le rythme de la maquette validée. */
-    .tdoc-table { width:94%; margin:0 auto; border-collapse:collapse; font-size:8.5px; }
+    /* 2026-10-06 — Pleine largeur et texte agrandi (≈ +25 %) : demande MP,
+       les écritures étaient trop petites à la lecture / impression. */
+    .tdoc-table { width:100%; margin:0 auto; border-collapse:collapse; font-size:10.5px; }
     .tdoc-table thead th {
         background:{{ $chT['noir'] }}; color:{{ $chT['blanc'] }};
         font-family:{!! $chT['ff_titres'] !!};
         padding:8px 8px; text-align:left;
-        font-size:7.5px; font-weight:600; text-transform:uppercase; letter-spacing:.4px;
+        font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.4px;
     }
     /* line-height réduit : Nunito est plus haute que DejaVu sous DomPDF. */
-    .tdoc-table tbody td { padding:6px 8px; line-height:1.1; border-bottom:1px solid {{ $chT['gris'] }}; vertical-align:middle; }
+    .tdoc-table tbody td { padding:7px 8px; line-height:1.15; border-bottom:1px solid {{ $chT['gris'] }}; vertical-align:middle; }
     .tdoc-table tbody tr:nth-child(even) td { background:{{ $chT['gris_clair'] }}; }
     .tdoc-table .right { text-align:right; }
     .tdoc-table .mono  { font-family:{!! $chT['ff_mono'] !!}; }
@@ -69,14 +70,14 @@
     .tdoc-group td {
         background:{{ $chT['gris'] }} !important; color:{{ $chT['noir'] }};
         font-family:{!! $chT['ff_titres'] !!};
-        font-weight:700; font-size:8.5px; letter-spacing:.5px;
-        padding:6px 8px !important; border-left:3px solid {{ $chT['rouge'] }};
+        font-weight:700; font-size:10.5px; letter-spacing:.5px;
+        padding:7px 8px !important; border-left:3px solid {{ $chT['rouge'] }};
     }
 
     /* ── Badges nature / statut (couleurs de la charte) ────────────── */
     .tdoc-badge {
         display:inline-block; padding:2px 7px; border-radius:3px;
-        font-size:7.5px; font-weight:700; letter-spacing:.3px;
+        font-size:9px; font-weight:700; letter-spacing:.3px;
     }
     .tdoc-badge-tm     { background:{{ $chT['bleu'] }};   color:{{ $chT['blanc'] }}; }
     .tdoc-badge-odp    { background:{{ $chT['violet'] }}; color:{{ $chT['blanc'] }}; }
@@ -90,18 +91,18 @@
     .tdoc-total td {
         background:{{ $chT['noir'] }} !important; color:{{ $chT['blanc'] }};
         font-family:{!! $chT['ff_titres'] !!};
-        font-weight:700; font-size:11px; padding:12px 8px; border-bottom:none;
+        font-weight:700; font-size:13px; padding:12px 8px; border-bottom:none;
     }
     .tdoc-total .tdoc-amount {
-        color:{{ $chT['jaune'] }}; font-size:12px; line-height:1.15; text-align:right; white-space:nowrap;
+        color:{{ $chT['jaune'] }}; font-size:15px; line-height:1.15; text-align:right; white-space:nowrap;
     }
-    .tdoc-total .tdoc-amount span { display:block; font-size:11px; }
+    .tdoc-total .tdoc-amount span { display:block; font-size:12px; }
 
     /* ── Note explicative de bas de document ────────────────────────── */
     .tdoc-note {
         margin-top:16px; padding:11px 14px;
         background:{{ $chT['gris_clair'] }}; border-left:3px solid {{ $chT['rouge'] }};
-        font-size:8px; color:{{ $chT['noir'] }}; line-height:1.55;
+        font-size:10px; color:{{ $chT['noir'] }}; line-height:1.55;
     }
     .tdoc-note b { color:{{ $chT['noir'] }}; }
 </style>
