@@ -84,6 +84,7 @@ Test réalisé le 2026-10-02 en local : sauvegarde en 11 s (102 Mo). La base a �
 | Symptôme | Cause probable |
 |---|---|
 | `TLS/SSL error: self-signed certificate` | Corrigé le 2026-10-07 : le client MariaDB vérifie le certificat du MySQL Coolify, qui est auto-signé. Option `--skip-ssl-verify-server-cert` ajoutée côté serveur (`config/database.php`, la connexion reste chiffrée). Remplaçable par `DB_DUMP_EXTRA_OPTION` |
+| `Plugin caching_sha2_password could not be loaded` | Corrigé le 2026-10-07 : paquet `mariadb-connector-c` ajouté à l image (module de connexion MySQL 8). Redéployer si l erreur revient |
 | `mysqldump: not found` | Image construite sans `mariadb-client` : redéployer |
 | Alerte « backup is unhealthy » | La sauvegarde de 2h n'a pas tourné : vérifier la tâche planifiée `schedule:run` dans Coolify |
 | Échec vers `backups-s3` | Clé, bucket ou endpoint S3 incorrect ; la copie locale existe quand même |
