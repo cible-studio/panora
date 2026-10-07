@@ -14,7 +14,9 @@ FROM php:8.3-fpm-alpine
 # ─────────────────────────────────────────────────────────────────────
 # mariadb-client (2026-10-02) : fournit mysqldump pour les sauvegardes
 # nocturnes de la base (spatie/laravel-backup, docs/SAUVEGARDES.md).
-RUN apk add --no-cache nodejs npm nginx git unzip curl zip mariadb-client && \
+# mariadb-connector-c (2026-10-07) : module caching_sha2_password, sans
+# lequel mysqldump ne peut pas se connecter au MySQL 8 de Coolify.
+RUN apk add --no-cache nodejs npm nginx git unzip curl zip mariadb-client mariadb-connector-c && \
     curl -sSLf -o /usr/local/bin/install-php-extensions \
         https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions && \
     chmod +x /usr/local/bin/install-php-extensions && \
