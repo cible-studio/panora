@@ -178,3 +178,10 @@ Schedule::command('backup:monitor')
     ->dailyAt('08:30')
     ->when(fn () => config('backup.actif'))
     ->withoutOverlapping();
+
+// 16. Rappel trimestriel du test de restauration des sauvegardes
+//     (2026-10-07) : le 1er janvier, avril, juillet et octobre à 9h, mail
+//     aux destinataires des alertes de sauvegarde, avec l'état des copies.
+Schedule::command('sauvegardes:rappel-restauration')
+    ->cron('0 9 1 1,4,7,10 *')
+    ->when(fn () => config('backup.actif'));
