@@ -61,11 +61,21 @@ return [
             'options'    => [],
             // Export pour les sauvegardes (config/backup.php) : sans verrou
             // des tables, pour ne pas bloquer l'application pendant l'export.
-            'dump' => [
+            // 2026-10-07 — Sur le serveur (image Alpine), mysqldump est le
+            // client MariaDB : il exige un certificat TLS vérifiable et
+            // refusait celui, auto-signé, du MySQL de Coolify (« self-signed
+            // certificate in certificate chain »). La connexion reste
+            // chiffrée, sur le réseau Docker interne ; seule la vérification
+            // du certificat est désactivée. En local (DB_DUMP_BINARY_PATH
+            // renseigné : mysqldump de MySQL), l'option n'existe pas → aucune.
+            // Les valeurs vides sont retirées : spatie appellerait sinon la
+            // méthode sans argument.
+            'dump' => array_filter([
                 'dump_binary_path' => env('DB_DUMP_BINARY_PATH', ''),
                 'use_single_transaction' => true,
                 'timeout' => 60 * 10,
-            ],
+                'add_extra_option' => env('DB_DUMP_EXTRA_OPTION', env('DB_DUMP_BINARY_PATH') ? '' : '--skip-ssl-verify-server-cert'),
+            ], fn ($v) => $v !== '' && $v !== null),
         ],
 
         'mariadb' => [
