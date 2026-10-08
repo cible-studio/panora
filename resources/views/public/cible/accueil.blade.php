@@ -1,178 +1,105 @@
 @extends('public.cible._coque', ['titre' => 'Accueil', 'actuelle' => 'accueil'])
 
 @push('css')
-/* ═══════════════ HERO ═══════════════
-   Composition en deux temps. Au chargement : le manifeste à gauche sur
-   noir, le motion du perroquet à droite dans un panneau blanc arrondi —
-   la lecture d'un panneau allumé la nuit, qui est littéralement le métier.
-   Au scroll : le panneau s'ouvre en plein écran et le texte s'efface, donc
-   jamais de texte par-dessus le motion. C'est délibéré : la vidéo n'a pas
-   de zone neutre garantie, superposer du texte serait un pari. */
-/* Le titre occupait une colonne d'environ 700 px à 148 px de corps : un ou
-   deux mots par ligne, sur huit lignes. Il passe donc en PLEINE LARGEUR,
-   au-dessus d'une rangée à deux colonnes. Deux lignes de trente caractères
-   tiennent alors sans se briser.
+/* ═══════════════ HÉRO — ÉCRAN SCINDÉ ═══════════════
+   Direction retenue avec le client le 2026-10-08, après trois versions
+   empilées jugées « trop vides ».
 
-   Et plus de masques par ligne ici : une ligne qui déborde devenait plus
-   haute que son masque en overflow:hidden, et le texte apparaissait coupé.
-   Les lignes se révèlent par simple montée en opacité, ce qui tolère le
-   retour à la ligne. */
-/* ⚠ Composition revue le 2026-10-08 : le motion passe en GRAND CADRE en
-   tête, le texte en dessous. Il occupait auparavant une vignette de 500 px
-   sur le flanc droit, alors que c'est la seule pièce animée de la marque.
+   Le défaut n'était pas le manque d'éléments mais la composition : une
+   ligne d'en-tête, un cadre, une rangée de texte — trois bandes
+   horizontales sur fond blanc, sans point d'entrée pour le regard.
 
-   Le cadre fait toute la largeur. Le motion y est posé en `contain` et non
-   en `cover` : il est en 16/9 sur fond BLANC opaque, donc un cadre blanc
-   l'accueille sans la moindre couture — et surtout sans rogner le
-   perroquet, ce que `cover` ferait sur un cadre plus large que 16/9. */
-.hero{min-height:100svh;display:grid;align-content:center;padding:clamp(88px,11vh,120px) var(--pad) clamp(36px,5vh,64px);position:relative;overflow:hidden}
-.hero > .large{position:relative;z-index:2}
+   Ici, deux colonnes pleine hauteur, bord à bord, sans marge extérieure :
+     · à gauche, le blanc porte le manifeste. Le fond étant blanc, le mot
+       en rouge y est autorisé — ce qu'un héro entièrement noir aurait
+       interdit (« n'appliquez pas le texte du titre en couleur à un
+       arrière-plan non blanc ») ;
+     · à droite, le noir porte le motion dans son panneau blanc : une face
+       éclairée dans la nuit, qui est le métier de CIBLE.
 
+   Plus un pixel inoccupé à l'ouverture, et le contraste tombe exactement
+   sur les neutres de la charte.
+
+   ⚠ Contrepartie assumée : une moitié d'écran donne forcément un motion
+   plus petit qu'une pleine largeur. Le partage 40/60 privilégie le motion,
+   et le titre descend en conséquence à 38 px pour tenir dans la colonne de
+   gauche sans se briser mot par mot. */
+.hero{
+  min-height:100svh;
+  display:grid;grid-template-columns:36fr 64fr;
+  position:relative;overflow:hidden;
+}
+@media(max-width:980px){.hero{grid-template-columns:1fr;min-height:0}}
+
+/* ── Colonne gauche : le manifeste, sur blanc ── */
+.hero__dit{
+  background:var(--blanc);
+  display:flex;flex-direction:column;justify-content:center;
+  padding:clamp(96px,12vh,128px) clamp(26px,3.4vw,62px) clamp(34px,5vh,56px) var(--pad);
+  position:relative;z-index:2;
+}
+@media(max-width:980px){
+  .hero__dit{padding:clamp(96px,13vh,124px) var(--pad) clamp(34px,5vw,48px)}
+}
 .hero .sur{--c:var(--rouge)}
-/* Pas de max-width ici : la ligne la plus longue compte 32 caractères, et
-   un cap à 22ch la brisait en deux. Le conteneur .large (1480 px) suffit à
-   la borner, et text-wrap:balance répartit proprement les lignes le jour
-   où l'écran est trop étroit. */
-.hero__titre{margin:0}
+.hero__filet{width:52px;height:4px;background:var(--rouge);border-radius:4px;margin-top:16px}
+
+/* Titre nettement plus bas que la pleine largeur : la colonne fait environ
+   580 px utiles, et 29 caractères à 46 px en demanderaient 734. Mesuré. */
+.hero__titre{
+  margin-top:20px;
+  font-size:clamp(26px,3.1vw,50px);line-height:1.04;letter-spacing:-.03em;
+}
+@media(max-width:980px){.hero__titre{font-size:clamp(30px,6.4vw,46px)}}
 .hero__titre .l{display:block}
 .hero__titre em{font-style:normal;color:var(--rouge)}
 
-/* Le texte sous le cadre : titre à gauche, accroche et boutons à droite. */
-.hero__bas{
-  display:grid;grid-template-columns:1.25fr .75fr;
-  gap:clamp(24px,3.5vw,56px);align-items:end;margin-top:clamp(26px,3vw,38px);
+.hero__sous{margin-top:18px;font-size:16px;line-height:1.6;color:var(--texte-2);max-width:46ch}
+.hero__actions{display:flex;flex-wrap:wrap;gap:11px;margin-top:26px}
+
+/* Repères en pied de colonne : ils donnent une base à la composition et
+   évitent que le bas de la colonne blanche reste vide. */
+.hero__reperes{
+  display:flex;gap:clamp(16px,2vw,30px);flex-wrap:wrap;
+  margin-top:clamp(28px,4vh,46px);padding-top:18px;
+  border-top:1px solid var(--ligne);
+  font-family:var(--titre);font-weight:700;font-size:11.5px;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--texte-3);
 }
-@media(max-width:980px){
-  .hero__bas{grid-template-columns:1fr;gap:28px;align-items:start}
-}
-.hero__sous{font-family:var(--titre);font-weight:600;font-size:clamp(16px,1.5vw,19px);line-height:1.45;color:var(--texte-2);max-width:44ch}
-.hero__actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
+.hero__reperes b{display:block;font-family:var(--chiffres);font-size:22px;
+  letter-spacing:-.02em;color:var(--noir);font-weight:900;margin-bottom:3px}
 
-/* ═══════════════ LE CADRE DU MOTION ═══════════════
-   ⚠ Le héro paraissait vide, et pour une raison très concrète : un cadre
-   BLANC, posé sur une page BLANCHE, contenant une vidéo à fond BLANC. Il
-   n'y avait rien à voir sinon une ombre. Et le cadre étant plus large que
-   le 16/9 de la vidéo, environ 90 px de blanc mort traînaient de chaque
-   côté du motion.
-
-   Deux corrections, et pas une de plus :
-
-   1. Une monture NOIRE autour du panneau blanc. C'est la structure d'un
-      panneau publicitaire : de l'acier sombre autour d'une face éclairée.
-      Le métier de CIBLE, littéralement — et le contraste qui manquait. Le
-      titre, lui, reste sur fond blanc : son mot en rouge y est autorisé,
-      ce qu'un héro entièrement noir interdirait.
-
-   2. Le panneau est exactement en 16/9, comme la vidéo : plus un pixel de
-      blanc mort, le motion remplit tout. La taille se règle par une
-      largeur maximale et non par un plafond de hauteur — un plafond de
-      hauteur sur une largeur automatique faisait rétrécir la largeur, ce
-      qui était le défaut de la version précédente. */
-.hero__cadre{
-  /* La largeur suit la hauteur d'ecran : le panneau etant en 16/9,
-     142vh est la largeur qui donne environ 78vh de haut. Le cadre reste
-     donc aussi grand que l'ecran le permet, sans jamais pousser le titre
-     trop bas, et sans plafond de hauteur — qui ferait retrecir la
-     largeur, comme dans la version precedente. */
-  width:100%;max-width:min(100%,142vh);margin:14px auto 0;
+/* ── Colonne droite : le motion, sur noir ── */
+.hero__scene{
   background:var(--noir);
-  padding:clamp(10px,1.3vw,18px);
-  border-radius:clamp(18px,2.2vw,30px);
-  box-shadow:0 36px 90px -50px rgba(17,17,17,.6);
+  display:grid;place-items:center;
+  padding:clamp(20px,2.2vw,40px);
+  position:relative;overflow:hidden;
 }
+@media(max-width:980px){.hero__scene{padding:clamp(24px,5vw,40px)}}
+
 .hero__panneau{
   position:relative;width:100%;aspect-ratio:16/9;
-  border-radius:clamp(10px,1.4vw,18px);overflow:hidden;
+  border-radius:clamp(10px,1.2vw,16px);overflow:hidden;
   background:var(--blanc);
+  box-shadow:0 40px 90px -40px rgba(0,0,0,.9);
 }
-@media(max-width:700px){.hero__panneau{aspect-ratio:4/3}}
-/* La vidéo est en 16/9 comme son panneau : `cover` ne rogne donc rien et
-   garantit qu'aucune bordure blanche ne subsiste. Sous 700 px le panneau
-   passe en 4/3 et le recadrage reste négligeable. */
-.hero__panneau video{width:100%;height:100%;object-fit:cover;background:var(--blanc)}
-
-/* Ligne d'en-tête : sur-titre à gauche, repères à droite. Elle donne au
-   héro une assise horizontale, au lieu d'une seule ligne grise perdue. */
-.hero__tete{
-  display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
-  padding-bottom:14px;border-bottom:1px solid var(--ligne);
-}
-.hero__reperes{
-  margin-left:auto;display:flex;gap:20px;flex-wrap:wrap;
-  font-family:var(--titre);font-weight:700;font-size:12px;
-  letter-spacing:.1em;text-transform:uppercase;color:var(--texte-3);
-}
-.hero__reperes b{font-family:var(--chiffres);color:var(--noir);font-weight:800}
-@media(max-width:640px){.hero__reperes{display:none}}
-/* contain, jamais cover : le motion est en 16/9 sur fond blanc, il se fond
-   dans le cadre blanc sans jamais être rogné. */
-.hero__panneau video{width:100%;height:100%;object-fit:contain;background:var(--blanc)}
-/* Liseré aux 5 couleurs : la charte entière en un seul trait. */
+@media(max-width:560px){.hero__panneau{aspect-ratio:4/3}}
+/* La vidéo est en 16/9 comme son panneau : `cover` ne rogne donc rien, et
+   garantit qu'aucune bordure blanche ne subsiste sur les côtés. */
+.hero__panneau video{width:100%;height:100%;object-fit:cover;background:var(--blanc);display:block}
+/* Filet rouge en pied de face : l'accent de marque, en aplat. */
 .hero__panneau::after{
-  content:"";position:absolute;inset:auto 0 0 0;height:5px;z-index:2;
-  /* Deux aplats francs rouge/jaune, et non les 5 couleurs en dégradé :
-     la charte proscrit les dégradés et veut le rouge prépondérant,
-     « principalement accompagné avec le jaune ». */
-  background:var(--rouge);
+  content:"";position:absolute;inset:auto 0 0 0;height:4px;z-index:2;background:var(--rouge);
 }
 .hero__etiq{
-  position:absolute;z-index:3;top:16px;left:16px;
+  position:absolute;z-index:3;top:14px;left:14px;
   display:flex;align-items:center;gap:8px;
-  padding:8px 13px;border-radius:999px;background:var(--noir);color:var(--blanc);
-  font-family:var(--titre);font-weight:800;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  padding:7px 13px;border-radius:999px;background:var(--noir);color:var(--blanc);
+  font-family:var(--titre);font-weight:800;font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;
 }
 .hero__etiq b{width:6px;height:6px;border-radius:50%;background:var(--rouge);animation:bat 2s ease-in-out infinite}
-
-/* ═══════════════ PREUVE ═══════════════ */
-.preuve{padding:clamp(56px,7vw,92px) var(--pad)}
-.preuve__grille{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(16px,2.4vw,34px)}
-@media(max-width:880px){.preuve__grille{grid-template-columns:repeat(2,1fr)}}
-.chiffre{padding-top:22px;border-top:2px solid var(--c)}
-.chiffre__v{
-  font-family:var(--titre);font-weight:900;
-  font-size:clamp(42px,6.4vw,92px);line-height:.88;letter-spacing:-.05em;
-  display:flex;align-items:baseline;gap:2px;
-}
-.chiffre__v i{font-style:normal;color:var(--rouge);font-size:.52em}
-.chiffre__l{font-family:var(--titre);font-weight:700;font-size:13px;margin-top:12px;color:var(--texte-2);line-height:1.35}
-
-/* ═══════════════ EXPERTISES ═══════════════ */
-.exp{background:var(--fond-2);border-block:1px solid var(--ligne)}
-.exp__liste{margin-top:clamp(38px,5vw,64px);border-top:1px solid var(--ligne)}
-.exp__item{
-  display:grid;grid-template-columns:76px 1fr minmax(0,.78fr) 54px;
-  gap:clamp(14px,2.6vw,40px);align-items:center;
-  padding:clamp(22px,3vw,34px) 0;border-bottom:1px solid var(--ligne);
-  position:relative;transition:padding-left .5s var(--ease);
-}
-.exp__item::before{
-  content:"";position:absolute;inset:0;z-index:0;
-  background:var(--fond-2);
-  opacity:0;transition:opacity .5s var(--ease);
-}
-.exp__item:hover{padding-left:clamp(12px,2vw,28px)}
-.exp__item:hover::before{opacity:1}
-.exp__item > *{position:relative;z-index:1}
-.exp__n{font-family:var(--titre);font-weight:900;font-size:13px;color:var(--rouge);letter-spacing:.1em}
-.exp__nom{font-family:var(--titre);font-weight:900;font-size:clamp(20px,2.7vw,38px);letter-spacing:-.028em;line-height:1.04}
-.exp__txt{color:var(--texte-2);font-size:15px;line-height:1.55}
-.exp__fl{
-  width:46px;height:46px;border-radius:50%;justify-self:end;
-  display:grid;place-items:center;box-shadow:inset 0 0 0 1.5px var(--ligne);
-  transition:background .4s,box-shadow .4s,transform .4s var(--ease);
-}
-.exp__item:hover .exp__fl{background:var(--c);box-shadow:inset 0 0 0 1.5px var(--c);transform:rotate(-45deg)}
-.exp__item:hover .exp__fl i{background:#fff}
-.exp__fl i{
-  width:16px;height:16px;background:var(--noir);
-  -webkit-mask:url('{{ asset('images/fleche.svg') }}') no-repeat center/contain;
-  mask:url('{{ asset('images/fleche.svg') }}') no-repeat center/contain;
-}
-@media(max-width:880px){
-  .exp__item{grid-template-columns:48px 1fr;gap:12px 16px}
-  .exp__txt{grid-column:2;margin-top:6px}
-  .exp__fl{display:none}
-}
 
 /* ═══════════════ MANIFESTE ═══════════════
    « Vous visez juste » prend le rang qu'occupe « Truth Well Told » chez
@@ -296,66 +223,61 @@
 
 @section('contenu')
 
-{{-- ═══════════════════════ HERO ═══════════════════════ --}}
+{{-- ═══════════════════════ HÉRO — ÉCRAN SCINDÉ ═══════════════════════ --}}
 <section class="hero" id="hero">
-    <div class="plume" style="--c:var(--rouge);--op:.045;bottom:-14%;right:-4%;width:clamp(140px,17vw,250px)" data-par="-14" data-rot="14"></div>
-    <div class="fleche-d" style="--c:var(--jaune);--op:.08;bottom:4%;left:-3%;width:clamp(90px,11vw,150px)" data-par="12" data-rot="-10"></div>
 
-    <div class="large">
-        <div class="hero__tete" data-rev>
-            <p class="sur" style="margin:0">Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
-            {{-- Trois repères, discrets : ils donnent une assise à la ligne
-                 d'en-tête sans empiéter sur la section Preuve, qui les
-                 développe plus bas. --}}
-            <p class="hero__reperes">
-                <span><b>+400</b> panneaux</span>
-                <span><b>31</b> communes</span>
-                <span><b>30</b> ans</span>
-            </p>
+    {{-- Colonne gauche : ce qu'on dit --}}
+    <div class="hero__dit">
+        <p class="sur" data-rev>Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
+        <div class="hero__filet" data-rev=".06"></div>
+
+        {{-- Lignes posées à la main pour garder le <em> rouge, que le
+             découpeur automatique effacerait en reconstruisant le HTML
+             depuis le texte seul. --}}
+        <h1 class="hero__titre" data-cascade>
+            <span class="l">Nous ne vendons</span>
+            <span class="l">pas d'espace.</span>
+            <span class="l"><em>Nous vendons</em></span>
+            <span class="l"><em>de l'attention.</em></span>
+        </h1>
+
+        <p class="hero__sous" data-rev=".24">
+            +400 panneaux dans 31 communes, trente ans de terrain, et la preuve
+            photo de chaque pose. Voilà ce qu'on met derrière votre message.
+        </p>
+
+        <div class="hero__actions" data-rev=".32">
+            <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
+                Parler de mon projet<i class="fl"></i>
+            </a>
+            <a class="bt bt--creux" href="{{ route('cible.travaux') }}" data-viseur>
+                Voir nos travaux
+            </a>
         </div>
 
-        {{-- LE GRAND CADRE — monture noire, panneau blanc éclairé.
-             Motion fourni par le client : fond blanc, 1920×1080, 7 s, sans
-             piste audio. muted + playsinline sont obligatoires, sans eux
-             Safari iOS refuse la lecture automatique. --}}
-        <div class="hero__cadre" id="panneau" data-rev=".1">
-            <div class="hero__panneau">
-                <span class="hero__etiq"><b></b> En exploitation</span>
-                <video src="{{ \App\Support\Contenu::urlDatee('refonte/motion/perroquet-blanc.mp4') }}"
-                       autoplay muted loop playsinline preload="metadata"
-                       poster="{{ \App\Support\Contenu::urlDatee('refonte/photo/perroquet.webp') }}"
-                       aria-label="Animation du logo CIBLE"></video>
-            </div>
+        <div class="hero__reperes" data-rev=".4">
+            <span><b>+400</b> panneaux</span>
+            <span><b>31</b> communes</span>
+            <span><b>30</b> ans</span>
         </div>
+    </div>
 
-        <div class="hero__bas">
-            {{-- Deux lignes posées à la main pour garder le <em> rouge que
-                 le découpeur automatique effacerait. Révélation par
-                 [data-cascade], qui monte chaque ligne en opacité sans
-                 masque : une ligne qui déborde n'est jamais tronquée. --}}
-            <h1 class="t-geant hero__titre" data-cascade>
-                <span class="l">Nous ne vendons pas d'espace.</span>
-                <span class="l"><em>Nous vendons de l'attention.</em></span>
-            </h1>
-
-            <div>
-                <p class="hero__sous" data-rev=".3">
-                    +400 panneaux dans 31 communes, trente ans de terrain, et la preuve
-                    photo de chaque pose. Voilà ce qu'on met derrière votre message.
-                </p>
-
-                <div class="hero__actions" data-rev=".38">
-                    <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
-                        Parler de mon projet<i class="fl"></i>
-                    </a>
-                    <a class="bt bt--creux" href="{{ route('cible.travaux') }}" data-viseur>
-                        Voir nos travaux
-                    </a>
-                </div>
-            </div>
+    {{-- Colonne droite : ce qu'on montre. Le motion dans son panneau blanc,
+         posé sur le noir — une face éclairée dans la nuit.
+         Motion du client : fond blanc, 1920×1080, 7 s, sans piste audio.
+         muted + playsinline sont obligatoires, sans eux Safari iOS refuse
+         la lecture automatique. --}}
+    <div class="hero__scene">
+        <div class="hero__panneau" id="panneau" data-rev=".12">
+            <span class="hero__etiq"><b></b> En exploitation</span>
+            <video src="{{ \App\Support\Contenu::urlDatee('refonte/motion/perroquet-blanc.mp4') }}"
+                   autoplay muted loop playsinline preload="metadata"
+                   poster="{{ \App\Support\Contenu::urlDatee('refonte/photo/perroquet.webp') }}"
+                   aria-label="Animation du logo CIBLE"></video>
         </div>
     </div>
 </section>
+
 
 {{-- ═══════════════════════ MANIFESTE ═══════════════════════
      La signature de marque prend ici le rang qu'occupe « Truth Well Told »
