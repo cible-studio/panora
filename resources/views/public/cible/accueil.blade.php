@@ -17,7 +17,15 @@
    haute que son masque en overflow:hidden, et le texte apparaissait coupé.
    Les lignes se révèlent par simple montée en opacité, ce qui tolère le
    retour à la ligne. */
-.hero{min-height:100svh;display:grid;align-content:center;padding:clamp(118px,15vh,164px) var(--pad) clamp(40px,6vh,80px);position:relative;overflow:hidden}
+/* ⚠ Composition revue le 2026-10-08 : le motion passe en GRAND CADRE en
+   tête, le texte en dessous. Il occupait auparavant une vignette de 500 px
+   sur le flanc droit, alors que c'est la seule pièce animée de la marque.
+
+   Le cadre fait toute la largeur. Le motion y est posé en `contain` et non
+   en `cover` : il est en 16/9 sur fond BLANC opaque, donc un cadre blanc
+   l'accueille sans la moindre couture — et surtout sans rogner le
+   perroquet, ce que `cover` ferait sur un cadre plus large que 16/9. */
+.hero{min-height:100svh;display:grid;align-content:center;padding:clamp(104px,13vh,146px) var(--pad) clamp(40px,6vh,80px);position:relative;overflow:hidden}
 .hero > .large{position:relative;z-index:2}
 
 .hero .sur{--c:var(--rouge)}
@@ -25,30 +33,34 @@
    un cap à 22ch la brisait en deux. Le conteneur .large (1480 px) suffit à
    la borner, et text-wrap:balance répartit proprement les lignes le jour
    où l'écran est trop étroit. */
-.hero__titre{margin-top:18px}
+.hero__titre{margin:0}
 .hero__titre .l{display:block}
 .hero__titre em{font-style:normal;color:var(--rouge)}
 
+/* Le texte sous le cadre : titre à gauche, accroche et boutons à droite. */
 .hero__bas{
-  display:grid;grid-template-columns:1fr minmax(290px,.72fr);
-  gap:clamp(30px,5vw,70px);align-items:end;margin-top:clamp(34px,5vw,58px);
+  display:grid;grid-template-columns:1.25fr .75fr;
+  gap:clamp(26px,4vw,64px);align-items:end;margin-top:clamp(30px,4vw,48px);
 }
 @media(max-width:980px){
-  .hero__bas{grid-template-columns:1fr;gap:34px;align-items:start}
-  .hero__titre{max-width:none}
+  .hero__bas{grid-template-columns:1fr;gap:28px;align-items:start}
 }
-.hero__sous{font-family:var(--titre);font-weight:600;font-size:clamp(16px,1.5vw,20px);line-height:1.45;color:var(--texte-2);max-width:42ch}
-.hero__actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.hero__sous{font-family:var(--titre);font-weight:600;font-size:clamp(16px,1.5vw,19px);line-height:1.45;color:var(--texte-2);max-width:44ch}
+.hero__actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
 
-/* Panneau blanc : le motion est sur fond blanc opaque (H.264 ne porte pas
-   de transparence), on en fait donc un objet graphique assumé. */
+/* Grand cadre du motion. Le plafond en vh est indispensable : sans lui,
+   un cadre 16/9 pleine largeur fait 830 px de haut à 1480 px, et le titre
+   placé dessous tombe sous la ligne de flottaison. */
 .hero__panneau{
-  position:relative;border-radius:26px;overflow:hidden;
-  background:var(--blanc);aspect-ratio:16/11;
-  box-shadow:0 30px 70px -40px rgba(17,17,17,.4);
+  position:relative;border-radius:clamp(16px,2vw,28px);overflow:hidden;
+  background:var(--blanc);aspect-ratio:16/9;max-height:56vh;
+  box-shadow:0 30px 80px -45px rgba(17,17,17,.45),inset 0 0 0 1px var(--ligne);
+  margin-top:16px;
   will-change:transform;
 }
-.hero__panneau video{width:100%;height:100%;object-fit:cover}
+/* contain, jamais cover : le motion est en 16/9 sur fond blanc, il se fond
+   dans le cadre blanc sans jamais être rogné. */
+.hero__panneau video{width:100%;height:100%;object-fit:contain;background:var(--blanc)}
 /* Liseré aux 5 couleurs : la charte entière en un seul trait. */
 .hero__panneau::after{
   content:"";position:absolute;inset:auto 0 0 0;height:5px;z-index:2;
@@ -246,16 +258,28 @@
     <div class="large">
         <p class="sur" data-rev>Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
 
-        {{-- Deux lignes, posées à la main pour garder le <em> rouge que le
-             découpeur automatique effacerait. Révélation par [data-cascade],
-             qui monte chaque ligne en opacité sans masque : une ligne qui
-             déborde n'est donc jamais tronquée. --}}
-        <h1 class="t-geant hero__titre" data-cascade>
-            <span class="l">Nous ne vendons pas d'espace.</span>
-            <span class="l"><em>Nous vendons de l'attention.</em></span>
-        </h1>
+        {{-- LE GRAND CADRE — le motion d'abord, le texte ensuite.
+             Motion fourni par le client : fond blanc, 1920×1080, 8,5 s,
+             sans piste audio. muted + playsinline sont obligatoires, sans
+             eux Safari iOS refuse la lecture automatique. --}}
+        <div class="hero__panneau" id="panneau" data-rev=".1">
+            <span class="hero__etiq"><b></b> En exploitation</span>
+            <video src="{{ asset('refonte/motion/perroquet-blanc.mp4') }}"
+                   autoplay muted loop playsinline preload="metadata"
+                   poster="{{ asset('refonte/photo/perroquet.webp') }}"
+                   aria-label="Animation du logo CIBLE"></video>
+        </div>
 
         <div class="hero__bas">
+            {{-- Deux lignes posées à la main pour garder le <em> rouge que
+                 le découpeur automatique effacerait. Révélation par
+                 [data-cascade], qui monte chaque ligne en opacité sans
+                 masque : une ligne qui déborde n'est jamais tronquée. --}}
+            <h1 class="t-geant hero__titre" data-cascade>
+                <span class="l">Nous ne vendons pas d'espace.</span>
+                <span class="l"><em>Nous vendons de l'attention.</em></span>
+            </h1>
+
             <div>
                 <p class="hero__sous" data-rev=".3">
                     +400 panneaux dans 31 communes, trente ans de terrain, et la preuve
@@ -270,17 +294,6 @@
                         Voir nos travaux
                     </a>
                 </div>
-            </div>
-
-        <div class="hero__panneau" id="panneau" data-rev=".2">
-            <span class="hero__etiq"><b></b> En exploitation</span>
-            {{-- Motion fourni par le client (fond blanc, 1920×1080, 8,5 s, sans
-                 piste audio). muted + playsinline : sans ces deux attributs,
-                 Safari iOS refuse la lecture automatique. --}}
-            <video src="{{ asset('refonte/motion/perroquet-blanc.mp4') }}"
-                   autoplay muted loop playsinline preload="metadata"
-                   poster="{{ asset('refonte/photo/perroquet.webp') }}"
-                   aria-label="Animation du logo CIBLE"></video>
             </div>
         </div>
     </div>
@@ -373,7 +386,7 @@
                 <div class="chiffre__l">Depuis</div>
             </div>
             <div class="chiffre" style="--c:var(--jaune)">
-                <div class="chiffre__v num"><span data-compte="{{ \App\Support\Contenu::get('chiffres.distinctions', 3) }}">0</span></div>
+                <div class="chiffre__v num"><span data-compte="{{ \App\Support\Contenu::get('chiffres.distinctions', 3) }}" data-pad="2">00</span></div>
                 <div class="chiffre__l">Distinctions d'État</div>
             </div>
         </div>
@@ -443,39 +456,8 @@
 
 @push('js')
 <script>
-/* Héro — parallaxe douce du panneau.
-
-   La version précédente épinglait le héro et agrandissait le panneau à
-   1,42 pour l'ouvrir en plein écran. Trois défauts d'affichage en
-   découlaient, et c'est le gros des bugs signalés sur la page d'accueil :
-
-     1. `.hero` porte overflow:hidden (il contient les plumes de décor) :
-        le panneau agrandi était donc rogné aux bords de la section au lieu
-        de remplir l'écran ;
-     2. deux sections épinglées sur la même page — le héro puis la galerie
-        de travaux — provoquaient un saut au passage de l'une à l'autre,
-        accentué par le scroll inertiel de Lenis ;
-     3. l'épinglage ajoute la hauteur d'un écran au document, ce qui
-        décalait le manifeste placé juste après.
-
-   Remplacé par un simple décalage vertical au scrub : aucun épinglage,
-   aucun rognage, et le seul épinglage de la page reste celui de la
-   galerie. */
-(function () {
-  if (typeof window.gsap === 'undefined') { return; }
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { return; }
-  if (window.innerWidth < 980) { return; }
-
-  var panneau = document.getElementById('panneau');
-  if (!panneau) { return; }
-
-  gsap.to(panneau, {
-    yPercent: -9, ease: 'none',
-    scrollTrigger: {
-      trigger: '#hero', start: 'top top', end: 'bottom top',
-      scrub: .6, invalidateOnRefresh: true,
-    },
-  });
-})();
+/* La parallaxe du panneau est retirée : le motion est désormais en
+   tête du héro, et le décaler vers le haut ouvrirait un vide sous le
+   cadre. Les plumes de décor gardent la leur. */
 </script>
 @endpush

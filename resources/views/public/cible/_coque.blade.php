@@ -747,13 +747,20 @@
   /* ── 9. Compteurs ───────────────────────────────────────────────── */
   document.querySelectorAll('[data-compte]').forEach(function (el) {
     var cible = parseFloat(el.dataset.compte);
+    // data-pad : nombre minimal de chiffres, complete par des zeros.
+    var pad = parseInt(el.dataset.pad || 0, 10);
+    var ecrire = function (v) {
+      var s = String(Math.round(v));
+      while (s.length < pad) { s = '0' + s; }
+      el.textContent = pad ? s : Math.round(v).toLocaleString('fr-FR');
+    };
     var etat = { v: 0 };
     ScrollTrigger.create({
       trigger: el, start: 'top 92%', once: true,
       onEnter: function () {
         gsap.to(etat, {
           v: cible, duration: 1.9, ease: 'power2.out',
-          onUpdate: function () { el.textContent = Math.round(etat.v).toLocaleString('fr-FR'); },
+          onUpdate: function () { ecrire(etat.v); },
         });
       },
     });
@@ -833,7 +840,10 @@ window.addEventListener('load', function () {
       el.style.opacity = 1; el.style.transform = 'none';
     });
     document.querySelectorAll('[data-compte]').forEach(function (el) {
-      el.textContent = parseFloat(el.dataset.compte).toLocaleString('fr-FR');
+      var p = parseInt(el.dataset.pad || 0, 10);
+      var s = String(Math.round(parseFloat(el.dataset.compte)));
+      while (s.length < p) { s = '0' + s; }
+      el.textContent = p ? s : parseFloat(el.dataset.compte).toLocaleString('fr-FR');
     });
   }
 });
