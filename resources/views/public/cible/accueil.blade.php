@@ -8,15 +8,37 @@
    Au scroll : le panneau s'ouvre en plein écran et le texte s'efface, donc
    jamais de texte par-dessus le motion. C'est délibéré : la vidéo n'a pas
    de zone neutre garantie, superposer du texte serait un pari. */
-.hero{min-height:100svh;display:grid;align-content:center;padding:clamp(104px,13vh,150px) var(--pad) clamp(40px,6vh,80px);position:relative;overflow:hidden}
-.hero__grille{display:grid;grid-template-columns:1.06fr .94fr;gap:clamp(28px,4vw,64px);align-items:center;position:relative;z-index:2}
-@media(max-width:980px){.hero__grille{grid-template-columns:1fr;gap:34px}}
+/* Le titre occupait une colonne d'environ 700 px à 148 px de corps : un ou
+   deux mots par ligne, sur huit lignes. Il passe donc en PLEINE LARGEUR,
+   au-dessus d'une rangée à deux colonnes. Deux lignes de trente caractères
+   tiennent alors sans se briser.
 
-.hero .sur{--c:var(--vert)}
-.hero__titre{margin-top:20px}
+   Et plus de masques par ligne ici : une ligne qui déborde devenait plus
+   haute que son masque en overflow:hidden, et le texte apparaissait coupé.
+   Les lignes se révèlent par simple montée en opacité, ce qui tolère le
+   retour à la ligne. */
+.hero{min-height:100svh;display:grid;align-content:center;padding:clamp(118px,15vh,164px) var(--pad) clamp(40px,6vh,80px);position:relative;overflow:hidden}
+.hero > .large{position:relative;z-index:2}
+
+.hero .sur{--c:var(--rouge)}
+/* Pas de max-width ici : la ligne la plus longue compte 32 caractères, et
+   un cap à 22ch la brisait en deux. Le conteneur .large (1480 px) suffit à
+   la borner, et text-wrap:balance répartit proprement les lignes le jour
+   où l'écran est trop étroit. */
+.hero__titre{margin-top:18px}
+.hero__titre .l{display:block}
 .hero__titre em{font-style:normal;color:var(--rouge)}
-.hero__sous{margin-top:26px;font-family:var(--titre);font-weight:600;font-size:clamp(16px,1.6vw,21px);line-height:1.45;color:var(--texte-2);max-width:40ch}
-.hero__actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
+
+.hero__bas{
+  display:grid;grid-template-columns:1fr minmax(290px,.72fr);
+  gap:clamp(30px,5vw,70px);align-items:end;margin-top:clamp(34px,5vw,58px);
+}
+@media(max-width:980px){
+  .hero__bas{grid-template-columns:1fr;gap:34px;align-items:start}
+  .hero__titre{max-width:none}
+}
+.hero__sous{font-family:var(--titre);font-weight:600;font-size:clamp(16px,1.5vw,20px);line-height:1.45;color:var(--texte-2);max-width:42ch}
+.hero__actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
 
 /* Panneau blanc : le motion est sur fond blanc opaque (H.264 ne porte pas
    de transparence), on en fait donc un objet graphique assumé. */
@@ -98,16 +120,31 @@
    « Vous visez juste » prend le rang qu'occupe « Truth Well Told » chez
    la référence citée : seul, grand, juste avant les travaux. Il était
    relégué en pied de page. */
-.manif{text-align:center;padding:clamp(54px,8vw,110px) var(--pad) clamp(30px,4vw,54px)}
+/* Aplat noir, texte blanc. Le noir est une couleur de la charte et le
+   contraste qu'il donne est ce qui manquait à une page uniformément
+   blanche. Aucun mot de titre en couleur ici : « n'appliquez pas le texte
+   du titre en couleur à un arrière-plan non blanc ». La couleur revient par
+   le motif de plume et le filet rouge, qui sont des aplats. */
+.manif{
+  background:var(--noir);color:var(--blanc);text-align:center;
+  padding:clamp(66px,9vw,124px) var(--pad);
+  position:relative;overflow:hidden;
+}
+.manif > div{position:relative;z-index:2}
 .manif__l{
   font-family:var(--titre);font-weight:900;
-  font-size:clamp(34px,7.4vw,112px);line-height:.9;letter-spacing:-.05em;
+  font-size:clamp(32px,6.6vw,96px);line-height:.94;letter-spacing:-.04em;
   display:block;
 }
-.manif__l em{font-style:normal;color:var(--rouge)}
+.manif__l .l{display:block}
+.manif__filet{
+  width:64px;height:4px;background:var(--rouge);
+  margin:clamp(22px,3vw,34px) auto 0;border-radius:4px;
+}
 .manif__s{
   margin-top:20px;font-family:var(--titre);font-weight:700;
-  font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--texte-3);
+  font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(255,255,255,.58);
 }
 
 /* ═══════════════ TRAVAUX — défilement horizontal ═══════════════
@@ -166,35 +203,34 @@
     <div class="plume" style="--c:var(--rouge);--op:.07;top:-6%;right:-7%;width:clamp(230px,30vw,440px)" data-par="-16" data-rot="14"></div>
     <div class="plume" style="--c:var(--jaune);--op:.055;bottom:-12%;left:-6%;width:clamp(180px,22vw,330px)" data-par="18" data-rot="-10"></div>
 
-    <div class="large hero__grille">
-        <div>
-            <p class="sur" data-rev>Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
+    <div class="large">
+        <p class="sur" data-rev>Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
 
-            {{-- Lignes écrites à la main pour garder le <em> rouge, que le
-                 découpeur automatique effacerait. [data-monte] les anime en
-                 yPercent : [data-rev] décalait de 26 px et le masque en
-                 overflow:hidden tronquait le texte. --}}
-            <h1 class="t-geant hero__titre" data-monte>
-                <span class="ligne-masque"><span>Nous ne vendons</span></span>
-                <span class="ligne-masque"><span>pas de l'espace.</span></span>
-                <span class="ligne-masque"><span><em>Nous vendons</em></span></span>
-                <span class="ligne-masque"><span><em>de l'attention.</em></span></span>
-            </h1>
+        {{-- Deux lignes, posées à la main pour garder le <em> rouge que le
+             découpeur automatique effacerait. Révélation par [data-cascade],
+             qui monte chaque ligne en opacité sans masque : une ligne qui
+             déborde n'est donc jamais tronquée. --}}
+        <h1 class="t-geant hero__titre" data-cascade>
+            <span class="l">Nous ne vendons pas d'espace.</span>
+            <span class="l"><em>Nous vendons de l'attention.</em></span>
+        </h1>
 
-            <p class="hero__sous" data-rev=".34">
-                +400 panneaux dans 31 communes, trente ans de terrain, et la preuve
-                photo de chaque pose. Voilà ce qu'on met derrière votre message.
-            </p>
+        <div class="hero__bas">
+            <div>
+                <p class="hero__sous" data-rev=".3">
+                    +400 panneaux dans 31 communes, trente ans de terrain, et la preuve
+                    photo de chaque pose. Voilà ce qu'on met derrière votre message.
+                </p>
 
-            <div class="hero__actions" data-rev=".42">
-                <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
-                    Parler de mon projet<i class="fl"></i>
-                </a>
-                <a class="bt bt--creux" href="{{ route('cible.travaux') }}" data-viseur>
-                    Voir nos travaux
-                </a>
+                <div class="hero__actions" data-rev=".38">
+                    <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
+                        Parler de mon projet<i class="fl"></i>
+                    </a>
+                    <a class="bt bt--creux" href="{{ route('cible.travaux') }}" data-viseur>
+                        Voir nos travaux
+                    </a>
+                </div>
             </div>
-        </div>
 
         <div class="hero__panneau" id="panneau" data-rev=".2">
             <span class="hero__etiq"><b></b> En exploitation</span>
@@ -205,6 +241,7 @@
                    autoplay muted loop playsinline preload="metadata"
                    poster="{{ asset('refonte/photo/perroquet.webp') }}"
                    aria-label="Animation du logo CIBLE"></video>
+            </div>
         </div>
     </div>
 </section>
@@ -214,9 +251,17 @@
      chez McCann : seule, grande, juste avant les travaux. Elle n'explique
      rien — c'est la galerie qui argumente. --}}
 <section class="manif">
-    <span class="manif__l" data-rev>Vous visez</span>
-    <span class="manif__l" data-rev=".1"><em>juste.</em></span>
-    <p class="manif__s" data-rev=".22">Six campagnes · et la preuve de chacune</p>
+    <div class="plume" style="--c:var(--jaune);--op:.14;top:-18%;right:4%;width:clamp(150px,19vw,250px)" data-par="22" data-rot="-12"></div>
+    <div class="plume" style="--c:var(--rouge);--op:.16;bottom:-22%;left:3%;width:clamp(130px,16vw,210px)" data-par="-18" data-rot="14"></div>
+
+    <div>
+        <h2 class="manif__l" data-cascade>
+            <span class="l">Vous visez</span>
+            <span class="l">juste.</span>
+        </h2>
+        <div class="manif__filet" data-rev=".2"></div>
+        <p class="manif__s" data-rev=".28">Six campagnes · et la preuve de chacune</p>
+    </div>
 </section>
 
 {{-- ═══════════════════════ TRAVAUX ═══════════════════════ --}}

@@ -95,24 +95,32 @@
     .lenis.lenis-smooth{scroll-behavior:auto!important}
 
     /* ═══════════════ 3. TYPOGRAPHIE ═══════════════
-       Échelle plus haute que la V1 : la refonte assume le grand titre
-       comme élément graphique principal. Testée à 360px. */
+       ⚠ Échelle revue à la baisse le 2026-10-08, après capture du client.
+       Elle montait à 148 px : dans une colonne de héro large d'environ
+       700 px, « Nous ne vendons pas de l'espace » tombait à un ou deux mots
+       par ligne, sur huit lignes. Le titre n'était plus un titre mais une
+       pile de mots.
+
+       La règle qui tient : un titre doit pouvoir poser au moins quatre ou
+       cinq mots par ligne dans sa colonne. 78 px au maximum sur un titre
+       pleine largeur, 56 px sur un titre de section. Même leçon que la V1
+       en août, où les tailles avaient déjà dû être réduites deux fois. */
     .t-geant{
       font-family:var(--titre);font-weight:900;
-      font-size:clamp(40px,9vw,148px);
-      line-height:.92;letter-spacing:-.045em;
+      font-size:clamp(32px,4.9vw,74px);
+      line-height:1;letter-spacing:-.035em;
       text-wrap:balance;
     }
     .t-grand{
       font-family:var(--titre);font-weight:900;
-      font-size:clamp(32px,6vw,86px);
-      line-height:.98;letter-spacing:-.035em;
+      font-size:clamp(26px,3.8vw,56px);
+      line-height:1.04;letter-spacing:-.028em;
       text-wrap:balance;
     }
     .t-moyen{
       font-family:var(--titre);font-weight:800;
-      font-size:clamp(23px,2.6vw,38px);
-      line-height:1.12;letter-spacing:-.02em;
+      font-size:clamp(20px,2.2vw,30px);
+      line-height:1.16;letter-spacing:-.018em;
     }
     .t-petit{
       font-family:var(--titre);font-weight:800;
@@ -217,7 +225,11 @@
       background:rgba(255,255,255,.88);backdrop-filter:blur(14px);
       padding-block:13px;border-bottom:1px solid var(--ligne);
     }
-    .nav__logo img{height:34px;width:auto}
+    /* Le logotype porte le slogan « Vous visez juste » : à 34 px de haut il
+       devenait illisible. La charte fixe 24 px comme minimum absolu en
+       digital — on prend de la marge. */
+    .nav__logo img{height:44px;width:auto;display:block}
+    @media(max-width:600px){.nav__logo img{height:36px}}
     /* Navigation en capitales et sans bouton d'appel : la référence citée
        par le client (McCann) tient sa barre en 4 entrées capitalisées et
        n'y place aucun CTA — ça sonne moins « site qui vend ». L'appel reste
@@ -333,6 +345,9 @@
     /* ═══════════════ 10. ANIMATIONS D'ENTRÉE ═══════════════ */
     [data-rev]{opacity:0;transform:translateY(26px)}
     .ligne-masque{overflow:hidden;display:block}
+    /* Lignes de titre posées à la main, révélées par [data-cascade] sans
+       masque : une ligne qui déborde n'est donc jamais tronquée. */
+    [data-cascade] > .l{display:block}
     .ligne-masque > span{display:block;will-change:transform}
     @media (prefers-reduced-motion:reduce){
       [data-rev]{opacity:1!important;transform:none!important}
@@ -375,7 +390,7 @@
       margin-top:clamp(36px,5vw,64px);padding-top:22px;
       border-top:1px solid var(--ligne);font-size:13.5px;color:var(--texte-3);
     }
-    .pied__logo img{height:40px;width:auto;margin-bottom:18px}
+    .pied__logo img{height:58px;width:auto;margin-bottom:18px}
 
     /* ═══════════════ 13. BANDEAU MAQUETTE ═══════════════ */
     .avis{
@@ -433,7 +448,7 @@
 
 <header class="nav" id="nav">
     <a class="nav__logo" href="{{ route('cible.home') }}" data-viseur aria-label="CIBLE — accueil">
-        <img src="{{ asset('images/logon.png') }}" alt="CIBLE">
+        <img src="{{ asset('images/logol.png') }}" alt="CIBLE">
     </a>
     <nav class="nav__liens">
         @foreach($pages as $cle => [$nom, $url])
@@ -461,7 +476,7 @@
     <div class="large">
         <div class="pied__haut">
             <div>
-                <div class="pied__logo"><img src="{{ asset('images/logon.png') }}" alt="CIBLE"></div>
+                <div class="pied__logo"><img src="{{ asset('images/logol.png') }}" alt="CIBLE"></div>
                 <p class="corps" style="max-width:34ch;font-size:15px">
                     Régie publicitaire ivoirienne depuis 1994. Nous possédons la rue :
                     +400 panneaux dans 31 communes.
@@ -612,9 +627,32 @@
      On n'utilise pas SplitText (plugin payant) : on enveloppe chaque mot,
      on relève sa position verticale, et on regroupe les mots qui
      partagent la même ligne. Recalculé au redimensionnement, sinon la
-     découpe faite en desktop reste fausse après rotation d'un mobile. */
+     découpe faite en desktop reste fausse après rotation d'un mobile.
+
+     ⚠ La découpe reconstruit le HTML à partir du TEXTE seul : tout
+     balisage interne est détruit. Cinq titres portaient un <em> coloré
+     qui disparaissait ainsi en silence — visible sur la capture client du
+     2026-10-08, où le mot censé ressortir en jaune s'affichait en noir.
+
+     La fonction refuse donc désormais de toucher un titre qui contient des
+     éléments, et la boucle ci-dessous lui applique une révélation d'un
+     seul bloc. Un développeur qui ajoute un <em> à un titre [data-lignes]
+     perd l'effet par ligne, jamais sa couleur. */
+  /* Le verdict est pris UNE FOIS, avant toute découpe, et mémorisé : après
+     un découpage réussi l'élément porte des enfants, donc un test fait
+     après coup le croirait à tort porteur de balisage et refuserait de le
+     recalculer au redimensionnement. */
+  function estDecoupable(el) {
+    if (el.dataset.brut === undefined) {
+      el.dataset.brut = el.children.length === 0 ? '1' : '0';
+    }
+    return el.dataset.brut === '1';
+  }
+
   function decouper(el) {
-    if (el.dataset.decoupe === '1') { return; }
+    if (!estDecoupable(el)) { return false; }
+    if (el.dataset.decoupe === '1') { return false; }
+
     var brut = el.getAttribute('data-texte') || el.textContent;
     el.setAttribute('data-texte', brut);
 
@@ -633,11 +671,26 @@
       return '<span class="ligne-masque"><span>' + l.join(' ') + '</span></span>';
     }).join('');
     el.dataset.decoupe = '1';
+    return true;
   }
 
   var titres = document.querySelectorAll('[data-lignes]');
   titres.forEach(function (el) {
-    decouper(el);
+    var decoupable = decouper(el);
+
+    // Titre porteur de balisage : révélation d'un seul bloc, l'emphase
+    // colorée est préservée.
+    if (!decoupable && !estDecoupable(el)) {
+      gsap.set(el, { opacity: 0, y: 24 });
+      ScrollTrigger.create({
+        trigger: el, start: 'top 90%', once: true,
+        onEnter: function () {
+          gsap.to(el, { opacity: 1, y: 0, duration: .95, ease: 'expo.out' });
+        },
+      });
+      return;
+    }
+
     var lignes = el.querySelectorAll('.ligne-masque > span');
     gsap.set(lignes, { yPercent: 115 });
     ScrollTrigger.create({
@@ -726,6 +779,7 @@
     clearTimeout(minuteur);
     minuteur = setTimeout(function () {
       titres.forEach(function (el) {
+        if (!estDecoupable(el)) { return; }
         el.dataset.decoupe = '0';
         decouper(el);
         gsap.set(el.querySelectorAll('.ligne-masque > span'), { yPercent: 0 });
