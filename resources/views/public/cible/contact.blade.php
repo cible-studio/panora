@@ -28,7 +28,7 @@
 label{display:block;font-family:var(--titre);font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--texte-3);margin-bottom:7px}
 input[type=text],input[type=email],input[type=tel],textarea,select{
   width:100%;padding:14px 16px;border-radius:12px;
-  background:var(--fond-3);color:#fff;border:0;
+  background:var(--blanc);color:var(--noir);border:0;
   box-shadow:inset 0 0 0 1.5px var(--ligne);
   font-family:var(--corps);font-size:16px;
   transition:box-shadow .25s;
@@ -51,7 +51,7 @@ textarea{min-height:120px;resize:vertical}
   box-shadow:inset 0 0 0 1.5px var(--ligne);
   transition:background .25s,color .25s,box-shadow .25s;
 }
-.choix label:hover{color:#fff;background:rgba(255,255,255,.07)}
+.choix label:hover{color:var(--noir);background:rgba(17,17,17,.05)}
 .choix input:checked + label{background:var(--rouge);color:#fff;box-shadow:none}
 .choix input:focus-visible + label{outline:3px solid var(--jaune);outline-offset:3px}
 
@@ -73,11 +73,11 @@ textarea{min-height:120px;resize:vertical}
 /* ── Colonne de droite ── */
 .aside{display:grid;gap:14px}
 .bloc-c{padding:24px;border-radius:18px;background:var(--fond-2);box-shadow:inset 0 0 0 1px var(--ligne);border-left:4px solid var(--c)}
-.bloc-c h3{font-family:var(--titre);font-weight:800;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--c)}
+.bloc-c h3{font-family:var(--titre);font-weight:800;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--rouge)}
 .bloc-c ul{list-style:none;display:grid;gap:10px;margin-top:15px}
 .bloc-c li{font-size:15px;color:var(--texte-2);line-height:1.45}
-.bloc-c a{font-family:var(--titre);font-weight:700;color:#fff}
-.bloc-c a:hover{color:var(--jaune)}
+.bloc-c a{font-family:var(--titre);font-weight:700;color:var(--noir)}
+.bloc-c a:hover{color:var(--rouge)}
 .promesse{list-style:none;display:grid;gap:11px;margin-top:15px}
 .promesse li{display:flex;gap:11px;font-size:14.5px;color:var(--texte-2);line-height:1.45}
 .promesse li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c);margin-top:7px;flex:0 0 auto}
@@ -228,7 +228,7 @@ textarea{min-height:120px;resize:vertical}
                 </ul>
             </div>
 
-            <div class="bloc-c" style="--c:var(--vert)" data-rev=".2">
+            <div class="bloc-c" style="--c:var(--rouge)" data-rev=".2">
                 <h3>Nous rendre visite</h3>
                 <ul>
                     <li>Rue des Ambassadeurs<br>Riviera M'Badon<br>10 BP 1029 Abidjan 10<br>Côte d'Ivoire</li>

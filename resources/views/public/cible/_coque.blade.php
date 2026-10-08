@@ -31,22 +31,44 @@
     <style>
     /* ═══════════════ 1. JETONS — charte CIBLE, verrouillée ═══════════════ */
     :root{
-      --rouge:#E20613; --jaune:#FAB80B; --vert:#3AA835;
-      --bleu:#3F7FC0;  --violet:#81358A;
+      /* ── Couleurs de la charte (docs/CHARTE-GRAPHIQUE.md) ──
+         Rouge et jaune sont les PRINCIPALES. Vert, bleu et violet sont
+         secondaires : ponctuels, jamais à parts égales avec les deux
+         premières. Citation : « La couleur rouge doit rester prépondérante
+         sur toutes les applications et peut être principalement accompagnée
+         avec le jaune. » */
+      --rouge:#E20613; --jaune:#FAB80B;
+      --vert:#3AA835;  --bleu:#3F7FC0;  --violet:#81358A;
       --gris:#E6E6E6;  --noir:#111111;  --blanc:#FFFFFF;
 
-      /* Déclinaisons du noir : une seule teinte à 8 valeurs, pas de gris
-         inventé — on reste dans la charte en jouant l'opacité. */
-      --fond:#111111;
-      --fond-2:#171717;
-      --fond-3:#1E1E1E;
-      --ligne:rgba(255,255,255,.12);
-      --texte:#FFFFFF;
-      --texte-2:rgba(255,255,255,.72);
-      --texte-3:rgba(255,255,255,.44);
+      /* ── Fonds ──
+         « En cas de doute, privilégier le blanc comme base neutre et
+         structurante. » Le site est donc blanc, et non noir comme la
+         première version de cette maquette. --gris-2 est une étape du
+         dégradé gris → blanc, la seule variation que la charte autorise. */
+      --fond:#FFFFFF;
+      --fond-2:#F5F5F3;
+      --fond-3:var(--gris);
+      --ligne:rgba(17,17,17,.13);
+      --texte:#111111;
+      --texte-2:rgba(17,17,17,.70);
+      --texte-3:rgba(17,17,17,.48);
 
+      /* Aplat noir, réservé aux rares sections en inversion. Le texte y
+         passe en blanc, jamais en couleur de marque : « N'appliquez pas le
+         texte du titre en couleur à un arrière-plan non blanc. » */
+      --encre:#111111;
+
+      /* ⚠ MADE TOMMY est la police de titre de la charte. Police
+         commerciale, absente de Google Fonts : les fichiers .woff2 sont à
+         fournir. Poppins n'est ici qu'un REMPLAÇANT documenté, choisi pour
+         sa parenté géométrique. Dès réception, déclarer un @font-face et
+         remplacer la valeur ci-dessous — rien d'autre à changer. */
       --titre:'Poppins',system-ui,sans-serif;
       --corps:'Nunito',system-ui,sans-serif;
+      /* Les chiffres ne se composent JAMAIS en Nunito (règle explicite de la
+         charte) : ils prennent la police de titre. */
+      --chiffres:var(--titre);
 
       --pad:clamp(20px,5vw,84px);
       --ease:cubic-bezier(.16,1,.3,1);
@@ -108,7 +130,7 @@
       color:var(--texte-2);max-width:62ch;
     }
     .corps{color:var(--texte-2);max-width:60ch}
-    .num{font-variant-numeric:tabular-nums}
+    .num{font-family:var(--chiffres);font-variant-numeric:tabular-nums}
     /* Titre lu par les lecteurs d'écran mais absent à l'œil : certaines
        sections sont délibérément sans intertitre visible, elles ont
        quand même besoin d'un nom dans le plan du document. */
@@ -135,10 +157,10 @@
       will-change:transform;
     }
     .bt:hover{transform:translateY(-3px);background:#B00510}
-    .bt--creux{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px var(--ligne)}
-    .bt--creux:hover{background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3)}
-    .bt--clair{background:#fff;color:var(--noir)}
-    .bt--clair:hover{background:var(--jaune)}
+    .bt--creux{background:transparent;color:var(--noir);box-shadow:inset 0 0 0 1.5px rgba(17,17,17,.28)}
+    .bt--creux:hover{background:rgba(17,17,17,.05);box-shadow:inset 0 0 0 1.5px var(--noir)}
+    .bt--clair{background:var(--noir);color:#fff}
+    .bt--clair:hover{background:var(--rouge)}
     .bt .fl{
       width:18px;height:18px;flex:0 0 auto;
       background:currentColor;
@@ -161,7 +183,7 @@
     }
     .viseur{
       width:42px;height:42px;border-radius:50%;
-      box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);
+      box-shadow:inset 0 0 0 1.5px rgba(17,17,17,.5);
       transition:width .35s var(--ease),height .35s var(--ease),
                  box-shadow .35s,opacity .3s,background .35s;
     }
@@ -192,7 +214,7 @@
       transition:background .4s,backdrop-filter .4s,padding .4s;
     }
     .nav.pose{
-      background:rgba(17,17,17,.82);backdrop-filter:blur(14px);
+      background:rgba(255,255,255,.88);backdrop-filter:blur(14px);
       padding-block:13px;border-bottom:1px solid var(--ligne);
     }
     .nav__logo img{height:34px;width:auto}
@@ -207,8 +229,8 @@
       padding:10px 16px;border-radius:999px;color:var(--texte-2);
       transition:color .25s,background .25s;
     }
-    .nav__liens a:hover{color:#fff;background:rgba(255,255,255,.08)}
-    .nav__liens a[aria-current="page"]{color:#fff}
+    .nav__liens a:hover{color:var(--noir);background:rgba(17,17,17,.055)}
+    .nav__liens a[aria-current="page"]{color:var(--noir)}
     .nav__liens a[aria-current="page"]::after{
       content:"";display:block;height:2px;margin-top:5px;
       background:var(--rouge);border-radius:2px;
@@ -218,15 +240,17 @@
     .nav__jauge{
       position:absolute;bottom:0;left:0;height:2px;width:100%;
       transform:scaleX(0);transform-origin:0 50%;
-      background:linear-gradient(90deg,var(--rouge),var(--jaune));
+      /* Aplat rouge, pas un dégradé rouge → jaune : la charte proscrit les
+         dégradés, et le rouge doit rester prépondérant. */
+      background:var(--rouge);
     }
     .burger{
       margin-left:auto;width:44px;height:44px;display:none;
       border:1.5px solid var(--ligne);border-radius:12px;
-      background:rgba(255,255,255,.04);cursor:pointer;
+      background:rgba(17,17,17,.03);cursor:pointer;
       flex-direction:column;gap:5px;align-items:center;justify-content:center;
     }
-    .burger span{width:18px;height:1.5px;background:#fff;transition:transform .3s,opacity .3s}
+    .burger span{width:18px;height:1.5px;background:var(--noir);transition:transform .3s,opacity .3s}
     body.menu .burger span:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
     body.menu .burger span:nth-child(2){opacity:0}
     body.menu .burger span:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
@@ -250,7 +274,7 @@
       display:flex;align-items:baseline;gap:16px;
     }
     .tiroir a span{font-size:13px;font-weight:700;color:var(--texte-3);letter-spacing:.1em}
-    .tiroir a:hover{color:var(--jaune)}
+    .tiroir a:hover{color:var(--rouge)}
 
     /* ═══════════════ 8. DÉCOR — plumes de marque ═══════════════
        La plume est recolorée par mask-image : un seul SVG sert les
@@ -260,7 +284,13 @@
       background:var(--c,var(--rouge));opacity:var(--op,.07);
       -webkit-mask:url('{{ asset('images/plume.svg') }}') no-repeat center/contain;
       mask:url('{{ asset('images/plume.svg') }}') no-repeat center/contain;
-      aspect-ratio:1/1.1;
+      /* Ratio exact du viewBox de plume.svg (758,4 × 1031,77). Il était
+         fixé à 1/1.1 au jugé : `contain` protégeait la forme de toute
+         déformation, mais la boîte portait du vide invisible et la largeur
+         déclarée ne donnait pas la taille visuelle attendue. La charte dit
+         du symbole qu'« il ne doit être modifié en aucun cas » — autant
+         que la boîte colle à la forme. */
+      aspect-ratio:758.4/1031.77;
       will-change:transform;
     }
     .fleche-d{
@@ -268,33 +298,36 @@
       background:var(--c,var(--jaune));opacity:var(--op,.1);
       -webkit-mask:url('{{ asset('images/fleche.svg') }}') no-repeat center/contain;
       mask:url('{{ asset('images/fleche.svg') }}') no-repeat center/contain;
-      aspect-ratio:1/1;
+      /* Ratio exact du viewBox de fleche.svg (282,95 × 195,83) : la flèche
+         est nettement horizontale, elle était enfermée dans un carré. */
+      aspect-ratio:282.95/195.83;
       will-change:transform;
     }
 
-    /* ═══════════════ 9. PHOTO — bichromie révélée ═══════════════
-       Les photos sont des constats de pose, pas des images de campagne.
-       On les assume : traitées en bichromie noir + couleur de section,
-       elles redeviennent couleur quand on les regarde. Le dégradé dit
-       « design », la révélation dit « c'est réel ». */
+    /* ═══════════════ 9. PHOTO ═══════════════
+       Une version précédente passait les photos en bichromie noir +
+       couleur de section, révélée au regard. Retiré : la charte dit
+       « l'usage de dégradés ou d'effets est à éviter » et « les couleurs
+       peuvent être combinées avec du blanc ou du noir uniquement » — une
+       couleur de marque posée sur une photo contrevient aux deux.
+
+       Les photos s'affichent donc telles quelles. Seul mouvement conservé :
+       un très léger zoom au survol, qui signale que la vignette est
+       cliquable sans rien ajouter à l'image. */
     .ph{position:relative;overflow:hidden;background:var(--fond-3)}
-    .ph img{width:100%;height:100%;object-fit:cover;
-      filter:grayscale(1) contrast(1.06) brightness(.92);
-      transition:filter .8s var(--ease),transform 1.1s var(--ease);
-      will-change:transform,filter;
+    .ph img{
+      width:100%;height:100%;object-fit:cover;
+      transition:transform 1.1s var(--ease);
+      will-change:transform;
     }
-    .ph::after{
-      content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
-      background:var(--c,var(--rouge));mix-blend-mode:color;
-      opacity:.78;transition:opacity .8s var(--ease);
-    }
-    .ph--vive::after,.ph:hover::after{opacity:0}
-    .ph--vive img,.ph:hover img{filter:none}
-    .ph:hover img{transform:scale(1.04)}
+    .ph:hover img{transform:scale(1.03)}
+    /* Légende : aplat blanc franc, pas un voile dégradé. */
     .ph__legende{
-      position:absolute;z-index:2;inset:auto 0 0 0;
-      padding:18px 20px;font-family:var(--titre);font-weight:700;font-size:13px;
-      background:linear-gradient(to top,rgba(17,17,17,.9),transparent);
+      position:absolute;z-index:2;inset:auto 12px 12px 12px;
+      padding:11px 14px;border-radius:8px;
+      font-family:var(--titre);font-weight:700;font-size:12.5px;
+      background:var(--blanc);color:var(--noir);
+      box-shadow:0 2px 10px rgba(17,17,17,.12);
     }
 
     /* ═══════════════ 10. ANIMATIONS D'ENTRÉE ═══════════════ */
@@ -312,9 +345,14 @@
       overflow:hidden;border-block:1px solid var(--ligne);
       padding:19px 0;background:var(--fond-2);
     }
-    .ruban__piste{display:flex;gap:46px;width:max-content;animation:defile 34s linear infinite}
+    /* ⚠ Pas de `gap` sur la piste : l'animation translateX(-50%) suppose que
+       la seconde moitié soit la copie exacte de la première. Un gap entre
+       les deux moitiés ajoute un écart qui n'appartient à aucune des deux,
+       et la boucle saute visiblement à chaque tour. L'écart est donc porté
+       par un padding-right de chaque moitié, qui fait partie du motif. */
+    .ruban__piste{display:flex;width:max-content;animation:defile 34s linear infinite}
     .ruban__piste > *{
-      display:flex;align-items:center;gap:46px;flex:0 0 auto;
+      display:flex;align-items:center;gap:46px;flex:0 0 auto;padding-right:46px;
       font-family:var(--titre);font-weight:800;font-size:clamp(15px,1.5vw,19px);
       letter-spacing:-.01em;white-space:nowrap;
     }
@@ -331,7 +369,7 @@
     .pied h4{font-family:var(--titre);font-weight:800;font-size:12px;letter-spacing:.16em;
       text-transform:uppercase;color:var(--texte-3);margin-bottom:15px}
     .pied ul{list-style:none;display:grid;gap:9px;font-size:15px;color:var(--texte-2)}
-    .pied a:hover{color:var(--jaune)}
+    .pied a:hover{color:var(--rouge)}
     .pied__bas{
       display:flex;flex-wrap:wrap;gap:12px 26px;align-items:center;
       margin-top:clamp(36px,5vw,64px);padding-top:22px;
@@ -344,8 +382,8 @@
       position:fixed;z-index:9500;inset:auto auto 16px 16px;
       display:flex;align-items:center;gap:11px;
       padding:11px 15px;border-radius:999px;
-      background:rgba(250,184,11,.14);backdrop-filter:blur(10px);
-      box-shadow:inset 0 0 0 1px rgba(250,184,11,.42);
+      background:var(--noir);
+      
       font-family:var(--titre);font-weight:700;font-size:12px;color:var(--jaune);
     }
     .avis b{
@@ -660,14 +698,25 @@
     });
   });
 
-  /* ── 11. Photos : la bichromie s'efface quand la photo est regardée ── */
-  document.querySelectorAll('.ph--scroll').forEach(function (p) {
+  /* ── 11. Titres en lignes masquées écrites à la main ─────────────
+     Certains titres portent du balisage à préserver (un mot en couleur),
+     que le découpeur automatique écraserait : il reconstruit le HTML à
+     partir du texte seul. Ces titres déclarent donc leurs lignes dans la
+     vue et portent [data-monte].
+
+     On les anime en yPercent, jamais avec [data-rev] : [data-rev] décale
+     de 26 px en pixels, et à l'intérieur d'un masque en overflow:hidden le
+     texte apparaissait tronqué. C'était l'un des défauts d'affichage de la
+     page d'accueil. */
+  document.querySelectorAll('[data-monte]').forEach(function (el) {
+    var lignes = el.querySelectorAll('.ligne-masque > span');
+    if (!lignes.length) { return; }
+    gsap.set(lignes, { yPercent: 115 });
     ScrollTrigger.create({
-      trigger: p, start: 'top 72%', end: 'bottom 28%',
-      onEnter:     function () { p.classList.add('ph--vive'); },
-      onLeave:     function () { p.classList.remove('ph--vive'); },
-      onEnterBack: function () { p.classList.add('ph--vive'); },
-      onLeaveBack: function () { p.classList.remove('ph--vive'); },
+      trigger: el, start: 'top 92%', once: true,
+      onEnter: function () {
+        gsap.to(lignes, { yPercent: 0, duration: 1.05, ease: 'expo.out', stagger: .08 });
+      },
     });
   });
 

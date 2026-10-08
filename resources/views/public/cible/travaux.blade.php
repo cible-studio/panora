@@ -18,7 +18,7 @@
 .oeuvre__tete{display:flex;align-items:baseline;gap:14px;margin-top:20px}
 .oeuvre__client{
   font-family:var(--titre);font-weight:800;font-size:11px;
-  letter-spacing:.17em;text-transform:uppercase;color:var(--c);
+  letter-spacing:.17em;text-transform:uppercase;color:var(--rouge);
 }
 .oeuvre__nom{
   margin-top:10px;font-family:var(--titre);font-weight:900;
@@ -44,8 +44,8 @@
   border:0;box-shadow:inset 0 0 0 1.5px var(--ligne);
   transition:background .3s,color .3s,box-shadow .3s;
 }
-.filtres button:hover{color:#fff;background:rgba(255,255,255,.07)}
-.filtres button[aria-pressed="true"]{background:#fff;color:var(--noir);box-shadow:none}
+.filtres button:hover{color:var(--noir);background:rgba(17,17,17,.05)}
+.filtres button[aria-pressed="true"]{background:var(--noir);color:#fff;box-shadow:none}
 .oeuvre[hidden]{display:none!important}
 
 /* Clients : les logos sont fournis en PNG sur fond clair — on les pose
@@ -111,7 +111,7 @@
                          style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}"
                          data-filtres="{{ implode(' ', $p['filtres'] ?? []) }}"
                          data-rev="{{ min($loop->index * 0.05, 0.25) }}">
-                    <div class="oeuvre__ph ph ph--scroll" style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}">
+                    <div class="oeuvre__ph ph" style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}">
                         <img src="{{ \App\Support\Contenu::urlImage($p['image'] ?? 'images/cible/campagne-1.jpg') }}"
                              alt="Campagne {{ $p['nom'] ?? $slug }}" loading="lazy">
                     </div>
@@ -142,7 +142,7 @@
 <section class="bloc clients">
     <div class="large">
         <div class="entete">
-            <p class="sur" style="--c:var(--violet)">Ils nous font confiance</p>
+            <p class="sur" style="--c:var(--rouge)">Ils nous font confiance</p>
             <h2 class="t-grand" data-lignes>Des marques qui ne laissent rien au hasard.</h2>
         </div>
         <div class="clients__grille" data-cascade>

@@ -5,7 +5,7 @@
    ici chaque métier occupe sa pleine hauteur, avec sa couleur de charte,
    et on ne lit jamais deux pôles en même temps. */
 .tete{padding:clamp(130px,17vh,200px) var(--pad) clamp(50px,7vw,90px);position:relative;overflow:hidden}
-.tete .sur{--c:var(--bleu)}
+.tete .sur{--c:var(--rouge)}
 .tete__t{margin-top:20px}
 .tete__t em{font-style:normal;color:var(--jaune)}
 
@@ -18,7 +18,7 @@
 .index.vu{opacity:1}
 .index a{display:flex;align-items:center;gap:11px;font-family:var(--titre);font-weight:800;font-size:11px;letter-spacing:.12em;color:var(--texte-3);transition:color .35s}
 .index a i{width:20px;height:2px;background:currentColor;border-radius:2px;transition:width .4s var(--ease),background .35s}
-.index a.actif{color:#fff}
+.index a.actif{color:var(--noir)}
 .index a.actif i{width:42px;background:var(--c)}
 @media(max-width:1340px){.index{display:none}}
 
@@ -32,7 +32,10 @@
    hors charte, puisque c'est la couleur du pôle elle-même. */
 .pole::before{
   content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:radial-gradient(70% 60% at 85% 20%,color-mix(in srgb,var(--c) 17%,transparent),transparent 70%);
+  /* Halo radial retiré : « l'usage de dégradés ou d'effets est à éviter ».
+     La couleur du pôle se lit désormais sur l'étiquette, le titre et le
+     filet supérieur de la section — en aplats. */
+  background:none;
 }
 .pole__in{display:grid;grid-template-columns:1.04fr .96fr;gap:clamp(30px,5vw,80px);align-items:center;position:relative;z-index:2}
 @media(max-width:980px){.pole__in{grid-template-columns:1fr;gap:34px}}
@@ -46,7 +49,7 @@
   font-family:var(--titre);font-weight:800;font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
 }
 .pole__t{margin-top:20px}
-.pole__t em{font-style:normal;color:var(--c)}
+.pole__t em{font-style:normal;color:var(--c-txt,var(--c))}
 .pole__txt{margin-top:22px;color:var(--texte-2);max-width:54ch;font-size:16.5px;line-height:1.68}
 .pole__acc{
   margin-top:20px;padding-left:18px;border-left:3px solid var(--c);
@@ -58,13 +61,13 @@
 .disp{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:26px}
 @media(max-width:560px){.disp{grid-template-columns:1fr}}
 .disp li{
-  padding:13px 15px;border-radius:11px;background:rgba(255,255,255,.045);
+  padding:13px 15px;border-radius:11px;background:rgba(17,17,17,.035);
   box-shadow:inset 0 0 0 1px var(--ligne);
   font-family:var(--titre);font-weight:700;font-size:13.5px;
   display:flex;align-items:center;gap:10px;
   transition:background .3s,box-shadow .3s;
 }
-.disp li:hover{background:rgba(255,255,255,.09);box-shadow:inset 0 0 0 1px var(--c)}
+.disp li:hover{background:rgba(17,17,17,.06);box-shadow:inset 0 0 0 1px var(--c)}
 .disp li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--c);flex:0 0 auto}
 
 /* Méthode : 4 temps, la séquence est réelle donc la numérotation l'est aussi */
@@ -73,7 +76,7 @@
 @media(max-width:900px){.meth__grille{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:520px){.meth__grille{grid-template-columns:1fr}}
 .etape{padding:26px 22px;border-radius:16px;background:var(--fond-3);border-top:3px solid var(--c)}
-.etape__n{font-family:var(--titre);font-weight:900;font-size:40px;line-height:1;color:var(--c);opacity:.35}
+.etape__n{font-family:var(--titre);font-weight:900;font-size:40px;line-height:1;color:var(--noir);opacity:.2}
 .etape h3{font-family:var(--titre);font-weight:800;font-size:17px;margin-top:12px}
 .etape p{margin-top:9px;font-size:14.5px;color:var(--texte-2);line-height:1.55}
 @endpush
@@ -102,7 +105,7 @@
 {{-- ═══════════════════════ LES 4 PÔLES ═══════════════════════ --}}
 @foreach([
     ['id' => 'p1', 'c' => 'var(--rouge)',  'ph' => 'lumipub'],
-    ['id' => 'p2', 'c' => 'var(--jaune)',  'ph' => 'mobile'],
+    ['id' => 'p2', 'c' => 'var(--jaune)',  'ctxt' => 'var(--rouge)', 'ph' => 'mobile'],
     ['id' => 'p3', 'c' => 'var(--violet)', 'ph' => 'campagne-5'],
     ['id' => 'p4', 'c' => 'var(--bleu)',   'ph' => 'affichage'],
 ] as $n => $pole)
@@ -110,7 +113,7 @@
         $k = 'p' . ($n + 1);
         $accroche = \App\Support\Contenu::get("services.{$k}_accroche");
     @endphp
-    <section class="pole" id="{{ $pole['id'] }}" style="--c:{{ $pole['c'] }}" data-pole="{{ $pole['id'] }}">
+    <section class="pole" id="{{ $pole['id'] }}" style="--c:{{ $pole['c'] }};--c-txt:{{ $pole['ctxt'] ?? $pole['c'] }}" data-pole="{{ $pole['id'] }}">
         <div class="large pole__in">
             <div>
                 <span class="pole__etiq" data-rev>{{ \App\Support\Contenu::get("services.{$k}_tag") }}</span>
@@ -131,7 +134,7 @@
                 @endif
             </div>
 
-            <div class="pole__ph ph ph--scroll" style="--c:{{ $pole['c'] }}" data-rev=".1">
+            <div class="pole__ph ph" style="--c:{{ $pole['c'] }}" data-rev=".1">
                 <img src="{{ asset('refonte/photo/' . $pole['ph'] . '.webp') }}"
                      alt="{{ \App\Support\Contenu::get("services.{$k}_tag") }}" loading="lazy">
                 <div class="ph__legende">Côte d'Ivoire · dispositif en exploitation</div>
@@ -144,7 +147,7 @@
 <section class="bloc meth">
     <div class="large">
         <div class="entete">
-            <p class="sur" style="--c:var(--vert)">Comment on travaille</p>
+            <p class="sur" style="--c:var(--rouge)">Comment on travaille</p>
             <h2 class="t-grand" data-lignes>Quatre temps, et une preuve à la fin.</h2>
         </div>
 
@@ -152,8 +155,8 @@
             @foreach([
                 ['var(--rouge)',  'Cadrage',      "On part de votre objectif, pas de notre inventaire. Audience, zones, budget, échéance."],
                 ['var(--jaune)',  'Recommandation', "Un plan d'emplacements et de formats justifié zone par zone, chiffré, sans engagement."],
-                ['var(--vert)',   'Déploiement',  "Production, pose, coordination terrain. Vous avez un interlocuteur unique."],
-                ['var(--bleu)',   'Preuve',       "Pige photo horodatée et géolocalisée de chaque face. Vous voyez ce que vous avez payé."],
+                ['var(--rouge)',  'Déploiement',  "Production, pose, coordination terrain. Vous avez un interlocuteur unique."],
+                ['var(--jaune)',  'Preuve',       "Pige photo horodatée et géolocalisée de chaque face. Vous voyez ce que vous avez payé."],
             ] as $i => [$c, $titre, $txt])
                 <div class="etape" style="--c:{{ $c }}">
                     <div class="etape__n num">0{{ $i + 1 }}</div>

@@ -7,9 +7,9 @@
 
 @push('css')
 .tete{padding:clamp(130px,17vh,200px) var(--pad) clamp(44px,6vw,76px);position:relative;overflow:hidden}
-.tete .sur{--c:var(--vert)}
+.tete .sur{--c:var(--rouge)}
 .tete__t{margin-top:20px}
-.tete__t em{font-style:normal;color:var(--vert)}
+.tete__t em{font-style:normal;color:var(--rouge)}
 .tete__grille{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(28px,4vw,64px);align-items:end}
 @media(max-width:900px){.tete__grille{grid-template-columns:1fr;gap:30px}}
 .mini{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -22,23 +22,23 @@
 #carte{position:absolute;inset:0;z-index:1}
 .carte-zone__voile{
   position:absolute;z-index:400;inset:auto 0 0 0;height:160px;pointer-events:none;
-  background:linear-gradient(to top,var(--fond),transparent);
+  background:none;
 }
 .carte-zone__note{
   position:absolute;z-index:500;left:var(--pad);bottom:28px;max-width:330px;
   padding:17px 19px;border-radius:14px;
-  background:rgba(17,17,17,.9);backdrop-filter:blur(10px);
+  background:rgba(255,255,255,.93);backdrop-filter:blur(10px);
   box-shadow:inset 0 0 0 1px var(--ligne);
   font-size:13.5px;color:var(--texte-2);line-height:1.5;
 }
-.carte-zone__note b{display:block;font-family:var(--titre);font-weight:800;font-size:14.5px;color:#fff;margin-bottom:5px}
+.carte-zone__note b{display:block;font-family:var(--titre);font-weight:800;font-size:14.5px;color:var(--noir);margin-bottom:5px}
 .carte-chargement{
   position:absolute;inset:0;z-index:600;display:grid;place-items:center;gap:12px;
   background:var(--fond-3);color:var(--texte-3);
   font-family:var(--titre);font-weight:700;font-size:13.5px;
 }
 .carte-chargement[hidden]{display:none}
-.tourne{width:34px;height:34px;border:2.5px solid rgba(255,255,255,.12);border-top-color:var(--vert);border-radius:50%;animation:tourner .9s linear infinite;margin-inline:auto}
+.tourne{width:34px;height:34px;border:2.5px solid rgba(17,17,17,.12);border-top-color:var(--vert);border-radius:50%;animation:tourner .9s linear infinite;margin-inline:auto}
 @keyframes tourner{to{transform:rotate(360deg)}}
 /* Épingles aux couleurs de la charte */
 .epingle{
@@ -55,7 +55,7 @@
 .zones{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,44px);margin-top:clamp(36px,5vw,60px)}
 @media(max-width:860px){.zones{grid-template-columns:1fr}}
 .zone{padding:clamp(26px,3vw,38px);border-radius:20px;background:var(--fond-2);border-top:4px solid var(--c)}
-.zone h3{font-family:var(--titre);font-weight:900;font-size:clamp(22px,2.6vw,32px);letter-spacing:-.02em;color:var(--c)}
+.zone h3{font-family:var(--titre);font-weight:900;font-size:clamp(22px,2.6vw,32px);letter-spacing:-.02em;color:var(--noir)}
 .zone .sous{font-family:var(--titre);font-weight:700;font-size:13px;color:var(--texte-3);margin-top:7px}
 .zone ul{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:7px 18px;margin-top:22px}
 @media(max-width:520px){.zone ul{grid-template-columns:1fr}}
@@ -71,7 +71,7 @@
 @media(max-width:560px){.fmt__grille{grid-template-columns:1fr}}
 .fmt__c{padding:28px 26px;border-radius:17px;background:var(--fond-3);border-left:4px solid var(--c);transition:transform .45s var(--ease)}
 .fmt__c:hover{transform:translateY(-5px)}
-.fmt__c h3{font-family:var(--titre);font-weight:800;font-size:18px;color:var(--c)}
+.fmt__c h3{font-family:var(--titre);font-weight:800;font-size:18px;color:var(--noir)}
 .fmt__c p{margin-top:10px;font-size:14.5px;color:var(--texte-2);line-height:1.6}
 @endpush
 
@@ -124,7 +124,7 @@
 <section class="bloc">
     <div class="large">
         <div class="entete">
-            <p class="sur" style="--c:var(--bleu)">La couverture</p>
+            <p class="sur" style="--c:var(--rouge)">La couverture</p>
             <h2 class="t-grand" data-lignes>Abidjan d'abord. Puis tout le pays.</h2>
         </div>
 
@@ -138,7 +138,7 @@
                     @endforeach
                 </ul>
             </div>
-            <div class="zone" style="--c:var(--vert)" data-rev=".08">
+            <div class="zone" style="--c:var(--jaune)" data-rev=".08">
                 <h3>{{ \App\Support\Contenu::get('reseau.comm_int_titre', 'Intérieur du pays') }}</h3>
                 <div class="sous">{{ \App\Support\Contenu::get('reseau.comm_int_sous', '18 villes') }}</div>
                 <ul>
@@ -162,9 +162,9 @@
             @foreach([
                 ['var(--rouge)',  'Panneaux classiques',  "Le socle du réseau. Présence continue sur les axes à fort trafic, en 4×3 et grands formats."],
                 ['var(--jaune)',  'Lumipub',              "Caissons éclairés : votre message reste lisible après la tombée de la nuit, quand le trafic est encore dense."],
-                ['var(--vert)',   'Trivision',            "Trois visuels en rotation sur une même face. Trois messages, ou trois annonceurs, un seul emplacement."],
-                ['var(--bleu)',   'Panoramiques',         "Les très grands formats, sur les axes d'entrée et de sortie d'Abidjan. Pour les prises de parole fortes."],
-                ['var(--violet)', 'Écrans digitaux',      "Diffusion animée et programmable. Idéal pour une campagne à durée courte ou à message variable."],
+                ['var(--rouge)',  'Trivision',            "Trois visuels en rotation sur une même face. Trois messages, ou trois annonceurs, un seul emplacement."],
+                ['var(--jaune)',  'Panoramiques',         "Les très grands formats, sur les axes d'entrée et de sortie d'Abidjan. Pour les prises de parole fortes."],
+                ['var(--bleu)',   'Écrans digitaux',      "Diffusion animée et programmable. Idéal pour une campagne à durée courte ou à message variable."],
                 ['var(--rouge)',  'Affichage en magasin', "Au dernier mètre, là où la décision d'achat se prend réellement."],
             ] as [$c, $titre, $txt])
                 <div class="fmt__c" style="--c:{{ $c }}">
@@ -178,7 +178,7 @@
 
 {{-- ═══════════════════════ APPEL ═══════════════════════ --}}
 <section class="bloc" style="text-align:center;position:relative;overflow:hidden">
-    <div class="fleche-d" style="--c:var(--vert);--op:.1;top:22%;left:8%;width:clamp(80px,10vw,140px)" data-par="-22" data-rot="-16"></div>
+    <div class="fleche-d" style="--c:var(--jaune);--op:.09;top:22%;left:8%;width:clamp(80px,10vw,140px)" data-par="-22" data-rot="-16"></div>
     <div style="max-width:900px;margin-inline:auto;position:relative;z-index:2">
         <h2 class="t-grand" data-lignes>Dites-nous quelles zones vous voulez couvrir.</h2>
         <p class="intro" style="margin:22px auto 0">
@@ -214,7 +214,7 @@
     attributionControl: true,
   }).setView([6.9, -5.3], 7);
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap, &copy; CARTO',
     maxZoom: 18,
   }).addTo(carte);
