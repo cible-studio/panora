@@ -1,105 +1,87 @@
 @extends('public.cible._coque', ['titre' => 'Accueil', 'actuelle' => 'accueil'])
 
 @push('css')
-/* ═══════════════ HÉRO — ÉCRAN SCINDÉ ═══════════════
-   Direction retenue avec le client le 2026-10-08, après trois versions
-   empilées jugées « trop vides ».
+/* ═══════════════ HÉRO — TYPOGRAPHIE ET BANDE VIVANTE ═══════════════
+   Troisième direction, demandée par le client le 2026-10-08 : plus simple,
+   moderne, dynamique, et SANS le motion — celui-ci a rejoint la barre de
+   navigation, où il tient lieu de logo.
 
-   Le défaut n'était pas le manque d'éléments mais la composition : une
-   ligne d'en-tête, un cadre, une rangée de texte — trois bandes
-   horizontales sur fond blanc, sans point d'entrée pour le regard.
+   Le héro n'a donc plus de pièce animée à montrer. Plutôt que de le laisser
+   en page de texte immobile, le mouvement vient d'une bande de travaux qui
+   défile en continu en bas de l'écran. Deux bénéfices : le mouvement ne
+   coûte aucune vidéo supplémentaire, et il montre le travail dès la
+   première seconde — la discipline de la référence citée par le client.
 
-   Ici, deux colonnes pleine hauteur, bord à bord, sans marge extérieure :
-     · à gauche, le blanc porte le manifeste. Le fond étant blanc, le mot
-       en rouge y est autorisé — ce qu'un héro entièrement noir aurait
-       interdit (« n'appliquez pas le texte du titre en couleur à un
-       arrière-plan non blanc ») ;
-     · à droite, le noir porte le motion dans son panneau blanc : une face
-       éclairée dans la nuit, qui est le métier de CIBLE.
-
-   Plus un pixel inoccupé à l'ouverture, et le contraste tombe exactement
-   sur les neutres de la charte.
-
-   ⚠ Contrepartie assumée : une moitié d'écran donne forcément un motion
-   plus petit qu'une pleine largeur. Le partage 40/60 privilégie le motion,
-   et le titre descend en conséquence à 38 px pour tenir dans la colonne de
-   gauche sans se briser mot par mot. */
+   Composition : le manifeste occupe toute la largeur, donc il retrouve son
+   grand corps (jusqu'à 74 px, validé par calcul de 390 à 1920 px), et la
+   bande occupe le tiers bas. Deux éléments, pas plus. */
 .hero{
   min-height:100svh;
-  display:grid;grid-template-columns:36fr 64fr;
+  display:grid;grid-template-rows:1fr auto;
   position:relative;overflow:hidden;
 }
-@media(max-width:980px){.hero{grid-template-columns:1fr;min-height:0}}
 
-/* ── Colonne gauche : le manifeste, sur blanc ── */
-.hero__dit{
-  background:var(--blanc);
-  display:flex;flex-direction:column;justify-content:center;
-  padding:clamp(96px,12vh,128px) clamp(26px,3.4vw,62px) clamp(34px,5vh,56px) var(--pad);
-  position:relative;z-index:2;
-}
-@media(max-width:980px){
-  .hero__dit{padding:clamp(96px,13vh,124px) var(--pad) clamp(34px,5vw,48px)}
+/* ── Le dit : manifeste, accroche, actions, repères ── */
+.hero__dire{
+  align-self:center;
+  padding:clamp(104px,13vh,140px) var(--pad) clamp(30px,4vh,52px);
+  position:relative;z-index:2;max-width:1480px;margin-inline:auto;width:100%;
 }
 .hero .sur{--c:var(--rouge)}
-.hero__filet{width:52px;height:4px;background:var(--rouge);border-radius:4px;margin-top:16px}
-
-/* Titre nettement plus bas que la pleine largeur : la colonne fait environ
-   580 px utiles, et 29 caractères à 46 px en demanderaient 734. Mesuré. */
-.hero__titre{
-  margin-top:20px;
-  font-size:clamp(26px,3.1vw,50px);line-height:1.04;letter-spacing:-.03em;
-}
-@media(max-width:980px){.hero__titre{font-size:clamp(30px,6.4vw,46px)}}
+.hero__filet{width:56px;height:4px;background:var(--rouge);border-radius:4px;margin-top:16px}
+.hero__titre{margin-top:20px}
 .hero__titre .l{display:block}
 .hero__titre em{font-style:normal;color:var(--rouge)}
 
-.hero__sous{margin-top:18px;font-size:16px;line-height:1.6;color:var(--texte-2);max-width:46ch}
-.hero__actions{display:flex;flex-wrap:wrap;gap:11px;margin-top:26px}
+.hero__bas{
+  display:grid;grid-template-columns:1fr auto;
+  gap:clamp(22px,3.5vw,56px);align-items:end;margin-top:clamp(24px,3vw,38px);
+}
+@media(max-width:900px){.hero__bas{grid-template-columns:1fr;align-items:start;gap:22px}}
+.hero__sous{font-size:clamp(15.5px,1.4vw,18px);line-height:1.6;color:var(--texte-2);max-width:48ch}
+.hero__actions{display:flex;flex-wrap:wrap;gap:11px}
 
-/* Repères en pied de colonne : ils donnent une base à la composition et
-   évitent que le bas de la colonne blanche reste vide. */
 .hero__reperes{
-  display:flex;gap:clamp(16px,2vw,30px);flex-wrap:wrap;
-  margin-top:clamp(28px,4vh,46px);padding-top:18px;
+  display:flex;gap:clamp(20px,3vw,46px);flex-wrap:wrap;
+  margin-top:clamp(22px,3vh,34px);padding-top:18px;
   border-top:1px solid var(--ligne);
   font-family:var(--titre);font-weight:700;font-size:11.5px;
   letter-spacing:.11em;text-transform:uppercase;color:var(--texte-3);
 }
-.hero__reperes b{display:block;font-family:var(--chiffres);font-size:22px;
-  letter-spacing:-.02em;color:var(--noir);font-weight:900;margin-bottom:3px}
+.hero__reperes b{display:block;font-family:var(--chiffres);font-size:clamp(20px,2vw,26px);
+  letter-spacing:-.02em;color:var(--noir);font-weight:900;margin-bottom:2px}
 
-/* ── Colonne droite : le motion, sur noir ── */
-.hero__scene{
-  background:var(--noir);
-  display:grid;place-items:center;
-  padding:clamp(20px,2.2vw,40px);
+/* ── La bande : le mouvement, et le travail ──
+   Bord à bord, hors du conteneur : une bande qui s'arrête avant le bord de
+   l'écran ne défile pas, elle glisse dans une boîte.
+
+   ⚠ L'écart entre les deux moitiés est porté par un padding-right et NON
+   par un gap : translateX(-50%) ne boucle sans saut que si la seconde
+   moitié est la copie exacte de la première, écart compris. Déjà le piège
+   du ruban et du bandeau de logos. */
+.hero__bande{
   position:relative;overflow:hidden;
+  border-top:1px solid var(--ligne);
+  background:var(--fond-2);
+  padding-block:clamp(16px,2vh,26px);
 }
-@media(max-width:980px){.hero__scene{padding:clamp(24px,5vw,40px)}}
+.hero__piste{display:flex;width:max-content;animation:bande 52s linear infinite}
+.hero__piste:hover{animation-play-state:paused}
+.hero__piste > div{display:flex;gap:clamp(12px,1.4vw,20px);padding-right:clamp(12px,1.4vw,20px);flex:0 0 auto}
+@keyframes bande{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.hero__piste{animation:none}}
 
-.hero__panneau{
-  position:relative;width:100%;aspect-ratio:16/9;
-  border-radius:clamp(10px,1.2vw,16px);overflow:hidden;
-  background:var(--blanc);
-  box-shadow:0 40px 90px -40px rgba(0,0,0,.9);
+.tuile{
+  position:relative;flex:0 0 auto;
+  width:clamp(196px,19vw,300px);aspect-ratio:16/10;
+  border-radius:12px;overflow:hidden;
 }
-@media(max-width:560px){.hero__panneau{aspect-ratio:4/3}}
-/* La vidéo est en 16/9 comme son panneau : `cover` ne rogne donc rien, et
-   garantit qu'aucune bordure blanche ne subsiste sur les côtés. */
-.hero__panneau video{width:100%;height:100%;object-fit:cover;background:var(--blanc);display:block}
-/* Filet rouge en pied de face : l'accent de marque, en aplat. */
-.hero__panneau::after{
-  content:"";position:absolute;inset:auto 0 0 0;height:4px;z-index:2;background:var(--rouge);
-}
-.hero__etiq{
-  position:absolute;z-index:3;top:14px;left:14px;
-  display:flex;align-items:center;gap:8px;
-  padding:7px 13px;border-radius:999px;background:var(--noir);color:var(--blanc);
+.tuile__nom{
+  position:absolute;z-index:3;inset:auto 10px 10px 10px;
   font-family:var(--titre);font-weight:800;font-size:10px;
-  letter-spacing:.14em;text-transform:uppercase;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--blanc);
+  text-shadow:0 1px 6px rgba(0,0,0,.55);
 }
-.hero__etiq b{width:6px;height:6px;border-radius:50%;background:var(--rouge);animation:bat 2s ease-in-out infinite}
 
 /* ═══════════════ MANIFESTE ═══════════════
    « Vous visez juste » prend le rang qu'occupe « Truth Well Told » chez
@@ -223,57 +205,62 @@
 
 @section('contenu')
 
-{{-- ═══════════════════════ HÉRO — ÉCRAN SCINDÉ ═══════════════════════ --}}
+{{-- ═══════════════════════ HÉRO ═══════════════════════ --}}
 <section class="hero" id="hero">
 
-    {{-- Colonne gauche : ce qu'on dit --}}
-    <div class="hero__dit">
+    <div class="hero__dire">
         <p class="sur" data-rev>Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
         <div class="hero__filet" data-rev=".06"></div>
 
         {{-- Lignes posées à la main pour garder le <em> rouge, que le
              découpeur automatique effacerait en reconstruisant le HTML
              depuis le texte seul. --}}
-        <h1 class="hero__titre" data-cascade>
-            <span class="l">Nous ne vendons</span>
-            <span class="l">pas d'espace.</span>
-            <span class="l"><em>Nous vendons</em></span>
-            <span class="l"><em>de l'attention.</em></span>
+        <h1 class="t-geant hero__titre" data-cascade>
+            <span class="l">Nous ne vendons pas d'espace.</span>
+            <span class="l"><em>Nous vendons de l'attention.</em></span>
         </h1>
 
-        <p class="hero__sous" data-rev=".24">
-            +400 panneaux dans 31 communes, trente ans de terrain, et la preuve
-            photo de chaque pose. Voilà ce qu'on met derrière votre message.
-        </p>
+        <div class="hero__bas">
+            <p class="hero__sous" data-rev=".26">
+                +400 panneaux dans 31 communes, trente ans de terrain, et la preuve
+                photo de chaque pose. Voilà ce qu'on met derrière votre message.
+            </p>
 
-        <div class="hero__actions" data-rev=".32">
-            <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
-                Parler de mon projet<i class="fl"></i>
-            </a>
-            <a class="bt bt--creux" href="{{ route('cible.travaux') }}" data-viseur>
-                Voir nos travaux
-            </a>
+            <div class="hero__actions" data-rev=".34">
+                <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
+                    Parler de mon projet<i class="fl"></i>
+                </a>
+                <a class="bt bt--creux" href="{{ route('cible.travaux') }}" data-viseur>
+                    Voir nos travaux
+                </a>
+            </div>
         </div>
 
-        <div class="hero__reperes" data-rev=".4">
+        <div class="hero__reperes" data-rev=".42">
             <span><b>+400</b> panneaux</span>
             <span><b>31</b> communes</span>
-            <span><b>30</b> ans</span>
+            <span><b>30</b> ans de terrain</span>
+            <span><b>03</b> distinctions d'État</span>
         </div>
     </div>
 
-    {{-- Colonne droite : ce qu'on montre. Le motion dans son panneau blanc,
-         posé sur le noir — une face éclairée dans la nuit.
-         Motion du client : fond blanc, 1920×1080, 7 s, sans piste audio.
-         muted + playsinline sont obligatoires, sans eux Safari iOS refuse
-         la lecture automatique. --}}
-    <div class="hero__scene">
-        <div class="hero__panneau" id="panneau" data-rev=".12">
-            <span class="hero__etiq"><b></b> En exploitation</span>
-            <video src="{{ \App\Support\Contenu::urlDatee('refonte/motion/perroquet-blanc.mp4') }}"
-                   autoplay muted loop playsinline preload="metadata"
-                   poster="{{ \App\Support\Contenu::urlDatee('refonte/photo/perroquet.webp') }}"
-                   aria-label="Animation du logo CIBLE"></video>
+    {{-- La bande qui défile : le mouvement du héro, et le travail montré
+         d'emblée. Deux moitiés identiques pour que la boucle ne saute pas. --}}
+    <div class="hero__bande">
+        <div class="hero__piste">
+            @for($passe = 0; $passe < 2; $passe++)
+                <div @if($passe) aria-hidden="true" @endif>
+                    @foreach($realisations as $slug => $p)
+                        <a class="tuile ph ph--vive" href="{{ route('cible.travaux') }}#{{ $slug }}"
+                           style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}" data-viseur
+                           @if($passe) tabindex="-1" aria-hidden="true" @endif>
+                            <img src="{{ \App\Support\Contenu::urlImage($p['image'] ?? 'images/cible/campagne-1.jpg') }}"
+                                 alt="{{ $passe ? '' : ($p['cat'] ?? '') . ' — ' . ($p['nom'] ?? '') }}" loading="lazy">
+                            <span class="tuile__nom">{{ $p['nom'] ?? $slug }}</span>
+                        </a>
+                    @endforeach
+                </div>
+            @endfor
         </div>
     </div>
 </section>

@@ -225,11 +225,31 @@
       background:rgba(255,255,255,.88);backdrop-filter:blur(14px);
       padding-block:13px;border-bottom:1px solid var(--ligne);
     }
-    /* Le logotype porte le slogan « Vous visez juste » : à 34 px de haut il
-       devenait illisible. La charte fixe 24 px comme minimum absolu en
-       digital — on prend de la marge. */
-    .nav__logo img{height:44px;width:auto;display:block}
-    @media(max-width:600px){.nav__logo img{height:36px}}
+    /* ── La marque de la barre est le MOTION, pas une image fixe ──
+       Demandé par le client : le logo du coin supérieur gauche joue
+       l'animation. On y met donc la vidéo elle-même, sans la recadrer ni la
+       déformer — la charte interdit l'un et l'autre, et je n'ai aucun moyen
+       de visionner le fichier pour choisir un cadrage à l'aveugle.
+
+       Son fond est blanc, comme la barre : l'animation flotte donc sans
+       bord visible, et on retrouve le logo complet, slogan compris. À 52 px
+       de haut, le logotype inscrit dedans dépasse le plancher de 24 px fixé
+       par la charte.
+
+       ⚠ Coût : 1,6 Mo sur le premier chargement de n'importe quelle page.
+       Mis en cache ensuite, mais une boucle de 2 s en basse définition
+       serait préférable — à demander au studio. L'image fixe reste en
+       repli derrière `poster`, donc rien ne clignote si la vidéo tarde. */
+    .nav__logo{display:block;line-height:0}
+    .nav__logo video,.nav__logo img{
+      height:52px;width:auto;display:block;background:var(--blanc);
+    }
+    .nav.pose .nav__logo video,.nav.pose .nav__logo img{height:44px}
+    .nav__logo video,.nav__logo img{transition:height .4s var(--ease)}
+    @media(max-width:600px){
+      .nav__logo video,.nav__logo img{height:40px}
+      .nav.pose .nav__logo video,.nav.pose .nav__logo img{height:34px}
+    }
     /* Navigation en capitales et sans bouton d'appel : la référence citée
        par le client (McCann) tient sa barre en 4 entrées capitalisées et
        n'y place aucun CTA — ça sonne moins « site qui vend ». L'appel reste
@@ -466,7 +486,14 @@
 
 <header class="nav" id="nav">
     <a class="nav__logo" href="{{ route('cible.home') }}" data-viseur aria-label="CIBLE — accueil">
-        <img src="{{ asset('images/logol.png') }}" alt="CIBLE">
+        {{-- Le motion tient lieu de logo. `poster` affiche le logo fixe
+             pendant le chargement, et reste visible si la lecture
+             automatique est refusée — la marque ne disparaît jamais.
+             muted + playsinline : sans eux, Safari iOS refuse l'autoplay. --}}
+        <video src="{{ \App\Support\Contenu::urlDatee('refonte/motion/perroquet-blanc.mp4') }}"
+               autoplay muted loop playsinline preload="auto"
+               poster="{{ \App\Support\Contenu::urlDatee('images/logol.png') }}"
+               aria-hidden="true"></video>
     </a>
     <nav class="nav__liens">
         @foreach($pages as $cle => [$nom, $url])
