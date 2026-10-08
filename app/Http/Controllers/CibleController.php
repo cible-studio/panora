@@ -29,12 +29,122 @@ use Illuminate\Support\Facades\Mail;
  */
 class CibleController extends Controller
 {
-    public function home()             { return view('public.cible.home',              $this->baseData('home')); }
-    public function qui()              { return view('public.cible.qui-sommes-nous',   $this->baseData('qui')); }
-    public function services()         { return view('public.cible.services',          $this->baseData('services')); }
-    public function reseau()           { return view('public.cible.reseau',            $this->baseData('reseau')); }
-    public function references()       { return view('public.cible.references',        $this->baseData('references')); }
-    public function contact()          { return view('public.cible.contact',           $this->baseData('contact')); }
+    /* ═══════════════════════════════════════════════════════════════════
+       Refonte V2 — 2026-10-08
+
+       Les 6 pages d'origine (home, qui-sommes-nous, services, reseau,
+       references, contact) totalisaient 44 sections et 5 069 mots, et
+       affichaient encore « 364 panneaux » — chiffre proscrit depuis août,
+       remplacé partout par « +400 ». Elles cèdent la place à la maquette
+       V2 : 5 pages, 24 sections, 1 768 mots.
+
+       Direction : « preuve terrain assumée ». Discipline de galerie reprise
+       de McCann, la référence du client — navigation en capitales sans CTA,
+       manifeste seul, travaux en position 2 — mais la preuve chiffrée est
+       conservée, placée APRÈS les travaux : CIBLE possède un réseau
+       physique, une galerie seule le cacherait.
+
+       Les anciennes vues restent dans l'historique git (commit 3304e48 et
+       antérieurs) si besoin de les relire.
+
+       ⚠ Ceci est une MAQUETTE de revue. Le site de production vit dans son
+       propre dépôt (cible-site, branche refonte-v2) : c'est lui qui part
+       sur cible-ci.com. Rien ici ne doit devenir la source de vérité.
+    ═══════════════════════════════════════════════════════════════════ */
+
+    public function home()        { return view('public.cible.accueil',    $this->donnees('accueil')); }
+    public function expertises()  { return view('public.cible.expertises', $this->donnees('expertises')); }
+    public function reseau()      { return view('public.cible.reseau',     $this->donnees('reseau')); }
+    public function travaux()     { return view('public.cible.travaux',    $this->donnees('travaux')); }
+    public function contact()     { return view('public.cible.contact',    $this->donnees('contact')); }
+
+    /**
+     * Titres courts des réalisations — PROPOSITION À CORRIGER.
+     *
+     * Dérivés strictement des textes de config/contenu.php : aucune ville,
+     * aucun chiffre, aucune durée n'a été ajouté, faute de connaître le
+     * terrain. Justes mais abstraits — un titre nourri d'un fait réel les
+     * battra tous.
+     */
+    public const TITRES_COURTS = [
+        'orange'    => 'Aller chercher les gens',
+        'cofina'    => "Ce qu'une institution a à dire",
+        'snedai'    => 'Même voix, partout',
+        'sgs-sicta' => 'Tenir la parole en ligne',
+        'ifg'       => "Un stand qu'on n'évite pas",
+        'sigfu'     => 'Donner un corps à une présence',
+    ];
+
+    /**
+     * Données communes aux 5 pages. Le contenu vient de
+     * App\Support\Contenu — défauts versionnés dans config/admin-schema.php
+     * et config/contenu.php, exactement comme sur le site de production.
+     */
+    private function donnees(string $actuelle): array
+    {
+        $realisations = \App\Support\Contenu::section('realisations');
+
+        foreach ($realisations as $slug => &$projet) {
+            $projet['titre_court'] = self::TITRES_COURTS[$slug] ?? ($projet['titre'] ?? '');
+        }
+        unset($projet);
+
+        return [
+            'actuelle'     => $actuelle,
+            'realisations' => $realisations,
+            'options'      => self::formOptions(),
+        ];
+    }
+
+    /**
+     * Options du formulaire de contact.
+     *
+     * Recopiées depuis le site de production plutôt que liées : règle N°1 du
+     * projet CIBLE — aucune dépendance entre les deux applications, on
+     * duplique le code au besoin. Ici elles n'alimentent que l'affichage de
+     * la maquette, le formulaire n'envoyant rien (cf. la vue contact).
+     */
+    public static function formOptions(): array
+    {
+        return [
+            'objectif' => [
+                'notoriete'   => "Accroître la notoriété d'une marque",
+                'lancement'   => 'Lancer un produit ou un service',
+                'trafic'      => 'Générer du trafic vers un point de vente',
+                'zone'        => 'Toucher une audience dans une zone précise',
+                'interaction' => 'Créer une interaction avec les consommateurs',
+                'amplifier'   => 'Amplifier une campagne en ligne et sur le terrain',
+                'valoriser'   => 'Valoriser une institution ou une entreprise',
+                'nationale'   => 'Déployer une campagne nationale',
+            ],
+            'services' => [
+                'classiques'  => 'Panneaux classiques',
+                'lumipub'     => 'Lumipub (caissons éclairés)',
+                'trivision'   => 'Trivision',
+                'panoramique' => 'Panoramiques grand format',
+                'digital'     => 'Écrans digitaux',
+                'magasin'     => 'Affichage en magasin',
+                'mobile'      => 'Communication mobile',
+                'street'      => 'Street marketing',
+                'stand'       => 'Stand ou architecture événementielle',
+                'audiovisuel' => 'Production audiovisuelle',
+                'reseaux'     => 'Réseaux sociaux',
+            ],
+            'zone' => [
+                'abidjan'   => 'Abidjan',
+                'interieur' => 'Intérieur du pays',
+                'national'  => 'Couverture nationale',
+                'precise'   => 'Une zone précise à définir',
+            ],
+            'budget' => [
+                'moins1M' => 'Moins de 1 million FCFA',
+                '1a5M'    => 'De 1 à 5 millions FCFA',
+                '5a20M'   => 'De 5 à 20 millions FCFA',
+                'plus20M' => 'Plus de 20 millions FCFA',
+                'pas-sur' => 'Je ne sais pas encore',
+            ],
+        ];
+    }
 
     /**
      * Endpoint public JSON pour la carte du réseau — /cible/api/reseau-map

@@ -13,13 +13,23 @@ Route::get('/', fn() => view('auth.login'));
 // ─── Site vitrine CIBLE CI — régie publicitaire (WIP develop) ───
 // Direction éditoriale : autorité tranquille + preuve terrain.
 // Contexte : CIBLE utilise Panora en interne ; le site est la face publique.
+// Refonte V2 (2026-10-08) : 5 pages au lieu de 6. « Qui sommes-nous » est
+// fondu dans l'accueil et les travaux ; « Services » devient « Expertises » ;
+// « Références » devient « Travaux ». Les anciennes adresses redirigent vers
+// leur équivalent plutôt que de répondre 404 — un lien de la maquette a pu
+// être partagé en interne.
 Route::prefix('cible')->name('cible.')->group(function () {
     Route::get('/',                 [\App\Http\Controllers\CibleController::class, 'home'])->name('home');
-    Route::get('/qui-sommes-nous',  [\App\Http\Controllers\CibleController::class, 'qui'])->name('qui');
-    Route::get('/services',         [\App\Http\Controllers\CibleController::class, 'services'])->name('services');
+    Route::get('/expertises',       [\App\Http\Controllers\CibleController::class, 'expertises'])->name('expertises');
     Route::get('/reseau',           [\App\Http\Controllers\CibleController::class, 'reseau'])->name('reseau');
-    Route::get('/references',       [\App\Http\Controllers\CibleController::class, 'references'])->name('references');
+    Route::get('/travaux',          [\App\Http\Controllers\CibleController::class, 'travaux'])->name('travaux');
     Route::get('/contact',          [\App\Http\Controllers\CibleController::class, 'contact'])->name('contact');
+
+    // Anciennes adresses de la maquette V1.
+    Route::permanentRedirect('/qui-sommes-nous', '/cible');
+    Route::permanentRedirect('/services',        '/cible/expertises');
+    Route::permanentRedirect('/references',      '/cible/travaux');
+
     Route::post('/devis',           [\App\Http\Controllers\CibleController::class, 'submitDevis'])
         ->middleware('throttle:5,10')
         ->name('devis.submit');

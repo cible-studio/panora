@@ -1,0 +1,413 @@
+@extends('public.cible._coque', ['titre' => 'Accueil', 'actuelle' => 'accueil'])
+
+@push('css')
+/* ═══════════════ HERO ═══════════════
+   Composition en deux temps. Au chargement : le manifeste à gauche sur
+   noir, le motion du perroquet à droite dans un panneau blanc arrondi —
+   la lecture d'un panneau allumé la nuit, qui est littéralement le métier.
+   Au scroll : le panneau s'ouvre en plein écran et le texte s'efface, donc
+   jamais de texte par-dessus le motion. C'est délibéré : la vidéo n'a pas
+   de zone neutre garantie, superposer du texte serait un pari. */
+.hero{min-height:100svh;display:grid;align-content:center;padding:clamp(104px,13vh,150px) var(--pad) clamp(40px,6vh,80px);position:relative;overflow:hidden}
+.hero__grille{display:grid;grid-template-columns:1.06fr .94fr;gap:clamp(28px,4vw,64px);align-items:center;position:relative;z-index:2}
+@media(max-width:980px){.hero__grille{grid-template-columns:1fr;gap:34px}}
+
+.hero .sur{--c:var(--vert)}
+.hero__titre{margin-top:20px}
+.hero__titre em{font-style:normal;color:var(--rouge)}
+.hero__sous{margin-top:26px;font-family:var(--titre);font-weight:600;font-size:clamp(16px,1.6vw,21px);line-height:1.45;color:var(--texte-2);max-width:40ch}
+.hero__actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
+
+/* Panneau blanc : le motion est sur fond blanc opaque (H.264 ne porte pas
+   de transparence), on en fait donc un objet graphique assumé. */
+.hero__panneau{
+  position:relative;border-radius:26px;overflow:hidden;
+  background:var(--blanc);aspect-ratio:16/11;
+  box-shadow:0 50px 110px -40px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.1);
+  will-change:transform;
+}
+.hero__panneau video{width:100%;height:100%;object-fit:cover}
+/* Liseré aux 5 couleurs : la charte entière en un seul trait. */
+.hero__panneau::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:5px;z-index:2;
+  background:linear-gradient(90deg,var(--rouge) 0 20%,var(--jaune) 20% 40%,var(--vert) 40% 60%,var(--bleu) 60% 80%,var(--violet) 80%);
+}
+.hero__etiq{
+  position:absolute;z-index:3;top:16px;left:16px;
+  display:flex;align-items:center;gap:8px;
+  padding:8px 13px;border-radius:999px;background:rgba(17,17,17,.9);
+  font-family:var(--titre);font-weight:800;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+}
+.hero__etiq b{width:6px;height:6px;border-radius:50%;background:var(--rouge);animation:bat 2s ease-in-out infinite}
+
+/* ═══════════════ PREUVE ═══════════════ */
+.preuve{padding:clamp(56px,7vw,92px) var(--pad)}
+.preuve__grille{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(16px,2.4vw,34px)}
+@media(max-width:880px){.preuve__grille{grid-template-columns:repeat(2,1fr)}}
+.chiffre{padding-top:22px;border-top:2px solid var(--c)}
+.chiffre__v{
+  font-family:var(--titre);font-weight:900;
+  font-size:clamp(42px,6.4vw,92px);line-height:.88;letter-spacing:-.05em;
+  display:flex;align-items:baseline;gap:2px;
+}
+.chiffre__v i{font-style:normal;color:var(--c);font-size:.52em}
+.chiffre__l{font-family:var(--titre);font-weight:700;font-size:13px;margin-top:12px;color:var(--texte-2);line-height:1.35}
+
+/* ═══════════════ EXPERTISES ═══════════════ */
+.exp{background:var(--fond-2);border-block:1px solid var(--ligne)}
+.exp__liste{margin-top:clamp(38px,5vw,64px);border-top:1px solid var(--ligne)}
+.exp__item{
+  display:grid;grid-template-columns:76px 1fr minmax(0,.78fr) 54px;
+  gap:clamp(14px,2.6vw,40px);align-items:center;
+  padding:clamp(22px,3vw,34px) 0;border-bottom:1px solid var(--ligne);
+  position:relative;transition:padding-left .5s var(--ease);
+}
+.exp__item::before{
+  content:"";position:absolute;inset:0;z-index:0;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--c) 15%,transparent),transparent 62%);
+  opacity:0;transition:opacity .5s var(--ease);
+}
+.exp__item:hover{padding-left:clamp(12px,2vw,28px)}
+.exp__item:hover::before{opacity:1}
+.exp__item > *{position:relative;z-index:1}
+.exp__n{font-family:var(--titre);font-weight:900;font-size:13px;color:var(--c);letter-spacing:.1em}
+.exp__nom{font-family:var(--titre);font-weight:900;font-size:clamp(20px,2.7vw,38px);letter-spacing:-.028em;line-height:1.04}
+.exp__txt{color:var(--texte-2);font-size:15px;line-height:1.55}
+.exp__fl{
+  width:46px;height:46px;border-radius:50%;justify-self:end;
+  display:grid;place-items:center;box-shadow:inset 0 0 0 1.5px var(--ligne);
+  transition:background .4s,box-shadow .4s,transform .4s var(--ease);
+}
+.exp__item:hover .exp__fl{background:var(--c);box-shadow:inset 0 0 0 1.5px var(--c);transform:rotate(-45deg)}
+.exp__fl i{
+  width:16px;height:16px;background:#fff;
+  -webkit-mask:url('{{ asset('images/fleche.svg') }}') no-repeat center/contain;
+  mask:url('{{ asset('images/fleche.svg') }}') no-repeat center/contain;
+}
+@media(max-width:880px){
+  .exp__item{grid-template-columns:48px 1fr;gap:12px 16px}
+  .exp__txt{grid-column:2;margin-top:6px}
+  .exp__fl{display:none}
+}
+
+/* ═══════════════ MANIFESTE ═══════════════
+   « Vous visez juste » prend le rang qu'occupe « Truth Well Told » chez
+   la référence citée : seul, grand, juste avant les travaux. Il était
+   relégué en pied de page. */
+.manif{text-align:center;padding:clamp(54px,8vw,110px) var(--pad) clamp(30px,4vw,54px)}
+.manif__l{
+  font-family:var(--titre);font-weight:900;
+  font-size:clamp(34px,7.4vw,112px);line-height:.9;letter-spacing:-.05em;
+  display:block;
+}
+.manif__l em{font-style:normal;color:var(--rouge)}
+.manif__s{
+  margin-top:20px;font-family:var(--titre);font-weight:700;
+  font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--texte-3);
+}
+
+/* ═══════════════ TRAVAUX — défilement horizontal ═══════════════
+   La galerie se parcourt à l'horizontale pendant que la page reste
+   épinglée : le geste raconte le déplacement le long d'un axe routier.
+   Repli en grille verticale sous 900px et en mouvement réduit — un
+   scroll détourné sur mobile est une mauvaise idée, pas une prouesse.
+
+   Vignettes réduites au client et au titre, sans paragraphe : la galerie
+   doit donner envie d'ouvrir, pas tout raconter. Le détail est sur la
+   page du cas. */
+.tr{position:relative;overflow:hidden;padding-block:0 clamp(60px,8vw,110px)}
+.tr__piste{display:flex;gap:clamp(16px,2vw,28px);padding:0 var(--pad);width:max-content;align-items:stretch}
+.carte{
+  width:clamp(276px,31vw,440px);flex:0 0 auto;
+  display:flex;flex-direction:column;
+}
+.carte__ph{aspect-ratio:4/5;border-radius:18px;overflow:hidden;--c:var(--rouge)}
+.carte__nom{
+  margin-top:18px;font-family:var(--titre);font-weight:800;
+  font-size:11px;letter-spacing:.17em;text-transform:uppercase;color:var(--c);
+}
+.carte__titre{
+  margin-top:9px;font-family:var(--titre);font-weight:900;
+  font-size:clamp(17px,1.7vw,23px);line-height:1.12;letter-spacing:-.022em;
+  text-transform:uppercase;
+}
+.tr__fin{
+  width:clamp(220px,24vw,300px);flex:0 0 auto;display:flex;flex-direction:column;
+  justify-content:center;gap:16px;padding-left:clamp(8px,2vw,26px);
+}
+@media(max-width:900px){
+  .tr__piste{flex-direction:column;width:auto;gap:30px}
+  .carte{width:auto}
+  .carte__ph{aspect-ratio:16/10}
+  .tr__fin{width:auto;padding:0}
+}
+
+/* ═══════════════ APPEL FINAL ═══════════════ */
+.fin{position:relative;overflow:hidden;text-align:center}
+.fin__in{max-width:980px;margin-inline:auto;position:relative;z-index:2}
+.fin .t-geant em{font-style:normal;color:var(--jaune)}
+.fin .intro{margin:26px auto 0}
+.fin__actions{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:38px}
+.fin__ph{
+  margin-top:clamp(44px,6vw,80px);border-radius:22px;overflow:hidden;
+  aspect-ratio:21/9;--c:var(--bleu);position:relative;z-index:2;
+}
+@media(max-width:680px){.fin__ph{aspect-ratio:4/3}}
+@endpush
+
+@section('contenu')
+
+{{-- ═══════════════════════ HERO ═══════════════════════ --}}
+<section class="hero" id="hero">
+    <div class="plume" style="--c:var(--rouge);--op:.07;top:-6%;right:-7%;width:clamp(230px,30vw,440px)" data-par="-16" data-rot="14"></div>
+    <div class="plume" style="--c:var(--jaune);--op:.055;bottom:-12%;left:-6%;width:clamp(180px,22vw,330px)" data-par="18" data-rot="-10"></div>
+
+    <div class="large hero__grille">
+        <div>
+            <p class="sur" data-rev>Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
+
+            <h1 class="t-geant hero__titre">
+                <span class="ligne-masque"><span data-rev="0">Nous ne vendons</span></span>
+                <span class="ligne-masque"><span data-rev=".08">pas de l'espace.</span></span>
+                <span class="ligne-masque"><span data-rev=".16"><em>Nous vendons</em></span></span>
+                <span class="ligne-masque"><span data-rev=".24"><em>de l'attention.</em></span></span>
+            </h1>
+
+            <p class="hero__sous" data-rev=".34">
+                +400 panneaux dans 31 communes, trente ans de terrain, et la preuve
+                photo de chaque pose. Voilà ce qu'on met derrière votre message.
+            </p>
+
+            <div class="hero__actions" data-rev=".42">
+                <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
+                    Parler de mon projet<i class="fl"></i>
+                </a>
+                <a class="bt bt--creux" href="{{ route('cible.travaux') }}" data-viseur>
+                    Voir nos travaux
+                </a>
+            </div>
+        </div>
+
+        <div class="hero__panneau" id="panneau" data-rev=".2">
+            <span class="hero__etiq"><b></b> En exploitation</span>
+            {{-- Motion fourni par le client (fond blanc, 1920×1080, 8,5 s, sans
+                 piste audio). muted + playsinline : sans ces deux attributs,
+                 Safari iOS refuse la lecture automatique. --}}
+            <video src="{{ asset('refonte/motion/perroquet-blanc.mp4') }}"
+                   autoplay muted loop playsinline preload="metadata"
+                   poster="{{ asset('refonte/photo/perroquet.webp') }}"
+                   aria-label="Animation du logo CIBLE"></video>
+        </div>
+    </div>
+</section>
+
+{{-- ═══════════════════════ MANIFESTE ═══════════════════════
+     La signature de marque prend ici le rang qu'occupe « Truth Well Told »
+     chez McCann : seule, grande, juste avant les travaux. Elle n'explique
+     rien — c'est la galerie qui argumente. --}}
+<section class="manif">
+    <span class="manif__l" data-rev>Vous visez</span>
+    <span class="manif__l" data-rev=".1"><em>juste.</em></span>
+    <p class="manif__s" data-rev=".22">Six campagnes · et la preuve de chacune</p>
+</section>
+
+{{-- ═══════════════════════ TRAVAUX ═══════════════════════ --}}
+<section class="tr" id="travaux" aria-labelledby="tr-titre">
+    {{-- Titre réservé aux lecteurs d'écran : à l'œil, le manifeste
+         ci-dessus tient ce rôle, et McCann n'intercale aucun intertitre
+         entre son manifeste et ses travaux. --}}
+    <h2 id="tr-titre" class="hors-ecran">Nos travaux</h2>
+
+    <div class="tr__piste" id="piste">
+        @foreach($realisations as $slug => $p)
+            <a class="carte" href="{{ route('cible.travaux') }}#{{ $slug }}" data-viseur
+               style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}">
+                <div class="carte__ph ph ph--scroll" style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}">
+                    <img src="{{ \App\Support\Contenu::urlImage($p['image'] ?? 'images/cible/campagne-1.jpg') }}"
+                         alt="Campagne {{ $p['nom'] ?? '' }}" loading="lazy">
+                </div>
+                <span class="carte__nom">{{ $p['nom'] ?? $slug }}</span>
+                <span class="carte__titre">{{ $p['titre_court'] ?? '' }}</span>
+            </a>
+        @endforeach
+
+        <div class="tr__fin">
+            <p class="t-petit">Chaque campagne, de la recommandation à la preuve de pose.</p>
+            <a class="bt bt--clair" href="{{ route('cible.travaux') }}" data-viseur>
+                Tout voir<i class="fl"></i>
+            </a>
+        </div>
+    </div>
+</section>
+
+{{-- ═══════════════════════ PREUVE ═══════════════════════
+     Après les travaux, et non avant : on montre d'abord, on prouve ensuite.
+     C'est le seul endroit où la maquette s'écarte de McCann, et c'est
+     volontaire — CIBLE possède un réseau physique, un annonceur qui arrive
+     doit savoir qu'il existe. Une galerie seule le cacherait. --}}
+<div class="ruban" aria-hidden="true">
+    <div class="ruban__piste">
+        @for($passe = 0; $passe < 2; $passe++)
+            <div>
+                <span><em style="--c:var(--rouge)">+400</em> panneaux</span><span class="ruban__pt"></span>
+                <span>Abidjan &amp; intérieur du pays</span><span class="ruban__pt"></span>
+                <span><em style="--c:var(--jaune)">31</em> communes</span><span class="ruban__pt"></span>
+                <span>Pige photo horodatée</span><span class="ruban__pt"></span>
+                <span><em style="--c:var(--vert)">30</em> ans de terrain</span><span class="ruban__pt"></span>
+                <span>De la rue au digital</span><span class="ruban__pt"></span>
+            </div>
+        @endfor
+    </div>
+</div>
+
+<section class="preuve">
+    <div class="large">
+        <div class="preuve__grille" data-cascade>
+            <div class="chiffre" style="--c:var(--rouge)">
+                <div class="chiffre__v num"><i>+</i><span data-compte="{{ \App\Support\Contenu::get('chiffres.panneaux', 400) }}">0</span></div>
+                <div class="chiffre__l">Panneaux en exploitation</div>
+            </div>
+            <div class="chiffre" style="--c:var(--jaune)">
+                <div class="chiffre__v num"><span data-compte="{{ \App\Support\Contenu::get('chiffres.communes', 31) }}">0</span></div>
+                <div class="chiffre__l">Communes couvertes</div>
+            </div>
+            <div class="chiffre" style="--c:var(--vert)">
+                <div class="chiffre__v num">1994</div>
+                <div class="chiffre__l">Depuis</div>
+            </div>
+            <div class="chiffre" style="--c:var(--violet)">
+                <div class="chiffre__v num"><span data-compte="{{ \App\Support\Contenu::get('chiffres.distinctions', 3) }}">0</span></div>
+                <div class="chiffre__l">Distinctions d'État</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{{-- ═══════════════════════ EXPERTISES ═══════════════════════
+     Descriptions ramenées à une ligne chacune : la page Expertises leur
+     consacre un écran entier, les répéter ici n'ajoutait que des mots. --}}
+<section class="bloc exp">
+    <div class="large">
+        <div class="entete">
+            <p class="sur" style="--c:var(--bleu)">Ce qu'on fait</p>
+            <h2 class="t-grand" data-lignes>Quatre métiers, une seule obsession.</h2>
+        </div>
+
+        <div class="exp__liste">
+            @foreach([
+                ['Régie publicitaire',   'var(--rouge)',  'Le plus grand maillage du pays.'],
+                ['Communication mobile', 'var(--jaune)',  'Votre message va à la rencontre de son audience.'],
+                ['Brand experience',     'var(--violet)', 'Faire voir votre marque, et surtout la faire vivre.'],
+                ['Media Intelligence',   'var(--bleu)',   'Des campagnes prouvées par la photo horodatée.'],
+            ] as $i => [$nom, $couleur, $texte])
+                <a class="exp__item" style="--c:{{ $couleur }}" href="{{ route('cible.expertises') }}#p{{ $i + 1 }}" data-viseur data-rev="{{ $i * 0.06 }}">
+                    <span class="exp__n">0{{ $i + 1 }}</span>
+                    <span class="exp__nom">{{ $nom }}</span>
+                    <span class="exp__txt">{{ $texte }}</span>
+                    <span class="exp__fl"><i></i></span>
+                </a>
+            @endforeach
+        </div>
+    </div>
+</section>
+
+{{-- ═══════════════════════ APPEL FINAL ═══════════════════════ --}}
+<section class="bloc fin">
+    <div class="fleche-d" style="--c:var(--jaune);--op:.09;top:14%;left:7%;width:clamp(90px,11vw,160px)" data-par="-26" data-rot="-18"></div>
+    <div class="plume" style="--c:var(--violet);--op:.08;bottom:4%;right:4%;width:clamp(170px,21vw,300px)" data-par="14" data-rot="12"></div>
+
+    <div class="fin__in">
+        <p class="sur" style="--c:var(--jaune)">Parlons-en</p>
+        <h2 class="t-geant" style="margin-top:18px" data-lignes>Dites-nous où vous voulez être vu. <em>On s'occupe du reste.</em></h2>
+        <p class="intro">
+            Un échange de quinze minutes suffit à savoir si on peut vous être utile.
+            Réponse sous 24 heures ouvrées, sans engagement.
+        </p>
+        <div class="fin__actions" data-rev=".1">
+            <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
+                Recevoir une recommandation média<i class="fl"></i>
+            </a>
+            <a class="bt bt--creux" href="tel:+2250700780628" data-viseur>
+                +225 07 00 78 06 28
+            </a>
+        </div>
+    </div>
+
+    <div class="large">
+        <div class="fin__ph ph ph--scroll" data-rev=".16">
+            <img src="{{ asset('refonte/photo/rue.webp') }}"
+                 alt="Axe urbain abidjanais équipé de dispositifs d'affichage" loading="lazy">
+            <div class="ph__legende">Abidjan · un axe, quatre formats, une audience captive</div>
+        </div>
+    </div>
+</section>
+
+@endsection
+
+@push('js')
+<script>
+/* Défilement horizontal de la galerie de travaux.
+   Conditions de repli volontairement larges : sous 900px et en mouvement
+   réduit, la piste redevient une colonne (cf. CSS) et on n'épingle rien.
+   Détourner le scroll sur un téléphone en 3G est une gêne, pas un effet. */
+(function () {
+  if (typeof window.gsap === 'undefined') { return; }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { return; }
+
+  var section = document.getElementById('travaux');
+  var piste   = document.getElementById('piste');
+  if (!section || !piste) { return; }
+
+  var st = null;
+
+  function monter() {
+    if (st) { st.kill(); st = null; gsap.set(piste, { x: 0 }); }
+    if (window.innerWidth < 900) { return; }
+
+    var course = piste.scrollWidth - window.innerWidth;
+    if (course <= 40) { return; }
+
+    st = gsap.to(piste, {
+      x: -course, ease: 'none',
+      scrollTrigger: {
+        trigger: section,
+        start: 'top top',
+        // +60% : laisse respirer avant et après la course horizontale,
+        // sinon l'épinglage démarre pile au bord et saccade.
+        end: function () { return '+=' + (course + window.innerHeight * 0.6); },
+        pin: true, scrub: 1, invalidateOnRefresh: true, anticipatePin: 1,
+      },
+    }).scrollTrigger;
+  }
+
+  monter();
+
+  var t;
+  window.addEventListener('resize', function () {
+    clearTimeout(t);
+    t = setTimeout(monter, 280);
+  });
+})();
+
+/* Hero : le panneau blanc s'ouvre en plein écran pendant que le manifeste
+   s'efface. Le texte ne passe donc jamais par-dessus la vidéo. */
+(function () {
+  if (typeof window.gsap === 'undefined') { return; }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { return; }
+  if (window.innerWidth < 980) { return; }
+
+  var hero = document.getElementById('hero');
+  var panneau = document.getElementById('panneau');
+  var texte = hero.querySelector('.hero__grille > div:first-child');
+
+  gsap.timeline({
+    scrollTrigger: {
+      trigger: hero, start: 'top top', end: '+=' + window.innerHeight,
+      scrub: .8, pin: true, anticipatePin: 1, invalidateOnRefresh: true,
+    },
+  })
+  .to(texte,   { opacity: 0, x: -70, ease: 'power2.in' }, 0)
+  .to(panneau, { scale: 1.42, borderRadius: 0, ease: 'power2.inOut' }, 0);
+})();
+</script>
+@endpush

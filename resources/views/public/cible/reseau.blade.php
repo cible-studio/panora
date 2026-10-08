@@ -1,254 +1,253 @@
-@extends('public.cible._layout', [
-    'seo_title'       => 'Notre réseau — CIBLE · 364 panneaux dans 31 communes',
-    'seo_description' => 'Le réseau CIBLE : 364 panneaux publicitaires · 180 à Abidjan (14 communes) · 184 à l\'intérieur (17 villes) · Détail par commune.',
-])
+@extends('public.cible._coque', ['titre' => 'Le réseau', 'actuelle' => 'reseau'])
 
-@push('page-css')
-    .reseau-hero{background:var(--bleu);color:#fff;padding:clamp(60px,8vw,110px) var(--pad)}
-    .reseau-hero .sur{color:rgba(255,255,255,.85)}
-    .reseau-hero h1{margin-top:14px;color:#fff;max-width:22ch}
-    .reseau-hero p{margin-top:22px;max-width:56ch;color:rgba(255,255,255,.9);font-size:18px}
-    .stats{display:flex;gap:44px;flex-wrap:wrap;margin-top:44px}
-    .stats .v{font-family:var(--titre);font-weight:900;font-size:clamp(46px,6vw,80px);line-height:.86;letter-spacing:-.04em}
-    .stats .l{font-family:var(--titre);font-weight:600;font-size:13px;opacity:.9;margin-top:10px;text-transform:uppercase;letter-spacing:.08em}
-
-    .carte-section{padding:clamp(56px,8vw,100px) var(--pad)}
-    .carte-slot{aspect-ratio:16/10;border-radius:26px;overflow:hidden;background:var(--gris);position:relative;box-shadow:0 20px 60px -30px rgba(0,0,0,.3)}
-    .carte-slot .note{position:absolute;bottom:16px;left:16px;right:16px;background:rgba(255,255,255,.94);padding:12px 16px;border-radius:10px;font-size:13px;color:#666;font-family:var(--titre);font-weight:600;z-index:1000;pointer-events:none}
-    /* Carte Leaflet 2026-08-04 — remplace le placeholder */
-    #reseau-map{width:100%;height:100%}
-    #reseau-map-loading{
-        position:absolute;inset:0;display:flex;align-items:center;
-        justify-content:center;flex-direction:column;gap:10px;
-        background:var(--gris);color:#666;font-family:var(--titre);
-        font-weight:700;font-size:14px;z-index:500;
-    }
-    #reseau-map-loading .spinner{
-        width:36px;height:36px;border:3px solid rgba(0,0,0,.1);
-        border-top-color:var(--bleu);border-radius:50%;
-        animation:reseau-spin .9s linear infinite;
-    }
-    @keyframes reseau-spin{to{transform:rotate(360deg)}}
-    #reseau-map-loading.hidden{display:none}
-    /* Style des pins CIBLE — pastilles jaune/dorées avec chiffre panneaux */
-    .cible-pin{
-        background:var(--jaune);color:var(--noir);
-        padding:6px 12px;border-radius:20px;
-        font-family:var(--titre);font-weight:800;font-size:13px;
-        white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.25);
-        border:2px solid #fff;
-        transform:translate(-50%,-50%);
-    }
-    .cible-pin b{color:var(--rouge)}
-    .leaflet-popup-content-wrapper{
-        border-radius:12px;font-family:var(--corps);
-    }
-    .leaflet-popup-content{
-        margin:14px 16px;font-size:13px;line-height:1.5;
-    }
-    .leaflet-popup-content strong{
-        display:block;font-family:var(--titre);font-weight:800;
-        font-size:15px;color:var(--bleu);margin-bottom:4px;
-    }
-
-    .communes{padding:clamp(56px,8vw,100px) var(--pad);background:var(--gris)}
-    .communes .entete{max-width:640px;margin:0 auto 44px;text-align:center}
-    .communes .sur{color:var(--vert)}
-    .communes-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,40px)}
-    @media(max-width:800px){.communes-grid{grid-template-columns:1fr}}
-    .zone{background:#fff;border-radius:16px;padding:32px;border-top:5px solid var(--c)}
-    .zone h3{font-family:var(--titre);font-weight:900;font-size:26px;color:var(--c);margin-bottom:6px}
-    .zone .zone-sub{font-family:var(--titre);font-weight:600;font-size:14px;color:#666;margin-bottom:20px}
-    .zone-list{list-style:none;display:grid;grid-template-columns:repeat(2,1fr);gap:8px 20px;font-size:14.5px;color:#333}
-    .zone-list li{padding:6px 0;border-bottom:1px dashed #E4E4E4;font-family:var(--titre);font-weight:600}
-
-    .qualite{padding:clamp(56px,8vw,100px) var(--pad)}
-    .qualite .entete{max-width:640px;margin:0 auto 48px;text-align:center}
-    .qualite .sur{color:var(--rouge)}
-    .q-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(18px,3vw,32px)}
-    @media(max-width:900px){.q-grid{grid-template-columns:1fr}}
-    .qcard{padding:28px;background:#fff;border:1px solid var(--gris);border-radius:16px}
-    .qcard h4{font-family:var(--titre);font-weight:800;font-size:18px;margin-bottom:10px;color:var(--c)}
-    .qcard p{font-size:14.5px;color:#555;line-height:1.6}
+@push('head')
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 @endpush
 
-@section('content')
+@push('css')
+.tete{padding:clamp(130px,17vh,200px) var(--pad) clamp(44px,6vw,76px);position:relative;overflow:hidden}
+.tete .sur{--c:var(--vert)}
+.tete__t{margin-top:20px}
+.tete__t em{font-style:normal;color:var(--vert)}
+.tete__grille{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(28px,4vw,64px);align-items:end}
+@media(max-width:900px){.tete__grille{grid-template-columns:1fr;gap:30px}}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mini > div{padding-top:16px;border-top:2px solid var(--c)}
+.mini .v{font-family:var(--titre);font-weight:900;font-size:clamp(32px,4.4vw,56px);line-height:.9;letter-spacing:-.04em}
+.mini .l{font-family:var(--titre);font-weight:700;font-size:12.5px;color:var(--texte-2);margin-top:9px}
 
-<section class="reseau-hero">
-    <div>
-        <span class="sur">La preuve terrain</span>
-        <h1 class="t1">Un réseau d'affichage en propre, à Abidjan et dans tout le pays.</h1>
-        <p>Une agence loue l'espace d'un tiers. Nous exploitons le nôtre : 364 panneaux répartis dans 31 communes, de Bouaké à San-Pédro. C'est ce qui nous permet de vous garantir un emplacement, une date de pose et une preuve photo — pas une estimation.</p>
-        <div class="stats">
-            <div><div class="v num" data-cible="364">0</div><div class="l">Panneaux au total<br>31 communes</div></div>
-            <div><div class="v num" data-cible="180">0</div><div class="l">Panneaux · Abidjan<br>14 communes</div></div>
-            <div><div class="v num" data-cible="184">0</div><div class="l">Panneaux · Intérieur<br>17 villes</div></div>
+/* La carte devient le héros de la page : plein écran, le reste autour. */
+.carte-zone{position:relative;height:min(84vh,780px);background:var(--fond-3);overflow:hidden}
+#carte{position:absolute;inset:0;z-index:1}
+.carte-zone__voile{
+  position:absolute;z-index:400;inset:auto 0 0 0;height:160px;pointer-events:none;
+  background:linear-gradient(to top,var(--fond),transparent);
+}
+.carte-zone__note{
+  position:absolute;z-index:500;left:var(--pad);bottom:28px;max-width:330px;
+  padding:17px 19px;border-radius:14px;
+  background:rgba(17,17,17,.9);backdrop-filter:blur(10px);
+  box-shadow:inset 0 0 0 1px var(--ligne);
+  font-size:13.5px;color:var(--texte-2);line-height:1.5;
+}
+.carte-zone__note b{display:block;font-family:var(--titre);font-weight:800;font-size:14.5px;color:#fff;margin-bottom:5px}
+.carte-chargement{
+  position:absolute;inset:0;z-index:600;display:grid;place-items:center;gap:12px;
+  background:var(--fond-3);color:var(--texte-3);
+  font-family:var(--titre);font-weight:700;font-size:13.5px;
+}
+.carte-chargement[hidden]{display:none}
+.tourne{width:34px;height:34px;border:2.5px solid rgba(255,255,255,.12);border-top-color:var(--vert);border-radius:50%;animation:tourner .9s linear infinite;margin-inline:auto}
+@keyframes tourner{to{transform:rotate(360deg)}}
+/* Épingles aux couleurs de la charte */
+.epingle{
+  background:var(--jaune);color:var(--noir);
+  padding:6px 12px;border-radius:999px;border:2px solid #fff;
+  font-family:var(--titre);font-weight:800;font-size:12.5px;white-space:nowrap;
+  box-shadow:0 4px 14px rgba(0,0,0,.4);transform:translate(-50%,-50%);
+}
+.leaflet-popup-content-wrapper{border-radius:12px}
+.leaflet-popup-content{margin:13px 15px;font-family:'Nunito',sans-serif;font-size:13px}
+.leaflet-popup-content strong{display:block;font-family:'Poppins',sans-serif;font-weight:800;font-size:15px;color:#111;margin-bottom:3px}
+
+/* Zones couvertes */
+.zones{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,44px);margin-top:clamp(36px,5vw,60px)}
+@media(max-width:860px){.zones{grid-template-columns:1fr}}
+.zone{padding:clamp(26px,3vw,38px);border-radius:20px;background:var(--fond-2);border-top:4px solid var(--c)}
+.zone h3{font-family:var(--titre);font-weight:900;font-size:clamp(22px,2.6vw,32px);letter-spacing:-.02em;color:var(--c)}
+.zone .sous{font-family:var(--titre);font-weight:700;font-size:13px;color:var(--texte-3);margin-top:7px}
+.zone ul{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:7px 18px;margin-top:22px}
+@media(max-width:520px){.zone ul{grid-template-columns:1fr}}
+.zone li{
+  font-family:var(--titre);font-weight:700;font-size:14px;
+  padding:7px 0;border-bottom:1px solid var(--ligne);color:var(--texte-2);
+}
+
+/* Formats */
+.fmt{background:var(--fond-2);border-block:1px solid var(--ligne)}
+.fmt__grille{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(14px,2vw,24px);margin-top:clamp(34px,4.5vw,56px)}
+@media(max-width:900px){.fmt__grille{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.fmt__grille{grid-template-columns:1fr}}
+.fmt__c{padding:28px 26px;border-radius:17px;background:var(--fond-3);border-left:4px solid var(--c);transition:transform .45s var(--ease)}
+.fmt__c:hover{transform:translateY(-5px)}
+.fmt__c h3{font-family:var(--titre);font-weight:800;font-size:18px;color:var(--c)}
+.fmt__c p{margin-top:10px;font-size:14.5px;color:var(--texte-2);line-height:1.6}
+@endpush
+
+@section('contenu')
+
+{{-- ═══════════════════════ TÊTE ═══════════════════════ --}}
+<section class="tete">
+    <div class="plume" style="--c:var(--vert);--op:.07;top:-10%;right:-5%;width:clamp(210px,27vw,380px)" data-par="-18" data-rot="10"></div>
+    <div class="large tete__grille">
+        <div>
+            <p class="sur" data-rev>Le réseau</p>
+            <h1 class="t-geant tete__t" data-lignes>On ne loue pas la rue. <em>On l'habite.</em></h1>
+            <p class="intro" style="margin-top:24px" data-rev=".12">
+                Trente ans à choisir les emplacements un par un, en fonction des flux réels :
+                axes de sortie, marchés, carrefours, zones de concentration. C'est ce choix-là
+                qu'on vous vend, pas une surface.
+            </p>
+        </div>
+        <div class="mini" data-cascade>
+            <div style="--c:var(--rouge)">
+                <div class="v num">+<span data-compte="{{ \App\Support\Contenu::get('chiffres.panneaux', 400) }}">0</span></div>
+                <div class="l">Panneaux en exploitation</div>
+            </div>
+            <div style="--c:var(--jaune)">
+                <div class="v num"><span data-compte="{{ \App\Support\Contenu::get('chiffres.communes', 31) }}">0</span></div>
+                <div class="l">Communes et villes</div>
+            </div>
         </div>
     </div>
 </section>
 
-<section class="carte-section">
-    <div class="carte-slot rev">
-        <div id="reseau-map" aria-label="Carte interactive du réseau CIBLE"></div>
-        <div id="reseau-map-loading" role="status">
-            <div class="spinner" aria-hidden="true"></div>
-            <div>Chargement de la carte…</div>
+{{-- ═══════════════════════ CARTE ═══════════════════════ --}}
+<section class="carte-zone" aria-label="Carte du parc d'affichage">
+    <div id="carte" role="application" aria-label="Carte interactive des communes couvertes"></div>
+    <div class="carte-chargement" id="carte-chargement">
+        <div style="text-align:center">
+            <div class="tourne"></div>
+            <div style="margin-top:12px">Chargement de la carte…</div>
         </div>
-        <div class="note">💡 Cliquez sur un pin pour voir le nombre de panneaux par commune. Détail complet auprès de votre commercial.</div>
     </div>
+    <div class="carte-zone__note">
+        <b>31 communes couvertes</b>
+        Chaque épingle marque une commune où CIBLE exploite des faces.
+        Déplacez la carte pour parcourir le territoire.
+    </div>
+    <div class="carte-zone__voile"></div>
 </section>
 
-<section class="communes">
-    <div class="entete rev">
-        <span class="sur">Détail par zone</span>
-        <h2 class="t1">Là où votre marque peut apparaître.</h2>
-    </div>
-    <div class="communes-grid">
-        <div class="zone rev" style="--c:var(--rouge)">
-            <h3>Zone Abidjan</h3>
-            <div class="zone-sub">180 panneaux · 14 communes du Grand Abidjan</div>
-            <ul class="zone-list">
-                <li>Plateau</li><li>Cocody</li>
-                <li>Yopougon</li><li>Abobo</li>
-                <li>Marcory</li><li>Treichville</li>
-                <li>Koumassi</li><li>Port-Bouët</li>
-                <li>Attécoubé</li><li>Adjamé</li>
-                <li>Riviera</li><li>Angré</li>
-                <li>Bingerville</li><li>Songon</li>
-            </ul>
+{{-- ═══════════════════════ ZONES ═══════════════════════ --}}
+<section class="bloc">
+    <div class="large">
+        <div class="entete">
+            <p class="sur" style="--c:var(--bleu)">La couverture</p>
+            <h2 class="t-grand" data-lignes>Abidjan d'abord. Puis tout le pays.</h2>
         </div>
-        <div class="zone rev" style="--c:var(--vert)">
-            <h3>Zone Intérieur</h3>
-            <div class="zone-sub">184 panneaux · 17 villes stratégiques du pays</div>
-            <ul class="zone-list">
-                <li>Bouaké</li><li>San-Pédro</li>
-                <li>Yamoussoukro</li><li>Korhogo</li>
-                <li>Man</li><li>Daloa</li>
-                <li>Gagnoa</li><li>Divo</li>
-                <li>Bondoukou</li><li>Odienné</li>
-                <li>Séguéla</li><li>Ferkessédougou</li>
-                <li>Dabou</li><li>Anyama</li>
-                <li>Grand-Bassam</li><li>Aboisso</li>
-                <li>Soubré</li>
-            </ul>
-        </div>
-    </div>
-</section>
 
-<section class="qualite">
-    <div class="entete rev">
-        <span class="sur">Ce qui distingue notre réseau</span>
-        <h2 class="t1">Un patrimoine géré, pas revendu.</h2>
-    </div>
-    <div class="q-grid">
-        <div class="qcard rev" style="--c:var(--rouge)">
-            <h4>Emplacements en propre</h4>
-            <p>Nous n'agrégeons pas des panneaux tiers : nous exploitons notre patrimoine. Vous savez exactement où votre affiche apparaîtra, dans quel angle, à quel moment.</p>
-        </div>
-        <div class="qcard rev" style="--c:var(--vert)">
-            <h4>Maintenance permanente</h4>
-            <p>Équipes de pose sur toutes les zones. Une affiche déchirée ou taguée est remplacée dans les 48h. La qualité de votre visibilité ne dépend pas d'un sous-traitant.</p>
-        </div>
-        <div class="qcard rev" style="--c:var(--bleu)">
-            <h4>Preuve photo horodatée</h4>
-            <p>Chaque pose est documentée sur le terrain : photo, date, heure, GPS. Vous recevez le dossier complet à la fin de la campagne.</p>
+        <div class="zones">
+            <div class="zone" style="--c:var(--rouge)" data-rev>
+                <h3>{{ \App\Support\Contenu::get('reseau.comm_abidjan_titre', 'Abidjan') }}</h3>
+                <div class="sous">{{ \App\Support\Contenu::get('reseau.comm_abidjan_sous', '13 communes') }}</div>
+                <ul>
+                    @foreach(\App\Support\Contenu::lignes('reseau.comm_abidjan_liste') as $c)
+                        <li>{{ $c }}</li>
+                    @endforeach
+                </ul>
+            </div>
+            <div class="zone" style="--c:var(--vert)" data-rev=".08">
+                <h3>{{ \App\Support\Contenu::get('reseau.comm_int_titre', 'Intérieur du pays') }}</h3>
+                <div class="sous">{{ \App\Support\Contenu::get('reseau.comm_int_sous', '18 villes') }}</div>
+                <ul>
+                    @foreach(\App\Support\Contenu::lignes('reseau.comm_int_liste') as $c)
+                        <li>{{ $c }}</li>
+                    @endforeach
+                </ul>
+            </div>
         </div>
     </div>
 </section>
 
-<section style="padding:clamp(60px,8vw,100px) var(--pad);text-align:center">
-    <h2 class="t2">Envie de repérer les emplacements pour votre marque&nbsp;?</h2>
-    <p style="margin-top:16px;color:#666;max-width:56ch;margin-left:auto;margin-right:auto">Envoyez-nous vos critères (zone, format, période) — nous vous préparons une sélection dans la journée.</p>
-    <div style="margin-top:28px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-        <a class="bouton b-rouge" href="{{ route('cible.contact') }}">Demander une sélection</a>
+{{-- ═══════════════════════ FORMATS ═══════════════════════ --}}
+<section class="bloc fmt">
+    <div class="large">
+        <div class="entete">
+            <p class="sur" style="--c:var(--jaune)">Les formats</p>
+            <h2 class="t-grand" data-lignes>Le bon support, pas le plus grand.</h2>
+        </div>
+        <div class="fmt__grille" data-cascade>
+            @foreach([
+                ['var(--rouge)',  'Panneaux classiques',  "Le socle du réseau. Présence continue sur les axes à fort trafic, en 4×3 et grands formats."],
+                ['var(--jaune)',  'Lumipub',              "Caissons éclairés : votre message reste lisible après la tombée de la nuit, quand le trafic est encore dense."],
+                ['var(--vert)',   'Trivision',            "Trois visuels en rotation sur une même face. Trois messages, ou trois annonceurs, un seul emplacement."],
+                ['var(--bleu)',   'Panoramiques',         "Les très grands formats, sur les axes d'entrée et de sortie d'Abidjan. Pour les prises de parole fortes."],
+                ['var(--violet)', 'Écrans digitaux',      "Diffusion animée et programmable. Idéal pour une campagne à durée courte ou à message variable."],
+                ['var(--rouge)',  'Affichage en magasin', "Au dernier mètre, là où la décision d'achat se prend réellement."],
+            ] as [$c, $titre, $txt])
+                <div class="fmt__c" style="--c:{{ $c }}">
+                    <h3>{{ $titre }}</h3>
+                    <p>{{ $txt }}</p>
+                </div>
+            @endforeach
+        </div>
+    </div>
+</section>
+
+{{-- ═══════════════════════ APPEL ═══════════════════════ --}}
+<section class="bloc" style="text-align:center;position:relative;overflow:hidden">
+    <div class="fleche-d" style="--c:var(--vert);--op:.1;top:22%;left:8%;width:clamp(80px,10vw,140px)" data-par="-22" data-rot="-16"></div>
+    <div style="max-width:900px;margin-inline:auto;position:relative;z-index:2">
+        <h2 class="t-grand" data-lignes>Dites-nous quelles zones vous voulez couvrir.</h2>
+        <p class="intro" style="margin:22px auto 0">
+            On vous revient avec un plan d'emplacements justifié commune par commune,
+            sous 24 heures ouvrées.
+        </p>
+        <div style="margin-top:34px" data-rev=".1">
+            <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
+                Demander un plan d'emplacements<i class="fl"></i>
+            </a>
+        </div>
     </div>
 </section>
 
 @endsection
 
-@push('head')
-    {{-- Leaflet 1.9.4 (même version que l'admin — cf. resources/views/admin/panels/map.blade.php).
-         CSS chargé dans le head, JS déféré en bas de page via @push('page-js'). --}}
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-@endpush
-
-@push('page-js')
+@push('js')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""
-        defer></script>
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const mapEl = document.getElementById('reseau-map');
-    if (!mapEl || typeof L === 'undefined') return;
+/* Carte du parc. Même endpoint que la V1 (/api/reseau-map) : la maquette
+   ne duplique pas la source de données.
+   Le champ `total` du JSON n'est volontairement PAS affiché — décision
+   client d'août 2026 de ne plus publier de répartition chiffrée par zone. */
+(function () {
+  var zone = document.getElementById('carte');
+  var attente = document.getElementById('carte-chargement');
+  if (!zone || typeof window.L === 'undefined') { return; }
 
-    // Init map — centre Abidjan, bounds Côte d'Ivoire, tiles CARTO light
-    // (cohérent avec la carte admin cf. admin/panels/map.blade.php).
-    const map = L.map(mapEl, {
-        center: [5.36, -4.01],
-        zoom: 11,
-        minZoom: 6,
-        maxZoom: 15,
-        maxBounds: L.latLngBounds(L.latLng(4.3, -8.6), L.latLng(10.7, -2.5)),
-        maxBoundsViscosity: 0.85,
-        scrollWheelZoom: false, // désactivé côté vitrine — évite le zoom accidentel en scroll
-        zoomControl: true,
-    });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 19,
-    }).addTo(map);
+  var carte = L.map(zone, {
+    zoomControl: true,
+    scrollWheelZoom: false,   // sinon la molette capture le scroll de page
+    attributionControl: true,
+  }).setView([6.9, -5.3], 7);
 
-    // Réactive la molette souris uniquement quand la carte a le focus
-    // (clic dessus). Évite les scrolls "captés" involontairement.
-    mapEl.addEventListener('click', () => map.scrollWheelZoom.enable());
-    mapEl.addEventListener('mouseleave', () => map.scrollWheelZoom.disable());
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap, &copy; CARTO',
+    maxZoom: 18,
+  }).addTo(carte);
 
-    // Chargement des pins agrégés par commune
-    fetch("{{ route('cible.api.reseau-map') }}", { headers: { 'Accept': 'application/json' } })
-        .then(r => r.ok ? r.json() : Promise.reject(r.status))
-        .then(data => {
-            const pins = Array.isArray(data.pins) ? data.pins : [];
-            if (pins.length === 0) {
-                document.getElementById('reseau-map-loading').innerHTML =
-                    '<div>Aucune donnée à afficher pour le moment.</div>';
-                return;
-            }
+  // La molette ne pilote le zoom qu'après un clic : on respecte le scroll
+  // de lecture, tout en gardant la carte manipulable.
+  carte.on('click', function () { carte.scrollWheelZoom.enable(); });
+  carte.on('mouseout', function () { carte.scrollWheelZoom.disable(); });
 
-            const bounds = L.latLngBounds();
-            pins.forEach(pin => {
-                if (pin.lat == null || pin.lng == null) return;
-                const html = '<div class="cible-pin"><b>' + pin.total + '</b> · ' + pin.commune + '</div>';
-                const icon = L.divIcon({
-                    html: html,
-                    className: 'cible-pin-wrapper',
-                    iconSize: null, // laisse le contenu déterminer la taille
-                });
-                const marker = L.marker([pin.lat, pin.lng], { icon: icon }).addTo(map);
-                const zoneLabel = (pin.city && pin.city !== pin.commune) ? pin.city : (pin.region || '');
-                marker.bindPopup(
-                    '<strong>' + pin.commune + '</strong>' +
-                    (zoneLabel ? '<em style="color:#666;font-style:normal">' + zoneLabel + '</em><br>' : '') +
-                    pin.total + ' panneau' + (pin.total > 1 ? 'x' : '') + ' CIBLE'
-                );
-                bounds.extend([pin.lat, pin.lng]);
-            });
+  fetch('{{ route('cible.api.reseau-map') }}', { headers: { Accept: 'application/json' } })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var pins = (d && d.pins) || [];
+      if (!pins.length) { attente.hidden = true; return; }
 
-            // Cadre auto sur l'ensemble des pins (pas trop serré → padding).
-            if (bounds.isValid()) {
-                map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
-            }
-
-            document.getElementById('reseau-map-loading').classList.add('hidden');
+      var limites = [];
+      pins.forEach(function (p) {
+        if (typeof p.lat !== 'number' || typeof p.lng !== 'number') { return; }
+        limites.push([p.lat, p.lng]);
+        L.marker([p.lat, p.lng], {
+          icon: L.divIcon({ className: '', html: '<div class="epingle">' + p.commune + '</div>', iconSize: null }),
         })
-        .catch(err => {
-            console.warn('[cible/reseau] map load failed', err);
-            const loader = document.getElementById('reseau-map-loading');
-            if (loader) {
-                loader.innerHTML = '<div>Chargement de la carte impossible.<br><small>Notre équipe reste disponible : commercial@cible-ci.com</small></div>';
-            }
-        });
-});
+          .bindPopup('<strong>' + p.commune + '</strong>' + (p.region ? p.region : ''))
+          .addTo(carte);
+      });
+
+      if (limites.length) { carte.fitBounds(limites, { padding: [60, 60] }); }
+      attente.hidden = true;
+    })
+    .catch(function () {
+      attente.innerHTML = '<div style="text-align:center">Carte momentanément indisponible.<br>'
+        + 'Le réseau couvre 31 communes et villes.</div>';
+    });
+})();
 </script>
 @endpush
