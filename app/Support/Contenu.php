@@ -333,6 +333,27 @@ class Contenu
         return asset($reference);
     }
 
+    /**
+     * URL d'un fichier de public/, datée de sa dernière modification.
+     *
+     * Les réponses sortent avec « Cache-Control: max-age=14400 » : quatre
+     * heures pendant lesquelles un fichier remplacé sous la même URL reste
+     * invisible, pour le visiteur comme pour tout cache intermédiaire. Le
+     * motion du logo en a fait les frais le 2026-10-08 — le bon fichier
+     * était déployé, et le navigateur continuait de jouer l'ancien.
+     *
+     * L'horodatage en suffixe change l'URL à chaque remplacement : le cache
+     * est contourné sans jamais être désactivé. Même mécanique que les
+     * favicons de la V1.
+     */
+    public static function urlDatee(string $chemin): string
+    {
+        $url = asset($chemin);
+        $quand = @filemtime(public_path($chemin));
+
+        return $quand ? $url . '?v=' . $quand : $url;
+    }
+
     /** Le visuel est-il réellement disponible ? (évite une vignette cassée) */
     public static function imageExiste(string $reference): bool
     {

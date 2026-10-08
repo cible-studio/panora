@@ -48,29 +48,62 @@
 .hero__sous{font-family:var(--titre);font-weight:600;font-size:clamp(16px,1.5vw,19px);line-height:1.45;color:var(--texte-2);max-width:44ch}
 .hero__actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
 
-/* Grand cadre du motion.
+/* ═══════════════ LE CADRE DU MOTION ═══════════════
+   ⚠ Le héro paraissait vide, et pour une raison très concrète : un cadre
+   BLANC, posé sur une page BLANCHE, contenant une vidéo à fond BLANC. Il
+   n'y avait rien à voir sinon une ombre. Et le cadre étant plus large que
+   le 16/9 de la vidéo, environ 90 px de blanc mort traînaient de chaque
+   côté du motion.
 
-   ⚠ `width:100%` est la clé, et son absence était le défaut visible sur la
-   capture du 2026-10-08 : le cadre n'occupait que la moitié de l'écran.
-   Avec une largeur AUTOMATIQUE, `aspect-ratio` combiné à `max-height` fait
-   rétrécir la LARGEUR pour tenir le ratio sous le plafond de hauteur —
-   56vh donnaient 526 px de haut, donc 935 px de large dans un conteneur de
-   1723 px. Une largeur explicite rend la largeur définie : le ratio en
-   déduit la hauteur, le plafond la borne, et la largeur ne bouge plus.
+   Deux corrections, et pas une de plus :
 
-   Le cadre devient alors plus large que 16/9. Le motion, posé en
-   `contain`, se centre avec du blanc de part et d'autre — invisible, le
-   cadre et la vidéo étant tous deux blancs — et gagne en hauteur donc en
-   taille réelle : environ 40 % de plus qu'avant. */
-.hero__panneau{
-  position:relative;width:100%;
-  border-radius:clamp(16px,2vw,28px);overflow:hidden;
-  background:var(--blanc);aspect-ratio:16/9;max-height:78vh;
-  box-shadow:0 30px 80px -45px rgba(17,17,17,.45),inset 0 0 0 1px var(--ligne);
-  margin-top:14px;
-  will-change:transform;
+   1. Une monture NOIRE autour du panneau blanc. C'est la structure d'un
+      panneau publicitaire : de l'acier sombre autour d'une face éclairée.
+      Le métier de CIBLE, littéralement — et le contraste qui manquait. Le
+      titre, lui, reste sur fond blanc : son mot en rouge y est autorisé,
+      ce qu'un héro entièrement noir interdirait.
+
+   2. Le panneau est exactement en 16/9, comme la vidéo : plus un pixel de
+      blanc mort, le motion remplit tout. La taille se règle par une
+      largeur maximale et non par un plafond de hauteur — un plafond de
+      hauteur sur une largeur automatique faisait rétrécir la largeur, ce
+      qui était le défaut de la version précédente. */
+.hero__cadre{
+  /* La largeur suit la hauteur d'ecran : le panneau etant en 16/9,
+     142vh est la largeur qui donne environ 78vh de haut. Le cadre reste
+     donc aussi grand que l'ecran le permet, sans jamais pousser le titre
+     trop bas, et sans plafond de hauteur — qui ferait retrecir la
+     largeur, comme dans la version precedente. */
+  width:100%;max-width:min(100%,142vh);margin:14px auto 0;
+  background:var(--noir);
+  padding:clamp(10px,1.3vw,18px);
+  border-radius:clamp(18px,2.2vw,30px);
+  box-shadow:0 36px 90px -50px rgba(17,17,17,.6);
 }
-@media(max-width:700px){.hero__panneau{max-height:none;aspect-ratio:4/3}}
+.hero__panneau{
+  position:relative;width:100%;aspect-ratio:16/9;
+  border-radius:clamp(10px,1.4vw,18px);overflow:hidden;
+  background:var(--blanc);
+}
+@media(max-width:700px){.hero__panneau{aspect-ratio:4/3}}
+/* La vidéo est en 16/9 comme son panneau : `cover` ne rogne donc rien et
+   garantit qu'aucune bordure blanche ne subsiste. Sous 700 px le panneau
+   passe en 4/3 et le recadrage reste négligeable. */
+.hero__panneau video{width:100%;height:100%;object-fit:cover;background:var(--blanc)}
+
+/* Ligne d'en-tête : sur-titre à gauche, repères à droite. Elle donne au
+   héro une assise horizontale, au lieu d'une seule ligne grise perdue. */
+.hero__tete{
+  display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
+  padding-bottom:14px;border-bottom:1px solid var(--ligne);
+}
+.hero__reperes{
+  margin-left:auto;display:flex;gap:20px;flex-wrap:wrap;
+  font-family:var(--titre);font-weight:700;font-size:12px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--texte-3);
+}
+.hero__reperes b{font-family:var(--chiffres);color:var(--noir);font-weight:800}
+@media(max-width:640px){.hero__reperes{display:none}}
 /* contain, jamais cover : le motion est en 16/9 sur fond blanc, il se fond
    dans le cadre blanc sans jamais être rogné. */
 .hero__panneau video{width:100%;height:100%;object-fit:contain;background:var(--blanc)}
@@ -269,18 +302,30 @@
     <div class="fleche-d" style="--c:var(--jaune);--op:.08;bottom:4%;left:-3%;width:clamp(90px,11vw,150px)" data-par="12" data-rot="-10"></div>
 
     <div class="large">
-        <p class="sur" data-rev>Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
+        <div class="hero__tete" data-rev>
+            <p class="sur" style="margin:0">Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
+            {{-- Trois repères, discrets : ils donnent une assise à la ligne
+                 d'en-tête sans empiéter sur la section Preuve, qui les
+                 développe plus bas. --}}
+            <p class="hero__reperes">
+                <span><b>+400</b> panneaux</span>
+                <span><b>31</b> communes</span>
+                <span><b>30</b> ans</span>
+            </p>
+        </div>
 
-        {{-- LE GRAND CADRE — le motion d'abord, le texte ensuite.
-             Motion fourni par le client : fond blanc, 1920×1080, 8,5 s,
-             sans piste audio. muted + playsinline sont obligatoires, sans
-             eux Safari iOS refuse la lecture automatique. --}}
-        <div class="hero__panneau" id="panneau" data-rev=".1">
-            <span class="hero__etiq"><b></b> En exploitation</span>
-            <video src="{{ asset('refonte/motion/perroquet-blanc.mp4') }}"
-                   autoplay muted loop playsinline preload="metadata"
-                   poster="{{ asset('refonte/photo/perroquet.webp') }}"
-                   aria-label="Animation du logo CIBLE"></video>
+        {{-- LE GRAND CADRE — monture noire, panneau blanc éclairé.
+             Motion fourni par le client : fond blanc, 1920×1080, 7 s, sans
+             piste audio. muted + playsinline sont obligatoires, sans eux
+             Safari iOS refuse la lecture automatique. --}}
+        <div class="hero__cadre" id="panneau" data-rev=".1">
+            <div class="hero__panneau">
+                <span class="hero__etiq"><b></b> En exploitation</span>
+                <video src="{{ \App\Support\Contenu::urlDatee('refonte/motion/perroquet-blanc.mp4') }}"
+                       autoplay muted loop playsinline preload="metadata"
+                       poster="{{ \App\Support\Contenu::urlDatee('refonte/photo/perroquet.webp') }}"
+                       aria-label="Animation du logo CIBLE"></video>
+            </div>
         </div>
 
         <div class="hero__bas">
@@ -319,7 +364,7 @@
 <section class="manif">
     <div class="manif__grille">
         <div class="manif__ph ph ph--nue">
-            <img src="{{ asset('refonte/test/perroquet.webp') }}"
+            <img src="{{ \App\Support\Contenu::urlDatee('refonte/test/perroquet.webp') }}"
                  alt="Perroquet écarlate — le symbole de la marque CIBLE" loading="lazy">
             <span class="manif__credit">Visuel de test · Unsplash, David Clode</span>
         </div>
@@ -458,7 +503,7 @@
 
     <div class="large">
         <div class="fin__ph ph ph--scroll" style="--c:var(--rouge)" data-rev=".16">
-            <img src="{{ asset('refonte/test/foule-festive.webp') }}"
+            <img src="{{ \App\Support\Contenu::urlDatee('refonte/test/foule-festive.webp') }}"
                  alt="Foule rassemblée en plein air" loading="lazy">
             <div class="ph__legende">Visuel de test · Unsplash, Andrey K</div>
         </div>
