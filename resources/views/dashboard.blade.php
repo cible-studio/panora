@@ -440,7 +440,7 @@
                    onmouseover="this.style.background='var(--surface2)'"
                    onmouseout="this.style.background=''">
                     <div style="font-weight:600;font-size:13px;color:var(--accent);">
-                        {{ $maintenance->panel->reference }}
+                        {{ $maintenance->panel?->reference ?? 'Panneau supprimé' }}{{ $maintenance->panel?->trashed() ? ' (supprimé)' : '' }}
                     </div>
                     <div style="color:var(--text3);font-size:11px;margin-top:2px;">
                         {{ $maintenance->type_panne }}

@@ -47,9 +47,16 @@ class Maintenance extends Model
         return $this->date_fin_prevue->lt(now()->startOfDay());
     }
 
+    /**
+     * 2026-10-08 — withTrashed() : une maintenance reste rattachée à son
+     * panneau même s'il a été supprimé (corbeille). Sans cela, la relation
+     * renvoyait null et le tableau de bord, la liste, la fiche et les
+     * notifications plantaient sur « $maintenance->panel->reference »
+     * (erreur 500 constatée en prod sur /dashboard).
+     */
     public function panel()
     {
-        return $this->belongsTo(Panel::class);
+        return $this->belongsTo(Panel::class)->withTrashed();
     }
 
     public function technicien()
