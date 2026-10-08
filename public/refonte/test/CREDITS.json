@@ -1,0 +1,42 @@
+{
+    "foule-festive": {
+        "auteur": "Andrey K",
+        "id": "G5XRz1_0neo",
+        "desc": "Foule en plein air, lumière basse"
+    },
+    "studio-lumiere": {
+        "auteur": "Madeline Liu",
+        "id": "N2S0kqaPQ30",
+        "desc": "Éclairage de studio"
+    },
+    "rue-afrique": {
+        "auteur": "Benjamin Chambon",
+        "id": "H7w7PWi2__I",
+        "desc": "Scène de rue"
+    },
+    "mobile": {
+        "auteur": "Howard Bouchevereau",
+        "id": "vmGffGNNYwM",
+        "desc": "Téléphone en main"
+    },
+    "stand": {
+        "auteur": "Marc Rentschler",
+        "id": "xUS4qrsrPDA",
+        "desc": "Stand de salon"
+    },
+    "architecture": {
+        "auteur": "Mike Hindle",
+        "id": "x5UifGqA5NE",
+        "desc": "Architecture géométrique"
+    },
+    "sourire": {
+        "auteur": "Shalom Ejiofor",
+        "id": "TlyLUGtta94",
+        "desc": "Jeune femme souriante"
+    },
+    "perroquet": {
+        "auteur": "David Clode",
+        "id": "djblnG6Iij4",
+        "desc": "Perroquet écarlate"
+    }
+}

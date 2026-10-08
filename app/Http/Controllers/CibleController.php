@@ -75,6 +75,21 @@ class CibleController extends Controller
         'sigfu'     => 'Donner un corps à une présence',
     ];
 
+
+    /**
+     * Visuels de TEST pour la revue — placeholders Unsplash, autorisés par
+     * le client. Ils tiennent la place des prises de vue que la charte
+     * demande (scènes de vie, personnages en joie, perroquet) et que CIBLE
+     * n'a pas encore. ⚠ À remplacer avant toute mise en ligne publique.
+     */
+    public const VISUELS_TEST = [
+        'orange'    => 'refonte/test/foule-festive.webp',
+        'cofina'    => 'refonte/test/studio-lumiere.webp',
+        'snedai'    => 'refonte/test/rue-afrique.webp',
+        'sgs-sicta' => 'refonte/test/mobile.webp',
+        'ifg'       => 'refonte/test/stand.webp',
+        'sigfu'     => 'refonte/test/architecture.webp',
+    ];
     /**
      * Données communes aux 5 pages. Le contenu vient de
      * App\Support\Contenu — défauts versionnés dans config/admin-schema.php
@@ -86,6 +101,10 @@ class CibleController extends Controller
 
         foreach ($realisations as $slug => &$projet) {
             $projet['titre_court'] = self::TITRES_COURTS[$slug] ?? ($projet['titre'] ?? '');
+
+            if (isset(self::VISUELS_TEST[$slug])) {
+                $projet['image'] = self::VISUELS_TEST[$slug];
+            }
         }
         unset($projet);
 

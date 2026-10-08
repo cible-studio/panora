@@ -104,10 +104,10 @@
 
 {{-- ═══════════════════════ LES 4 PÔLES ═══════════════════════ --}}
 @foreach([
-    ['id' => 'p1', 'c' => 'var(--rouge)',  'ph' => 'lumipub'],
-    ['id' => 'p2', 'c' => 'var(--jaune)',  'ctxt' => 'var(--rouge)', 'ph' => 'mobile'],
-    ['id' => 'p3', 'c' => 'var(--violet)', 'ph' => 'campagne-5'],
-    ['id' => 'p4', 'c' => 'var(--bleu)',   'ph' => 'affichage'],
+    ['id' => 'p1', 'c' => 'var(--rouge)',  'ph' => 'test/rue-afrique'],
+    ['id' => 'p2', 'c' => 'var(--jaune)',  'ctxt' => 'var(--rouge)', 'ph' => 'test/foule-festive'],
+    ['id' => 'p3', 'c' => 'var(--violet)', 'ph' => 'test/stand'],
+    ['id' => 'p4', 'c' => 'var(--bleu)',   'ph' => 'test/mobile'],
 ] as $n => $pole)
     @php
         $k = 'p' . ($n + 1);
@@ -135,7 +135,7 @@
             </div>
 
             <div class="pole__ph ph" style="--c:{{ $pole['c'] }}" data-rev=".1">
-                <img src="{{ asset('refonte/photo/' . $pole['ph'] . '.webp') }}"
+                <img src="{{ asset('refonte/' . $pole['ph'] . '.webp') }}"
                      alt="{{ \App\Support\Contenu::get("services.{$k}_tag") }}" loading="lazy">
                 <div class="ph__legende">Côte d'Ivoire · dispositif en exploitation</div>
             </div>

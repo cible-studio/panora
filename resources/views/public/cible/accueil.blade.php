@@ -120,49 +120,85 @@
    « Vous visez juste » prend le rang qu'occupe « Truth Well Told » chez
    la référence citée : seul, grand, juste avant les travaux. Il était
    relégué en pied de page. */
-/* Aplat noir, texte blanc. Le noir est une couleur de la charte et le
-   contraste qu'il donne est ce qui manquait à une page uniformément
-   blanche. Aucun mot de titre en couleur ici : « n'appliquez pas le texte
-   du titre en couleur à un arrière-plan non blanc ». La couleur revient par
-   le motif de plume et le filet rouge, qui sont des aplats. */
-.manif{
-  background:var(--noir);color:var(--blanc);text-align:center;
-  padding:clamp(66px,9vw,124px) var(--pad);
-  position:relative;overflow:hidden;
+/* ⚠ Cette bande était un aplat noir presque vide : un texte centré de deux
+   mots au milieu de 470 px de hauteur. C'est le « grand espace vide »
+   signalé par le client.
+
+   Elle devient une composition à deux colonnes : le perroquet écarlate à
+   fond perdu d'un côté, la signature de l'autre. Le perroquet EST la
+   marque — « Opération Plume Rouge » — et il remplit l'espace avec le
+   sujet le plus juste possible.
+
+   Photo et aplat noir côte à côte, sans voile ni fusion par-dessus
+   l'image : la charte proscrit les effets, et une couleur ne se combine
+   qu'avec du blanc ou du noir. Aucun mot de titre en couleur ici non plus
+   — le fond n'est pas blanc. */
+.manif{background:var(--noir);color:var(--blanc);position:relative;overflow:hidden}
+.manif__grille{
+  display:grid;grid-template-columns:.86fr 1.14fr;align-items:stretch;
+  min-height:min(74vh,620px);
 }
-.manif > div{position:relative;z-index:2}
+@media(max-width:900px){.manif__grille{grid-template-columns:1fr;min-height:0}}
+.manif__ph{position:relative;overflow:hidden;background:#000}
+.manif__ph img{width:100%;height:100%;object-fit:cover;display:block}
+@media(max-width:900px){.manif__ph{aspect-ratio:16/10}}
+.manif__txt{
+  display:flex;flex-direction:column;justify-content:center;
+  padding:clamp(54px,7vw,96px) clamp(26px,5vw,80px);
+  position:relative;z-index:2;
+}
 .manif__l{
   font-family:var(--titre);font-weight:900;
-  font-size:clamp(32px,6.6vw,96px);line-height:.94;letter-spacing:-.04em;
-  display:block;
+  font-size:clamp(34px,5.6vw,84px);line-height:.95;letter-spacing:-.04em;
 }
 .manif__l .l{display:block}
 .manif__filet{
-  width:64px;height:4px;background:var(--rouge);
-  margin:clamp(22px,3vw,34px) auto 0;border-radius:4px;
+  width:60px;height:4px;background:var(--rouge);
+  margin-top:clamp(22px,3vw,32px);border-radius:4px;
 }
 .manif__s{
-  margin-top:20px;font-family:var(--titre);font-weight:700;
+  margin-top:18px;font-family:var(--titre);font-weight:700;
   font-size:12px;letter-spacing:.2em;text-transform:uppercase;
-  color:rgba(255,255,255,.58);
+  color:rgba(255,255,255,.6);
+}
+.manif__credit{
+  position:absolute;z-index:3;bottom:10px;left:12px;
+  font-size:10px;letter-spacing:.06em;color:rgba(255,255,255,.4);
 }
 
-/* ═══════════════ TRAVAUX — défilement horizontal ═══════════════
-   La galerie se parcourt à l'horizontale pendant que la page reste
-   épinglée : le geste raconte le déplacement le long d'un axe routier.
-   Repli en grille verticale sous 900px et en mouvement réduit — un
-   scroll détourné sur mobile est une mauvaise idée, pas une prouesse.
+/* ═══════════════ TRAVAUX ═══════════════
+   ⚠ C'était un défilement horizontal épinglé. Il supposait que la piste
+   soit plus large que l'écran : dès que ce n'était pas le cas — écran très
+   large, ou navigateur dézoomé — l'épinglage ne s'armait pas, la piste
+   restait alignée à gauche et laissait un grand vide à droite. C'est le
+   second « espace vide » des captures client.
+
+   Une grille règle le problème par construction : elle remplit toujours la
+   largeur disponible, quelle qu'elle soit. Elle colle aussi à la référence
+   du client, dont la page d'accueil est une grille de travaux.
 
    Vignettes réduites au client et au titre, sans paragraphe : la galerie
-   doit donner envie d'ouvrir, pas tout raconter. Le détail est sur la
-   page du cas. */
-.tr{position:relative;overflow:hidden;padding-block:0 clamp(60px,8vw,110px)}
-.tr__piste{display:flex;gap:clamp(16px,2vw,28px);padding:0 var(--pad);width:max-content;align-items:stretch}
-.carte{
-  width:clamp(276px,31vw,440px);flex:0 0 auto;
-  display:flex;flex-direction:column;
+   doit donner envie d'ouvrir, pas tout raconter. */
+.tr{position:relative;padding-block:0 clamp(60px,8vw,110px)}
+.tr__grille{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:clamp(18px,2.4vw,34px) clamp(16px,2vw,28px);
+  padding:0 var(--pad);
 }
+@media(max-width:1000px){.tr__grille{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.tr__grille{grid-template-columns:1fr}}
+.carte{display:flex;flex-direction:column}
 .carte__ph{aspect-ratio:4/5;border-radius:18px;overflow:hidden;--c:var(--rouge)}
+@media(max-width:560px){.carte__ph{aspect-ratio:3/2}}
+
+/* Pied de galerie : une rangée pleine largeur, et non un bloc flottant
+   coincé au bout d'une piste. */
+.tr__pied{
+  display:flex;align-items:center;gap:clamp(16px,3vw,34px);flex-wrap:wrap;
+  margin:clamp(34px,4.5vw,56px) var(--pad) 0;
+  padding-top:clamp(24px,3vw,34px);border-top:1px solid var(--ligne);
+}
+.tr__pied p{max-width:36ch;margin:0}
 .carte__nom{
   margin-top:18px;font-family:var(--titre);font-weight:800;
   font-size:11px;letter-spacing:.17em;text-transform:uppercase;color:var(--rouge);
@@ -172,16 +208,8 @@
   font-size:clamp(17px,1.7vw,23px);line-height:1.12;letter-spacing:-.022em;
   text-transform:uppercase;
 }
-.tr__fin{
-  width:clamp(220px,24vw,300px);flex:0 0 auto;display:flex;flex-direction:column;
-  justify-content:center;gap:16px;padding-left:clamp(8px,2vw,26px);
-}
-@media(max-width:900px){
-  .tr__piste{flex-direction:column;width:auto;gap:30px}
-  .carte{width:auto}
-  .carte__ph{aspect-ratio:16/10}
-  .tr__fin{width:auto;padding:0}
-}
+
+
 
 /* ═══════════════ APPEL FINAL ═══════════════ */
 .fin{position:relative;overflow:hidden;text-align:center}
@@ -251,16 +279,21 @@
      chez McCann : seule, grande, juste avant les travaux. Elle n'explique
      rien — c'est la galerie qui argumente. --}}
 <section class="manif">
-    <div class="plume" style="--c:var(--jaune);--op:.14;top:-18%;right:4%;width:clamp(150px,19vw,250px)" data-par="22" data-rot="-12"></div>
-    <div class="plume" style="--c:var(--rouge);--op:.16;bottom:-22%;left:3%;width:clamp(130px,16vw,210px)" data-par="-18" data-rot="14"></div>
+    <div class="manif__grille">
+        <div class="manif__ph">
+            <img src="{{ asset('refonte/test/perroquet.webp') }}"
+                 alt="Perroquet écarlate — le symbole de la marque CIBLE" loading="lazy">
+            <span class="manif__credit">Visuel de test · Unsplash, David Clode</span>
+        </div>
 
-    <div>
-        <h2 class="manif__l" data-cascade>
-            <span class="l">Vous visez</span>
-            <span class="l">juste.</span>
-        </h2>
-        <div class="manif__filet" data-rev=".2"></div>
-        <p class="manif__s" data-rev=".28">Six campagnes · et la preuve de chacune</p>
+        <div class="manif__txt">
+            <h2 class="manif__l" data-cascade>
+                <span class="l">Vous visez</span>
+                <span class="l">juste.</span>
+            </h2>
+            <div class="manif__filet" data-rev=".2"></div>
+            <p class="manif__s" data-rev=".28">Six campagnes · et la preuve de chacune</p>
+        </div>
     </div>
 </section>
 
@@ -271,25 +304,24 @@
          entre son manifeste et ses travaux. --}}
     <h2 id="tr-titre" class="hors-ecran">Nos travaux</h2>
 
-    <div class="tr__piste" id="piste">
+    <div class="tr__grille" data-cascade>
         @foreach($realisations as $slug => $p)
-            <a class="carte" href="{{ route('cible.travaux') }}#{{ $slug }}" data-viseur
-               style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}">
-                <div class="carte__ph ph" style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}">
+            <a class="carte" href="{{ route('cible.travaux') }}#{{ $slug }}" data-viseur>
+                <div class="carte__ph ph">
                     <img src="{{ \App\Support\Contenu::urlImage($p['image'] ?? 'images/cible/campagne-1.jpg') }}"
-                         alt="Campagne {{ $p['nom'] ?? '' }}" loading="lazy">
+                         alt="{{ $p['cat'] ?? 'Campagne' }} — {{ $p['nom'] ?? '' }}" loading="lazy">
                 </div>
                 <span class="carte__nom">{{ $p['nom'] ?? $slug }}</span>
                 <span class="carte__titre">{{ $p['titre_court'] ?? '' }}</span>
             </a>
         @endforeach
+    </div>
 
-        <div class="tr__fin">
-            <p class="t-petit">Chaque campagne, de la recommandation à la preuve de pose.</p>
-            <a class="bt bt--clair" href="{{ route('cible.travaux') }}" data-viseur>
-                Tout voir<i class="fl"></i>
-            </a>
-        </div>
+    <div class="tr__pied">
+        <p class="t-petit">Chaque campagne, de la recommandation à la preuve de pose.</p>
+        <a class="bt bt--clair" href="{{ route('cible.travaux') }}" data-viseur style="margin-left:auto">
+            Tout voir<i class="fl"></i>
+        </a>
     </div>
 </section>
 
@@ -388,9 +420,9 @@
 
     <div class="large">
         <div class="fin__ph ph" data-rev=".16">
-            <img src="{{ asset('refonte/photo/rue.webp') }}"
-                 alt="Axe urbain abidjanais équipé de dispositifs d'affichage" loading="lazy">
-            <div class="ph__legende">Abidjan · un axe, quatre formats, une audience captive</div>
+            <img src="{{ asset('refonte/test/foule-festive.webp') }}"
+                 alt="Foule rassemblée en plein air" loading="lazy">
+            <div class="ph__legende">Visuel de test · Unsplash, Andrey K</div>
         </div>
     </div>
 </section>
@@ -399,49 +431,6 @@
 
 @push('js')
 <script>
-/* Défilement horizontal de la galerie de travaux.
-   Conditions de repli volontairement larges : sous 900px et en mouvement
-   réduit, la piste redevient une colonne (cf. CSS) et on n'épingle rien.
-   Détourner le scroll sur un téléphone en 3G est une gêne, pas un effet. */
-(function () {
-  if (typeof window.gsap === 'undefined') { return; }
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { return; }
-
-  var section = document.getElementById('travaux');
-  var piste   = document.getElementById('piste');
-  if (!section || !piste) { return; }
-
-  var st = null;
-
-  function monter() {
-    if (st) { st.kill(); st = null; gsap.set(piste, { x: 0 }); }
-    if (window.innerWidth < 900) { return; }
-
-    var course = piste.scrollWidth - window.innerWidth;
-    if (course <= 40) { return; }
-
-    st = gsap.to(piste, {
-      x: -course, ease: 'none',
-      scrollTrigger: {
-        trigger: section,
-        start: 'top top',
-        // +60% : laisse respirer avant et après la course horizontale,
-        // sinon l'épinglage démarre pile au bord et saccade.
-        end: function () { return '+=' + (course + window.innerHeight * 0.6); },
-        pin: true, scrub: 1, invalidateOnRefresh: true, anticipatePin: 1,
-      },
-    }).scrollTrigger;
-  }
-
-  monter();
-
-  var t;
-  window.addEventListener('resize', function () {
-    clearTimeout(t);
-    t = setTimeout(monter, 280);
-  });
-})();
-
 /* Héro — parallaxe douce du panneau.
 
    La version précédente épinglait le héro et agrandissait le panneau à

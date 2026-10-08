@@ -72,6 +72,7 @@ textarea{min-height:120px;resize:vertical}
 
 /* ── Colonne de droite ── */
 .aside{display:grid;gap:14px}
+.contact__ph{aspect-ratio:4/3;border-radius:18px;overflow:hidden}
 .bloc-c{padding:24px;border-radius:18px;background:var(--fond-2);box-shadow:inset 0 0 0 1px var(--ligne);border-left:4px solid var(--c)}
 .bloc-c h3{font-family:var(--titre);font-weight:800;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--rouge)}
 .bloc-c ul{list-style:none;display:grid;gap:10px;margin-top:15px}
@@ -226,6 +227,12 @@ textarea{min-height:120px;resize:vertical}
                     <li>Un interlocuteur unique jusqu'au lancement</li>
                     <li>Une réponse sous 24 heures ouvrées</li>
                 </ul>
+            </div>
+
+            <div class="contact__ph ph" data-rev=".26">
+                <img src="{{ asset('refonte/test/sourire.webp') }}"
+                     alt="Visage souriant" loading="lazy">
+                <div class="ph__legende">Visuel de test · Unsplash, Shalom Ejiofor</div>
             </div>
 
             <div class="bloc-c" style="--c:var(--rouge)" data-rev=".2">
