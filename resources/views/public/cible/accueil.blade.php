@@ -25,7 +25,7 @@
    en `cover` : il est en 16/9 sur fond BLANC opaque, donc un cadre blanc
    l'accueille sans la moindre couture — et surtout sans rogner le
    perroquet, ce que `cover` ferait sur un cadre plus large que 16/9. */
-.hero{min-height:100svh;display:grid;align-content:center;padding:clamp(104px,13vh,146px) var(--pad) clamp(40px,6vh,80px);position:relative;overflow:hidden}
+.hero{min-height:100svh;display:grid;align-content:center;padding:clamp(88px,11vh,120px) var(--pad) clamp(36px,5vh,64px);position:relative;overflow:hidden}
 .hero > .large{position:relative;z-index:2}
 
 .hero .sur{--c:var(--rouge)}
@@ -40,7 +40,7 @@
 /* Le texte sous le cadre : titre à gauche, accroche et boutons à droite. */
 .hero__bas{
   display:grid;grid-template-columns:1.25fr .75fr;
-  gap:clamp(26px,4vw,64px);align-items:end;margin-top:clamp(30px,4vw,48px);
+  gap:clamp(24px,3.5vw,56px);align-items:end;margin-top:clamp(26px,3vw,38px);
 }
 @media(max-width:980px){
   .hero__bas{grid-template-columns:1fr;gap:28px;align-items:start}
@@ -48,16 +48,29 @@
 .hero__sous{font-family:var(--titre);font-weight:600;font-size:clamp(16px,1.5vw,19px);line-height:1.45;color:var(--texte-2);max-width:44ch}
 .hero__actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
 
-/* Grand cadre du motion. Le plafond en vh est indispensable : sans lui,
-   un cadre 16/9 pleine largeur fait 830 px de haut à 1480 px, et le titre
-   placé dessous tombe sous la ligne de flottaison. */
+/* Grand cadre du motion.
+
+   ⚠ `width:100%` est la clé, et son absence était le défaut visible sur la
+   capture du 2026-10-08 : le cadre n'occupait que la moitié de l'écran.
+   Avec une largeur AUTOMATIQUE, `aspect-ratio` combiné à `max-height` fait
+   rétrécir la LARGEUR pour tenir le ratio sous le plafond de hauteur —
+   56vh donnaient 526 px de haut, donc 935 px de large dans un conteneur de
+   1723 px. Une largeur explicite rend la largeur définie : le ratio en
+   déduit la hauteur, le plafond la borne, et la largeur ne bouge plus.
+
+   Le cadre devient alors plus large que 16/9. Le motion, posé en
+   `contain`, se centre avec du blanc de part et d'autre — invisible, le
+   cadre et la vidéo étant tous deux blancs — et gagne en hauteur donc en
+   taille réelle : environ 40 % de plus qu'avant. */
 .hero__panneau{
-  position:relative;border-radius:clamp(16px,2vw,28px);overflow:hidden;
-  background:var(--blanc);aspect-ratio:16/9;max-height:56vh;
+  position:relative;width:100%;
+  border-radius:clamp(16px,2vw,28px);overflow:hidden;
+  background:var(--blanc);aspect-ratio:16/9;max-height:78vh;
   box-shadow:0 30px 80px -45px rgba(17,17,17,.45),inset 0 0 0 1px var(--ligne);
-  margin-top:16px;
+  margin-top:14px;
   will-change:transform;
 }
+@media(max-width:700px){.hero__panneau{max-height:none;aspect-ratio:4/3}}
 /* contain, jamais cover : le motion est en 16/9 sur fond blanc, il se fond
    dans le cadre blanc sans jamais être rogné. */
 .hero__panneau video{width:100%;height:100%;object-fit:contain;background:var(--blanc)}
@@ -252,8 +265,8 @@
 
 {{-- ═══════════════════════ HERO ═══════════════════════ --}}
 <section class="hero" id="hero">
-    <div class="plume" style="--c:var(--rouge);--op:.07;top:-6%;right:-7%;width:clamp(230px,30vw,440px)" data-par="-16" data-rot="14"></div>
-    <div class="plume" style="--c:var(--jaune);--op:.055;bottom:-12%;left:-6%;width:clamp(180px,22vw,330px)" data-par="18" data-rot="-10"></div>
+    <div class="plume" style="--c:var(--rouge);--op:.045;bottom:-14%;right:-4%;width:clamp(140px,17vw,250px)" data-par="-14" data-rot="14"></div>
+    <div class="fleche-d" style="--c:var(--jaune);--op:.08;bottom:4%;left:-3%;width:clamp(90px,11vw,150px)" data-par="12" data-rot="-10"></div>
 
     <div class="large">
         <p class="sur" data-rev>Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
