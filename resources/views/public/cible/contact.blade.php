@@ -6,8 +6,13 @@
 .tete__t{margin-top:20px}
 .tete__t em{font-style:normal;color:var(--rouge)}
 
-.duo-c{display:grid;grid-template-columns:1.25fr .75fr;gap:clamp(28px,4vw,64px);align-items:start}
-@media(max-width:980px){.duo-c{grid-template-columns:1fr}}
+/* Colonne unique : voir l'en-tête de ce fichier. Le formulaire change de
+   hauteur à chaque étape, rien ne peut s'aligner à côté de lui. */
+.duo-c{max-width:820px;margin-inline:auto}
+
+/* Informations de contact : une rangée de trois sous le formulaire. */
+.infos{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(14px,2vw,22px);margin-top:clamp(40px,5vw,70px)}
+@media(max-width:860px){.infos{grid-template-columns:1fr}}
 
 /* ── Formulaire : un seul écran, découpé en 4 temps ──
    La V1 présentait un mini-brief de 7 blocs d'affilée, abandonné en cours
@@ -71,8 +76,8 @@ textarea{min-height:120px;resize:vertical}
 .recu p{margin-top:12px;color:var(--texte-2);font-size:15px;line-height:1.6}
 
 /* ── Colonne de droite ── */
-.aside{display:grid;gap:14px}
-.contact__ph{aspect-ratio:4/3;border-radius:18px;overflow:hidden}
+
+
 .bloc-c{padding:24px;border-radius:18px;background:var(--fond-2);box-shadow:inset 0 0 0 1px var(--ligne);border-left:4px solid var(--c)}
 .bloc-c h3{font-family:var(--titre);font-weight:800;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--rouge)}
 .bloc-c ul{list-style:none;display:grid;gap:10px;margin-top:15px}
@@ -97,7 +102,9 @@ textarea{min-height:120px;resize:vertical}
 
 {{-- ═══════════════════════ FORMULAIRE ═══════════════════════ --}}
 <section class="bloc" style="padding-top:clamp(18px,2vw,30px)">
-    <div class="large duo-c">
+    <div class="large">
+
+        <div class="duo-c">
 
         <form class="form" id="form" novalidate data-rev>
             <div class="jauge-e" id="jauge-e" aria-hidden="true">
@@ -208,7 +215,9 @@ textarea{min-height:120px;resize:vertical}
         </form>
 
         {{-- ── Colonne de droite ── --}}
-        <div class="aside">
+        </div>{{-- /.duo-c --}}
+
+        <div class="infos">
             <div class="bloc-c" style="--c:var(--rouge)" data-rev=".08">
                 <h3>Nous joindre directement</h3>
                 <ul>
@@ -227,12 +236,6 @@ textarea{min-height:120px;resize:vertical}
                     <li>Un interlocuteur unique jusqu'au lancement</li>
                     <li>Une réponse sous 24 heures ouvrées</li>
                 </ul>
-            </div>
-
-            <div class="contact__ph ph" data-rev=".26">
-                <img src="{{ asset('refonte/test/sourire.webp') }}"
-                     alt="Visage souriant" loading="lazy">
-                <div class="ph__legende">Visuel de test · Unsplash, Shalom Ejiofor</div>
             </div>
 
             <div class="bloc-c" style="--c:var(--rouge)" data-rev=".2">

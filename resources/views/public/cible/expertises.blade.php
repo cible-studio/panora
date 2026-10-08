@@ -1,183 +1,185 @@
 @extends('public.cible._coque', ['titre' => "Ce qu'on fait", 'actuelle' => 'expertises'])
 
 @push('css')
-/* Un pôle = un écran. La V1 empilait 1 542 mots sur une seule page ;
-   ici chaque métier occupe sa pleine hauteur, avec sa couleur de charte,
-   et on ne lit jamais deux pôles en même temps. */
-.tete{padding:clamp(130px,17vh,200px) var(--pad) clamp(50px,7vw,90px);position:relative;overflow:hidden}
+/* ═══════════════ TÊTE ═══════════════ */
+.tete{padding:clamp(130px,17vh,200px) var(--pad) clamp(40px,6vw,76px);position:relative;overflow:hidden}
 .tete .sur{--c:var(--rouge)}
 .tete__t{margin-top:20px}
-.tete__t em{font-style:normal;color:var(--jaune)}
+.tete__t em{font-style:normal;color:var(--rouge)}
 
-/* Index latéral : repère de position, visible seulement quand il y a de
-   la place pour lui. */
-.index{
-  position:fixed;z-index:120;left:var(--pad);top:50%;transform:translateY(-50%);
-  display:grid;gap:14px;opacity:0;transition:opacity .5s;
+/* Sommaire des quatre pôles, en rangée sous le titre.
+   ⚠ Il était en colonne FIXE à gauche de l'écran (position:fixed, top:50%).
+   Sur la capture client, il passait par-dessus les titres de section : un
+   élément fixe est hors du flux, donc rien ne lui réserve de place, et
+   « Régie / Mobile / Experience / Intelligence » se confondait avec
+   « Quatre temps, et une preuve à la fin ». Remis dans le flux, en rangée,
+   le chevauchement ne peut plus se produire. */
+.sommaire{display:flex;flex-wrap:wrap;gap:8px;margin-top:clamp(28px,4vw,42px)}
+.sommaire a{
+  display:inline-flex;align-items:baseline;gap:10px;
+  padding:11px 18px;border-radius:999px;
+  box-shadow:inset 0 0 0 1.5px var(--ligne);
+  font-family:var(--titre);font-weight:700;font-size:13.5px;color:var(--texte-2);
+  transition:background .3s,color .3s,box-shadow .3s;
 }
-.index.vu{opacity:1}
-.index a{display:flex;align-items:center;gap:11px;font-family:var(--titre);font-weight:800;font-size:11px;letter-spacing:.12em;color:var(--texte-3);transition:color .35s}
-.index a i{width:20px;height:2px;background:currentColor;border-radius:2px;transition:width .4s var(--ease),background .35s}
-.index a.actif{color:var(--noir)}
-.index a.actif i{width:42px;background:var(--c)}
-@media(max-width:1340px){.index{display:none}}
+.sommaire a b{font-family:var(--chiffres);font-size:11px;letter-spacing:.08em;color:var(--rouge)}
+.sommaire a:hover,.sommaire a.actif{background:var(--noir);color:#fff;box-shadow:none}
+.sommaire a:hover b,.sommaire a.actif b{color:var(--jaune)}
 
+/* ═══════════════ UN PÔLE ═══════════════
+   Structure voulue par le client : accroche → introduction → ce que nous
+   faisons → comment nous travaillons → notre différence → appel.
+   Un filet supérieur et une étiquette en aplat portent la couleur. Pas de
+   halo radial : la charte proscrit les dégradés. */
 .pole{
-  min-height:100svh;display:grid;align-content:center;
-  padding:clamp(80px,11vh,130px) var(--pad);
-  position:relative;overflow:hidden;
+  padding:clamp(58px,7.5vw,100px) var(--pad);
   border-top:1px solid var(--ligne);
+  position:relative;overflow:hidden;scroll-margin-top:80px;
 }
-/* Halo de la couleur du pôle : situe le métier sans ajouter de couleur
-   hors charte, puisque c'est la couleur du pôle elle-même. */
-.pole::before{
-  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-  /* Halo radial retiré : « l'usage de dégradés ou d'effets est à éviter ».
-     La couleur du pôle se lit désormais sur l'étiquette, le titre et le
-     filet supérieur de la section — en aplats. */
-  background:none;
-}
-.pole__in{display:grid;grid-template-columns:1.04fr .96fr;gap:clamp(30px,5vw,80px);align-items:center;position:relative;z-index:2}
-@media(max-width:980px){.pole__in{grid-template-columns:1fr;gap:34px}}
-.pole:nth-child(even) .pole__in{direction:rtl}
-.pole:nth-child(even) .pole__in > *{direction:ltr}
-@media(max-width:980px){.pole:nth-child(even) .pole__in{direction:ltr}}
+.pole:nth-of-type(even){background:var(--fond-2)}
+.pole__filet{position:absolute;inset:0 0 auto 0;height:5px;background:var(--c)}
 
+.pole__haut{display:grid;grid-template-columns:1.12fr .88fr;gap:clamp(28px,4vw,62px);align-items:center;position:relative;z-index:2}
+@media(max-width:940px){.pole__haut{grid-template-columns:1fr;gap:30px}}
 .pole__etiq{
   display:inline-flex;align-items:center;gap:9px;
   padding:8px 15px;border-radius:999px;background:var(--c);color:#fff;
-  font-family:var(--titre);font-weight:800;font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
+  font-family:var(--titre);font-weight:800;font-size:11px;
+  letter-spacing:.14em;text-transform:uppercase;
 }
-.pole__t{margin-top:20px}
-.pole__t em{font-style:normal;color:var(--c-txt,var(--c))}
-.pole__txt{margin-top:22px;color:var(--texte-2);max-width:54ch;font-size:16.5px;line-height:1.68}
-.pole__acc{
-  margin-top:20px;padding-left:18px;border-left:3px solid var(--c);
-  color:var(--texte-2);font-size:15.5px;line-height:1.6;max-width:52ch;
-}
-.pole__ph{aspect-ratio:4/5;border-radius:22px;overflow:hidden}
-@media(max-width:980px){.pole__ph{aspect-ratio:16/11}}
+.pole__etiq b{font-family:var(--chiffres);opacity:.72}
+.pole__t{margin-top:18px}
+.pole__intro{margin-top:18px;color:var(--texte-2);max-width:54ch;font-size:16.5px;line-height:1.68}
+.pole__ph{aspect-ratio:4/3;border-radius:20px;overflow:hidden}
+@media(max-width:940px){.pole__ph{aspect-ratio:16/10}}
 
-.disp{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:26px}
-@media(max-width:560px){.disp{grid-template-columns:1fr}}
-.disp li{
-  padding:13px 15px;border-radius:11px;background:rgba(17,17,17,.035);
-  box-shadow:inset 0 0 0 1px var(--ligne);
-  font-family:var(--titre);font-weight:700;font-size:13.5px;
-  display:flex;align-items:center;gap:10px;
-  transition:background .3s,box-shadow .3s;
+/* ── Les deux colonnes de contenu ── */
+.pole__bas{display:grid;grid-template-columns:1.22fr .78fr;gap:clamp(28px,4vw,56px);align-items:start;margin-top:clamp(34px,4.5vw,58px);position:relative;z-index:2}
+@media(max-width:940px){.pole__bas{grid-template-columns:1fr;gap:32px}}
+.bloc-t{
+  font-family:var(--titre);font-weight:800;font-size:11.5px;
+  letter-spacing:.15em;text-transform:uppercase;color:var(--texte-3);
+  padding-bottom:12px;border-bottom:1px solid var(--ligne);
 }
-.disp li:hover{background:rgba(17,17,17,.06);box-shadow:inset 0 0 0 1px var(--c)}
-.disp li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--c);flex:0 0 auto}
+.faisons{list-style:none;padding:0;margin:0}
+.faisons li{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;padding:15px 0;border-bottom:1px solid var(--ligne)}
+.faisons .pt{width:7px;height:7px;border-radius:50%;background:var(--c);margin-top:8px;grid-row:span 2}
+.faisons strong{font-family:var(--titre);font-weight:800;font-size:16px;line-height:1.3}
+.faisons span{font-size:14.5px;color:var(--texte-2);line-height:1.55}
 
-/* Méthode : 4 temps, la séquence est réelle donc la numérotation l'est aussi */
-.meth{background:var(--fond-2);border-block:1px solid var(--ligne)}
-.meth__grille{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(14px,2vw,24px);margin-top:clamp(38px,5vw,60px)}
-@media(max-width:900px){.meth__grille{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:520px){.meth__grille{grid-template-columns:1fr}}
-.etape{padding:26px 22px;border-radius:16px;background:var(--fond-3);border-top:3px solid var(--c)}
-.etape__n{font-family:var(--titre);font-weight:900;font-size:40px;line-height:1;color:var(--noir);opacity:.2}
-.etape h3{font-family:var(--titre);font-weight:800;font-size:17px;margin-top:12px}
-.etape p{margin-top:9px;font-size:14.5px;color:var(--texte-2);line-height:1.55}
+/* La méthode est une vraie séquence : on la numérote et on la relie. */
+.methode{list-style:none;padding:0;margin:14px 0 0;counter-reset:m}
+.methode li{counter-increment:m;position:relative;padding:0 0 20px 44px}
+.methode li::before{
+  content:counter(m);position:absolute;left:0;top:-2px;
+  width:28px;height:28px;border-radius:50%;background:var(--c);color:#fff;
+  font-family:var(--chiffres);font-weight:800;font-size:12px;
+  display:grid;place-items:center;
+}
+.methode li:not(:last-child)::after{content:"";position:absolute;left:13.5px;top:31px;bottom:4px;width:1.5px;background:var(--ligne)}
+.methode strong{display:block;font-family:var(--titre);font-weight:800;font-size:15.5px}
+.methode span{display:block;font-size:14px;color:var(--texte-2);margin-top:3px;line-height:1.5}
+
+/* ── Notre différence + appel ── */
+.pole__pied{
+  margin-top:clamp(28px,3.5vw,44px);position:relative;z-index:2;
+  display:grid;grid-template-columns:1fr auto;gap:clamp(20px,3vw,40px);align-items:center;
+  padding-top:clamp(22px,3vw,32px);border-top:2px solid var(--c);
+}
+@media(max-width:760px){.pole__pied{grid-template-columns:1fr;align-items:start}}
+.pole__diff{font-family:var(--titre);font-weight:700;font-size:clamp(16px,1.7vw,21px);line-height:1.45;max-width:58ch}
 @endpush
 
 @section('contenu')
 
-<nav class="index" id="index" aria-label="Les pôles">
-    @foreach([['p1','Régie','var(--rouge)'],['p2','Mobile','var(--jaune)'],['p3','Experience','var(--violet)'],['p4','Intelligence','var(--bleu)']] as [$id, $nom, $c])
-        <a href="#{{ $id }}" data-viseur style="--c:{{ $c }}"><i></i>{{ $nom }}</a>
-    @endforeach
-</nav>
-
 {{-- ═══════════════════════ TÊTE ═══════════════════════ --}}
 <section class="tete">
-    <div class="plume" style="--c:var(--bleu);--op:.07;top:-10%;right:-5%;width:clamp(220px,28vw,400px)" data-par="-18" data-rot="12"></div>
+    <div class="plume" style="--c:var(--rouge);--op:.07;top:-12%;right:-5%;width:clamp(190px,24vw,340px)" data-par="-18" data-rot="12"></div>
     <div class="large">
         <p class="sur" data-rev>Nos expertises</p>
         <h1 class="t-geant tete__t" data-lignes>Quatre métiers. <em>Un seul résultat attendu.</em></h1>
-        <p class="intro" style="margin-top:24px" data-rev=".12">
+        <p class="intro" style="margin-top:22px" data-rev=".12">
             On ne vous vendra pas « du 360 ». On vous dira lequel de ces quatre leviers
             sert votre objectif, et pourquoi les autres peuvent attendre.
         </p>
+
+        <nav class="sommaire" id="sommaire" aria-label="Les quatre pôles" data-rev=".2">
+            @foreach($poles as $pole)
+                <a href="#{{ $pole['id'] }}" data-viseur><b>{{ $pole['num'] }}</b> {!! $pole['nom'] !!}</a>
+            @endforeach
+        </nav>
     </div>
 </section>
 
-{{-- ═══════════════════════ LES 4 PÔLES ═══════════════════════ --}}
-@foreach([
-    ['id' => 'p1', 'c' => 'var(--rouge)',  'ph' => 'test/rue-afrique'],
-    ['id' => 'p2', 'c' => 'var(--jaune)',  'ctxt' => 'var(--rouge)', 'ph' => 'test/foule-festive'],
-    ['id' => 'p3', 'c' => 'var(--violet)', 'ph' => 'test/stand'],
-    ['id' => 'p4', 'c' => 'var(--bleu)',   'ph' => 'test/mobile'],
-] as $n => $pole)
-    @php
-        $k = 'p' . ($n + 1);
-        $accroche = \App\Support\Contenu::get("services.{$k}_accroche");
-    @endphp
-    <section class="pole" id="{{ $pole['id'] }}" style="--c:{{ $pole['c'] }};--c-txt:{{ $pole['ctxt'] ?? $pole['c'] }}" data-pole="{{ $pole['id'] }}">
-        <div class="large pole__in">
-            <div>
-                <span class="pole__etiq" data-rev>{{ \App\Support\Contenu::get("services.{$k}_tag") }}</span>
-                {{-- riche() : le texte entre **astérisques** ressort dans la couleur
-                     du pôle. Aucun HTML saisi en admin n'est interprété. --}}
-                <h2 class="t-grand pole__t" data-rev=".06">{!! \App\Support\Contenu::riche("services.{$k}_titre") !!}</h2>
-                <p class="pole__txt" data-rev=".12">{!! \App\Support\Contenu::riche("services.{$k}_texte") !!}</p>
-                @if($accroche)
-                    <p class="pole__acc" data-rev=".18">{{ $accroche }}</p>
-                @endif
+{{-- ═══════════════════════ LES 4 PÔLES ═══════════════════════
+     Contenu dans V2Controller::POLES. Les pôles 01 et 02 viennent du
+     client ; 03 et 04 sont écrits dans la même structure et restent à
+     valider. --}}
+@foreach($poles as $pole)
+    <section class="pole" id="{{ $pole['id'] }}" data-pole
+             style="--c:{{ $pole['couleur'] }};--c-txt:{{ $pole['couleur_texte'] ?? $pole['couleur'] }}">
+        <div class="pole__filet"></div>
 
-                @if($k === 'p1')
-                    <ul class="disp" data-cascade>
-                        @foreach(\App\Support\Contenu::lignes('services.p1_dispositifs') as $d)
-                            <li>{{ $d }}</li>
-                        @endforeach
-                    </ul>
-                @endif
+        <div class="large">
+            <div class="pole__haut">
+                <div>
+                    <span class="pole__etiq" data-rev><b>{{ $pole['num'] }}</b> {!! $pole['nom'] !!}</span>
+                    <h2 class="t-grand pole__t" data-rev=".06">{{ $pole['accroche'] }}</h2>
+                    <p class="pole__intro" data-rev=".12">{{ $pole['intro'] }}</p>
+                </div>
+                <div class="pole__ph ph ph--scroll" style="--c:{{ $pole['couleur'] }}" data-rev=".1">
+                    <img src="{{ asset('refonte/' . $pole['visuel'] . '.webp') }}"
+                         alt="{{ strip_tags($pole['nom']) }}" loading="lazy">
+                </div>
             </div>
 
-            <div class="pole__ph ph" style="--c:{{ $pole['c'] }}" data-rev=".1">
-                <img src="{{ asset('refonte/' . $pole['ph'] . '.webp') }}"
-                     alt="{{ \App\Support\Contenu::get("services.{$k}_tag") }}" loading="lazy">
-                <div class="ph__legende">Côte d'Ivoire · dispositif en exploitation</div>
+            <div class="pole__bas">
+                <div>
+                    <p class="bloc-t">Ce que nous faisons</p>
+                    <ul class="faisons" data-cascade>
+                        @foreach($pole['faisons'] as [$quoi, $precision])
+                            <li>
+                                <span class="pt"></span>
+                                <strong>{{ $quoi }}</strong>
+                                <span>{{ $precision }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+
+                <div>
+                    <p class="bloc-t">Comment nous travaillons</p>
+                    <ol class="methode" data-cascade>
+                        @foreach($pole['methode'] as [$etape, $detail])
+                            <li>
+                                <strong>{{ $etape }}</strong>
+                                <span>{{ $detail }}</span>
+                            </li>
+                        @endforeach
+                    </ol>
+                </div>
+            </div>
+
+            <div class="pole__pied">
+                <p class="pole__diff" data-rev>{{ $pole['difference'] }}</p>
+                <a class="bt" href="{{ route('cible.contact') }}" data-viseur data-rev=".06">
+                    {{ $pole['cta'] }}<i class="fl"></i>
+                </a>
             </div>
         </div>
     </section>
 @endforeach
 
-{{-- ═══════════════════════ MÉTHODE ═══════════════════════ --}}
-<section class="bloc meth">
-    <div class="large">
-        <div class="entete">
-            <p class="sur" style="--c:var(--rouge)">Comment on travaille</p>
-            <h2 class="t-grand" data-lignes>Quatre temps, et une preuve à la fin.</h2>
-        </div>
-
-        <div class="meth__grille" data-cascade>
-            @foreach([
-                ['var(--rouge)',  'Cadrage',      "On part de votre objectif, pas de notre inventaire. Audience, zones, budget, échéance."],
-                ['var(--jaune)',  'Recommandation', "Un plan d'emplacements et de formats justifié zone par zone, chiffré, sans engagement."],
-                ['var(--rouge)',  'Déploiement',  "Production, pose, coordination terrain. Vous avez un interlocuteur unique."],
-                ['var(--jaune)',  'Preuve',       "Pige photo horodatée et géolocalisée de chaque face. Vous voyez ce que vous avez payé."],
-            ] as $i => [$c, $titre, $txt])
-                <div class="etape" style="--c:{{ $c }}">
-                    <div class="etape__n num">0{{ $i + 1 }}</div>
-                    <h3>{{ $titre }}</h3>
-                    <p>{{ $txt }}</p>
-                </div>
-            @endforeach
-        </div>
-    </div>
-</section>
-
-{{-- ═══════════════════════ APPEL ═══════════════════════ --}}
-<section class="bloc" style="text-align:center;position:relative;overflow:hidden">
+{{-- ═══════════════════════ APPEL FINAL ═══════════════════════ --}}
+<section class="bloc" style="text-align:center;position:relative;overflow:hidden;border-top:1px solid var(--ligne)">
     <div class="fleche-d" style="--c:var(--rouge);--op:.1;top:20%;right:9%;width:clamp(80px,10vw,140px)" data-par="-24" data-rot="20"></div>
     <div style="max-width:880px;margin-inline:auto;position:relative;z-index:2">
         <h2 class="t-grand" data-lignes>Lequel de ces quatre leviers vous servirait le mieux&nbsp;?</h2>
-        <p class="intro" style="margin:24px auto 0">
+        <p class="intro" style="margin:22px auto 0">
             Décrivez-nous votre objectif en quelques lignes. On vous répond avec une
             recommandation, pas avec un catalogue.
         </p>
-        <div style="margin-top:34px" data-rev=".1">
+        <div style="margin-top:32px" data-rev=".1">
             <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
                 Recevoir une recommandation média<i class="fl"></i>
             </a>
@@ -189,31 +191,23 @@
 
 @push('js')
 <script>
-/* Index latéral : met en évidence le pôle traversé. Pas de bibliothèque,
-   un seul ScrollTrigger par section. */
+/* Sommaire : marque le pôle traversé. Dans le flux, et non en position
+   fixe — la version fixe passait par-dessus les titres de section. */
 (function () {
   if (typeof window.gsap === 'undefined') { return; }
-  var index = document.getElementById('index');
-  var liens = index ? index.querySelectorAll('a') : [];
-  if (!liens.length) { return; }
+  var liens = document.querySelectorAll('#sommaire a');
+  var poles = document.querySelectorAll('[data-pole]');
+  if (!liens.length || liens.length !== poles.length) { return; }
 
-  document.querySelectorAll('[data-pole]').forEach(function (sec, i) {
+  poles.forEach(function (sec, i) {
     ScrollTrigger.create({
-      trigger: sec, start: 'top 55%', end: 'bottom 45%',
+      trigger: sec, start: 'top 50%', end: 'bottom 50%',
       onToggle: function (self) {
         if (!self.isActive) { return; }
         liens.forEach(function (a) { a.classList.remove('actif'); });
         liens[i].classList.add('actif');
       },
     });
-  });
-
-  // L'index n'apparaît qu'une fois le premier pôle atteint : au-dessus,
-  // il flotterait à côté du titre sans rien repérer.
-  ScrollTrigger.create({
-    trigger: '[data-pole]', start: 'top 80%',
-    onEnter:     function () { index.classList.add('vu'); },
-    onLeaveBack: function () { index.classList.remove('vu'); },
   });
 })();
 </script>

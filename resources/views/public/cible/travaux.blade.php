@@ -51,18 +51,43 @@
 /* Clients : les logos sont fournis en PNG sur fond clair — on les pose
    donc sur une pastille claire plutôt que de les forcer en blanc, ce qui
    détruirait les logos bicolores. */
-.clients{background:var(--fond-2);border-block:1px solid var(--ligne)}
-.clients__grille{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:clamp(32px,4vw,52px)}
-@media(max-width:1000px){.clients__grille{grid-template-columns:repeat(4,1fr)}}
-@media(max-width:620px){.clients__grille{grid-template-columns:repeat(3,1fr)}}
+/* ═══════════════ CLIENTS ═══════════════
+   ⚠ C'était une grille de six colonnes de cartes blanches. Trois défauts
+   sur la capture client :
+     - les logos débordaient de leur carte. `aspect-ratio` sur la carte et
+       `max-width/max-height` sur l'image ne suffisent pas : un logo très
+       large forçait la carte à s'étirer. Il faut une taille FIXE sur
+       l'image et `object-fit:contain`, pas un simple plafond ;
+     - plusieurs logos sont fournis avec un fond noir cuit dans le PNG, pas
+       en transparence : posés sur une carte blanche, ils devenaient des
+       rectangles noirs. Les cartes passent donc au gris clair, où un logo
+       à fond noir reste lisible comme un bloc assumé ;
+     - la grille débordait à droite sur écran large, une septième carte
+       coupée au bord.
+
+   Un bandeau défilant règle les trois : il n'a pas de fin à déborder, il
+   remplit toujours la largeur, et il donne à la section le mouvement
+   demandé. Dupliqué deux fois pour que translateX(-50%) boucle, avec
+   l'écart porté en padding et non en gap — même piège que le ruban. */
+.clients{background:var(--fond-2);border-block:1px solid var(--ligne);overflow:hidden}
+.clients__ruban{margin-top:clamp(30px,4vw,48px);overflow:hidden;position:relative}
+.clients__piste{display:flex;width:max-content;animation:clients 46s linear infinite}
+.clients__piste:hover{animation-play-state:paused}
+.clients__piste > div{display:flex;gap:14px;padding-right:14px;flex:0 0 auto}
+@keyframes clients{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.clients__piste{animation:none}}
 .client{
-  aspect-ratio:3/2;border-radius:13px;background:var(--blanc);
-  display:grid;place-items:center;padding:16px;
-  filter:grayscale(1);opacity:.72;
+  width:clamp(140px,15vw,196px);height:clamp(94px,10vw,130px);flex:0 0 auto;
+  border-radius:13px;background:var(--blanc);
+  display:grid;place-items:center;padding:14px;
+  box-shadow:inset 0 0 0 1px var(--ligne);
+  filter:grayscale(1);opacity:.78;
   transition:filter .45s,opacity .45s,transform .45s var(--ease);
 }
 .client:hover{filter:none;opacity:1;transform:translateY(-4px)}
-.client img{max-width:100%;max-height:100%;object-fit:contain}
+/* Taille fixe et contain : c'est ce qui garantit qu'aucun logo ne déborde,
+   quelle que soit sa forme. */
+.client img{width:100%;height:100%;object-fit:contain;display:block}
 @endpush
 
 @section('contenu')
@@ -111,7 +136,7 @@
                          style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}"
                          data-filtres="{{ implode(' ', $p['filtres'] ?? []) }}"
                          data-rev="{{ min($loop->index * 0.05, 0.25) }}">
-                    <div class="oeuvre__ph ph" style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}">
+                    <div class="oeuvre__ph ph ph--scroll" style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}">
                         <img src="{{ \App\Support\Contenu::urlImage($p['image'] ?? 'images/cible/campagne-1.jpg') }}"
                              alt="Campagne {{ $p['nom'] ?? $slug }}" loading="lazy">
                     </div>
@@ -145,17 +170,31 @@
             <p class="sur" style="--c:var(--rouge)">Ils nous font confiance</p>
             <h2 class="t-grand" data-lignes>Des marques qui ne laissent rien au hasard.</h2>
         </div>
-        <div class="clients__grille" data-cascade>
-            @foreach([
-                'danone' => 'Danone', 'moov' => 'Moov', 'sipra' => 'Sipra',
-                'bgfibank' => 'BGFIBank', 'banque-atlantique' => 'Banque Atlantique', 'rimco' => 'Rimco',
-                'autre-1' => 'Client', 'autre-2' => 'Client', 'autre-3' => 'Client',
-                'autre-4' => 'Client', 'autre-5' => 'Client', 'autre-6' => 'Client',
-            ] as $f => $nom)
-                <div class="client">
-                    <img src="{{ asset('refonte/client/' . $f . '.png') }}" alt="{{ $nom }}" loading="lazy">
+    </div>
+
+    @php
+        $clients = [
+            'danone' => 'Danone', 'moov' => 'Moov Africa', 'sipra' => 'Sipra',
+            'bgfibank' => 'BGFIBank', 'banque-atlantique' => 'Banque Atlantique', 'rimco' => 'Rimco',
+            'autre-1' => 'Client', 'autre-2' => 'Client', 'autre-3' => 'Client',
+            'autre-4' => 'Client', 'autre-5' => 'Client', 'autre-6' => 'Client',
+        ];
+    @endphp
+
+    <div class="clients__ruban" aria-label="Quelques-uns de nos clients">
+        <div class="clients__piste">
+            {{-- Deux moitiés identiques : translateX(-50%) ne boucle sans
+                 saut qu'à cette condition. --}}
+            @for($passe = 0; $passe < 2; $passe++)
+                <div @if($passe) aria-hidden="true" @endif>
+                    @foreach($clients as $f => $nom)
+                        <div class="client">
+                            <img src="{{ asset('refonte/client/' . $f . '.png') }}"
+                                 alt="{{ $passe ? '' : $nom }}" loading="lazy">
+                        </div>
+                    @endforeach
                 </div>
-            @endforeach
+            @endfor
         </div>
     </div>
 </section>

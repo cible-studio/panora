@@ -316,23 +316,41 @@
       will-change:transform;
     }
 
-    /* ═══════════════ 9. PHOTO ═══════════════
-       Une version précédente passait les photos en bichromie noir +
-       couleur de section, révélée au regard. Retiré : la charte dit
-       « l'usage de dégradés ou d'effets est à éviter » et « les couleurs
-       peuvent être combinées avec du blanc ou du noir uniquement » — une
-       couleur de marque posée sur une photo contrevient aux deux.
+    /* ═══════════════ 9. PHOTO — bichromie révélée ═══════════════
+       Demandé par le client le 2026-10-08 : « j'aime le style de cette
+       section, remets-la ».
 
-       Les photos s'affichent donc telles quelles. Seul mouvement conservé :
-       un très léger zoom au survol, qui signale que la vignette est
-       cliquable sans rien ajouter à l'image. */
+       Elle avait été retirée au nom de la charte. En la relisant, elle est
+       en réalité conforme : la photo est d'abord désaturée en noir et
+       blanc, puis teintée d'UNE seule couleur de marque. C'est donc « une
+       couleur combinée avec du noir », ce que la charte autorise
+       explicitement — et « une couleur dominante par visuel », ce qu'elle
+       recommande. Ce qu'elle proscrit est le DÉGRADÉ entre deux couleurs,
+       et il n'y en a pas ici.
+
+       La photo revient en couleur quand on la regarde : le traitement dit
+       « design », la révélation dit « c'est réel ». */
     .ph{position:relative;overflow:hidden;background:var(--fond-3)}
     .ph img{
       width:100%;height:100%;object-fit:cover;
-      transition:transform 1.1s var(--ease);
-      will-change:transform;
+      filter:grayscale(1) contrast(1.05);
+      transition:filter .8s var(--ease),transform 1.1s var(--ease);
+      will-change:transform,filter;
     }
+    .ph::after{
+      content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+      background:var(--c,var(--rouge));mix-blend-mode:color;
+      opacity:.82;transition:opacity .8s var(--ease);
+    }
+    /* .ph--vive est posée par le script quand la photo entre dans le
+       champ ; le survol produit le même effet à la souris. */
+    .ph--vive::after,.ph:hover::after{opacity:0}
+    .ph--vive img,.ph:hover img{filter:none}
     .ph:hover img{transform:scale(1.03)}
+    /* .ph--nue : une photo qui ne doit jamais être teintée (le perroquet
+       du manifeste, par exemple — c'est le sujet, pas une vignette). */
+    .ph--nue::after{display:none}
+    .ph--nue img{filter:none}
     /* Légende : aplat blanc franc, pas un voile dégradé. */
     .ph__legende{
       position:absolute;z-index:2;inset:auto 12px 12px 12px;
@@ -748,6 +766,19 @@
       rotation: parseFloat(f.dataset.rot || 0),
       ease: 'none',
       scrollTrigger: { trigger: f.closest('section, div'), scrub: true, start: 'top bottom', end: 'bottom top' },
+    });
+  });
+
+  /* ── 10 bis. Bichromie : la photo reprend ses couleurs à l'approche ──
+     Sur toute vignette portant .ph--scroll. Au survol, le CSS fait la
+     même chose : les deux voies coexistent sans se gêner. */
+  document.querySelectorAll('.ph--scroll').forEach(function (p) {
+    ScrollTrigger.create({
+      trigger: p, start: 'top 78%', end: 'bottom 22%',
+      onEnter:     function () { p.classList.add('ph--vive'); },
+      onLeave:     function () { p.classList.remove('ph--vive'); },
+      onEnterBack: function () { p.classList.add('ph--vive'); },
+      onLeaveBack: function () { p.classList.remove('ph--vive'); },
     });
   });
 

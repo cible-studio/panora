@@ -179,7 +179,19 @@
 
    Vignettes réduites au client et au titre, sans paragraphe : la galerie
    doit donner envie d'ouvrir, pas tout raconter. */
-.tr{position:relative;padding-block:0 clamp(60px,8vw,110px)}
+/* Section sur aplat noir, comme la bande du manifeste qui la précède : le
+   manifeste et les travaux forment un seul bloc sombre, et la bichromie
+   des vignettes y ressort bien plus qu'elle ne le ferait sur du blanc.
+   C'est le style que le client a redemandé. */
+.tr{
+  position:relative;background:var(--noir);color:var(--blanc);
+  padding-block:clamp(44px,6vw,76px) clamp(60px,8vw,110px);
+}
+.tr .carte__titre{color:var(--blanc)}
+.tr .t-petit{color:rgba(255,255,255,.76)}
+.tr .bt--clair{background:var(--blanc);color:var(--noir)}
+.tr .bt--clair:hover{background:var(--jaune)}
+.tr .tr__pied{border-top-color:rgba(255,255,255,.16)}
 .tr__grille{
   display:grid;grid-template-columns:repeat(3,1fr);
   gap:clamp(18px,2.4vw,34px) clamp(16px,2vw,28px);
@@ -280,7 +292,7 @@
      rien — c'est la galerie qui argumente. --}}
 <section class="manif">
     <div class="manif__grille">
-        <div class="manif__ph">
+        <div class="manif__ph ph ph--nue">
             <img src="{{ asset('refonte/test/perroquet.webp') }}"
                  alt="Perroquet écarlate — le symbole de la marque CIBLE" loading="lazy">
             <span class="manif__credit">Visuel de test · Unsplash, David Clode</span>
@@ -307,11 +319,11 @@
     <div class="tr__grille" data-cascade>
         @foreach($realisations as $slug => $p)
             <a class="carte" href="{{ route('cible.travaux') }}#{{ $slug }}" data-viseur>
-                <div class="carte__ph ph">
+                <div class="carte__ph ph ph--scroll" style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}">
                     <img src="{{ \App\Support\Contenu::urlImage($p['image'] ?? 'images/cible/campagne-1.jpg') }}"
                          alt="{{ $p['cat'] ?? 'Campagne' }} — {{ $p['nom'] ?? '' }}" loading="lazy">
                 </div>
-                <span class="carte__nom">{{ $p['nom'] ?? $slug }}</span>
+                <span class="carte__nom" style="color:{{ $p['couleur'] ?? 'var(--rouge)' }}">{{ $p['nom'] ?? $slug }}</span>
                 <span class="carte__titre">{{ $p['titre_court'] ?? '' }}</span>
             </a>
         @endforeach
@@ -419,7 +431,7 @@
     </div>
 
     <div class="large">
-        <div class="fin__ph ph" data-rev=".16">
+        <div class="fin__ph ph ph--scroll" style="--c:var(--rouge)" data-rev=".16">
             <img src="{{ asset('refonte/test/foule-festive.webp') }}"
                  alt="Foule rassemblée en plein air" loading="lazy">
             <div class="ph__legende">Visuel de test · Unsplash, Andrey K</div>
