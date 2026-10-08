@@ -225,21 +225,14 @@
       background:rgba(255,255,255,.88);backdrop-filter:blur(14px);
       padding-block:13px;border-bottom:1px solid var(--ligne);
     }
-    /* ── La marque de la barre est le MOTION, pas une image fixe ──
-       Demandé par le client : le logo du coin supérieur gauche joue
-       l'animation. On y met donc la vidéo elle-même, sans la recadrer ni la
-       déformer — la charte interdit l'un et l'autre, et je n'ai aucun moyen
-       de visionner le fichier pour choisir un cadrage à l'aveugle.
+    /* Logo fixe : le logotype porte le slogan « Vous visez juste », il
+       doit donc rester assez grand pour être lu. La charte fixe 24 px comme
+       plancher absolu en digital — on prend de la marge.
 
-       Son fond est blanc, comme la barre : l'animation flotte donc sans
-       bord visible, et on retrouve le logo complet, slogan compris. À 52 px
-       de haut, le logotype inscrit dedans dépasse le plancher de 24 px fixé
-       par la charte.
-
-       ⚠ Coût : 1,6 Mo sur le premier chargement de n'importe quelle page.
-       Mis en cache ensuite, mais une boucle de 2 s en basse définition
-       serait préférable — à demander au studio. L'image fixe reste en
-       repli derrière `poster`, donc rien ne clignote si la vidéo tarde. */
+       ⚠ Le motion a été essayé ici et retiré : son logotype n'occupe qu'une
+       fraction du cadre 16/9, donc réduit à la hauteur d'une barre il
+       devenait illisible, et le cadre blanc se voyait comme une boîte. Un
+       logo est lisible avant d'être animé. */
     .nav__logo{display:block;line-height:0}
     .nav__logo video,.nav__logo img{
       height:52px;width:auto;display:block;background:var(--blanc);
@@ -486,14 +479,7 @@
 
 <header class="nav" id="nav">
     <a class="nav__logo" href="{{ route('cible.home') }}" data-viseur aria-label="CIBLE — accueil">
-        {{-- Le motion tient lieu de logo. `poster` affiche le logo fixe
-             pendant le chargement, et reste visible si la lecture
-             automatique est refusée — la marque ne disparaît jamais.
-             muted + playsinline : sans eux, Safari iOS refuse l'autoplay. --}}
-        <video src="{{ \App\Support\Contenu::urlDatee('refonte/motion/perroquet-blanc.mp4') }}"
-               autoplay muted loop playsinline preload="auto"
-               poster="{{ \App\Support\Contenu::urlDatee('images/logol.png') }}"
-               aria-hidden="true"></video>
+        <img src="{{ \App\Support\Contenu::urlDatee('images/logol.png') }}" alt="CIBLE">
     </a>
     <nav class="nav__liens">
         @foreach($pages as $cle => [$nom, $url])

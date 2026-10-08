@@ -1,87 +1,122 @@
 @extends('public.cible._coque', ['titre' => 'Accueil', 'actuelle' => 'accueil'])
 
 @push('css')
-/* ═══════════════ HÉRO — TYPOGRAPHIE ET BANDE VIVANTE ═══════════════
-   Troisième direction, demandée par le client le 2026-10-08 : plus simple,
-   moderne, dynamique, et SANS le motion — celui-ci a rejoint la barre de
-   navigation, où il tient lieu de logo.
+/* ═══════════════ HÉRO — LE MUR ═══════════════
+   Le client juge la version précédente « trop simple et basique, n'importe
+   qui peut le faire », et rappelle que CIBLE est une agence 360 et digitale
+   qui doit tenir le niveau de la concurrence. Vidéo, photo et animation
+   sont autorisées.
 
-   Le héro n'a donc plus de pièce animée à montrer. Plutôt que de le laisser
-   en page de texte immobile, le mouvement vient d'une bande de travaux qui
-   défile en continu en bas de l'écran. Deux bénéfices : le mouvement ne
-   coûte aucune vidéo supplémentaire, et il montre le travail dès la
-   première seconde — la discipline de la référence citée par le client.
+   Le principe : ne pas DÉCRIRE le métier, le MONTRER. Le fond est un mur de
+   campagnes en mouvement perpétuel — trois colonnes qui défilent à des
+   vitesses et dans des sens différents, comme un paysage urbain qu'on
+   traverse. Par-dessus, deux objets seulement : une carte blanche qui porte
+   le manifeste, et le panneau du motion.
 
-   Composition : le manifeste occupe toute la largeur, donc il retrouve son
-   grand corps (jusqu'à 74 px, validé par calcul de 390 à 1920 px), et la
-   bande occupe le tiers bas. Deux éléments, pas plus. */
+   Pourquoi ça tient debout plutôt que de faire bazar :
+     · le mur est en bichromie rouge, donc monochrome : il se lit comme une
+       TEXTURE et ne rivalise pas avec le premier plan. C'est aussi « une
+       couleur combinée avec du noir », ce que la charte autorise ;
+     · le manifeste est sur une carte BLANCHE, donc son mot en rouge reste
+       permis — sur le noir, la charte l'interdirait ;
+     · un seul élément vraiment animé au premier plan, le motion. Le mur,
+       lui, bouge lentement et sans à-coups.
+
+   Le mouvement est purement CSS : aucune vidéo supplémentaire, aucun script.
+   Il s'arrête net en mouvement réduit. */
 .hero{
-  min-height:100svh;
-  display:grid;grid-template-rows:1fr auto;
-  position:relative;overflow:hidden;
+  position:relative;min-height:100svh;
+  background:var(--noir);overflow:hidden;
+  display:grid;align-items:center;
 }
 
-/* ── Le dit : manifeste, accroche, actions, repères ── */
-.hero__dire{
-  align-self:center;
-  padding:clamp(104px,13vh,140px) var(--pad) clamp(30px,4vh,52px);
-  position:relative;z-index:2;max-width:1480px;margin-inline:auto;width:100%;
+/* ── Le mur : trois colonnes de campagnes en défilement perpétuel ──
+   Débordement volontaire en haut et en bas (inset négatif) : sans lui, on
+   verrait le raccord des deux moitiés en bord d'écran. */
+.mur{
+  position:absolute;inset:-8% 0;z-index:0;
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:clamp(10px,1vw,16px);padding-inline:clamp(10px,1vw,16px);
+  pointer-events:none;
+}
+.mur__col{display:flex;flex-direction:column;animation:murMonte 46s linear infinite}
+/* Sens et vitesses différents : c'est ce décalage qui donne la sensation de
+   profondeur, plutôt qu'un seul bloc qui glisse. */
+.mur__col:nth-child(2){animation-name:murDescend;animation-duration:58s}
+.mur__col:nth-child(3){animation-duration:38s}
+.mur__col > div{display:flex;flex-direction:column;gap:clamp(10px,1vw,16px);padding-bottom:clamp(10px,1vw,16px)}
+@keyframes murMonte{to{transform:translateY(-50%)}}
+@keyframes murDescend{from{transform:translateY(-50%)}to{transform:translateY(0)}}
+@media (prefers-reduced-motion:reduce){.mur__col{animation:none}}
+/* Sous 900 px le mur passe à une colonne et perd son mouvement : trois
+   colonnes animées sur un téléphone en 3G coûtent plus qu'elles
+   n'apportent. */
+@media(max-width:900px){
+  .mur{grid-template-columns:1fr;inset:0}
+  .mur__col{animation:none}
+  .mur__col:nth-child(n+2){display:none}
+}
+.mur .tuile{aspect-ratio:4/5;border-radius:clamp(10px,1vw,16px);overflow:hidden;flex:0 0 auto}
+
+/* ── Le premier plan ── */
+.hero__avant{
+  position:relative;z-index:2;width:100%;
+  max-width:1480px;margin-inline:auto;
+  padding:clamp(104px,13vh,140px) var(--pad) clamp(40px,6vh,70px);
+  display:grid;grid-template-columns:1.02fr .98fr;
+  gap:clamp(20px,2.6vw,42px);align-items:center;
+}
+@media(max-width:1040px){.hero__avant{grid-template-columns:1fr;gap:22px}}
+
+/* La carte blanche : le manifeste y est chez lui, et le mot rouge permis. */
+.carte-h{
+  background:var(--blanc);
+  border-radius:clamp(18px,2vw,28px);
+  padding:clamp(28px,3.4vw,54px);
+  box-shadow:0 40px 100px -40px rgba(0,0,0,.8);
 }
 .hero .sur{--c:var(--rouge)}
-.hero__filet{width:56px;height:4px;background:var(--rouge);border-radius:4px;margin-top:16px}
-.hero__titre{margin-top:20px}
+.hero__filet{width:52px;height:4px;background:var(--rouge);border-radius:4px;margin-top:14px}
+.hero__titre{
+  margin-top:18px;
+  font-size:clamp(27px,3vw,44px);line-height:1.06;letter-spacing:-.03em;
+}
 .hero__titre .l{display:block}
 .hero__titre em{font-style:normal;color:var(--rouge)}
-
-.hero__bas{
-  display:grid;grid-template-columns:1fr auto;
-  gap:clamp(22px,3.5vw,56px);align-items:end;margin-top:clamp(24px,3vw,38px);
-}
-@media(max-width:900px){.hero__bas{grid-template-columns:1fr;align-items:start;gap:22px}}
-.hero__sous{font-size:clamp(15.5px,1.4vw,18px);line-height:1.6;color:var(--texte-2);max-width:48ch}
-.hero__actions{display:flex;flex-wrap:wrap;gap:11px}
-
+.hero__sous{margin-top:16px;font-size:15.5px;line-height:1.6;color:var(--texte-2);max-width:44ch}
+.hero__actions{display:flex;flex-wrap:wrap;gap:11px;margin-top:24px}
 .hero__reperes{
-  display:flex;gap:clamp(20px,3vw,46px);flex-wrap:wrap;
-  margin-top:clamp(22px,3vh,34px);padding-top:18px;
+  display:flex;gap:clamp(16px,2vw,32px);flex-wrap:wrap;
+  margin-top:clamp(22px,3vh,32px);padding-top:16px;
   border-top:1px solid var(--ligne);
-  font-family:var(--titre);font-weight:700;font-size:11.5px;
+  font-family:var(--titre);font-weight:700;font-size:11px;
   letter-spacing:.11em;text-transform:uppercase;color:var(--texte-3);
 }
-.hero__reperes b{display:block;font-family:var(--chiffres);font-size:clamp(20px,2vw,26px);
+.hero__reperes b{display:block;font-family:var(--chiffres);font-size:clamp(19px,1.9vw,24px);
   letter-spacing:-.02em;color:var(--noir);font-weight:900;margin-bottom:2px}
 
-/* ── La bande : le mouvement, et le travail ──
-   Bord à bord, hors du conteneur : une bande qui s'arrête avant le bord de
-   l'écran ne défile pas, elle glisse dans une boîte.
-
-   ⚠ L'écart entre les deux moitiés est porté par un padding-right et NON
-   par un gap : translateX(-50%) ne boucle sans saut que si la seconde
-   moitié est la copie exacte de la première, écart compris. Déjà le piège
-   du ruban et du bandeau de logos. */
-.hero__bande{
-  position:relative;overflow:hidden;
-  border-top:1px solid var(--ligne);
-  background:var(--fond-2);
-  padding-block:clamp(16px,2vh,26px);
+/* Le panneau du motion : une face éclairée posée sur le mur sombre. C'est
+   ici que son fond blanc devient un atout, et non une boîte parasite comme
+   dans la barre de navigation. */
+.hero__panneau{
+  position:relative;width:100%;aspect-ratio:16/9;
+  border-radius:clamp(12px,1.4vw,20px);overflow:hidden;
+  background:var(--blanc);
+  box-shadow:0 40px 100px -40px rgba(0,0,0,.85);
 }
-.hero__piste{display:flex;width:max-content;animation:bande 52s linear infinite}
-.hero__piste:hover{animation-play-state:paused}
-.hero__piste > div{display:flex;gap:clamp(12px,1.4vw,20px);padding-right:clamp(12px,1.4vw,20px);flex:0 0 auto}
-@keyframes bande{to{transform:translateX(-50%)}}
-@media (prefers-reduced-motion:reduce){.hero__piste{animation:none}}
-
-.tuile{
-  position:relative;flex:0 0 auto;
-  width:clamp(196px,19vw,300px);aspect-ratio:16/10;
-  border-radius:12px;overflow:hidden;
-}
-.tuile__nom{
-  position:absolute;z-index:3;inset:auto 10px 10px 10px;
+@media(max-width:560px){.hero__panneau{aspect-ratio:4/3}}
+/* Vidéo et panneau en 16/9 : `cover` ne rogne rien et ne laisse aucune
+   bordure blanche. */
+.hero__panneau video{width:100%;height:100%;object-fit:cover;background:var(--blanc);display:block}
+.hero__panneau::after{content:"";position:absolute;inset:auto 0 0 0;height:4px;z-index:2;background:var(--rouge)}
+.hero__etiq{
+  position:absolute;z-index:3;top:13px;left:13px;
+  display:flex;align-items:center;gap:8px;
+  padding:7px 13px;border-radius:999px;background:var(--noir);color:var(--blanc);
   font-family:var(--titre);font-weight:800;font-size:10px;
-  letter-spacing:.14em;text-transform:uppercase;color:var(--blanc);
-  text-shadow:0 1px 6px rgba(0,0,0,.55);
+  letter-spacing:.14em;text-transform:uppercase;
 }
+.hero__etiq b{width:6px;height:6px;border-radius:50%;background:var(--rouge);animation:bat 2s ease-in-out infinite}
 
 /* ═══════════════ MANIFESTE ═══════════════
    « Vous visez juste » prend le rang qu'occupe « Truth Well Told » chez
@@ -205,28 +240,63 @@
 
 @section('contenu')
 
-{{-- ═══════════════════════ HÉRO ═══════════════════════ --}}
+{{-- ═══════════════════════ HÉRO — LE MUR ═══════════════════════ --}}
 <section class="hero" id="hero">
 
-    <div class="hero__dire">
-        <p class="sur" data-rev>Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
-        <div class="hero__filet" data-rev=".06"></div>
+    {{-- Le mur de campagnes. Purement décoratif : aria-hidden, et les
+         vignettes ne sont pas cliquables — la galerie de travaux est juste
+         en dessous et fait ce travail. Chaque colonne contient ses tuiles
+         en DOUBLE, condition pour que translateY(-50%) boucle sans saut. --}}
+    <div class="mur" aria-hidden="true">
+        @php
+            // Trois colonnes décalées, pour que deux voisines ne montrent
+            // jamais la même campagne à la même hauteur.
+            $visuels = collect($realisations)->values();
+            $colonnes = [
+                $visuels->all(),
+                $visuels->reverse()->values()->all(),
+                $visuels->shuffle()->all(),
+            ];
+        @endphp
+        @foreach($colonnes as $colonne)
+            <div class="mur__col">
+                @for($passe = 0; $passe < 2; $passe++)
+                    <div>
+                        @foreach($colonne as $p)
+                            <div class="tuile ph" style="--c:var(--rouge)">
+                                <img src="{{ \App\Support\Contenu::urlImage($p['image'] ?? 'images/cible/campagne-1.jpg') }}"
+                                     alt="" loading="lazy">
+                            </div>
+                        @endforeach
+                    </div>
+                @endfor
+            </div>
+        @endforeach
+    </div>
 
-        {{-- Lignes posées à la main pour garder le <em> rouge, que le
-             découpeur automatique effacerait en reconstruisant le HTML
-             depuis le texte seul. --}}
-        <h1 class="t-geant hero__titre" data-cascade>
-            <span class="l">Nous ne vendons pas d'espace.</span>
-            <span class="l"><em>Nous vendons de l'attention.</em></span>
-        </h1>
+    <div class="hero__avant">
 
-        <div class="hero__bas">
-            <p class="hero__sous" data-rev=".26">
-                +400 panneaux dans 31 communes, trente ans de terrain, et la preuve
-                photo de chaque pose. Voilà ce qu'on met derrière votre message.
+        {{-- La carte blanche : le manifeste, et son mot en rouge. --}}
+        <div class="carte-h" data-rev>
+            <p class="sur">Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
+            <div class="hero__filet"></div>
+
+            {{-- Lignes posées à la main pour garder le <em> rouge, que le
+                 découpeur automatique effacerait en reconstruisant le HTML
+                 depuis le texte seul. --}}
+            <h1 class="hero__titre" data-cascade>
+                <span class="l">Nous ne vendons</span>
+                <span class="l">pas d'espace.</span>
+                <span class="l"><em>Nous vendons</em></span>
+                <span class="l"><em>de l'attention.</em></span>
+            </h1>
+
+            <p class="hero__sous">
+                Affichage, digital, terrain et pilotage par la donnée. Quatre leviers,
+                +400 panneaux dans 31 communes, et la preuve photo de chaque pose.
             </p>
 
-            <div class="hero__actions" data-rev=".34">
+            <div class="hero__actions">
                 <a class="bt" href="{{ route('cible.contact') }}" data-viseur>
                     Parler de mon projet<i class="fl"></i>
                 </a>
@@ -234,33 +304,25 @@
                     Voir nos travaux
                 </a>
             </div>
+
+            <div class="hero__reperes">
+                <span><b>+400</b> panneaux</span>
+                <span><b>31</b> communes</span>
+                <span><b>30</b> ans</span>
+                <span><b>03</b> distinctions</span>
+            </div>
         </div>
 
-        <div class="hero__reperes" data-rev=".42">
-            <span><b>+400</b> panneaux</span>
-            <span><b>31</b> communes</span>
-            <span><b>30</b> ans de terrain</span>
-            <span><b>03</b> distinctions d'État</span>
-        </div>
-    </div>
-
-    {{-- La bande qui défile : le mouvement du héro, et le travail montré
-         d'emblée. Deux moitiés identiques pour que la boucle ne saute pas. --}}
-    <div class="hero__bande">
-        <div class="hero__piste">
-            @for($passe = 0; $passe < 2; $passe++)
-                <div @if($passe) aria-hidden="true" @endif>
-                    @foreach($realisations as $slug => $p)
-                        <a class="tuile ph ph--vive" href="{{ route('cible.travaux') }}#{{ $slug }}"
-                           style="--c:{{ $p['couleur'] ?? 'var(--rouge)' }}" data-viseur
-                           @if($passe) tabindex="-1" aria-hidden="true" @endif>
-                            <img src="{{ \App\Support\Contenu::urlImage($p['image'] ?? 'images/cible/campagne-1.jpg') }}"
-                                 alt="{{ $passe ? '' : ($p['cat'] ?? '') . ' — ' . ($p['nom'] ?? '') }}" loading="lazy">
-                            <span class="tuile__nom">{{ $p['nom'] ?? $slug }}</span>
-                        </a>
-                    @endforeach
-                </div>
-            @endfor
+        {{-- Le panneau du motion : une face éclairée sur le mur sombre.
+             Motion du client : fond blanc, 1920×1080, 7 s, sans piste
+             audio. muted + playsinline sont obligatoires, sans eux Safari
+             iOS refuse la lecture automatique. --}}
+        <div class="hero__panneau" id="panneau" data-rev=".14">
+            <span class="hero__etiq"><b></b> En exploitation</span>
+            <video src="{{ \App\Support\Contenu::urlDatee('refonte/motion/perroquet-blanc.mp4') }}"
+                   autoplay muted loop playsinline preload="metadata"
+                   poster="{{ \App\Support\Contenu::urlDatee('images/logol.png') }}"
+                   aria-label="Animation du logo CIBLE"></video>
         </div>
     </div>
 </section>
