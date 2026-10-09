@@ -154,6 +154,62 @@
 .hero__leviers i{width:8px;height:8px;border-radius:50%;background:var(--c)}
 @media(max-width:560px){.hero__leviers{gap:6px 12px;letter-spacing:.1em}}
 
+/* 2026-10-09 — Styles des sections PREUVE (chiffres) et EXPERTISES (quatre
+   métiers) rétablis : supprimés par erreur avec le CSS de l'ancien héro
+   (commit « héro en écran scindé », 2026-10-08), ces deux sections
+   s'affichaient en texte brut. Repris à l'identique. */
+/* ═══════════════ PREUVE ═══════════════ */
+.preuve{padding:clamp(56px,7vw,92px) var(--pad)}
+.preuve__grille{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(16px,2.4vw,34px)}
+@media(max-width:880px){.preuve__grille{grid-template-columns:repeat(2,1fr)}}
+.chiffre{padding-top:22px;border-top:2px solid var(--c)}
+.chiffre__v{
+  font-family:var(--titre);font-weight:900;
+  font-size:clamp(42px,6.4vw,92px);line-height:.88;letter-spacing:-.05em;
+  display:flex;align-items:baseline;gap:2px;
+}
+.chiffre__v i{font-style:normal;color:var(--rouge);font-size:.52em}
+.chiffre__l{font-family:var(--titre);font-weight:700;font-size:13px;margin-top:12px;color:var(--texte-2);line-height:1.35}
+
+/* ═══════════════ EXPERTISES ═══════════════ */
+.exp{background:var(--fond-2);border-block:1px solid var(--ligne)}
+.exp__liste{margin-top:clamp(38px,5vw,64px);border-top:1px solid var(--ligne)}
+.exp__item{
+  display:grid;grid-template-columns:76px 1fr minmax(0,.78fr) 54px;
+  gap:clamp(14px,2.6vw,40px);align-items:center;
+  padding:clamp(22px,3vw,34px) 0;border-bottom:1px solid var(--ligne);
+  position:relative;transition:padding-left .5s var(--ease);
+}
+.exp__item::before{
+  content:"";position:absolute;inset:0;z-index:0;
+  background:var(--fond-2);
+  opacity:0;transition:opacity .5s var(--ease);
+}
+.exp__item:hover{padding-left:clamp(12px,2vw,28px)}
+.exp__item:hover::before{opacity:1}
+.exp__item > *{position:relative;z-index:1}
+.exp__n{font-family:var(--titre);font-weight:900;font-size:13px;color:var(--rouge);letter-spacing:.1em}
+.exp__nom{font-family:var(--titre);font-weight:900;font-size:clamp(20px,2.7vw,38px);letter-spacing:-.028em;line-height:1.04}
+.exp__txt{color:var(--texte-2);font-size:15px;line-height:1.55}
+.exp__fl{
+  width:46px;height:46px;border-radius:50%;justify-self:end;
+  display:grid;place-items:center;box-shadow:inset 0 0 0 1.5px var(--ligne);
+  transition:background .4s,box-shadow .4s,transform .4s var(--ease);
+}
+.exp__item:hover .exp__fl{background:var(--c);box-shadow:inset 0 0 0 1.5px var(--c);transform:rotate(-45deg)}
+.exp__item:hover .exp__fl i{background:#fff}
+.exp__fl i{
+  width:16px;height:16px;background:var(--noir);
+  -webkit-mask:url('{{ asset('images/fleche.svg') }}') no-repeat center/contain;
+  mask:url('{{ asset('images/fleche.svg') }}') no-repeat center/contain;
+}
+@media(max-width:880px){
+  .exp__item{grid-template-columns:48px 1fr;gap:12px 16px}
+  .exp__txt{grid-column:2;margin-top:6px}
+  .exp__fl{display:none}
+}
+
+
 /* ═══════════════ MANIFESTE ═══════════════
    « Vous visez juste » prend le rang qu'occupe « Truth Well Told » chez
    la référence citée : seul, grand, juste avant les travaux. Il était
