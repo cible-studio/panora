@@ -1,4 +1,4 @@
-@extends('public.cible._coque', ['titre' => 'Accueil', 'actuelle' => 'accueil'])
+@extends('public.cible._coque', ['titre' => 'Accueil', 'actuelle' => 'accueil', 'navSombre' => true])
 
 @push('css')
 /* ═══════════════ HÉRO — LE MUR ═══════════════
@@ -95,28 +95,64 @@
 .hero__reperes b{display:block;font-family:var(--chiffres);font-size:clamp(19px,1.9vw,24px);
   letter-spacing:-.02em;color:var(--noir);font-weight:900;margin-bottom:2px}
 
-/* Le panneau du motion : une face éclairée posée sur le mur sombre. C'est
-   ici que son fond blanc devient un atout, et non une boîte parasite comme
-   dans la barre de navigation. */
+/* Le panneau du logo animé (2026-10-09).
+   ⚠ Le motion vidéo a son fond blanc incrusté dans l'image : posé sur le
+   mur, il formait une boîte blanche (retour client). On l'anime donc en
+   CSS à partir du logo PNG transparent (logon.png, texte blanc) : la roue
+   des cinq couleurs apparaît en balayage circulaire autour de l'œil, puis
+   le nom « CIBLE · Vous visez juste » se dévoile. Aucun fond blanc, net à
+   toutes les tailles, quelques Ko au lieu d'une vidéo.
+   Sous l'étiquette « En exploitation » retirée : les quatre leviers du
+   métier, chacun porté par une couleur du symbole. */
 .hero__panneau{
   position:relative;width:100%;aspect-ratio:16/9;
   border-radius:clamp(12px,1.4vw,20px);overflow:hidden;
-  background:var(--blanc);
+  background:var(--noir);
   box-shadow:0 40px 100px -40px rgba(0,0,0,.85);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:clamp(16px,2.4vw,30px);padding:clamp(20px,3vw,40px);
 }
 @media(max-width:560px){.hero__panneau{aspect-ratio:4/3}}
-/* Vidéo et panneau en 16/9 : `cover` ne rogne rien et ne laisse aucune
-   bordure blanche. */
-.hero__panneau video{width:100%;height:100%;object-fit:cover;background:var(--blanc);display:block}
 .hero__panneau::after{content:"";position:absolute;inset:auto 0 0 0;height:4px;z-index:2;background:var(--rouge)}
-.hero__etiq{
-  position:absolute;z-index:3;top:13px;left:13px;
-  display:flex;align-items:center;gap:8px;
-  padding:7px 13px;border-radius:999px;background:var(--noir);color:var(--blanc);
-  font-family:var(--titre);font-weight:800;font-size:10px;
-  letter-spacing:.14em;text-transform:uppercase;
+
+.logo-anim{position:relative;width:min(84%,520px);aspect-ratio:2699/1438}
+.logo-anim img{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* Angle du balayage : propriété typée pour pouvoir l'animer. Sans prise en
+   charge, la valeur initiale (360deg) affiche simplement le logo entier. */
+@property --balayage{syntax:'<angle>';inherits:false;initial-value:360deg}
+/* La roue et le « C » occupent la partie gauche (47 % de la largeur) ;
+   l'œil, centre du balayage, est à 25 % / 52,6 % de l'image. */
+.logo-anim__roue{
+  clip-path:inset(0 52.8% 0 0);
+  -webkit-mask:conic-gradient(from 0deg at 25% 52.6%,#000 var(--balayage),transparent 0);
+          mask:conic-gradient(from 0deg at 25% 52.6%,#000 var(--balayage),transparent 0);
+  transform-origin:25% 52.6%;
+  animation:roue 9s var(--ease) infinite;
 }
-.hero__etiq b{width:6px;height:6px;border-radius:50%;background:var(--rouge);animation:bat 2s ease-in-out infinite}
+.logo-anim__nom{clip-path:inset(0 0 0 47.2%);animation:nom 9s var(--ease) infinite}
+@keyframes roue{
+  0%  {--balayage:0deg;opacity:1;transform:scale(.94)}
+  20% {--balayage:360deg;transform:scale(1)}
+  88% {--balayage:360deg;opacity:1;transform:scale(1)}
+  96%,100%{--balayage:360deg;opacity:0;transform:scale(1)}
+}
+@keyframes nom{
+  0%,16%{clip-path:inset(0 52.8% 0 47.2%);opacity:1}
+  32%   {clip-path:inset(0 0 0 47.2%)}
+  88%   {clip-path:inset(0 0 0 47.2%);opacity:1}
+  96%,100%{clip-path:inset(0 0 0 47.2%);opacity:0}
+}
+@media (prefers-reduced-motion:reduce){.logo-anim__roue,.logo-anim__nom{animation:none}}
+
+/* Les quatre leviers, apparition en cascade après le logo. */
+.hero__leviers{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:8px 18px;
+  font-family:var(--titre);font-weight:700;font-size:clamp(10px,.9vw,12px);
+  letter-spacing:.16em;text-transform:uppercase;color:var(--blanc);
+}
+.hero__leviers span{display:flex;align-items:center;gap:8px}
+.hero__leviers i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+@media(max-width:560px){.hero__leviers{gap:6px 12px;letter-spacing:.1em}}
 
 /* ═══════════════ MANIFESTE ═══════════════
    « Vous visez juste » prend le rang qu'occupe « Truth Well Told » chez
@@ -313,16 +349,20 @@
             </div>
         </div>
 
-        {{-- Le panneau du motion : une face éclairée sur le mur sombre.
-             Motion du client : fond blanc, 1920×1080, 7 s, sans piste
-             audio. muted + playsinline sont obligatoires, sans eux Safari
-             iOS refuse la lecture automatique. --}}
+        {{-- Le panneau du logo : animation CSS sur le logo transparent
+             (cf. .logo-anim). Deux calques du même PNG : la roue, révélée
+             en balayage, et le nom, dévoilé de gauche à droite. --}}
         <div class="hero__panneau" id="panneau" data-rev=".14">
-            <span class="hero__etiq"><b></b> En exploitation</span>
-            <video src="{{ \App\Support\Contenu::urlDatee('refonte/motion/perroquet-blanc.mp4') }}"
-                   autoplay muted loop playsinline preload="metadata"
-                   poster="{{ \App\Support\Contenu::urlDatee('images/logol.png') }}"
-                   aria-label="Animation du logo CIBLE"></video>
+            <div class="logo-anim" role="img" aria-label="CIBLE — Vous visez juste">
+                <img class="logo-anim__roue" src="{{ \App\Support\Contenu::urlDatee('images/logon.png') }}" alt="">
+                <img class="logo-anim__nom"  src="{{ \App\Support\Contenu::urlDatee('images/logon.png') }}" alt="">
+            </div>
+            <div class="hero__leviers">
+                <span style="--c:var(--rouge)"><i></i>Affichage</span>
+                <span style="--c:var(--bleu)"><i></i>Digital</span>
+                <span style="--c:var(--vert)"><i></i>Terrain</span>
+                <span style="--c:var(--jaune)"><i></i>Data</span>
+            </div>
         </div>
     </div>
 </section>

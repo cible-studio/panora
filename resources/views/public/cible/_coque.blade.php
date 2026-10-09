@@ -234,9 +234,24 @@
        devenait illisible, et le cadre blanc se voyait comme une boîte. Un
        logo est lisible avant d'être animé. */
     .nav__logo{display:block;line-height:0}
+    /* 2026-10-09 — Plus de fond blanc : le PNG est transparent, c'est ce
+       fond qui formait une boîte blanche sur le héro sombre. Deux versions
+       du logo : texte noir (barre claire) et texte blanc (barre sombre). */
     .nav__logo video,.nav__logo img{
-      height:52px;width:auto;display:block;background:var(--blanc);
+      height:52px;width:auto;display:block;
     }
+    .nav__logo .logo-sombre{display:none}
+    /* Barre « sur fond sombre » (page qui la demande, ex. accueil) tant
+       qu'on n'a pas défilé : aplat noir, logo blanc, liens blancs. Sans
+       cet aplat, les liens se perdaient dans les photos du héro. */
+    .nav.sur-sombre:not(.pose){background:var(--noir)}
+    .nav.sur-sombre:not(.pose) .logo-clair{display:none}
+    .nav.sur-sombre:not(.pose) .logo-sombre{display:block}
+    .nav.sur-sombre:not(.pose) .nav__liens a{color:rgba(255,255,255,.82)}
+    .nav.sur-sombre:not(.pose) .nav__liens a:hover,
+    .nav.sur-sombre:not(.pose) .nav__liens a[aria-current="page"]{color:var(--blanc);background:rgba(255,255,255,.1)}
+    .nav.sur-sombre:not(.pose) .burger{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.06)}
+    .nav.sur-sombre:not(.pose) .burger span{background:var(--blanc)}
     .nav.pose .nav__logo video,.nav.pose .nav__logo img{height:44px}
     .nav__logo video,.nav__logo img{transition:height .4s var(--ease)}
     @media(max-width:600px){
@@ -477,9 +492,10 @@
     $actuelle = $actuelle ?? 'accueil';
 @endphp
 
-<header class="nav" id="nav">
+<header class="nav{{ !empty($navSombre) ? ' sur-sombre' : '' }}" id="nav">
     <a class="nav__logo" href="{{ route('cible.home') }}" data-viseur aria-label="CIBLE — accueil">
-        <img src="{{ \App\Support\Contenu::urlDatee('images/logol.png') }}" alt="CIBLE">
+        <img class="logo-clair" src="{{ \App\Support\Contenu::urlDatee('images/logol.png') }}" alt="CIBLE">
+        <img class="logo-sombre" src="{{ \App\Support\Contenu::urlDatee('images/logon.png') }}" alt="CIBLE">
     </a>
     <nav class="nav__liens">
         @foreach($pages as $cle => [$nom, $url])
