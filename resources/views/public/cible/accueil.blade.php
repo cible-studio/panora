@@ -95,57 +95,44 @@
 .hero__reperes b{display:block;font-family:var(--chiffres);font-size:clamp(19px,1.9vw,24px);
   letter-spacing:-.02em;color:var(--noir);font-weight:900;margin-bottom:2px}
 
-/* Le panneau du logo animé (2026-10-09).
-   ⚠ Le motion vidéo a son fond blanc incrusté dans l'image : posé sur le
-   mur, il formait une boîte blanche (retour client). On l'anime donc en
-   CSS à partir du logo PNG transparent (logon.png, texte blanc) : la roue
-   des cinq couleurs apparaît en balayage circulaire autour de l'œil, puis
-   le nom « CIBLE · Vous visez juste » se dévoile. Aucun fond blanc, net à
-   toutes les tailles, quelques Ko au lieu d'une vidéo.
-   Sous l'étiquette « En exploitation » retirée : les quatre leviers du
-   métier, chacun porté par une couleur du symbole. */
+/* Le panneau du motion (2026-10-09).
+   Le motion d'origine du client est conservé tel quel (retour client :
+   « garde le motion d'origine »). Son fond blanc est incrusté dans la
+   vidéo : posé tel quel, il formait une boîte blanche sur le mur. On le
+   DÉTOURE donc en direct : chaque image de la vidéo est redessinée dans un
+   <canvas>, le blanc devient transparent et le noir (lettres, contour)
+   passe en blanc pour rester lisible sur le panneau noir. Les couleurs de
+   la roue sont conservées. Voir le script en bas de page.
+   Repli (mouvement réduit, navigateur sans canvas) : le logo fixe pour fond
+   sombre (logon.png), sans fond blanc. */
 .hero__panneau{
   position:relative;width:100%;aspect-ratio:16/9;
   border-radius:clamp(12px,1.4vw,20px);overflow:hidden;
   background:var(--noir);
   box-shadow:0 40px 100px -40px rgba(0,0,0,.85);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:clamp(16px,2.4vw,30px);padding:clamp(20px,3vw,40px);
 }
 @media(max-width:560px){.hero__panneau{aspect-ratio:4/3}}
 .hero__panneau::after{content:"";position:absolute;inset:auto 0 0 0;height:4px;z-index:2;background:var(--rouge)}
-
-.logo-anim{position:relative;width:min(84%,520px);aspect-ratio:2699/1438}
-.logo-anim img{position:absolute;inset:0;width:100%;height:100%;display:block}
-/* Angle du balayage : propriété typée pour pouvoir l'animer. Sans prise en
-   charge, la valeur initiale (360deg) affiche simplement le logo entier. */
-@property --balayage{syntax:'<angle>';inherits:false;initial-value:360deg}
-/* La roue et le « C » occupent la partie gauche (47 % de la largeur) ;
-   l'œil, centre du balayage, est à 25 % / 52,6 % de l'image. */
-.logo-anim__roue{
-  clip-path:inset(0 52.8% 0 0);
-  -webkit-mask:conic-gradient(from 0deg at 25% 52.6%,#000 var(--balayage),transparent 0);
-          mask:conic-gradient(from 0deg at 25% 52.6%,#000 var(--balayage),transparent 0);
-  transform-origin:25% 52.6%;
-  animation:roue 9s var(--ease) infinite;
+/* La vidéo ne s'affiche pas : elle alimente le canvas. Gardée « visible »
+   (1 px, opacité nulle) car certains navigateurs cessent de décoder une
+   vidéo en display:none. */
+.hero__panneau video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.hero__panneau canvas{
+  position:absolute;inset:0 0 14% 0;width:100%;height:86%;
+  object-fit:contain;display:block;opacity:0;
 }
-.logo-anim__nom{clip-path:inset(0 0 0 47.2%);animation:nom 9s var(--ease) infinite}
-@keyframes roue{
-  0%  {--balayage:0deg;opacity:1;transform:scale(.94)}
-  20% {--balayage:360deg;transform:scale(1)}
-  88% {--balayage:360deg;opacity:1;transform:scale(1)}
-  96%,100%{--balayage:360deg;opacity:0;transform:scale(1)}
+.hero__panneau .logo-repli{
+  position:absolute;left:50%;top:43%;transform:translate(-50%,-50%);
+  width:min(70%,460px);height:auto;
 }
-@keyframes nom{
-  0%,16%{clip-path:inset(0 52.8% 0 47.2%);opacity:1}
-  32%   {clip-path:inset(0 0 0 47.2%)}
-  88%   {clip-path:inset(0 0 0 47.2%);opacity:1}
-  96%,100%{clip-path:inset(0 0 0 47.2%);opacity:0}
-}
-@media (prefers-reduced-motion:reduce){.logo-anim__roue,.logo-anim__nom{animation:none}}
+/* Bascule franche, sans fondu : logo de secours et motion n'ont pas la
+   même taille, un fondu les superposerait un instant. */
+.hero__panneau.pret canvas{opacity:1}
+.hero__panneau.pret .logo-repli{opacity:0}
 
 /* Les quatre leviers, apparition en cascade après le logo. */
 .hero__leviers{
+  position:absolute;left:0;right:0;bottom:clamp(16px,2.6vw,30px);z-index:3;
   display:flex;flex-wrap:wrap;justify-content:center;gap:8px 18px;
   font-family:var(--titre);font-weight:700;font-size:clamp(10px,.9vw,12px);
   letter-spacing:.16em;text-transform:uppercase;color:var(--blanc);
@@ -405,14 +392,15 @@
             </div>
         </div>
 
-        {{-- Le panneau du logo : animation CSS sur le logo transparent
-             (cf. .logo-anim). Deux calques du même PNG : la roue, révélée
-             en balayage, et le nom, dévoilé de gauche à droite. --}}
+        {{-- Le panneau du motion : la vidéo d'origine, détourée en direct
+             dans le canvas (cf. script en bas de page). muted + playsinline
+             sont obligatoires, sans eux Safari iOS refuse la lecture
+             automatique. --}}
         <div class="hero__panneau" id="panneau" data-rev=".14">
-            <div class="logo-anim" role="img" aria-label="CIBLE — Vous visez juste">
-                <img class="logo-anim__roue" src="{{ \App\Support\Contenu::urlDatee('images/logon.png') }}" alt="">
-                <img class="logo-anim__nom"  src="{{ \App\Support\Contenu::urlDatee('images/logon.png') }}" alt="">
-            </div>
+            <video src="{{ \App\Support\Contenu::urlDatee('refonte/motion/perroquet-blanc.mp4') }}"
+                   autoplay muted loop playsinline preload="auto" aria-hidden="true"></video>
+            <canvas role="img" aria-label="Animation du logo CIBLE — Vous visez juste"></canvas>
+            <img class="logo-repli" src="{{ \App\Support\Contenu::urlDatee('images/logon.png') }}" alt="">
             <div class="hero__leviers">
                 <span style="--c:var(--rouge)"><i></i>Affichage</span>
                 <span style="--c:var(--bleu)"><i></i>Digital</span>
@@ -584,5 +572,74 @@
 /* La parallaxe du panneau est retirée : le motion est désormais en
    tête du héro, et le décaler vers le haut ouvrirait un vide sous le
    cadre. Les plumes de décor gardent la leur. */
+
+/* Détourage du motion (2026-10-09) — cf. CSS « Le panneau du motion ».
+   Pour chaque image de la vidéo :
+     · pixel gris (blanc, noir et leurs nuances d'anticrénelage) → BLANC,
+       avec une opacité inverse de sa clarté : le fond blanc disparaît, les
+       lettres noires deviennent blanches, sans liseré ;
+     · pixel coloré pâle (bord d'un quartier de la roue contre le fond) →
+       opacité réduite, pour ne pas laisser de halo clair ;
+     · pixel franchement coloré (la roue) → intact.
+   Résolution de calcul réduite (960 px, 640 sur mobile) : largement assez
+   net pour le panneau, et léger pour le processeur. La vidéo est mise en
+   pause quand le panneau sort de l'écran. */
+(function () {
+  var panneau = document.getElementById('panneau');
+  if (!panneau) return;
+  var video = panneau.querySelector('video');
+  var canvas = panneau.querySelector('canvas');
+  if (!video || !canvas || !canvas.getContext) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    video.pause(); video.removeAttribute('autoplay'); return;
+  }
+  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  var L = window.innerWidth < 900 ? 640 : 960;
+  var H = Math.round(L * 9 / 16);
+  canvas.width = L; canvas.height = H;
+  var arret = false, visible = true;
+
+  function detoure() {
+    if (arret) return;
+    try {
+      ctx.drawImage(video, 0, 0, L, H);
+      var image = ctx.getImageData(0, 0, L, H), d = image.data;
+      for (var i = 0; i < d.length; i += 4) {
+        var r = d[i], g = d[i + 1], b = d[i + 2];
+        var max = r > g ? (r > b ? r : b) : (g > b ? g : b);
+        var min = r < g ? (r < b ? r : b) : (g < b ? g : b);
+        if (max - min < 40) {
+          var a = 255 - (r + g + b) / 3;
+          d[i] = d[i + 1] = d[i + 2] = 255;
+          d[i + 3] = a < 14 ? 0 : a;
+        } else if (min > 120) {
+          d[i + 3] = Math.max(0, Math.min(255, (255 - min) * 1.9));
+        }
+      }
+      ctx.putImageData(image, 0, 0);
+      if (!panneau.classList.contains('pret')) panneau.classList.add('pret');
+    } catch (e) {
+      // Canvas inutilisable (ex. vidéo d'une autre origine) : le logo fixe reste.
+      arret = true; return;
+    }
+    suivante();
+  }
+  function suivante() {
+    if (arret || !visible) return;
+    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(detoure);
+    else requestAnimationFrame(detoure);
+  }
+  video.addEventListener('playing', suivante);
+  var p = video.play();
+  if (p && p.catch) p.catch(function () {});
+
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (entrees) {
+      visible = entrees[0].isIntersecting;
+      if (visible) { var q = video.play(); if (q && q.catch) q.catch(function () {}); }
+      else video.pause();
+    }).observe(panneau);
+  }
+})();
 </script>
 @endpush
