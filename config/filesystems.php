@@ -49,6 +49,11 @@ return [
             'endpoint' => env('BACKUP_S3_ENDPOINT'),
             'use_path_style_endpoint' => (bool) env('BACKUP_S3_PATH_STYLE', true),
             'throw' => true,
+            // 2026-10-12 — Coupures passagères vers Hetzner (« cURL error 35 :
+            // TLS connect error … unexpected eof ») : le SDK réessaie seul,
+            // avec un délai croissant, avant de déclarer l'échec.
+            'retries' => ['mode' => 'standard', 'max_attempts' => (int) env('BACKUP_S3_TENTATIVES', 6)],
+            'http' => ['connect_timeout' => 15, 'timeout' => 900],
         ],
 
 
