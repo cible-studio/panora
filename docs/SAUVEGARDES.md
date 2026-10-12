@@ -85,6 +85,7 @@ Test réalisé le 2026-10-02 en local : sauvegarde en 11 s (102 Mo). La base a �
 |---|---|
 | `TLS/SSL error: self-signed certificate` | Corrigé le 2026-10-07 : le client MariaDB vérifie le certificat du MySQL Coolify, qui est auto-signé. Option `--skip-ssl-verify-server-cert` ajoutée côté serveur (`config/database.php`, la connexion reste chiffrée). Remplaçable par `DB_DUMP_EXTRA_OPTION` |
 | `Plugin caching_sha2_password could not be loaded` | Corrigé le 2026-10-07 : paquet `mariadb-connector-c` ajouté à l image (module de connexion MySQL 8). Redéployer si l erreur revient |
+| `cURL error 35: TLS connect error … unexpected eof` vers backups-s3 | Coupure réseau vers Hetzner Object Storage (constatée du 10 au 12/10/2026). Depuis le 12/10, le SDK réessaie 6 fois puis la sauvegarde entière est relancée 5 min plus tard (`BACKUP_TENTATIVES`, `BACKUP_DELAI_REPRISE`). La copie sur le serveur, elle, est faite avant. Si l erreur persiste : tester `curl -sv https://hel1.your-objectstorage.com` depuis le conteneur et consulter status.hetzner.com |
 | `mysqldump: not found` | Image construite sans `mariadb-client` : redéployer |
 | Alerte « backup is unhealthy » | La sauvegarde de 2h n'a pas tourné : vérifier la tâche planifiée `schedule:run` dans Coolify |
 | Échec vers `backups-s3` | Clé, bucket ou endpoint S3 incorrect ; la copie locale existe quand même |

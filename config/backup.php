@@ -205,13 +205,15 @@ return [
         /*
          * The number of attempts, in case the backup command encounters an exception
          */
-        'tries' => 1,
+        // 2026-10-12 — Si la copie hors serveur échoue malgré les reprises du
+        // SDK, toute la sauvegarde est relancée une fois, 5 minutes plus tard.
+        'tries' => (int) env('BACKUP_TENTATIVES', 2),
 
         /*
          * The number of seconds to wait before attempting a new backup if the previous try failed
          * Set to `0` for none
          */
-        'retry_delay' => 0,
+        'retry_delay' => (int) env('BACKUP_DELAI_REPRISE', 300),
     ],
 
     /*
