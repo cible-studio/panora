@@ -1,5 +1,5 @@
 /*!
- * CIBLE — pages des expertises : vitrine 3D de l'en-tête (affichage OOH), comparateur
+ * CIBLE — pages des expertises : vitrine 3D de l'en-tête (régie, mobile, brand experience), comparateur
  * de formats à l'échelle et réalisations liées.
  * Le contenu est généré ici (avant app.js) ; les comportements qui ont besoin
  * de CibleApp (3D, fiche) s'exécutent au clic ou au chargement.
@@ -23,8 +23,18 @@
   /* ==================================================================== */
   /* Vitrine 3D de l'en-tête                                              */
   /* ==================================================================== */
+  function dispositifsDu(pole) {
+    return D.dispositifs.filter(function (d) { return d.pole === pole; }).map(function (d) { return { id: d.id, n: d.n, nom: d.nom, cat: d.cat, alt: d.alt, fiche: true }; });
+  }
   var VITRINES = {
-    ooh: D.dispositifs.filter(function (d) { return d.pole === 'ooh'; }).map(function (d) { return { id: d.id, n: d.n, nom: d.nom, cat: d.cat, alt: d.alt, fiche: true }; })
+    ooh: dispositifsDu('ooh'),
+    mobile: dispositifsDu('mobile'),
+    // Brand experience : savoir-faire mis en scène en 3D ; le bouton mène au brief prérempli.
+    experience: [
+      { id: 'stand', n: '01', nom: 'Architecture événementielle', cat: 'Stands et espaces de marque', alt: 'Stand de marque avec comptoir, kakémonos et visiteurs', service: 'experience' },
+      { id: 'roadshows', n: '02', nom: 'Activations et expériences', cat: 'Roadshows, lancements, animations', alt: 'Camion podium avec scène dépliée et public', service: 'experience' },
+      { id: 'studio', n: '03', nom: 'Production audiovisuelle', cat: 'Films, spots, capsules', alt: 'Studio de tournage avec caméra et éclairage', service: 'experience' }
+    ]
   };
 
   $$('[data-vitrine]').forEach(function (el) {
@@ -52,8 +62,8 @@
       img.alt = it.alt || it.nom;
       // Dispositif : sa fiche 3D ; savoir-faire : le brief prérempli.
       $('[data-vitrine-action]', el).outerHTML = it.fiche
-        ? '<button class="btn btn--noir btn--sm" type="button" data-vitrine-action data-fiche-id="' + it.id + '" aria-label="Ouvrir la fiche « ' + esc(it.nom) + ' »">Voir la fiche' + ico('i-fleche') + '</button>'
-        : '<a class="btn btn--noir btn--sm" data-vitrine-action href="' + consulter(it.service, it.nom) + '">Nous consulter' + ico('i-fleche') + '</a>';
+        ? '<button class="btn btn--rouge btn--sm" type="button" data-vitrine-action data-fiche-id="' + it.id + '" aria-label="Ouvrir la fiche « ' + esc(it.nom) + ' »">Voir la fiche' + ico('i-fleche') + '</button>'
+        : '<a class="btn btn--rouge btn--sm" data-vitrine-action href="' + consulter(it.service, it.nom) + '">Nous consulter' + ico('i-fleche') + '</a>';
       if (viewer) viewer.show(it.id);
       if (depuisClic && viewer && visible) viewer.start();
     }

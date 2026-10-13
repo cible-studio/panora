@@ -51,7 +51,7 @@
 
   var C = D.coordonnees;
   var actif = function (p) { return page === p ? ' aria-current="page"' : ''; };
-  var services = ['services', 'ooh', 'digital'].indexOf(page) >= 0;
+  var services = ['services', 'ooh', 'mobile', 'experience', 'data'].indexOf(page) >= 0;
 
   /* ---------- En-tête ---------- */
   function entete() {
@@ -73,7 +73,7 @@
           '<button class="hdr__burger" type="button" aria-expanded="false" aria-controls="menu" data-burger><span aria-hidden="true"></span><span aria-hidden="true"></span><span class="sr">Menu</span></button>' +
         '</div>' +
         '<div class="mega" id="mega" data-mega-panneau><div class="mega__grille">' + poles +
-          '<a class="mega__tout" href="expertises.html"' + actif('services') + '><strong>De la rue au digital : nos deux expertises, une seule exigence.</strong><span>Tous nos services' + ico('i-fleche') + '</span></a>' +
+          '<a class="mega__tout" href="expertises.html"' + actif('services') + '><strong>Un seul partenaire, quatre leviers : de la rue à la donnée.</strong><span>Tous nos services' + ico('i-fleche') + '</span></a>' +
         '</div></div>' +
       '</div></header>' +
       '<div class="menu" id="menu" data-menu hidden>' +

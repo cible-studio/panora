@@ -10,9 +10,9 @@
   var ico = function (id) { return '<svg aria-hidden="true"><use href="#' + id + '"/></svg>'; };
   var R = D.realisations;
   // Filtre principal d'une réalisation → expertise correspondante (page, libellé, service du brief).
-  var OOH = { page: 'affichage.html', libelle: 'Découvrir l’affichage OOH', service: 'ooh' };
-  var DIGITAL = { page: 'digital.html', libelle: 'Découvrir le digital', service: 'digital' };
-  var POLES = { affichage: OOH, street: OOH, digital: DIGITAL, audiovisuel: DIGITAL };
+  var OOH = { page: 'affichage.html', libelle: 'Découvrir la régie publicitaire', service: 'ooh' };
+  var EXPERIENCE = { page: 'brand-experience.html', libelle: 'Découvrir la brand experience', service: 'experience' };
+  var POLES = { affichage: OOH, experience: EXPERIENCE, street: EXPERIENCE, digital: EXPERIENCE, audiovisuel: EXPERIENCE, design: EXPERIENCE };
   var AUTRE = { page: 'expertises.html', libelle: 'Découvrir nos services', service: '' };
 
   /* ---------- Filtres (avec le nombre de réalisations par filtre) ---------- */
@@ -38,7 +38,7 @@
           '<p class="realisation__client"><span class="puce" style="--c:' + r.couleur + '"></span>' + esc(r.nom) + '</p>' +
           '<h3>' + esc(r.titre) + '</h3>' +
           // Carte courte : le texte complet et les prestations sont dans la fiche du projet.
-          '<div class="realisation__pied"><button class="btn btn--noir btn--sm" type="button" data-projet-ouvrir="' + i + '">Voir le projet' + ico('i-fleche') + '</button></div>' +
+          '<div class="realisation__pied"><button class="btn btn--ligne btn--sm" type="button" data-projet-ouvrir="' + i + '">Voir le projet' + ico('i-fleche') + '</button></div>' +
         '</div></article>';
     }).join('');
   }

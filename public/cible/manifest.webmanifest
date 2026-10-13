@@ -1,7 +1,7 @@
 {
   "name": "CIBLE — Vous visez juste",
   "short_name": "CIBLE",
-  "description": "Régie publicitaire ivoirienne depuis 1994 : affichage OOH (+400 panneaux) et digital — stratégie & création.",
+  "description": "Régie publicitaire ivoirienne depuis 1994 : régie et visibilité extérieure (+400 panneaux), communication mobile, brand experience et Media Intelligence.",
   "lang": "fr-CI",
   "dir": "ltr",
   "id": "./",
@@ -10,16 +10,42 @@
   "display": "standalone",
   "background_color": "#FFFFFF",
   "theme_color": "#E20613",
-  "categories": ["business"],
+  "categories": [
+    "business"
+  ],
   "icons": [
-    { "src": "assets/img/marque/icone-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "assets/img/marque/icone-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "assets/img/marque/icone-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "assets/img/marque/icone-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/img/marque/icone-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/img/marque/icone-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Recevoir ma recommandation média", "short_name": "Contact", "url": "./contact.html#brief" },
-    { "name": "Notre réseau", "short_name": "Réseau", "url": "./reseau.html#carte" },
-    { "name": "Affichage OOH", "short_name": "Affichage", "url": "./affichage.html" },
-    { "name": "Digital", "short_name": "Digital", "url": "./digital.html" }
+    {
+      "name": "Recevoir ma recommandation média",
+      "short_name": "Contact",
+      "url": "./contact.html#brief"
+    },
+    {
+      "name": "Notre réseau",
+      "short_name": "Réseau",
+      "url": "./reseau.html#carte"
+    },
+    {
+      "name": "Régie publicitaire",
+      "short_name": "Régie",
+      "url": "./affichage.html"
+    }
   ]
 }

@@ -32,25 +32,37 @@ window.CIBLE = {
     { an: '2020', titre: 'Officier de l’Ordre du Mérite National', texte: 'Distinction républicaine pour services rendus au pays.' }
   ],
 
-  /* Les deux expertises proposées à ce jour (couleurs : rouge, jaune) */
+  /* Les quatre pôles d'expertise (document « SITE INTERNET CIBLE_TEXTES ») */
   poles: [
-    { id: 'ooh', n: '01', nom: 'Affichage OOH', etiquette: 'OOH · Affichage extérieur', couleur: 'var(--rouge)', page: 'affichage.html',
+    { id: 'ooh', n: '01', nom: 'Régie publicitaire', etiquette: 'Régie publicitaire & visibilité extérieure', couleur: 'var(--rouge)', page: 'affichage.html',
       titre: 'Donner de la visibilité aux marques dans l’espace public.',
       court: 'L’espace public est le seul média qu’on ne peut pas zapper.',
       prestations: ['Affichage grand format et mobilier urbain', 'DOOH', 'Transports et gares', 'Dispositifs spéciaux et street marketing', 'Création des visuels'],
       visuel: 'assets/img/rendus/panoramiques.webp', rendu: true, appel: 'Lancez votre campagne' },
-    { id: 'digital', n: '02', nom: 'Digital', etiquette: 'Digital — Stratégie & Création', couleur: 'var(--jaune)', page: 'digital.html',
-      titre: 'Construire des marques qui émergent dans les conversations digitales.',
-      court: 'Une marque qui diffuse ne suffit plus : elle doit se faire entendre.',
-      prestations: ['Stratégie de marque et de contenu', 'Social media', 'Création de contenus', 'Campagnes digitales', 'Sites et expériences web', 'Influence'],
-      visuel: 'assets/img/photos/post-regie.webp', rendu: false, appel: 'Parlons de votre marque' }
+    { id: 'mobile', n: '02', nom: 'Communication mobile', etiquette: 'Communication mobile & présence urbaine', couleur: 'var(--rouge)', page: 'communication-mobile.html',
+      titre: 'Votre message ne reste pas immobile. Il va à la rencontre de son audience.',
+      court: 'Camions, motos, véhicules habillés et roadshows : votre marque circule là où vit votre audience.',
+      prestations: ['Camions publicitaires', 'Motos publicitaires', 'Branding véhicules', 'Branding taxis & cars', 'Chevalets et dispositifs de proximité', 'Roadshows et caravanes'],
+      visuel: 'assets/img/rendus/camions.webp', rendu: true, appel: 'Planifiez votre tournée' },
+    { id: 'experience', n: '03', nom: 'Brand experience', etiquette: 'Brand experience & communication intégrée', couleur: 'var(--rouge)', page: 'brand-experience.html',
+      titre: 'Faire voir votre marque. Mais surtout, la faire vivre.',
+      court: 'Stratégie, création, digital, activations et événementiel, dans une même équipe.',
+      prestations: ['Stratégie de communication', 'Création graphique', 'Digital & réseaux sociaux', 'Street marketing', 'Production audiovisuelle', 'Architecture événementielle'],
+      visuel: 'assets/img/photos/post-regie.webp', rendu: false, appel: 'Parlons de votre marque' },
+    { id: 'data', n: '04', nom: 'Media Intelligence', etiquette: 'Media Intelligence & pilotage de campagne', couleur: 'var(--rouge)', page: 'media-intelligence.html',
+      titre: 'Une visibilité pilotée par la donnée et renforcée par la preuve.',
+      court: 'Chaque pose photographiée, datée et localisée, et un bilan clair de votre campagne.',
+      prestations: ['Inventaire média digitalisé', 'Sélection des emplacements', 'Suivi terrain photo', 'Reporting de campagne', 'Espace client', 'Analyse et optimisation'],
+      visuel: 'assets/img/photos/affichage.webp', rendu: false, appel: 'Pilotez votre campagne' }
   ],
 
   /* Plan du site, pour la navigation de fin de page (« Poursuivre la visite ») */
   pages: [
     { id: 'qui', titre: 'Qui sommes-nous', texte: 'Plus de trente ans à rendre les marques visibles, fortes et mémorables.', lien: 'qui-sommes-nous.html', visuel: 'assets/img/photos/rue.webp' },
-    { id: 'ooh', titre: 'Affichage OOH', texte: 'Donner de la visibilité aux marques dans l’espace public.', lien: 'affichage.html', visuel: 'assets/img/rendus/panoramiques.webp', rendu: true },
-    { id: 'digital', titre: 'Digital — Stratégie & Création', texte: 'Construire des marques qui émergent dans les conversations digitales.', lien: 'digital.html', visuel: 'assets/img/photos/post-regie.webp' },
+    { id: 'ooh', titre: 'Régie publicitaire', texte: 'Donner de la visibilité aux marques dans l’espace public.', lien: 'affichage.html', visuel: 'assets/img/rendus/panoramiques.webp', rendu: true },
+    { id: 'mobile', titre: 'Communication mobile', texte: 'Votre message va à la rencontre de son audience.', lien: 'communication-mobile.html', visuel: 'assets/img/rendus/camions.webp', rendu: true },
+    { id: 'experience', titre: 'Brand experience', texte: 'Faire voir votre marque, et surtout la faire vivre.', lien: 'brand-experience.html', visuel: 'assets/img/photos/post-regie.webp' },
+    { id: 'data', titre: 'Media Intelligence', texte: 'Une visibilité pilotée par la donnée et renforcée par la preuve.', lien: 'media-intelligence.html', visuel: 'assets/img/photos/affichage.webp' },
     { id: 'reseau', titre: 'Notre réseau', texte: '+400 panneaux dans 31 communes et villes, sur la carte.', lien: 'reseau.html', visuel: 'assets/img/photos/affichage.webp' },
     { id: 'realisations', titre: 'Nos réalisations', texte: 'Des campagnes visibles, des marques renforcées.', lien: 'travaux.html', visuel: 'assets/img/photos/campagne-6.webp' },
     { id: 'contact', titre: 'Contact', texte: 'Une recommandation média sous 24 heures ouvrées.', lien: 'contact.html', visuel: 'assets/img/photos/campagne-5.webp' }
@@ -66,7 +78,7 @@ window.CIBLE = {
     { id: 'panoramique', nom: 'Panoramique', dim: '14×5 m', surface: '70 m²', w: 14, h: 5 }
   ],
 
-  /* Dispositifs d'affichage (catalogue de l'expertise OOH) */
+  /* Dispositifs : affichage (pôle 01) et communication mobile (pôle 02), chacun avec son île 3D */
   dispositifs: [
     { id: 'panneaux-classiques', pole: 'ooh', n: '01', nom: 'Panneaux classiques', cat: 'Formats classiques', formats: true,
       court: 'Le socle du réseau. Présence continue sur les axes à fort trafic, en 4×3 et grands formats.',
@@ -87,6 +99,24 @@ window.CIBLE = {
     { id: 'ecrans-magasins', pole: 'ooh', n: '06', nom: 'Affichage en magasin', cat: 'Écrans en magasins',
       court: 'Au dernier mètre, là où la décision d’achat se prend réellement.',
       tags: ['Dernier mètre', 'Point de vente', 'Écrans'], alt: 'Boutique avec écrans et totem digital' },
+    { id: 'camions', pole: 'mobile', n: '01', nom: 'Camions publicitaires', cat: 'Affichage mobile',
+      court: 'Des surfaces d’affichage mobiles à fort impact pour accompagner un lancement, annoncer une opération ou occuper plusieurs zones au cours d’une même campagne.',
+      tags: ['Fort impact', 'Plusieurs zones', 'Lancements'], alt: 'Camion publicitaire avec caisson d’affichage, sur une île flottante' },
+    { id: 'motos', pole: 'mobile', n: '02', nom: 'Motos publicitaires', cat: 'Proximité',
+      court: 'Des dispositifs agiles pour circuler dans les zones denses, toucher les quartiers de proximité et accéder aux espaces difficiles à couvrir avec de grands véhicules.',
+      tags: ['Agiles', 'Zones denses', 'Quartiers'], alt: 'Motos publicitaires avec coffres aux couleurs d’une campagne' },
+    { id: 'branding-vehicules', pole: 'mobile', n: '03', nom: 'Branding véhicules', cat: 'Habillage de flotte',
+      court: 'Habillage partiel ou intégral de véhicules d’entreprise, de flottes commerciales ou de véhicules spécifiquement dédiés à une campagne.',
+      tags: ['Partiel ou intégral', 'Flottes', 'Durable'], alt: 'Voiture et camionnette habillées aux couleurs d’une marque' },
+    { id: 'taxis-cars', pole: 'mobile', n: '04', nom: 'Branding taxis & cars', cat: 'Flux urbains',
+      court: 'Une présence répétée dans les flux urbains pour renforcer la mémorisation et augmenter la fréquence d’exposition au message.',
+      tags: ['Répétition', 'Mémorisation', 'Fréquence'], alt: 'Taxis et autocar habillés aux couleurs d’une marque' },
+    { id: 'chevalets', pole: 'mobile', n: '05', nom: 'Chevalets et dispositifs de proximité', cat: 'Supports tactiques',
+      court: 'Des supports tactiques déployés autour des marchés, points de vente, événements et lieux de forte affluence.',
+      tags: ['Marchés', 'Points de vente', 'Événements'], alt: 'Chevalets publicitaires sur une place animée' },
+    { id: 'roadshows', pole: 'mobile', n: '06', nom: 'Roadshows et caravanes', cat: 'Campagnes itinérantes',
+      court: 'Des campagnes itinérantes combinant visibilité mobile, animation, prise de parole et interaction directe avec les publics.',
+      tags: ['Itinérant', 'Animation', 'Interaction'], alt: 'Camion podium avec scène dépliée et écran géant' }
   ],
 
   /* Réalisations (titres et textes : document validé CIBLE) */
@@ -156,11 +186,13 @@ window.CIBLE = {
     periodes: ['Dès que possible', 'Dans moins d’un mois', 'Dans 1 à 3 mois', 'Plus tard'],
     /* Services proposés, regroupés par expertise (les deux seules proposées à ce jour) */
     servicesOOH: ['Affichage grand format et mobilier urbain', 'DOOH (écrans digitaux)', 'Transports et gares', 'Dispositifs spéciaux et street marketing', 'Création des visuels'],
-    servicesDigital: ['Stratégie de marque et de contenu', 'Social media', 'Création de contenus', 'Campagnes digitales', 'Sites et expériences web', 'Influence'],
+    servicesMobile: ['Camions publicitaires', 'Motos publicitaires', 'Branding véhicules, taxis et cars', 'Chevalets et dispositifs de proximité', 'Roadshows et caravanes'],
+    servicesExperience: ['Stratégie de communication et de marque', 'Création graphique et contenus', 'Digital et réseaux sociaux', 'Street marketing et activations', 'Production audiovisuelle', 'Architecture événementielle', 'Relations presse et influence'],
+    servicesData: ['Sélection des emplacements', 'Suivi terrain et preuves de pose', 'Reporting de campagne'],
     servicesAutres: ['Je souhaite être conseillé'],
     budgets: ['Moins de 500 000 FCFA', '500 000 à 2 M FCFA', '2 à 5 M FCFA', '5 à 10 M FCFA', 'Plus de 10 M FCFA', 'Je ne sais pas encore'],
     provenances: ['Google', 'LinkedIn', 'Facebook', 'Instagram', 'Recommandation', 'Client', 'Événement', 'Panneau CIBLE', 'Autre'],
     recevrez: ['Une recommandation média adaptée à vos objectifs', 'Une sélection des meilleurs emplacements', 'Une stratégie de visibilité personnalisée', 'Des propositions d’expériences de marque adaptées à vos audiences', 'Un calendrier de déploiement', 'Une estimation budgétaire', 'Des recommandations pour maximiser l’impact de votre campagne'],
-    pourquoi: ['+400 panneaux répartis sur le territoire ivoirien', '31 communes et villes couvertes', 'Plus de 30 ans d’expertise', 'Une offre intégrée : l’affichage et le digital, de la stratégie à la création', 'Un suivi de chaque campagne, de la pose au bilan', 'Des preuves terrain avec photos horodatées et géolocalisées', 'Un interlocuteur unique de la stratégie au reporting']
+    pourquoi: ['+400 panneaux répartis sur le territoire ivoirien', '31 communes et villes couvertes', 'Plus de 30 ans d’expertise', 'Une offre intégrée : régie, communication mobile, expérience de marque et Media Intelligence', 'Un suivi de chaque campagne, de la pose au bilan', 'Des preuves terrain avec photos horodatées et géolocalisées', 'Un interlocuteur unique de la stratégie au reporting']
   }
 };

@@ -26,7 +26,7 @@
 
   /* ---------- Gabarits ---------- */
   $$('[data-choix]', form).forEach(function (box) {
-    // data-champ : plusieurs listes peuvent alimenter le même champ (services OOH + Digital).
+    // data-champ : plusieurs listes peuvent alimenter le même champ (un groupe de services par pôle).
     var liste = box.getAttribute('data-choix'), nom = box.getAttribute('data-champ') || liste, type = box.getAttribute('data-type');
     box.innerHTML = B[liste].map(function (v) {
       return '<label><input type="' + type + '" name="' + nom + '" value="' + esc(v) + '"><span>' + esc(v) + '</span></label>';
@@ -46,12 +46,16 @@
     return $$('input[type="file"]', form).reduce(function (a, i) { return a.concat(Array.prototype.slice.call(i.files || [])); }, []);
   }
   function fichiers() { return fichiersBruts().map(function (f) { return f.name; }); }
-  // « Affichage OOH : … · Digital : … » à partir des cases cochées.
+  // « Régie publicitaire : … · Communication mobile : … » à partir des cases cochées.
+  var GROUPES = [['Régie publicitaire', B.servicesOOH], ['Communication mobile', B.servicesMobile], ['Brand experience', B.servicesExperience], ['Media Intelligence', B.servicesData]];
   function servicesTexte(liste) {
-    var ooh = liste.filter(function (v) { return B.servicesOOH.indexOf(v) >= 0; });
-    var dig = liste.filter(function (v) { return B.servicesDigital.indexOf(v) >= 0; });
-    var autres = liste.filter(function (v) { return ooh.indexOf(v) < 0 && dig.indexOf(v) < 0; });
-    return [ooh.length ? 'Affichage OOH : ' + ooh.join(', ') : '', dig.length ? 'Digital : ' + dig.join(', ') : ''].concat(autres).filter(Boolean).join(' · ');
+    var classes = [];
+    var parties = GROUPES.map(function (g) {
+      var choisis = liste.filter(function (v) { return g[1].indexOf(v) >= 0; });
+      classes = classes.concat(choisis);
+      return choisis.length ? g[0] + ' : ' + choisis.join(', ') : '';
+    });
+    return parties.concat(liste.filter(function (v) { return classes.indexOf(v) < 0; })).filter(Boolean).join(' · ');
   }
   function collecter() {
     return {
@@ -238,11 +242,13 @@
   (function preremplir() {
     var q = new URLSearchParams(location.search), fait = false;
     var service = q.get('service'), objectif = q.get('objectif'), sujet = q.get('sujet'), zones = q.get('zones');
-    // service=ooh | digital (liens des pages d'expertise) ou libellé exact d'un service.
+    // service=ooh | mobile | experience | data (liens des pages d'expertise ; digital = ancien lien) ou libellé exact.
     if (service) {
       var s = service.toLowerCase();
       if (s === 'ooh') fait = cocher('services', /écran|ecran|dooh|digital/i.test(sujet || '') ? B.servicesOOH[1] : B.servicesOOH[0]);
-      else if (s === 'digital') fait = cocher('services', B.servicesDigital[0]);
+      else if (s === 'mobile') fait = cocher('services', /moto/i.test(sujet || '') ? B.servicesMobile[1] : /roadshow|caravane/i.test(sujet || '') ? B.servicesMobile[4] : /chevalet/i.test(sujet || '') ? B.servicesMobile[3] : /taxi|véhicule|vehicule/i.test(sujet || '') ? B.servicesMobile[2] : B.servicesMobile[0]);
+      else if (s === 'experience' || s === 'digital') fait = cocher('services', s === 'digital' ? B.servicesExperience[2] : B.servicesExperience[0]);
+      else if (s === 'data') fait = cocher('services', B.servicesData[1]);
       else fait = cocher('services', service);
     }
     if (objectif) {

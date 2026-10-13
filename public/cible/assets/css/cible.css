@@ -94,7 +94,7 @@ p { margin: 0 0 1em; }
 h1, h2, h3, h4 { margin: 0; font-family: var(--titre); font-weight: 700; line-height: 1.08; letter-spacing: -.02em; text-wrap: balance; }
 strong, b { font-weight: 800; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
-.s-noir, .menu, .intro, .ftr { --focus: var(--blanc); }
+.menu, .intro, .ftr { --focus: var(--blanc); }
 
 ::selection { background: var(--jaune); color: var(--noir); }
 [hidden] { display: none !important; }
@@ -125,30 +125,24 @@ main, .ftr { overflow-x: clip; }
   color: var(--rouge);
 }
 .surtitre::before { content: ""; width: 22px; height: 6px; border-radius: 6px; background: currentColor; flex: none; }
-.s-noir .surtitre { color: var(--blanc); }
-.s-noir .surtitre::before { background: var(--rouge); }
 
 .t1 { font-size: clamp(30px, 3.6vw, 50px); font-weight: 800; line-height: 1.06; letter-spacing: -.03em; }
 .t2 { font-size: clamp(26px, 2.8vw, 40px); font-weight: 800; line-height: 1.08; letter-spacing: -.025em; }
 .t3 { font-size: clamp(21px, 2.1vw, 28px); font-weight: 700; line-height: 1.15; letter-spacing: -.015em; }
 .rouge { color: var(--rouge); }            /* uniquement sur fond blanc (charte) */
 .chapo { font-size: clamp(18px, 1.5vw, 21px); line-height: 1.55; color: var(--texte-2); max-width: 40em; }
-.s-noir .chapo { color: rgba(255, 255, 255, .9); }
 
 .note {
   display: flex; align-items: flex-start; gap: 10px;
   margin: 22px 0 0; font-size: 14px; color: var(--texte-3);
 }
 .note svg { width: 18px; height: 18px; flex: none; margin-top: 2px; }
-.s-noir .note { color: rgba(255, 255, 255, .78); }
 
 /* ---------- Sections ---------- */
 .section { position: relative; padding: clamp(72px, 9vw, 128px) 0; }
 
 .s-blanc { background: var(--blanc); }
 .s-gris { background: var(--gris-4); }
-
-.s-noir { background: var(--noir); color: var(--blanc); }
 
 .motif { position: relative; isolation: isolate; }
 .motif::before {
@@ -189,8 +183,6 @@ main, .ftr { overflow-x: clip; }
 .btn--blanc:hover { transform: translateY(-2px); }
 .btn--ligne-blanc { background: transparent; color: var(--blanc); border-color: var(--blanc); }
 .btn--ligne-blanc:hover { background: var(--blanc); color: var(--noir); }
-.btn--noir { background: var(--noir); color: var(--blanc); }
-.btn--noir:hover { background: #2A2A2A; transform: translateY(-2px); }
 
 .btn--lg { min-height: 58px; padding: 15px 28px; font-size: 16.5px; }
 .btn--sm { min-height: 42px; padding: 9px 16px; font-size: 14.5px; }
@@ -203,7 +195,7 @@ main, .ftr { overflow-x: clip; }
 }
 .lien svg { width: 16px; height: 16px; transition: transform .3s var(--ease); }
 .lien:hover svg { transform: translateX(4px); }
-.s-noir .lien { color: var(--blanc); border-color: var(--blanc); }
+
 .btn-icone {
   display: inline-grid; place-items: center; flex: none;
   width: 46px; height: 46px; border-radius: 50%;
@@ -417,16 +409,11 @@ a.carte:hover { transform: translateY(-5px); border-color: var(--noir); }
 .carte__num { font-family: var(--titre); font-weight: 800; font-size: 14px; letter-spacing: .1em; color: var(--rouge); }
 .carte__icone { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; background: var(--c, var(--rouge)); color: var(--blanc); margin-bottom: 6px; }
 .carte__icone svg { width: 26px; height: 26px; }
-.carte--jaune .carte__icone { color: var(--noir); }
-.s-noir .carte { background: #1C1C1C; border-color: #2B2B2B; color: var(--blanc); }
-.s-noir .carte p { color: rgba(255, 255, 255, .78); }
-.s-noir .carte__num { color: var(--jaune); }
 
 /* Étiquettes */
 .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .tags li { padding: 6px 12px; border-radius: 999px; background: var(--gris-4); font-family: var(--titre); font-weight: 500; font-size: 13px; color: var(--texte-2); }
 .s-gris .tags li { background: var(--blanc); }
-.s-noir .tags li { background: #262626; color: rgba(255, 255, 255, .85); }
 
 /* Chiffres clés */
 .chiffres { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--ligne); }
@@ -435,10 +422,6 @@ a.carte:hover { transform: translateY(-5px); border-color: var(--noir); }
 .chiffres strong { display: flex; align-items: baseline; font-family: var(--titre); font-weight: 800; font-size: clamp(40px, 4.6vw, 66px); line-height: 1; letter-spacing: -.03em; color: var(--rouge); }
 .chiffres strong small { font-size: .5em; margin-left: 4px; letter-spacing: 0; }
 .chiffres span { display: block; margin-top: 10px; font-weight: 700; color: var(--texte-2); }
-.s-noir .chiffres { border-color: rgba(255, 255, 255, .2); }
-.s-noir .chiffres li + li { border-color: rgba(255, 255, 255, .2); }
-.s-noir .chiffres strong { color: var(--blanc); }
-.s-noir .chiffres span { color: rgba(255, 255, 255, .8); }
 
 /* Symbole graphique (formes arrondies officielles, en aplats) */
 
@@ -587,7 +570,6 @@ a.carte:hover { transform: translateY(-5px); border-color: var(--noir); }
 .fil-ariane li + li::before { content: "/"; margin-right: 8px; color: var(--ligne-forte); }
 .fil-ariane a { text-decoration: none; }
 .fil-ariane a:hover { color: var(--rouge); }
-.s-noir .fil-ariane { color: rgba(255, 255, 255, .8); }
 
 /* Formats (tableau) */
 
@@ -906,13 +888,11 @@ a.carte:hover { transform: translateY(-5px); border-color: var(--noir); }
 /* ==========================================================================
    Pages intérieures : décor, vitrine 3D, comparateur de formats, preuves
    ========================================================================== */
-.decor { position: absolute; z-index: 0; pointer-events: none; user-select: none; height: auto; }
-.decor--plume { width: clamp(110px, 14vw, 210px); }
 
 .hero-page > .wrap, .section > .wrap { position: relative; z-index: 1; }
 .hero-page .actions { margin-top: 28px; }
 .accroche { margin: 18px 0 0; padding-left: 16px; border-left: 4px solid var(--rouge); font-weight: 800; font-size: 17px; max-width: 34em; }
-.s-noir .accroche { border-color: var(--rouge); }
+
 .mini-chiffres { display: flex; flex-wrap: wrap; gap: 14px 34px; margin: 34px 0 0; padding: 22px 0 0; list-style: none; border-top: 1px solid var(--ligne); }
 .mini-chiffres li { display: grid; gap: 4px; }
 .mini-chiffres strong { font-family: var(--titre); font-weight: 800; font-size: clamp(26px, 2.6vw, 36px); line-height: 1; letter-spacing: -.03em; }
@@ -982,7 +962,6 @@ a.carte:hover { transform: translateY(-5px); border-color: var(--noir); }
 .difference .surtitre { color: var(--blanc); }
 .difference .surtitre::before { background: var(--c, var(--rouge)); }
 .difference blockquote { margin: 0; max-width: 30em; font-family: var(--titre); font-weight: 700; font-size: clamp(21px, 2.3vw, 31px); line-height: 1.28; letter-spacing: -.015em; }
-.difference .decor { right: -24px; bottom: -46px; width: clamp(120px, 15vw, 190px); z-index: -1; }
 
 /* Parcours phygital */
 .parcours { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; }
@@ -1046,7 +1025,6 @@ a.carte:hover { transform: translateY(-5px); border-color: var(--noir); }
 .chiffres-bloc strong { display: flex; align-items: baseline; font-family: var(--titre); font-weight: 800; font-size: clamp(44px, 5.4vw, 78px); line-height: .95; letter-spacing: -.04em; }
 .chiffres-bloc strong small { font-size: .5em; margin-right: 2px; }
 .chiffres-bloc span { font-weight: 700; color: rgba(255, 255, 255, .78); }
-.chiffres-bloc .decor { right: -26px; top: -30px; width: 130px; z-index: -1; opacity: .9; }
 
 /* Cartes avec rendu 3D cliquable */
 
@@ -1144,7 +1122,7 @@ a.carte:hover { transform: translateY(-5px); border-color: var(--noir); }
 .obtenez__dispo { display: flex; align-items: center; gap: 12px; margin: 20px 0 0; padding: 14px 16px; border-radius: 18px; background: #1E1E1E; font-weight: 700; font-size: 15px; }
 .obtenez__dispo i { width: 12px; height: 12px; border-radius: 50%; background: var(--vert); flex: none; animation: pulse 2s infinite; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(58, 168, 53, .6); } 70% { box-shadow: 0 0 0 12px rgba(58, 168, 53, 0); } 100% { box-shadow: 0 0 0 0 rgba(58, 168, 53, 0); } }
-.obtenez .decor { right: -30px; top: -36px; width: 150px; z-index: -1; }
+
 .etapes-noms { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: -10px 0 22px; padding: 0; list-style: none; font-family: var(--titre); font-weight: 600; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--texte-3); }
 .etapes-noms li.is-courante { color: var(--rouge); }
 .etapes-noms li.is-faite { color: var(--noir); }
@@ -1209,7 +1187,7 @@ a.carte:hover { transform: translateY(-5px); border-color: var(--noir); }
   .chiffres-bloc { border-radius: 26px; }
 
   .difference blockquote { font-size: 20px; }
-  .hero-page > .decor, .section > .decor { display: none; }
+
   .comparateur__scene { display: grid; aspect-ratio: auto; }
   .comparateur__scene img { position: relative; height: 250px; padding: 4% 6% 0; }
   .comparateur__info { position: relative; inset: auto; margin: 0 10px 10px; }}
@@ -1299,8 +1277,6 @@ a.carte:hover { transform: translateY(-5px); border-color: var(--noir); }
 
 /* Listes et blocs complémentaires */
 
-.s-noir .coches li { color: rgba(255, 255, 255, .92); font-weight: 600; }
-
 .texte-legal { max-width: 46em; }
 .texte-legal h2 { margin: 40px 0 12px; font-size: clamp(20px, 1.8vw, 24px); }
 .texte-legal h2:first-child { margin-top: 0; }
@@ -1320,7 +1296,7 @@ a.carte:hover { transform: translateY(-5px); border-color: var(--noir); }
 .adresses a:hover { color: var(--jaune); }
 .faq--large { max-width: 980px; }
 .faq details p a, .tete .chapo a { color: var(--rouge); font-weight: 700; text-underline-offset: 3px; }
-.s-noir .tete .chapo a { color: var(--jaune); }
+
 button[aria-busy="true"] { cursor: progress; opacity: .8; }
 
 @media (max-width: 520px) {
@@ -1354,8 +1330,7 @@ button[aria-busy="true"] { cursor: progress; opacity: .8; }
 /* Critères sur trois colonnes */
 .criteres--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 0; }
 /* En-tête de page sur une colonne, plus court */
-.hero-page--court { padding-bottom: clamp(36px, 5vw, 64px); }
-.hero-page--court .chapo { max-width: 46em; }
+
 /* Galerie des réalisations : cartes courtes sur trois colonnes */
 .realisations { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .realisation { border-radius: 26px; }
@@ -1414,36 +1389,11 @@ button[aria-busy="true"] { cursor: progress; opacity: .8; }
    Le noir n'est gardé que pour le texte, les petits éléments, le pied de page
    et les blocs validés (« En chiffres », « Notre différence », la route).
    ========================================================================== */
-.s-bleu { background: var(--bleu); color: var(--blanc); --focus: var(--blanc); }
-.s-rouge { background: var(--rouge); color: var(--blanc); --focus: var(--blanc); }
-.s-jaune { background: var(--jaune); color: var(--noir); }
-.s-bleu .surtitre, .s-rouge .surtitre { color: var(--blanc); }
-.s-bleu .surtitre::before { background: var(--jaune); }
-.s-rouge .surtitre::before { background: var(--jaune); }
-.s-jaune .surtitre { color: var(--noir); }
-.s-jaune .surtitre::before { background: var(--rouge); }
-.s-bleu .chapo, .s-rouge .chapo { color: rgba(255, 255, 255, .94); }
-.s-jaune .chapo { color: var(--noir); }
-.s-bleu .lien, .s-rouge .lien { color: var(--blanc); border-color: var(--blanc); }
-.s-bleu.motif { --motif-c: rgba(255, 255, 255, .1); }
-.s-rouge.motif { --motif-c: rgba(255, 255, 255, .12); }
-.s-jaune.motif { --motif-c: rgba(255, 255, 255, .42); }
-.s-rouge .horaire { background: rgba(255, 255, 255, .16); }
-.s-rouge .horaire i { background: var(--jaune); }
-.s-rouge .tete .chapo a { color: var(--blanc); }
 
 /* Accueil : « Qui sommes-nous » — emblème animé et chiffres en tuiles de couleur */
 .apropos { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(18px, 2.4vw, 32px); align-items: stretch; }
 .apropos__media { position: relative; display: flex; flex-direction: column; margin: 0; overflow: hidden; border-radius: 30px; background: var(--blanc); box-shadow: 0 30px 60px -48px rgba(17, 17, 17, .5); }
 .apropos__media video { flex: 1; width: 100%; min-height: 260px; object-fit: contain; background: var(--blanc); }
-.tuiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(12px, 1.4vw, 18px); margin: 0; padding: 0; list-style: none; }
-.tuile { position: relative; overflow: hidden; isolation: isolate; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; min-height: 170px; padding: clamp(18px, 2vw, 26px); border-radius: 26px; background: var(--c, var(--rouge)); color: var(--blanc); }
-.tuile::after { content: ""; position: absolute; z-index: -1; right: -18px; top: -14px; width: 120px; height: 84px; background: rgba(255, 255, 255, .24); -webkit-mask: url("../img/marque/fleche.svg") center / contain no-repeat; mask: url("../img/marque/fleche.svg") center / contain no-repeat; transform: rotate(-14deg); }
-.tuile strong { display: flex; align-items: baseline; font-family: var(--titre); font-weight: 800; font-size: clamp(40px, 4.4vw, 62px); line-height: .95; letter-spacing: -.04em; }
-.tuile strong small { font-size: .5em; margin-right: 2px; }
-.tuile > span { font-weight: 700; font-size: 15.5px; line-height: 1.3; }
-.tuile--claire { color: var(--noir); }
-.tuile--claire::after { background: rgba(255, 255, 255, .5); }
 
 /* Accueil : aperçu du réseau sur fond bleu */
 .duo--reseau { align-items: center; }
@@ -1452,13 +1402,6 @@ button[aria-busy="true"] { cursor: progress; opacity: .8; }
 .zones .puce { width: 14px; height: 14px; margin-top: 5px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, .9); }
 .zones strong { display: block; margin-bottom: 4px; font-family: var(--titre); font-weight: 700; font-size: 19px; }
 .zones span { color: rgba(255, 255, 255, .88); }
-.s-bleu .constellation { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .24); }
-.s-bleu .c-grille { stroke: rgba(255, 255, 255, .12); }
-.s-bleu .c-route { stroke: rgba(255, 255, 255, .45); }
-.s-bleu .c-ville circle { stroke: var(--bleu); }
-.s-bleu .c-medaillon { fill: rgba(255, 255, 255, .12); stroke: rgba(255, 255, 255, .55); }
-.s-bleu .c-lien { stroke: rgba(255, 255, 255, .55); }
-.s-bleu .constellation figcaption { color: var(--blanc); }
 
 /* Affichage : « Sur le terrain » sur fond jaune, titre et action sur une ligne */
 .tete--action { grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 32px; }
@@ -1477,21 +1420,143 @@ button[aria-busy="true"] { cursor: progress; opacity: .8; }
 .encart .surtitre { color: var(--noir); }
 .encart .coches li { color: var(--noir); font-weight: 700; }
 .mur { background: var(--jaune); }
-.ruban--rouge { background: var(--rouge); border: 0; }
-.ruban--rouge .bandeau__item { color: var(--blanc); }
-.ruban--rouge .bandeau__item em { font-style: normal; color: rgba(255, 255, 255, .72); }
-.ruban--rouge .sep { background: var(--jaune); }
 
 @media (max-width: 980px) {
   .apropos { grid-template-columns: 1fr; }
   .tete--action { grid-template-columns: 1fr; row-gap: 18px; }
   .tete--action .btn { justify-self: start; }}
 @media (max-width: 520px) {
-  .tuile { min-height: 132px; border-radius: 22px; }
-  .tuile > span { font-size: 14px; }
+
   .apropos__media video { min-height: 200px; }}
 .brief__colonne .encart .surtitre { color: var(--noir); }
 .brief__colonne .encart .surtitre::before { background: var(--rouge); }
 /* Aperçu du réseau : constellation un peu plus étroite, zones en regard */
 .duo--reseau { grid-template-columns: minmax(0, 1fr) minmax(0, .82fr); }
 @media (max-width: 980px) { .duo--reseau { grid-template-columns: 1fr; }}
+
+/* ==========================================================================
+   SYSTÈME « PLUME ROUGE » — une seule grammaire visuelle pour tout le site
+   1. Fonds : blanc, ou gris clair semé de plumes blanches (charte p. 36).
+   2. Bloc fort : un seul, le panneau rouge à plumes (chiffres, promesse, appel final).
+   3. Visuels : le cadre « ciel » de l'univers 3D, posé sur un socle rouge.
+   4. Accents : rouge (surtitres, numéros, icônes, états actifs) ; le noir reste au texte.
+   5. Fil conducteur : plume rouge en haut de chaque page, bandeau rouge sous l'en-tête,
+      appel final et « Continuer la visite » identiques en bas de chaque page.
+   ========================================================================== */
+
+/* 1. Fonds */
+.s-gris { isolation: isolate; }
+.s-gris::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: #FFFFFF; opacity: .8; -webkit-mask: var(--motif) 0 0 / 300px auto repeat; mask: var(--motif) 0 0 / 300px auto repeat; }
+
+/* Plume rouge de l'en-tête : même place sur toutes les pages, à l'angle du visuel */
+.hero-page::before { content: ""; position: absolute; z-index: 2; right: max(14px, calc(50vw - 660px)); top: calc(var(--hdr-h) + 58px); width: 92px; aspect-ratio: 420 / 571; background: url("../img/marque/plume-rouge.webp") center / contain no-repeat; rotate: 18deg; pointer-events: none; }
+
+/* 2. Panneau rouge à plumes */
+.chiffres-bloc, .obtenez, .cta-final { position: relative; overflow: hidden; isolation: isolate; border: 0; border-radius: 34px; background: var(--rouge); color: var(--blanc); box-shadow: 0 34px 60px -46px rgba(150, 4, 12, .75); }
+.chiffres-bloc::after, .obtenez::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: rgba(255, 255, 255, .13); -webkit-mask: var(--motif) 0 0 / 240px auto repeat; mask: var(--motif) 0 0 / 240px auto repeat; }
+.chiffres-bloc li { border-color: rgba(255, 255, 255, .26) !important; }
+.chiffres-bloc li::before { background: var(--jaune); }
+.chiffres-bloc strong { color: var(--blanc); }
+.chiffres-bloc span { color: rgba(255, 255, 255, .92); }
+.chiffres-bloc--ligne { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.chiffres-bloc--ligne li { border-bottom: 0 !important; border-right: 1px solid rgba(255, 255, 255, .26); }
+.chiffres-bloc--ligne li:last-child { border-right: 0; }
+.mission--claire { color: var(--texte); }
+.obtenez .surtitre::before { background: var(--jaune); }
+.obtenez li { border-bottom-color: rgba(255, 255, 255, .24); }
+.obtenez li::before { color: var(--jaune); }
+.obtenez__dispo { background: rgba(255, 255, 255, .16); }
+.obtenez__dispo i { background: var(--jaune); }
+
+/* 3. Cadre « ciel » à socle rouge : visuels d'en-tête et médias principaux */
+.cadre, .vitrine__scene, .scene-digital, .mur, .apropos__media, .duo__media--video { border-radius: 34px; border-bottom: 10px solid var(--rouge); box-shadow: 0 34px 60px -50px rgba(17, 40, 80, .5); }
+.cadre:not(.ciel), .scene-digital, .mur { background: var(--bleu-7); }
+.posts { background: var(--bleu-7); }
+.constellation.cadre { border: 0; border-bottom: 10px solid var(--rouge); background: var(--bleu-7); }
+.cadre .c-grille { stroke: rgba(17, 17, 17, .07); }
+.cadre .c-route { stroke: rgba(17, 17, 17, .28); }
+.cadre .c-lien { stroke: rgba(17, 17, 17, .35); }
+.cadre .c-ville circle { stroke: var(--bleu-7); }
+.cadre .c-ville text, .cadre .c-abidjan text, .cadre .c-titre { fill: var(--noir); }
+.cadre .c-medaillon { fill: rgba(226, 6, 19, .07); stroke: rgba(226, 6, 19, .45); }
+.constellation.cadre figcaption { color: var(--texte-2); }
+/* Nos services : les deux expertises dans le même cadre */
+.duo-expertises > img { padding: 4% 8% 18%; }
+.duo-expertises__post { position: absolute; z-index: 4; left: 7%; bottom: 13%; width: 33%; overflow: hidden; border: 4px solid var(--blanc); border-radius: 18px; rotate: -6deg; box-shadow: 0 24px 40px -22px rgba(17, 17, 17, .55); }
+.duo-expertises__post img { display: block; width: 100%; height: auto; }
+.duo-expertises__chips { position: absolute; z-index: 5; right: 16px; bottom: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.duo-expertises__chips a { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 999px; background: var(--blanc); color: var(--noir); font-family: var(--titre); font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 10px 24px -14px rgba(17, 17, 17, .5); }
+.duo-expertises__chips b { color: var(--rouge); }
+
+/* 4. Accents : icônes, états actifs, petits éléments */
+.carte__icone { background: var(--rouge); color: var(--blanc); }
+.puce-filtre[aria-pressed="true"], .segment button[aria-pressed="true"], .choix input:checked + span, .formats-choix button[aria-pressed="true"], .vitrine__choix button[aria-pressed="true"], .taille[aria-pressed="true"] { background: var(--rouge); border-color: var(--rouge); color: var(--blanc); }
+.taille[aria-pressed="true"] .taille__echelle { background: rgba(255, 255, 255, .2); }
+.taille[aria-pressed="true"] .taille__echelle i { background: var(--blanc); }
+.expertise__lien i, .realisation__num { background: var(--rouge); }
+.vitrine__mode, .fiche__aide { background: var(--blanc); color: var(--noir); box-shadow: 0 10px 24px -14px rgba(17, 17, 17, .5); }
+
+/* Citation « Notre différence » : carte claire, filet et plume rouges */
+.difference { background: var(--gris-4); color: var(--noir); border-left: 8px solid var(--rouge); }
+.s-gris .difference { background: var(--blanc); }
+.difference .surtitre { color: var(--rouge); }
+.difference .surtitre::before { background: var(--rouge); }
+.difference::after { content: ""; position: absolute; z-index: -1; right: 26px; bottom: -26px; width: 84px; aspect-ratio: 420 / 571; background: url("../img/marque/plume-rouge.webp") center / contain no-repeat; rotate: 200deg; opacity: .9; pointer-events: none; }
+
+/* 5. Bandeau rouge sous chaque en-tête (même typographie que l'accueil) */
+.ruban { padding: 15px 0; background: var(--rouge); border: 0; }
+.ruban .bandeau__item { color: var(--blanc); font-size: clamp(17px, 1.9vw, 24px); }
+.ruban .bandeau__item em { font-style: normal; color: rgba(255, 255, 255, .72); }
+.ruban .sep { background: var(--blanc); }
+
+/* Encarts et coordonnées sur fond clair */
+.encart { background: var(--blanc); color: var(--noir); border: 1px solid var(--ligne); }
+.brief__colonne .encart .surtitre { color: var(--rouge); }
+.encart .coches li { color: var(--texte); }
+.horaire { background: var(--blanc); color: var(--noir); border: 1px solid var(--ligne); }
+.horaire i { background: var(--rouge); }
+.adresses li { border-top-color: var(--ligne); }
+.adresses small { color: var(--texte-3); }
+.adresses a { color: var(--noir); }
+.adresses a:hover { color: var(--rouge); }
+.zones li { background: var(--gris-4); }
+.zones span { color: var(--texte-2); }
+.zones .puce { box-shadow: 0 0 0 3px var(--blanc); }
+
+@media (max-width: 980px) {
+  .chiffres-bloc--ligne { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chiffres-bloc--ligne li { border-right: 0; }
+  .chiffres-bloc--ligne li:nth-child(odd) { border-right: 1px solid rgba(255, 255, 255, .26); }
+  .chiffres-bloc--ligne li:nth-child(-n + 2) { border-bottom: 1px solid rgba(255, 255, 255, .26) !important; }}
+@media (max-width: 760px) {
+  .hero-page::before { display: none; }
+  .difference::after { width: 64px; right: 16px; }}
+
+/* Quatre pôles : menu déroulant (4 pôles en 2 × 2 et « Tous nos services » à droite) */
+.mega__tout { grid-column: 3; grid-row: 1 / span 2; }
+/* Visuel de prestation cliquable (ouvre la fiche 3D) */
+button.prestation__visuel { display: block; width: 100%; padding: 0; border: 0; font: inherit; cursor: pointer; }
+button.prestation__visuel:hover > img { transform: translateY(-4px); }
+button.prestation__visuel > img { transition: transform .5s var(--ease-out); }
+/* Media Intelligence : la preuve de pose */
+.preuve > img { object-fit: cover; }
+.preuve__badge { position: absolute; z-index: 3; display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 16px; background: var(--blanc); font-family: var(--titre); font-weight: 700; font-size: 14px; box-shadow: 0 18px 30px -20px rgba(17, 17, 17, .6); }
+.preuve__badge svg { width: 20px; height: 20px; color: var(--rouge); flex: none; }
+.preuve__badge--haut { left: 16px; top: 16px; }
+.preuve__badge--bas { right: 16px; bottom: 16px; }
+/* Brand experience : bloc Digital (téléphone et savoir-faire) */
+.duo--digital { align-items: start; }
+.duo--digital .scene-digital { min-height: 520px; }
+@media (max-width: 980px) {
+  .duo--digital .scene-digital { min-height: 440px; }
+}
+.liens-section { display: flex; flex-wrap: wrap; gap: 14px 32px; }
+
+/* Performance : semis de plumes en image (motif-blanc.svg) et non en masque CSS.
+   Une image est calculée une fois ; un masque est recalculé à chaque animation voisine. */
+.s-gris::before, .cta-final::before, .chiffres-bloc::after, .obtenez::after, .scene-digital::before { -webkit-mask: none; mask: none; background: url("../img/marque/motif-blanc.svg") 0 0 / 300px auto repeat; }
+.s-gris::before { opacity: .8; }
+.cta-final::before, .chiffres-bloc::after, .obtenez::after { opacity: .13; background-size: 240px auto; }
+.scene-digital::before { opacity: .45; background-size: 240px auto; }
+/* Pistes animées sur leur propre calque : elles ne font pas repeindre la section */
+.bandeau__piste, .clients__piste, .telephone__fil { will-change: transform; }
