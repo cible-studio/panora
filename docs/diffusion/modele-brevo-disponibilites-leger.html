@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<!--
+  Modèle Brevo LÉGER — envoi des disponibilités (2026-10-13).
+
+  Objectif : arriver dans la boîte de réception (onglet « Principale » de
+  Gmail) plutôt que dans « Promotions ». Gmail classe en promotion les mails
+  qui ressemblent à une newsletter : grandes images, gros boutons colorés,
+  blocs de couleur, nombreux liens. Ce modèle ressemble à un mail écrit par
+  un commercial :
+    · aucune image (pas de logo image, pas de photo) ;
+    · un seul lien utile, en texte : le catalogue PDF ;
+    · texte court, mise en forme sobre, police système ;
+    · invitation à RÉPONDRE au mail (les réponses améliorent le classement
+      des envois suivants) ;
+    · marque discrète : signature + liseré aux 5 couleurs en CSS (pas une image).
+  Le lien de désinscription reste obligatoire (pied de page).
+
+  Valeurs remplies par Panora : params.PERIODE, params.MOIS,
+  params.NB_PANNEAUX, params.LIEN_PDF. Par Brevo : contact.CONTACT et
+  unsubscribe. (Écrites ici sans accolades pour que Brevo ne les interprète
+  pas dans ce commentaire.)
+
+  À coller dans Brevo → Modèles → Code HTML personnalisé, puis mettre son
+  numéro dans BREVO_TEMPLATE_DISPOS. Le modèle illustré
+  (modele-brevo-disponibilites.html) reste disponible.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<title>Disponibilités {{ params.PERIODE }}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#FFFFFF;">
+<div style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">{{ params.NB_PANNEAUX }} emplacements disponibles {{ params.PERIODE }}, avec photo, format et localisation de chacun.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF;">
+<tr><td style="padding:24px 16px;">
+<!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:23px; color:#111111;">
+
+<tr><td style="padding:0 0 16px 0;">
+  Bonjour {{ contact.CONTACT | default : "Madame, Monsieur" }},
+</td></tr>
+
+<tr><td style="padding:0 0 16px 0;">
+  Voici nos emplacements disponibles <strong>{{ params.PERIODE }}</strong>, à Abidjan et dans le reste du pays.
+</td></tr>
+
+<!-- L'essentiel : un encadré sobre (filet rouge), un seul lien en texte. -->
+<tr><td style="padding:0 0 16px 0;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="border-left:3px solid #E20613; padding:4px 0 4px 14px;">
+    <strong>{{ params.NB_PANNEAUX }} emplacements disponibles</strong><br>
+    <a href="{{ params.LIEN_PDF }}" style="color:#E20613; font-weight:bold; text-decoration:underline;">Ouvrir le catalogue des disponibilités (PDF)</a><br>
+    <span style="font-size:13px; color:#555555;">Pour chaque emplacement : photo, format, localisation et date de disponibilité.</span>
+  </td></tr>
+  </table>
+</td></tr>
+
+<tr><td style="padding:0 0 16px 0;">
+  Un emplacement vous intéresse&nbsp;? <strong>Répondez simplement à ce mail</strong> en indiquant sa référence&nbsp;: nous vous confirmons sa disponibilité et revenons vers vous sous 24&nbsp;heures ouvrées.
+</td></tr>
+
+<tr><td style="padding:0 0 22px 0;">
+  Bien cordialement,
+</td></tr>
+
+<!-- Signature : la marque, sans image. -->
+<tr><td style="padding:0 0 26px 0;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px 0;"><tr>
+    <td width="12" height="3" style="width:12px; height:3px; background-color:#E20613; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="12" height="3" style="width:12px; height:3px; background-color:#FAB80B; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="12" height="3" style="width:12px; height:3px; background-color:#3AA835; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="12" height="3" style="width:12px; height:3px; background-color:#3F7FC0; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="12" height="3" style="width:12px; height:3px; background-color:#81358A; font-size:0; line-height:0;">&nbsp;</td>
+  </tr></table>
+  <strong>Le service commercial de CIBLE</strong><br>
+  <span style="font-size:13px; line-height:20px; color:#555555;">
+    Régie publicitaire · Côte d'Ivoire · depuis 1994<br>
+    <span style="white-space:nowrap;">+225 07 98 49 66 74</span> · <span style="white-space:nowrap;">+225 27 22 20 80 08</span><br>
+    commercial@cible-ci.com · cible-ci.com
+  </span>
+</td></tr>
+
+<!-- Pied : désinscription obligatoire, en petit et en gris. -->
+<tr><td style="border-top:1px solid #E6E6E6; padding:12px 0 0 0; font-size:12px; line-height:18px; color:#777777;">
+  Vous recevez ce mail deux fois par mois en tant que client de CIBLE.
+  <a href="{{ unsubscribe }}" style="color:#777777; text-decoration:underline;">Ne plus recevoir nos disponibilités</a>
+</td></tr>
+
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr>
+</table>
+</body>
+</html>
