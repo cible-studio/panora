@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="fr" class="no-js">
+<head>
+<!-- Préproduction Panora : « /cible » sans barre finale casserait les liens relatifs (assets/…). Le serveur PHP intégré ne redirige pas : on le fait ici, avant tout chargement. -->
+<script>if(location.pathname==="/cible")location.replace("/cible/"+location.search+location.hash)</script>
+<!-- Préproduction Panora (dev.panora-cible.com/cible) : ne pas indexer. -->
+<meta name="robots" content="noindex, nofollow">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>CIBLE — Régie publicitaire, affichage OOH & digital · Côte d’Ivoire · Vous visez juste</title>
+  <meta name="description" content="CIBLE, régie publicitaire et studio créatif ivoirien depuis 1994 : affichage OOH (+400 panneaux dans 31 communes) et digital, de la stratégie à la création. Vous visez juste.">
+  <meta name="theme-color" content="#E20613">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fr_CI">
+  <meta property="og:site_name" content="CIBLE — Vous visez juste">
+  <meta property="og:title" content="CIBLE — Nous ne vendons pas d’espace. Nous vendons de l’attention.">
+  <meta property="og:description" content="Régie publicitaire et studio créatif ivoirien depuis 1994 : +400 panneaux dans 31 communes, et le digital pour prolonger la rue.">
+  <meta property="og:image" content="assets/img/og/poster-hero-1600.webp">
+  <link rel="icon" href="assets/img/marque/icone-32.png" sizes="32x32">
+  <link rel="icon" href="assets/img/marque/icone-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="assets/img/marque/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="assets/fonts/poppins-800-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/nunito-400-800-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" as="image" href="assets/img/og/poster-hero-1600.webp" media="(min-aspect-ratio: 9/10)" fetchpriority="high">
+  <link rel="preload" as="image" href="assets/img/og/poster-hero-780.webp" media="(max-aspect-ratio: 9/10)" fetchpriority="high">
+  <link rel="stylesheet" href="assets/css/cible.css">
+  <script>document.documentElement.className = 'js';</script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": ["Organization", "LocalBusiness"],
+    "name": "CIBLE",
+    "slogan": "Vous visez juste",
+    "description": "Régie publicitaire et studio créatif : affichage OOH et digital (stratégie et création) en Côte d'Ivoire.",
+    "foundingDate": "1994",
+    "url": "https://www.cible-ci.com/",
+    "logo": "assets/img/marque/logo-couleur.png",
+    "telephone": "+225 07 98 49 66 74",
+    "email": "commercial@cible-ci.com",
+    "contactPoint": [
+      { "@type": "ContactPoint", "telephone": "+225 07 98 49 66 74", "contactType": "sales", "areaServed": "CI", "availableLanguage": "French" },
+      { "@type": "ContactPoint", "telephone": "+225 27 22 20 80 08", "contactType": "customer service", "areaServed": "CI", "availableLanguage": "French" }
+    ],
+    "address": { "@type": "PostalAddress", "streetAddress": "Rue des Ambassadeurs, Riviera M'Badon", "postOfficeBoxNumber": "10 BP 1029", "addressLocality": "Abidjan", "addressCountry": "CI" },
+    "areaServed": { "@type": "Country", "name": "Côte d'Ivoire" },
+    "openingHours": "Mo-Fr 08:00-17:30",
+    "award": ["2ᵉ prix du meilleur publicitaire (2016)", "Chevalier de l'Ordre du Mérite de la Communication (2019)", "Officier de l'Ordre du Mérite National (2020)"]
+  }
+  </script>
+</head>
+<body data-page="accueil">
+  <script src="assets/js/data/site.js"></script>
+  <script src="assets/js/layout.js"></script>
+  <cible-entete></cible-entete>
+
+  <main id="contenu">
+    <!-- ============ OUVERTURE 3D : 3 chapitres pilotés par le défilement ============ -->
+    <section class="intro" id="haut" aria-label="Introduction" data-intro>
+      <div class="intro__scene">
+        <div class="intro__ciel" aria-hidden="true"><span class="intro__soleil"></span></div>
+        <picture>
+          <source media="(max-aspect-ratio: 9/10)" srcset="assets/img/og/poster-hero-780.webp" width="780" height="1560">
+          <img class="intro__poster" src="assets/img/og/poster-hero-1600.webp" alt="" width="1600" height="1000" fetchpriority="high">
+        </picture>
+        <canvas class="intro__canvas" aria-hidden="true" data-hero-canvas></canvas>
+        <div class="intro__voile" aria-hidden="true"></div>
+
+        <div class="intro__panneau intro__panneau--hero" data-panneau="hero">
+          <p class="surtitre">Régie &amp; studio · Côte d’Ivoire · depuis 1994</p>
+          <h1 class="hero__titre">
+            <span class="hero__ligne">Nous ne vendons</span>
+            <span class="hero__ligne">pas d’espace.</span>
+            <span class="hero__ligne">Nous vendons</span>
+            <span class="hero__ligne"><em class="vignette">de l’attention.</em></span>
+          </h1>
+          <p class="hero__chapo">Affichage et digital&nbsp;: deux expertises, +400&nbsp;panneaux dans 31&nbsp;communes, et la preuve photo de chaque pose.</p>
+          <div class="actions">
+            <a class="btn btn--rouge btn--lg" href="contact.html">Recevoir ma recommandation média<svg aria-hidden="true"><use href="#i-fleche"/></svg></a>
+            <a class="btn btn--ligne-blanc btn--lg" href="travaux.html">Voir nos réalisations</a>
+          </div>
+        </div>
+
+        <div class="intro__panneau intro__panneau--claim" data-panneau="claim" aria-hidden="true">
+          <p class="claim">Faire voir une marque est simple. La rendre incontournable est un métier.<span>Créer l’impact. Construire la notoriété.</span></p>
+        </div>
+
+        <div class="intro__panneau intro__panneau--suite" data-panneau="suite">
+          <p class="surtitre">De la rue au digital</p>
+          <p class="suite__titre">Deux expertises, une seule audience.</p>
+          <ul class="territoires-mini">
+            <li><span class="puce" style="--c:var(--rouge)"></span>Affichage grand format</li>
+            <li><span class="puce" style="--c:var(--rouge)"></span>DOOH</li>
+            <li><span class="puce" style="--c:var(--rouge)"></span>Transports et gares</li>
+            <li><span class="puce" style="--c:var(--jaune)"></span>Social media</li>
+            <li><span class="puce" style="--c:var(--jaune)"></span>Création de contenus</li>
+          </ul>
+          <a class="btn btn--blanc" href="#services">Découvrir nos services<svg aria-hidden="true"><use href="#i-bas"/></svg></a>
+        </div>
+
+        <div class="intro__indice" aria-hidden="true" data-panneau="indice"><span>Faites défiler</span><i></i></div>
+      </div>
+    </section>
+
+    <div class="bandeaux" aria-hidden="true">
+      <div class="bandeau bandeau--rouge"><div class="bandeau__piste" data-bandeau="+400 panneaux|Abidjan & intérieur du pays|31 communes|Pige photo horodatée|+30 ans de terrain|De la rue au digital"></div></div>
+    </div>
+
+    <!-- ============ QUI SOMMES-NOUS (aperçu) ============ -->
+    <section class="section s-gris motif" id="marque" aria-labelledby="marque-titre" style="--motif-c: #FFFFFF; --motif-t: 300px">
+      <img class="decor decor--plume" src="assets/img/marque/plume-rouge.webp" alt="" width="420" height="571" loading="lazy" decoding="async" style="right:4%; top:64px; width:118px; rotate:24deg">
+      <div class="wrap">
+        <div class="tete" data-reveal>
+          <div>
+            <p class="surtitre">Qui sommes-nous</p>
+            <h2 class="t1" id="marque-titre">CIBLE, 30 ans d’impact au service de votre visibilité.</h2>
+          </div>
+          <p class="chapo">Née dans l’affichage publicitaire en 1994, CIBLE conjugue expertise terrain, créativité et intelligence média. Notre mission&nbsp;: faire de votre visibilité un véritable levier de performance commerciale.</p>
+        </div>
+        <div class="apropos">
+          <figure class="apropos__media" data-reveal>
+            <video id="motion-logo" data-auto data-src="assets/video/perroquet-cible.mp4" muted playsinline loop preload="none" poster="assets/img/marque/logo-couleur.png" aria-label="Animation du logo CIBLE : le perroquet écarlate devient la cible, puis « Vous visez juste »"></video>
+          </figure>
+          <ul class="tuiles">
+            <li class="tuile" style="--c:var(--rouge)" data-reveal><strong><small>+</small><span data-compteur="400">400</span></strong><span>Panneaux en exploitation</span></li>
+            <li class="tuile tuile--claire" style="--c:var(--jaune); --d:.06s" data-reveal><strong><span data-compteur="31">31</span></strong><span>Communes et villes couvertes</span></li>
+            <li class="tuile" style="--c:var(--bleu); --d:.12s" data-reveal><strong>1994</strong><span>Au service des marques depuis</span></li>
+            <li class="tuile" style="--c:var(--vert); --d:.18s" data-reveal><strong><span data-compteur="3" data-pad="2">03</span></strong><span>Distinctions officielles</span></li>
+          </ul>
+        </div>
+        <p class="lien-section" data-reveal><a class="btn btn--rouge btn--lg" href="qui-sommes-nous.html">Découvrir notre histoire<svg aria-hidden="true"><use href="#i-fleche"/></svg></a></p>
+      </div>
+    </section>
+
+    <!-- ============ NOS SERVICES ============ -->
+    <section class="section s-blanc" id="services" aria-labelledby="services-titre">
+      <div class="wrap">
+        <div class="tete" data-reveal>
+          <div>
+            <p class="surtitre">Nos services</p>
+            <h2 class="t1" id="services-titre">Deux métiers, une seule obsession&nbsp;: votre visibilité.</h2>
+          </div>
+          <p class="chapo">Choisissez l’expertise qui vous intéresse&nbsp;: chacune a sa page, avec nos prestations, notre méthode et des exemples.</p>
+        </div>
+        <div class="expertises" data-expertises></div>
+      </div>
+    </section>
+
+    <!-- ============ RÉALISATIONS ============ -->
+    <section class="section s-gris" id="realisations" aria-labelledby="realisations-titre">
+      <div class="wrap">
+        <div class="tete" data-reveal>
+          <div>
+            <p class="surtitre">Nos réalisations</p>
+            <h2 class="t1" id="realisations-titre">Des campagnes qui parlent d’elles-mêmes.</h2>
+          </div>
+        </div>
+        <div class="projets" data-projets></div>
+        <p class="lien-section" data-reveal><a class="lien" href="travaux.html">Voir toutes nos réalisations<svg aria-hidden="true"><use href="#i-fleche"/></svg></a></p>
+      </div>
+    </section>
+
+    <!-- ============ RÉSEAU ============ -->
+    <section class="section s-bleu motif" id="reseau-apercu" aria-labelledby="reseau-titre">
+      <img class="decor decor--plume" src="assets/img/marque/plume-jaune.webp" alt="" width="420" height="571" loading="lazy" decoding="async" style="right:3%; top:56px; width:104px; rotate:-16deg">
+      <div class="wrap">
+        <div class="tete" data-reveal>
+          <div>
+            <p class="surtitre">Notre réseau</p>
+            <h2 class="t1" id="reseau-titre">L’un des plus grands patrimoines d’affichage de Côte d’Ivoire.</h2>
+          </div>
+          <p class="chapo">+400&nbsp;panneaux sur les axes à fort trafic, et une photo horodatée et géolocalisée de chaque pose.</p>
+        </div>
+        <div class="duo duo--reseau">
+          <div data-reveal>
+            <ul class="zones">
+              <li><span class="puce" style="--c:var(--rouge)"></span><div><strong>Grand Abidjan</strong><span>Plateau, Cocody, Yopougon, Abobo, Marcory, Treichville, Koumassi, Port-Bouët…</span></div></li>
+              <li><span class="puce" style="--c:var(--jaune)"></span><div><strong>Intérieur du pays</strong><span>Bouaké, San-Pédro, Yamoussoukro, Korhogo, Daloa, Man, Gagnoa…</span></div></li>
+            </ul>
+            <div class="actions" style="margin-top:30px">
+              <a class="btn btn--blanc btn--lg" href="reseau.html">Explorer la carte du réseau<svg aria-hidden="true"><use href="#i-fleche"/></svg></a>
+            </div>
+          </div>
+          <figure class="constellation" data-constellation data-reveal aria-label="Les 31 communes et villes du réseau CIBLE, d’Abidjan à l’intérieur du pays"></figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CLIENTS ============ -->
+    <section class="section section--compacte s-blanc" aria-labelledby="clients-titre">
+      <div class="wrap">
+        <div class="tete" data-reveal>
+          <div>
+            <p class="surtitre">Ils nous font confiance</p>
+            <h2 class="t2" id="clients-titre">Les marques qui ont grandi avec nous.</h2>
+          </div>
+        </div>
+      </div>
+      <div class="clients" data-clients aria-label="Quelques-uns de nos clients"></div>
+    </section>
+
+    <!-- ============ APPEL FINAL ============ -->
+    <section class="section s-blanc section--fin">
+      <div class="wrap">
+        <div class="cta-final" data-reveal>
+          <p class="surtitre">Parlons-en</p>
+          <h2 class="t1">Dites-nous où vous voulez être vu. On s’occupe du reste.</h2>
+          <p class="chapo">Réponse sous 24 heures ouvrées, sans engagement.</p>
+          <div class="actions" style="margin-top:28px">
+            <a class="btn btn--blanc btn--lg" href="contact.html">Recevoir ma recommandation média<svg aria-hidden="true"><use href="#i-fleche"/></svg></a>
+            <a class="btn btn--ligne-blanc btn--lg" href="tel:+2250798496674">+225 07 98 49 66 74</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <cible-pied></cible-pied>
+  <cible-calques></cible-calques>
+  <script src="assets/js/pages/accueil.js" defer></script>
+  <script src="assets/js/app.js" defer></script>
+</body>
+</html>

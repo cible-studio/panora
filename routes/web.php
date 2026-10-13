@@ -18,17 +18,25 @@ Route::get('/', fn() => view('auth.login'));
 // « Références » devient « Travaux ». Les anciennes adresses redirigent vers
 // leur équivalent plutôt que de répondre 404 — un lien de la maquette a pu
 // être partagé en interne.
+// 2026-10-13 — La maquette Blade est remplacée par le site statique
+// « TEST 3D REGIE OOH », copié dans public/cible/ : le serveur le sert
+// directement (pages, assets, sw.js), Laravel n'intervient pas. Les vues
+// resources/views/public/cible/* et CibleController restent dans le code
+// mais ne sont plus servies. Les anciennes adresses redirigent (302, pas
+// 301 : la maquette bouge encore) vers leur page — utile derrière un
+// serveur qui passe par Laravel (le serveur PHP intégré, lui, sert
+// public/cible/index.html pour toute adresse /cible/… sans fichier).
 Route::prefix('cible')->name('cible.')->group(function () {
-    Route::get('/',                 [\App\Http\Controllers\CibleController::class, 'home'])->name('home');
-    Route::get('/expertises',       [\App\Http\Controllers\CibleController::class, 'expertises'])->name('expertises');
-    Route::get('/reseau',           [\App\Http\Controllers\CibleController::class, 'reseau'])->name('reseau');
-    Route::get('/travaux',          [\App\Http\Controllers\CibleController::class, 'travaux'])->name('travaux');
-    Route::get('/contact',          [\App\Http\Controllers\CibleController::class, 'contact'])->name('contact');
+    Route::redirect('/',               '/cible/index.html')->name('home');
+    Route::redirect('/expertises',      '/cible/expertises.html')->name('expertises');
+    Route::redirect('/reseau',          '/cible/reseau.html')->name('reseau');
+    Route::redirect('/travaux',         '/cible/travaux.html')->name('travaux');
+    Route::redirect('/contact',         '/cible/contact.html')->name('contact');
 
     // Anciennes adresses de la maquette V1.
-    Route::permanentRedirect('/qui-sommes-nous', '/cible');
-    Route::permanentRedirect('/services',        '/cible/expertises');
-    Route::permanentRedirect('/references',      '/cible/travaux');
+    Route::redirect('/qui-sommes-nous', '/cible/qui-sommes-nous.html')->name('ancien.qui-sommes-nous');
+    Route::redirect('/services',        '/cible/expertises.html')->name('ancien.services');
+    Route::redirect('/references',      '/cible/travaux.html')->name('ancien.references');
 
     Route::post('/devis',           [\App\Http\Controllers\CibleController::class, 'submitDevis'])
         ->middleware('throttle:5,10')

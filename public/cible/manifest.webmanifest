@@ -1,0 +1,25 @@
+{
+  "name": "CIBLE — Vous visez juste",
+  "short_name": "CIBLE",
+  "description": "Régie publicitaire ivoirienne depuis 1994 : affichage OOH (+400 panneaux) et digital — stratégie & création.",
+  "lang": "fr-CI",
+  "dir": "ltr",
+  "id": "./",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#E20613",
+  "categories": ["business"],
+  "icons": [
+    { "src": "assets/img/marque/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/img/marque/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/img/marque/icone-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Recevoir ma recommandation média", "short_name": "Contact", "url": "./contact.html#brief" },
+    { "name": "Notre réseau", "short_name": "Réseau", "url": "./reseau.html#carte" },
+    { "name": "Affichage OOH", "short_name": "Affichage", "url": "./affichage.html" },
+    { "name": "Digital", "short_name": "Digital", "url": "./digital.html" }
+  ]
+}

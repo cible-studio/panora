@@ -1,0 +1,9 @@
+# CIBLE — www.cible-ci.com
+# Sur un serveur de préproduction, remplacer « Allow: / » par « Disallow: / ».
+User-agent: *
+Allow: /
+Disallow: /outils/
+Disallow: /_sources/
+Disallow: /_archives/
+
+Sitemap: https://www.cible-ci.com/sitemap.xml

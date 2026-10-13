@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="fr" class="no-js">
+<head>
+<!-- Préproduction Panora (dev.panora-cible.com/cible) : ne pas indexer. -->
+<meta name="robots" content="noindex, nofollow">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Nos réalisations — campagnes en Côte d’Ivoire · CIBLE, Vous visez juste</title>
+  <meta name="description" content="Orange, Groupe Cofina, SNEDAI, SGS · SICTA, IFG, SIGFU : des campagnes visibles, des expériences mémorables et des marques renforcées, de l’affichage à l’expérience de marque.">
+  <meta name="theme-color" content="#E20613">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fr_CI">
+  <meta property="og:site_name" content="CIBLE — Vous visez juste">
+  <meta property="og:title" content="Réalisations CIBLE — des campagnes visibles, des marques renforcées">
+  <meta property="og:description" content="Brand experience, production audiovisuelle, stratégie intégrée, digital, stands et architecture événementielle.">
+  <meta property="og:image" content="assets/img/og/poster-hero-1600.webp">
+  <link rel="icon" href="assets/img/marque/icone-32.png" sizes="32x32">
+  <link rel="icon" href="assets/img/marque/icone-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="assets/img/marque/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="assets/fonts/poppins-800-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/nunito-400-800-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/css/cible.css">
+  <script>document.documentElement.className = 'js';</script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Accueil", "item": "https://www.cible-ci.com/" },
+      { "@type": "ListItem", "position": 2, "name": "Nos réalisations" }
+    ]
+  }
+  </script>
+</head>
+<body data-page="travaux">
+  <script src="assets/js/data/site.js"></script>
+  <script src="assets/js/layout.js"></script>
+  <cible-entete></cible-entete>
+
+  <main id="contenu">
+    <!-- ============ EN-TÊTE ============ -->
+    <section class="hero-page s-blanc" aria-labelledby="titre-page">
+      <div class="wrap hero-page__grille">
+        <div>
+          <ol class="fil-ariane" aria-label="Fil d’Ariane">
+            <li><a href="index.html">Accueil</a></li>
+            <li aria-current="page">Nos réalisations</li>
+          </ol>
+          <p class="surtitre">Nos réalisations · Côte d’Ivoire</p>
+          <h1 id="titre-page">Des campagnes visibles. Des expériences mémorables. <span class="rouge">Des marques renforcées.</span></h1>
+          <p class="chapo">Plus de trente ans de campagnes pour des entreprises, des institutions et de grandes marques ivoiriennes.</p>
+          <div class="actions">
+            <a class="btn btn--rouge btn--lg" href="#galerie">Voir les campagnes<svg aria-hidden="true"><use href="#i-bas"/></svg></a>
+            <a class="btn btn--ligne btn--lg" href="contact.html#brief">Recevoir ma recommandation média</a>
+          </div>
+        </div>
+        <div class="mur" aria-hidden="true">
+          <div class="mur__col">
+            <img src="assets/img/photos/affichage.webp" alt="" fetchpriority="high"><img src="assets/img/photos/campagne-2.webp" alt=""><img src="assets/img/photos/campagne-5.webp" alt="">
+            <img src="assets/img/photos/affichage.webp" alt="" loading="lazy"><img src="assets/img/photos/campagne-2.webp" alt="" loading="lazy"><img src="assets/img/photos/campagne-5.webp" alt="" loading="lazy">
+          </div>
+          <div class="mur__col">
+            <img src="assets/img/photos/campagne-6.webp" alt=""><img src="assets/img/photos/camion-podium.webp" alt=""><img src="assets/img/photos/rue.webp" alt="">
+            <img src="assets/img/photos/campagne-6.webp" alt="" loading="lazy"><img src="assets/img/photos/camion-podium.webp" alt="" loading="lazy"><img src="assets/img/photos/rue.webp" alt="" loading="lazy">
+          </div>
+          <p class="mur__carte"><strong>06</strong><span>Campagnes<br>et la preuve de chacune</span></p>
+        </div>
+      </div>
+    </section>
+
+    <div class="ruban ruban--rouge" aria-hidden="true"><div class="bandeau__piste" data-bandeau="Orange · Brand experience & activation terrain|Groupe Cofina · Production audiovisuelle|SNEDAI · Stratégie de communication intégrée|SGS · SICTA · Création digitale & réseaux sociaux|IFG · Stand expérientiel|SIGFU · Design & architecture événementielle"></div></div>
+
+    <!-- ============ GALERIE ============ -->
+    <section class="section s-gris" id="galerie" aria-labelledby="galerie-titre">
+      <div class="wrap">
+        <div class="tete" data-reveal>
+          <div>
+            <p class="surtitre">Notre savoir-faire en action</p>
+            <h2 class="t1" id="galerie-titre">De l’affichage à l’expérience de marque.</h2>
+          </div>
+          <p class="chapo">Filtrez par type de projet, puis ouvrez une fiche pour voir le détail.</p>
+        </div>
+        <div class="barre-filtres">
+          <div class="filtres" role="group" aria-label="Filtrer les réalisations" data-filtres="liste-realisations" data-filtres-barre></div>
+          <p class="barre-filtres__compte" aria-live="polite" data-filtres-compte>6 réalisations</p>
+        </div>
+        <div class="realisations" id="liste-realisations"></div>
+        <p class="note"><svg aria-hidden="true"><use href="#i-photo"/></svg><span>Visuels d’illustration&nbsp;; crédits photo sur chaque image.</span></p>
+      </div>
+    </section>
+
+    <!-- ============ CLIENTS ============ -->
+    <section class="section section--compacte s-blanc" aria-labelledby="clients-titre">
+      <div class="wrap">
+        <div class="tete" data-reveal>
+          <div>
+            <p class="surtitre">Ils nous ont fait confiance</p>
+            <h2 class="t2" id="clients-titre">Des marques, institutions et organisations accompagnées à travers la Côte d’Ivoire.</h2>
+          </div>
+        </div>
+      </div>
+      <div class="clients" data-clients aria-label="Quelques-uns de nos clients"></div>
+    </section>
+
+    <!-- ============ APPEL FINAL ============ -->
+    <section class="section s-blanc section--fin">
+      <div class="wrap">
+        <div class="cta-final" data-reveal>
+          <p class="surtitre">Et votre prochain projet&nbsp;?</p>
+          <h2 class="t2">Faisons de votre prochaine campagne une réalisation qui compte.</h2>
+          <p class="chapo">Partagez-nous votre objectif, votre audience et votre ambition. Nous imaginerons le dispositif de visibilité, d’activation et de communication le plus pertinent pour votre marque.</p>
+          <div class="actions" style="margin-top:28px">
+            <a class="btn btn--blanc btn--lg" href="contact.html#brief">Recevoir ma recommandation média<svg aria-hidden="true"><use href="#i-fleche"/></svg></a>
+            <a class="btn btn--ligne-blanc btn--lg" href="tel:+2250798496674">+225 07 98 49 66 74</a>
+          </div>
+          <nav class="suite" data-suite="realisations" aria-label="Continuer la visite"></nav>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <cible-pied></cible-pied>
+  <cible-calques></cible-calques>
+
+  <!-- Fiche projet -->
+  <div class="fenetre" role="dialog" aria-modal="true" aria-labelledby="projet-titre" data-fenetre data-projet hidden>
+    <div class="fenetre__panneau">
+      <button class="btn-icone fenetre__fermer" type="button" data-fermer aria-label="Fermer la fiche projet"><svg aria-hidden="true"><use href="#i-croix"/></svg></button>
+      <div class="projet-detail">
+        <figure class="projet-detail__media" style="margin:0"><img alt="" data-projet-img><figcaption class="credit-photo" data-projet-credit></figcaption></figure>
+        <div class="projet-detail__corps">
+          <p class="fiche__cat" data-projet-cat></p>
+          <p class="realisation__client" data-projet-client></p>
+          <h2 id="projet-titre" data-projet-titre></h2>
+          <p data-projet-texte></p>
+          <ul class="tags" aria-label="Prestations" data-projet-services></ul>
+          <div class="actions" style="margin-top:8px">
+            <a class="btn btn--rouge" href="contact.html" data-projet-contact>Un projet similaire&nbsp;?<svg aria-hidden="true"><use href="#i-fleche"/></svg></a>
+            <a class="btn btn--ligne" href="expertises.html" data-projet-pole>Découvrir le pôle</a>
+          </div>
+          <div class="projet-detail__nav">
+            <button class="btn btn--ligne btn--sm" type="button" data-projet-nav="-1"><svg aria-hidden="true" style="rotate:180deg"><use href="#i-fleche"/></svg>Précédent</button>
+            <button class="btn btn--ligne btn--sm" type="button" data-projet-nav="1">Suivant<svg aria-hidden="true"><use href="#i-fleche"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/pages/travaux.js" defer></script>
+  <script src="assets/js/app.js" defer></script>
+</body>
+</html>

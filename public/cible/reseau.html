@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="fr" class="no-js">
+<head>
+<!-- Préproduction Panora (dev.panora-cible.com/cible) : ne pas indexer. -->
+<meta name="robots" content="noindex, nofollow">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Notre réseau — +400 panneaux dans 31 communes de Côte d’Ivoire · CIBLE, Vous visez juste</title>
+  <meta name="description" content="Carte interactive du réseau CIBLE : +400 panneaux dans 31 communes et villes, du Grand Abidjan à Bouaké, San-Pédro, Yamoussoukro et Korhogo. Composez votre zone et recevez une sélection d’emplacements.">
+  <meta name="theme-color" content="#E20613">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fr_CI">
+  <meta property="og:site_name" content="CIBLE — Vous visez juste">
+  <meta property="og:title" content="Le réseau CIBLE — On ne loue pas la rue. On l’habite.">
+  <meta property="og:description" content="+400 panneaux dans 31 communes et villes de Côte d’Ivoire, et la preuve photo de chaque pose.">
+  <meta property="og:image" content="assets/img/og/poster-hero-1600.webp">
+  <link rel="icon" href="assets/img/marque/icone-32.png" sizes="32x32">
+  <link rel="icon" href="assets/img/marque/icone-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="assets/img/marque/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="assets/fonts/poppins-800-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/nunito-400-800-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin>
+  <link rel="stylesheet" href="assets/css/cible.css">
+  <script>document.documentElement.className = 'js';</script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Accueil", "item": "https://www.cible-ci.com/" },
+      { "@type": "ListItem", "position": 2, "name": "Notre réseau" }
+    ]
+  }
+  </script>
+</head>
+<body data-page="reseau">
+  <script src="assets/js/data/site.js"></script>
+  <script src="assets/js/layout.js"></script>
+  <cible-entete></cible-entete>
+
+  <main id="contenu">
+    <!-- ============ EN-TÊTE ============ -->
+    <section class="hero-page s-blanc" aria-labelledby="titre-page">
+      <div class="wrap hero-page__grille">
+        <div>
+          <ol class="fil-ariane" aria-label="Fil d’Ariane">
+            <li><a href="index.html">Accueil</a></li>
+            <li aria-current="page">Notre réseau</li>
+          </ol>
+          <p class="surtitre">Le réseau · Côte d’Ivoire · depuis 1994</p>
+          <h1 id="titre-page">On ne loue pas la rue. <span class="rouge">On l’habite.</span></h1>
+          <p class="chapo">CIBLE exploite un parc de +400&nbsp;panneaux répartis à Abidjan et dans les principales villes de Côte d’Ivoire. Notre connaissance du terrain nous permet de recommander les zones, les axes et les formats les plus adaptés à vos objectifs de visibilité.</p>
+          <div class="actions">
+            <a class="btn btn--rouge btn--lg" href="#carte">Trouver mes emplacements<svg aria-hidden="true"><use href="#i-bas"/></svg></a>
+            <a class="btn btn--ligne btn--lg" href="contact.html?service=ooh#brief">Demander un plan d’emplacements</a>
+          </div>
+        </div>
+        <ul class="chiffres-bloc" aria-label="Le réseau en chiffres">
+          <li style="--c:var(--rouge)"><strong><small>+</small><span data-compteur="400">400</span></strong><span>Panneaux en exploitation</span></li>
+          <li style="--c:var(--jaune)"><strong><span data-compteur="31">31</span></strong><span>Communes et villes</span></li>
+          <li style="--c:var(--jaune)"><strong><span data-compteur="30">30</span></strong><span>Ans de terrain · depuis 1994</span></li>
+          <li style="--c:var(--rouge)"><strong><span data-compteur="3" data-pad="2">03</span></strong><span>Distinctions</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="ruban" aria-hidden="true"><div class="bandeau__piste" data-bandeau="Plateau|Cocody|Yopougon|Abobo|Marcory|Treichville|Koumassi|Port-Bouët|Attécoubé|Adjamé|Bingerville|Songon|Anyama|Bouaké|San-Pédro|Yamoussoukro|Korhogo|Man|Daloa|Gagnoa|Divo|Bondoukou|Odienné|Séguéla|Ferkessédougou|Dabou|Grand-Bassam|Aboisso|Soubré"></div></div>
+
+    <!-- ============ CARTE INTERACTIVE ============ -->
+    <section class="section s-blanc" id="carte" aria-labelledby="carte-titre">
+      <div class="wrap">
+        <div class="tete" data-reveal>
+          <div>
+            <p class="surtitre">Notre couverture</p>
+            <h2 class="t1" id="carte-titre">Explorez les zones couvertes par CIBLE.</h2>
+          </div>
+          <p class="chapo">Consultez les principales villes et zones dans lesquelles notre parc publicitaire est déployé, puis composez votre zone de campagne.</p>
+        </div>
+        <div class="carte-reseau" data-carte-reseau>
+          <div class="carte-reseau__map" role="region" aria-label="Carte interactive des communes couvertes">
+            <div class="carte-etat" data-carte-etat><i aria-hidden="true"></i><span>Chargement de la carte…</span></div>
+            <div data-carte style="position:absolute; inset:0"></div>
+          </div>
+          <div class="carte-reseau__panneau">
+            <h3>Abidjan d’abord. Puis tout le pays.</h3>
+            <div class="recherche">
+              <svg aria-hidden="true"><use href="#i-recherche"/></svg>
+              <label class="sr" for="recherche-commune">Rechercher une commune</label>
+              <input id="recherche-commune" type="search" placeholder="Rechercher une commune" autocomplete="off" data-recherche>
+            </div>
+            <div class="segment" role="group" aria-label="Filtrer les communes" data-segment>
+              <button type="button" aria-pressed="true" data-zone="tout">Tout</button>
+              <button type="button" aria-pressed="false" data-zone="abidjan">Grand Abidjan</button>
+              <button type="button" aria-pressed="false" data-zone="interieur">Intérieur</button>
+            </div>
+            <p class="carte-reseau__compte" data-compte-communes aria-live="polite">31 communes et villes</p>
+            <ul class="carte-reseau__liste" data-liste-communes></ul>
+            <div class="zone-choisie">
+              <p data-zone-texte>Cochez les communes qui vous intéressent pour composer votre zone.</p>
+              <a class="btn btn--rouge btn--bloc" href="contact.html?service=ooh#brief" data-zone-lien>Recevoir une sélection d’emplacements<svg aria-hidden="true"><use href="#i-fleche"/></svg></a>
+            </div>
+          </div>
+        </div>
+        <p class="note"><svg aria-hidden="true"><use href="#i-info"/></svg><span>Sélectionnez une zone pour découvrir sa couverture générale. Les emplacements disponibles et les recommandations détaillées vous seront communiqués sur demande.</span></p>
+      </div>
+    </section>
+
+    <!-- ============ CHOIX ET SUIVI DES EMPLACEMENTS ============ -->
+    <section class="section s-gris" id="methode" aria-labelledby="approche-titre">
+      <div class="wrap">
+        <div class="tete" data-reveal>
+          <div>
+            <p class="surtitre">Plus qu’une carte</p>
+            <h2 class="t1" id="approche-titre">Des emplacements choisis selon vos audiences, suivis jusqu’au bilan.</h2>
+          </div>
+          <p class="chapo">Nous ne vous remettons pas une liste de panneaux&nbsp;: nous étudions six critères pour chaque emplacement, puis nous documentons chaque pose.</p>
+        </div>
+        <ol class="criteres criteres--3" data-reveal>
+          <li>La pertinence des zones</li>
+          <li>La visibilité du support</li>
+          <li>Le sens de circulation</li>
+          <li>Le format</li>
+          <li>La durée d’exposition</li>
+          <li>Les habitudes de votre cible</li>
+        </ol>
+        <div class="grille grille--4" style="margin-top:clamp(32px, 4vw, 48px)">
+          <article class="carte" data-reveal><span class="carte__icone" style="--c:var(--bleu)"><svg aria-hidden="true"><use href="#i-calques"/></svg></span><h3>Inventaire centralisé</h3><p>Chaque support est référencé&nbsp;: localisation, format, statut.</p></article>
+          <article class="carte" data-reveal style="--d:.06s"><span class="carte__icone" style="--c:var(--rouge)"><svg aria-hidden="true"><use href="#i-cible"/></svg></span><h3>Sélection média</h3><p>Des emplacements proposés selon vos zones, vos objectifs et votre budget.</p></article>
+          <article class="carte" data-reveal style="--d:.12s"><span class="carte__icone" style="--c:var(--bleu)"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><h3>Suivi terrain</h3><p>Chaque pose documentée par des photos horodatées et géolocalisées.</p></article>
+          <article class="carte" data-reveal style="--d:.18s"><span class="carte__icone" style="--c:var(--rouge)"><svg aria-hidden="true"><use href="#i-graphe"/></svg></span><h3>Reporting</h3><p>Une vue claire des supports activés et des preuves d’exécution.</p></article>
+        </div>
+        <p class="lien-section" data-reveal><a class="lien" href="affichage.html#formats">Voir les formats disponibles, du 2×1 m au 14×5 m<svg aria-hidden="true"><use href="#i-fleche"/></svg></a></p>
+      </div>
+    </section>
+
+    <!-- ============ APPEL FINAL ============ -->
+    <section class="section s-blanc section--fin">
+      <div class="wrap">
+        <div class="cta-final" data-reveal>
+          <p class="surtitre">Votre plan média commence ici</p>
+          <h2 class="t2">Identifions les emplacements qui donneront le plus de force à votre campagne.</h2>
+          <p class="chapo">Indiquez-nous vos objectifs, vos audiences, vos zones prioritaires, votre période et votre budget. Notre équipe vous préparera une sélection personnalisée de formats et d’emplacements.</p>
+          <div class="actions" style="margin-top:28px">
+            <a class="btn btn--blanc btn--lg" href="contact.html?service=ooh#brief">Recevoir ma recommandation média<svg aria-hidden="true"><use href="#i-fleche"/></svg></a>
+            <a class="btn btn--ligne-blanc btn--lg" href="tel:+2250798496674">+225 07 98 49 66 74</a>
+          </div>
+          <nav class="suite" data-suite="reseau" aria-label="Continuer la visite"></nav>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <cible-pied></cible-pied>
+  <cible-calques></cible-calques>
+  <script src="assets/js/pages/reseau.js" defer></script>
+  <script src="assets/js/app.js" defer></script>
+</body>
+</html>
