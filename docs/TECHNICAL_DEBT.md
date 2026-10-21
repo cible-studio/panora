@@ -171,6 +171,24 @@ Correctif local possible (non appliqué, décision utilisateur) :
 
 ---
 
+### Mail de fin de campagne J-7 : pas de rattrapage d'un jour manqué (2026-10-21)
+
+`campaigns:notify-ending` vise les campagnes qui finissent **exactement**
+dans 7 jours, comme avant la refonte. Une campagne n'a donc jamais son mail
+dans deux cas :
+- le planificateur n'a pas tourné le jour J-7 ;
+- la campagne a été créée ou prolongée à moins de 7 jours de sa fin.
+
+La carte « Fin de campagne » de l'écran *Diffusion dispos* les signale par
+« Date passée ». On peut alors envoyer le mail à la main :
+`php artisan campaigns:notify-ending --campagne=<id>`.
+
+Les échecs d'envoi et les clients sans adresse, eux, sont bien retentés
+chaque jour. Élargir la fenêtre (J-7 à J-1) serait une **règle métier
+nouvelle** : il faut la faire valider avant de la coder.
+
+---
+
 ## Résolues
 
 ### TX-14 (2026-09-24) — L'ODP se compte en MOIS (correction de TX-12)

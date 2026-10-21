@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\DiffusionDesinscription;
 use App\Models\DiffusionEnvoi;
 use App\Models\JourFerie;
+use App\Models\RelanceFinCampagne;
 use App\Services\Brevo\BrevoClient;
 use App\Services\Diffusion\DiffusionCalendrier;
 use App\Services\Diffusion\DiffusionDisponibilitesService;
 use App\Services\Diffusion\JoursFeriesService;
+use App\Services\Diffusion\RelanceFinCampagneService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +28,7 @@ class DiffusionDisponibilitesController extends Controller
         private DiffusionDisponibilitesService $diffusion,
         private JoursFeriesService $joursFeries,
         private BrevoClient $brevo,
+        private RelanceFinCampagneService $finCampagne,
     ) {}
 
     public function index()
@@ -62,6 +65,15 @@ class DiffusionDisponibilitesController extends Controller
                 fn($a) => !$this->joursFeries->musulmanesSaisies($a)
             )),
             'exclusions'       => DiffusionDesinscription::orderByDesc('survenu_at')->get(),
+            // Mail « Votre campagne se termine » J-7 (2026-10-21).
+            'finCampagne'      => [
+                'modeTest'   => $this->finCampagne->estModeTest(),
+                'jours'      => $this->finCampagne->jours(),
+                'copie'      => $this->finCampagne->copie(),
+                'prochaines' => $this->finCampagne->prochaines(),
+                'journal'    => RelanceFinCampagne::with(['campaign:id,name', 'client:id,name'])
+                                    ->latest('updated_at')->limit(15)->get(),
+            ],
         ]);
     }
 
@@ -169,7 +181,9 @@ class DiffusionDisponibilitesController extends Controller
     public function reintegrer(DiffusionDesinscription $exclusion): RedirectResponse
     {
         $email = $exclusion->email;
-        $etaitDesinscrit = $exclusion->motif === 'desinscription';
+        // Désinscrit via le lien d'un mail Brevo : Brevo le bloque aussi. Via
+        // le lien d'un mail Panora (source « lien ») : rien à faire dans Brevo.
+        $etaitDesinscrit = $exclusion->motif === 'desinscription' && $exclusion->source === 'brevo';
         $exclusion->delete();
 
         return back()->with('success', "{$email} réintégré dans Panora."

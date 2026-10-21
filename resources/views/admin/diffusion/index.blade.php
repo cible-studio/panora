@@ -181,6 +181,9 @@
         @endif
     </div>
 
+    {{-- ═══ FIN DE CAMPAGNE (J-7) ═══ --}}
+    @include('admin.diffusion._fin-campagne')
+
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px;">
 
         {{-- ═══ JOURS FÉRIÉS ═══ --}}
@@ -231,7 +234,8 @@
         <div style="{{ $card }}">
             <h2 style="{{ $h2 }}">🚫 Adresses exclues</h2>
             <p style="{{ $muted }}margin:-6px 0 14px;line-height:1.5;">
-                Désinscriptions, adresses invalides et signalements de spam remontés par Brevo.
+                Désinscriptions (lien des mails Brevo ou des mails de fin de campagne), adresses invalides et signalements de spam remontés par Brevo.
+                Une adresse exclue ne reçoit plus ni les disponibilités ni le mail de fin de campagne.
                 Vous pouvez aussi exclure une adresse à la main (client qui l'a demandé par téléphone).
             </p>
 
@@ -252,7 +256,7 @@
                             </td>
                             <td style="padding:7px 4px;text-align:right;">
                                 <form method="POST" action="{{ route('admin.diffusion-dispos.exclusions.destroy', $x) }}"
-                                      onsubmit="return confirm('Réintégrer {{ $x->email }} dans les prochains envois ?{{ $x->motif === 'desinscription' ? ' Ce client s\'est désinscrit lui-même : il faudra aussi le réautoriser dans Brevo.' : '' }}')">
+                                      onsubmit="return confirm('Réintégrer {{ $x->email }} dans les prochains envois ?{{ $x->motif === 'desinscription' && $x->source === 'brevo' ? ' Ce client s\'est désinscrit lui-même : il faudra aussi le réautoriser dans Brevo.' : '' }}')">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-ghost btn-sm">Réintégrer</button>
                                 </form>

@@ -2,78 +2,87 @@
 
 namespace App\Console\Commands;
 
-use App\Mail\CampaignEndingSoonMail;
 use App\Models\Campaign;
-use App\Services\NotificationMailer;
+use App\Models\RelanceFinCampagne;
+use App\Services\Diffusion\RelanceFinCampagneService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 
 /**
- * Notifie les clients dont la campagne arrive à échéance dans X jours.
+ * Prévient les clients dont la campagne se termine dans N jours (J-7).
  *
- * Idempotent : utilise un flag cache "ending_notified.{campaign_id}.{days}"
- * (TTL 60 jours) pour éviter de spammer si la commande tourne plusieurs
- * fois la même journée.
+ * Refaite le 2026-10-21 : toute la logique (destinataire, exclusions,
+ * mode test, envoi Brevo ou SMTP, journal) est dans
+ * RelanceFinCampagneService. Un seul mail par campagne, garanti par le
+ * journal relances_fin_campagne (et non plus par un drapeau en cache).
  *
- * Schedule recommandé : --days=7 quotidien à 10h00.
+ * Planifiée chaque jour à 10h (routes/console.php § 9).
+ *
+ *   php artisan campaigns:notify-ending --dry-run      ce qui partirait aujourd'hui
+ *   php artisan campaigns:notify-ending --campagne=42  traite une campagne précise,
+ *                                                      quelle que soit sa date de fin
  */
 class NotifyEndingCampaigns extends Command
 {
     protected $signature = 'campaigns:notify-ending
-                            {--days=7 : Nombre de jours avant fin de campagne}
+                            {--days= : Jours avant la fin (défaut : 7, config diffusion.fin_campagne.jours)}
+                            {--campagne= : ID d\'une campagne à traiter, quelle que soit sa date de fin}
                             {--dry-run : Affiche sans envoyer}';
 
-    protected $description = "Envoie une relance email aux clients dont la campagne se termine dans N jours";
+    protected $description = 'Prévient par mail les clients dont la campagne se termine dans N jours';
 
-    public function handle(): int
+    public function handle(RelanceFinCampagneService $service): int
     {
-        $days   = (int) $this->option('days');
         $dryRun = (bool) $this->option('dry-run');
+        $jours  = $this->option('days') !== null ? (int) $this->option('days') : $service->jours();
 
-        $target = now()->addDays($days)->startOfDay();
-        $end    = $target->copy()->endOfDay();
+        if ($id = $this->option('campagne')) {
+            $campagne = Campaign::with(['client.contacts', 'commercial', 'user'])->find($id);
+            if (!$campagne || !$campagne->end_date) {
+                $this->error("Campagne #{$id} introuvable ou sans date de fin.");
 
-        $sent = 0; $skipped = 0;
+                return self::FAILURE;
+            }
+            $campagnes = collect([$campagne]);
+        } else {
+            $campagnes = $service->campagnesDuJour($jours);
+        }
 
-        $campaigns = Campaign::where('status', 'actif')
-            ->whereBetween('end_date', [$target, $end])
-            ->whereNull('deleted_at')
-            ->with('client')
-            ->get();
+        $this->line(sprintf(
+            'Fin de campagne J-%d — mode %s — %d campagne(s)%s',
+            $jours,
+            $service->estModeTest() ? 'TEST (adresses de test uniquement)' : 'PRODUCTION',
+            $campagnes->count(),
+            $dryRun ? ' — simulation' : ''
+        ));
 
-        foreach ($campaigns as $campaign) {
-            $email = $campaign->client?->email;
-            if (!$email) { $skipped++; continue; }
+        $bilan = ['envoye' => 0, 'exclu' => 0, 'echec' => 0];
 
-            $cacheKey = "ending_notified.{$campaign->id}.{$days}";
-            if (Cache::has($cacheKey)) { $skipped++; continue; }
+        foreach ($campagnes as $campagne) {
+            $titre = "#{$campagne->id} {$campagne->name} (fin {$campagne->end_date->format('d/m/Y')})";
 
             if ($dryRun) {
-                $this->info("[DRY] #{$campaign->id} {$campaign->name} → {$email} (J-{$days})");
+                $a = $service->analyser($campagne);
+                $this->line($a['statut']
+                    ? "  [—] {$titre} : {$a['motif']}"
+                    : "  [→] {$titre} → {$a['destinataire']} · copie " . (implode(', ', $a['copie']) ?: '—') . " · réponse à {$a['repondre_a']}");
                 continue;
             }
 
-            try {
-                app(NotificationMailer::class)->sendSilently(
-                    $email,
-                    new CampaignEndingSoonMail($campaign, $days),
-                    cc: null,
-                    context: ['campaign_id' => $campaign->id, 'days_remaining' => $days],
-                );
-                Cache::put($cacheKey, true, now()->addDays(60));
-                $sent++;
-                $this->info("✓ #{$campaign->id} {$campaign->name} → {$email}");
-            } catch (\Throwable $e) {
-                Log::error('campaign.ending_notify.failed', [
-                    'campaign_id' => $campaign->id, 'error' => $e->getMessage(),
-                ]);
-                $skipped++;
-            }
+            $ligne = $service->traiter($campagne);
+            $bilan[$ligne->statut] = ($bilan[$ligne->statut] ?? 0) + 1;
+
+            match ($ligne->statut) {
+                RelanceFinCampagne::STATUT_ENVOYE => $this->info("  ✓ {$titre} → {$ligne->destinataire} ({$ligne->canal})" . ($ligne->motif ? " — {$ligne->motif}" : '')),
+                RelanceFinCampagne::STATUT_EXCLU  => $this->line("  — {$titre} : {$ligne->motif}"),
+                default                           => $this->warn("  ✗ {$titre} : {$ligne->motif}"),
+            };
         }
 
-        $this->line('');
-        $this->info("Bilan J-{$days} : {$sent} envoyé(s) · {$skipped} ignoré(s)");
+        if (!$dryRun) {
+            $this->line('');
+            $this->info("Bilan : {$bilan['envoye']} envoyé(s) · {$bilan['exclu']} non envoyé(s) · {$bilan['echec']} à retenter");
+        }
+
         return self::SUCCESS;
     }
 }

@@ -141,16 +141,10 @@ class DiffusionDisponibilitesService
             ->with(['contacts' => fn($q) => $q->select('id', 'client_id', 'name', 'email', 'is_primary')])
             ->orderBy('name')
             ->get(['id', 'name', 'contact_name', 'email'])
-            ->map(function (Client $c) {
-                $contact = $c->contacts->first(fn($ct) => filter_var($ct->email, FILTER_VALIDATE_EMAIL));
-
-                return [
-                    'email'     => mb_strtolower(trim((string) ($contact?->email ?: $c->email))),
-                    'contact'   => $contact?->name ?: $c->contact_name,
-                    'societe'   => $c->name,
-                    'client_id' => $c->id,
-                ];
-            })
+            ->map(fn(Client $c) => $c->destinataireCommercial() + [
+                'societe'   => $c->name,
+                'client_id' => $c->id,
+            ])
             ->filter(fn($d) => filter_var($d['email'], FILTER_VALIDATE_EMAIL))
             ->reject(fn($d) => $exclues->has($d['email']))
             ->unique('email')
