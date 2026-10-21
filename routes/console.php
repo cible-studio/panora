@@ -61,10 +61,11 @@ Schedule::command('invoices:send-reminders')
     ->dailyAt('09:15')
     ->withoutOverlapping();
 
-// 9. Relances campagnes arrivant à échéance (J-7).
-//    Propose un renouvellement / prolongation au client.
-//    Idempotent via cache flag (TTL 60 jours).
-Schedule::command('campaigns:notify-ending', ['--days' => 7])
+// 9. Mail au client : « Votre campagne se termine le … » (J-7).
+//    Propose une reconduction ; la réponse va au commercial de la campagne.
+//    Un seul mail par campagne (journal relances_fin_campagne). Mode test
+//    tant que RELANCE_FIN_MODE ≠ production. Cf. RelanceFinCampagneService.
+Schedule::command('campaigns:notify-ending')
     ->dailyAt('10:00')
     ->withoutOverlapping();
 

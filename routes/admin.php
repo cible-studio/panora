@@ -332,6 +332,19 @@ Route::post('/webhooks/brevo/{token}', [\App\Http\Controllers\Webhooks\BrevoWebh
     ->middleware('throttle:120,1')
     ->name('webhooks.brevo');
 
+// Lien « Ne plus recevoir nos messages commerciaux » des mails envoyés
+// par Panora (fin de campagne, 2026-10-21). Signature HMAC dans le chemin ;
+// le POST (bouton, ou désinscription en un clic de Gmail) est exempté de
+// CSRF dans bootstrap/app.php.
+Route::get('/desinscription/{e}/{sig}', [\App\Http\Controllers\DesinscriptionController::class, 'show'])
+    ->where(['e' => '[A-Za-z0-9_-]{4,400}', 'sig' => '[a-f0-9]{32}'])
+    ->middleware('throttle:30,1')
+    ->name('desinscription.show');
+Route::post('/desinscription/{e}/{sig}', [\App\Http\Controllers\DesinscriptionController::class, 'store'])
+    ->where(['e' => '[A-Za-z0-9_-]{4,400}', 'sig' => '[a-f0-9]{32}'])
+    ->middleware('throttle:30,1')
+    ->name('desinscription.store');
+
 Route::prefix('admin')
     ->name('admin.')
     ->middleware(['auth', 'role:admin,commercial,mediaplanner,comptable'])
@@ -613,6 +626,15 @@ Route::prefix('admin')
                     Route::delete('/jours-feries/{jourFerie}', 'supprimerJourFerie')->name('jours-feries.destroy');
                     Route::post('/exclusions', 'exclure')->name('exclusions.store');
                     Route::delete('/exclusions/{exclusion}', 'reintegrer')->name('exclusions.destroy');
+                });
+
+            // ── Mail « Votre campagne se termine » J-7 (2026-10-21) ──
+            // Aperçu et envoi de TEST uniquement (jamais au client).
+            Route::prefix('diffusion-dispos/fin-campagne')->name('diffusion-dispos.fin-campagne.')
+                ->controller(\App\Http\Controllers\Admin\RelanceFinCampagneController::class)
+                ->group(function () {
+                    Route::get('/{campaign}/apercu', 'apercu')->name('apercu');
+                    Route::post('/{campaign}/tester', 'tester')->middleware('throttle:10,1')->name('tester');
                 });
 
             Route::resource('users', UserController::class);

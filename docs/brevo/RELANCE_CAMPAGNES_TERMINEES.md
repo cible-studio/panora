@@ -2,6 +2,8 @@
 
 > Créé le 2026-10-21.
 > Modèle : `modele-relance-campagne-terminee.html` · fichier d'exemple : `exemple-import-relance.csv` (même dossier).
+>
+> **Depuis le 2026-10-21, Panora prévient automatiquement chaque client 7 jours avant la fin de sa campagne**, avec le même texte. Voir `docs/DIFFUSION_DISPONIBILITES.md` § 8. Ce guide manuel sert à relancer les campagnes **déjà terminées** avant la mise en service.
 
 ## Principe
 

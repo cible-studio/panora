@@ -49,4 +49,28 @@ return [
     // manuel exige une confirmation renforcée (taper ENVOYER).
     'delai_alerte_heures' => 24,
 
+    // ── MAIL « VOTRE CAMPAGNE SE TERMINE » (J-7) ─────────────────────
+    //
+    // Règles validées le 2026-10-21 — cf. docs/DIFFUSION_DISPONIBILITES.md
+    // § « Fin de campagne ». Commande : campaigns:notify-ending (10h).
+    'fin_campagne' => [
+
+        // Même garde-fou que la diffusion, réglé À PART pour pouvoir
+        // lancer l'un sans l'autre :
+        // 'test'       : les mails partent vers la liste Brevo « Tests
+        //                internes » (à défaut DIFFUSION_CONFIRMATION_EMAIL).
+        //                Aucun client ne reçoit rien.
+        // 'production' : les mails partent aux clients.
+        // Guillemets retirés (Coolify les garde, cf. config/brevo.php).
+        'mode' => trim((string) env('RELANCE_FIN_MODE', 'test'), " \"'\\"),
+
+        // Jours avant la fin de la campagne (règle validée : 7).
+        'jours' => 7,
+
+        // Copie de chaque mail client (la réponse, elle, va au commercial
+        // de la campagne). Vide → l'expéditeur Brevo (BREVO_SENDER_EMAIL).
+        'copie' => env('RELANCE_FIN_COPIE'),
+
+    ],
+
 ];

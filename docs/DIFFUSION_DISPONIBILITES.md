@@ -248,3 +248,66 @@ l'écran de diffusion. Un bandeau le rappelle tant qu'elles manquent.
 | `app/Http/Controllers/Webhooks/BrevoWebhookController.php` | Désinscriptions, rebonds, spam |
 | `app/Http/Controllers/PublicDiffusionController.php` | Lien public du PDF |
 | `config/brevo.php`, `config/diffusion.php` | Configuration |
+
+---
+
+## 8. Fin de campagne — mail au client (J-7)
+
+Ajouté le 2026-10-21. Ce n'est pas un nouveau mail : c'est le mail J-7 qui
+existait déjà (`campaigns:notify-ending`), refait selon les règles
+ci-dessous, validées par le métier le 2026-10-21. Il se pilote depuis la
+carte « Fin de campagne » de l'écran *Diffusion dispos*.
+
+### Règles
+
+| Règle | Détail |
+|---|---|
+| Quand | Chaque jour à 10 h, pour les campagnes **actives** qui se terminent **dans 7 jours** |
+| Combien | **Un seul** mail par campagne. Une prolongation, qui change la date de fin, en redonne un |
+| À qui | L'interlocuteur principal du client, sinon l'adresse de la fiche client. C'est la même règle que pour les disponibilités (`Client::destinataireCommercial`) |
+| Réponse | Au commercial de la campagne, sinon à celui qui l'a créée (`Campaign::resolveCommercialContact`, comme les autres mails clients) |
+| Copie | `RELANCE_FIN_COPIE`, sinon l'expéditeur Brevo (commercial@) |
+| Pas de mail si | Le client a une **autre campagne planifiée**, ou **active qui continue après** celle-ci. Deux campagnes qui finissent le même jour reçoivent chacune leur mail |
+| Pas de mail si | L'adresse est **exclue** : désinscrite, invalide ou signalée comme spam (liste « Adresses exclues ») |
+| Contenu | Format léger, comme le modèle Brevo léger : aucune image, aucun bouton, réponse par retour de mail. Il propose une reconduction, les emplacements libres ou une recommandation. Plus d'« offre de fidélité » |
+| Canal | Brevo (API transactionnelle, statistiques par mail). Si Brevo n'est pas configuré ou refuse l'envoi, le système de mail habituel de Panora prend le relais |
+| Échec | Si le mail n'a pas pu partir (pas d'adresse, Brevo et le système de secours en panne), il est **retenté chaque jour** jusqu'à la veille de la fin. Une exclusion, elle, est définitive |
+
+**Désinscription** : le mail contient son propre lien, signé. Ce lien
+fonctionne aussi pour la désinscription en un clic de Gmail et Yahoo.
+- Ouvrir le lien **ne désinscrit pas** : la page demande une confirmation, parce que les antivirus de messagerie ouvrent les liens des mails.
+- Une fois confirmée, l'adresse rejoint les « Adresses exclues » : elle ne reçoit plus **ni les disponibilités, ni ce mail**.
+
+### Mise en service
+
+```
+RELANCE_FIN_MODE=test          # défaut : les mails vont à la liste « Tests internes »
+RELANCE_FIN_MODE=production    # les clients reçoivent
+RELANCE_FIN_COPIE=commercial@cible-ci.com   # facultatif
+```
+
+⚠️ Tant que `RELANCE_FIN_MODE` n'est pas sur `production`, **aucun client
+ne reçoit ce mail**, pas même l'ancienne version. Le staging doit rester en
+`test`.
+
+1. Staging, mode test : carte « Fin de campagne » → **Aperçu** (le mail tel que le client le verrait), puis **Envoyer un test**.
+2. Production, mode test, pendant quelques jours : les mails du jour arrivent dans les boîtes de test. On vérifie, dans la carte, qui aurait reçu quoi.
+3. Production : `RELANCE_FIN_MODE=production`.
+
+Commandes utiles :
+
+```bash
+php artisan campaigns:notify-ending --dry-run      # ce qui partirait aujourd'hui, sans rien envoyer
+php artisan campaigns:notify-ending --campagne=42  # traite une campagne précise, quelle que soit sa date
+```
+
+### Code
+
+| Fichier | Rôle |
+|---|---|
+| `app/Services/Diffusion/RelanceFinCampagneService.php` | Seul endroit qui décide : sélection, exclusions, envoi, journal |
+| `app/Mail/CampaignEndingSoonMail.php` + `resources/views/emails/campaign-ending-soon.blade.php` (+ `plain/`) | Le mail, identique sur Brevo et par le système de secours |
+| `app/Console/Commands/NotifyEndingCampaigns.php` | `campaigns:notify-ending` (10 h) |
+| `app/Models/RelanceFinCampagne.php` | Journal `relances_fin_campagne` |
+| `app/Http/Controllers/DesinscriptionController.php` | Page du lien de désinscription |
+| `app/Http/Controllers/Admin/RelanceFinCampagneController.php` | Aperçu et envoi de test |

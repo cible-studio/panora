@@ -64,6 +64,24 @@ class Client extends Authenticatable  // ← était "extends Model"
         return $this->hasOne(ClientContact::class)->where('is_primary', true);
     }
 
+    /**
+     * À qui écrire pour les envois commerciaux (diffusion des
+     * disponibilités, mail de fin de campagne) : le premier interlocuteur
+     * qui a une adresse valide — le principal d'abord —, à défaut
+     * l'adresse de la fiche client. Source unique de cette règle.
+     *
+     * @return array{email: string, contact: ?string}  email vide si aucune
+     */
+    public function destinataireCommercial(): array
+    {
+        $contact = $this->contacts->first(fn($ct) => filter_var($ct->email, FILTER_VALIDATE_EMAIL));
+
+        return [
+            'email'   => mb_strtolower(trim((string) ($contact?->email ?: $this->email))),
+            'contact' => $contact?->name ?: $this->contact_name,
+        ];
+    }
+
     // ── Liste fixe des secteurs métier ────────────────────────────
     // Source unique de vérité — utilisée partout (validation, vues, filtres)
     public const SECTORS = [

@@ -128,6 +128,23 @@ class BrevoClient
     }
 
     /**
+     * Envoie UN mail individuel (API transactionnelle), avec un contenu
+     * HTML déjà rendu par Panora. Utilisé par le mail de fin de campagne.
+     * PAS de nouvelle tentative automatique, pour la même raison que
+     * envoyerCampagne().
+     *
+     * @param array{sender: array, to: array, subject: string, htmlContent: string} $payload
+     *        format de l'API : https://developers.brevo.com/reference/sendtransacemail
+     * @return ?string  identifiant du message chez Brevo
+     */
+    public function envoyerEmail(array $payload): ?string
+    {
+        $r = $this->reponse($this->client()->post('/smtp/email', $payload), 'envoi du mail');
+
+        return $r->json('messageId') ?: null;
+    }
+
+    /**
      * Lien vers le rapport de la campagne dans Brevo (délivrés, ouvertures,
      * clics, désinscriptions). Nécessite un accès au compte Brevo.
      *
