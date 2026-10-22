@@ -72,8 +72,11 @@ class DiffusionDisponibilitesService
     {
         // Parc CIBLE uniquement (pas de panneaux de régies partenaires),
         // trié par commune puis référence : le PDF regroupe par commune.
+        // Exclus (2026-10-22) : les panneaux dont le renouvellement a été
+        // confirmé par le MP — ils restent au client actuel.
         $ids = Panel::query()
             ->whereNull('panels.deleted_at')
+            ->whereNotIn('panels.id', RenouvellementService::panneauxRetenus())
             ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
             ->orderBy('communes.name')
             ->orderBy('panels.reference')

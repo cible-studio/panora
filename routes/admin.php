@@ -353,6 +353,27 @@ Route::post('/desinscription/{e}/{sig}', [\App\Http\Controllers\DesinscriptionCo
     ->middleware('throttle:30,1')
     ->name('desinscription.store');
 
+// Boutons de réponse des mails de renouvellement (2026-10-22). Lien
+// personnel (jeton de 48 caractères), sans connexion. Ouvrir n'enregistre
+// rien ; c'est « Confirmer » (POST, avec jeton CSRF) qui compte. Liens
+// « essai » (mails de test) : signés, n'enregistrent rien.
+Route::controller(\App\Http\Controllers\RenouvellementPublicController::class)
+    ->middleware('throttle:30,1')
+    ->group(function () {
+        Route::get('/renouvellement/{token}/{choix?}', 'show')
+            ->where(['token' => '[A-Za-z0-9]{40,64}', 'choix' => 'renouveler|ajuster|refus|rappel'])
+            ->name('renouvellement.show');
+        Route::post('/renouvellement/{token}', 'store')
+            ->where('token', '[A-Za-z0-9]{40,64}')
+            ->name('renouvellement.store');
+        Route::get('/renouvellement-essai/{dossier}/{sig}/{choix?}', 'essai')
+            ->where(['dossier' => '[0-9]+', 'sig' => '[a-f0-9]{32}', 'choix' => 'renouveler|ajuster|refus|rappel'])
+            ->name('renouvellement.essai');
+        Route::post('/renouvellement-essai/{dossier}/{sig}', 'essaiStore')
+            ->where(['dossier' => '[0-9]+', 'sig' => '[a-f0-9]{32}'])
+            ->name('renouvellement.essai.store');
+    });
+
 Route::prefix('admin')
     ->name('admin.')
     ->middleware(['auth', 'role:admin,commercial,mediaplanner,comptable'])
@@ -617,6 +638,26 @@ Route::prefix('admin')
                     [CommuneController::class, 'scheduleTariff'])->name('communes.tariffs.schedule');
                 Route::delete('communes/{commune}/tariffs/{entry}',
                     [CommuneController::class, 'deleteTariffEntry'])->name('communes.tariffs.delete');
+            });
+
+        // ── Renouvellement des campagnes annuelles (2026-10-22) ──
+        // Liste et suivi des appels : admin, MP, commercial (ses clients).
+        // Confirmation : MP et admin. Textes des mails : admin.
+        Route::prefix('renouvellements')->name('renouvellements.')
+            ->middleware('role:admin,commercial,mediaplanner')
+            ->controller(\App\Http\Controllers\Admin\RenouvellementController::class)
+            ->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::post('/campagne/{campaign}/statut', 'statut')->name('statut');
+                Route::post('/campagne/{campaign}/confirmer', 'confirmer')
+                    ->middleware('role:admin,mediaplanner')->name('confirmer');
+                Route::middleware('role:admin')->group(function () {
+                    Route::get('/textes', 'modeles')->name('modeles');
+                    Route::post('/textes/apercu', 'apercu')->middleware('throttle:120,1')->name('apercu');
+                    Route::post('/textes/{cle}', 'enregistrerModele')->where('cle', 'j60|j45|j30|j15|j7|accuse|fin')->name('modeles.update');
+                    Route::post('/textes/{cle}/tester', 'tester')->where('cle', 'j60|j45|j30|j15|j7|accuse|fin')
+                        ->middleware('throttle:10,1')->name('tester');
+                });
             });
 
         // Utilisateurs (admin uniquement)

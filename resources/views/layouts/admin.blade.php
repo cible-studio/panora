@@ -88,6 +88,13 @@
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
                         <span class="nav-text">Campagnes</span>
                     </a>
+                    {{-- 2026-10-22 : renouvellement des campagnes annuelles (admin, MP, commercial). --}}
+                    @if($isAdmin || $isMP || $isCom)
+                    <a href="{{ route('admin.renouvellements.index') }}" data-tooltip="Renouvellements" class="nav-item {{ request()->routeIs('admin.renouvellements.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
+                        <span class="nav-text">Renouvellements</span>
+                    </a>
+                    @endif
                     <a href="{{ route('admin.clients.index') }}" data-tooltip="Clients" class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                         <span class="nav-text">Clients</span>

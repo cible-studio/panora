@@ -73,4 +73,19 @@ return [
 
     ],
 
+    // ── RENOUVELLEMENT DES CAMPAGNES ANNUELLES (2026-10-22) ─────────
+    //
+    // Séquence J-60 → J-7 pour les campagnes de 12 mois ou plus : même
+    // interrupteur test / production que le mail J-7 (RELANCE_FIN_MODE).
+    // Cf. RenouvellementService et docs/RENOUVELLEMENTS.md.
+    'renouvellement' => [
+
+        // Un renouvellement confirmé par le MP retire les panneaux du
+        // catalogue des disponibilités jusqu'à N jours après la fin de la
+        // campagne : le temps de saisir la nouvelle réservation, qui prend
+        // ensuite le relais.
+        'retenue_jours' => (int) env('RENOUVELLEMENT_RETENUE_JOURS', 30),
+
+    ],
+
 ];

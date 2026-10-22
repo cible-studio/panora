@@ -341,6 +341,18 @@ class Campaign extends Model
     }
 
     /**
+     * Campagne « annuelle » : 12 mois ou plus, mesurés avec la règle de
+     * durée ci-dessus (facturation, affichage). Ex. : du 1er janvier au
+     * 31 décembre = 12 mois. Ces campagnes reçoivent la séquence de
+     * renouvellement (J-60 → J-7) au lieu du mail J-7 simple (règle
+     * validée le 2026-10-22, cf. RenouvellementService).
+     */
+    public function estAnnuelle(): bool
+    {
+        return $this->start_date && $this->end_date && $this->resolvePeriod()['mois'] >= 12;
+    }
+
+    /**
      * Nombre de mois facturables — équation préservée `montant = billableMonths × tarif`.
      *
      * Cas couverts (RÈGLE PATRONNE 2026-06-25) :
