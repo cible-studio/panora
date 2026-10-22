@@ -11,7 +11,7 @@ use Illuminate\Console\Command;
  * Prévient les clients dont la campagne se termine dans N jours (J-7).
  *
  * Refaite le 2026-10-21 : toute la logique (destinataire, exclusions,
- * mode test, envoi Brevo ou SMTP, journal) est dans
+ * mode test, envoi par Brevo, journal) est dans
  * RelanceFinCampagneService. Un seul mail par campagne, garanti par le
  * journal relances_fin_campagne (et non plus par un drapeau en cache).
  *

@@ -17,8 +17,9 @@ use Tests\TestCase;
 
 /**
  * Mail « Votre campagne se termine » (J-7) : déroulé complet — sélection,
- * journal, un seul mail par campagne, mode test, Brevo puis SMTP en
- * secours (2026-10-21).
+ * journal, un seul mail par campagne, mode test, envoi par Brevo
+ * uniquement, sans secours (2026-10-21, secours retiré le 2026-10-22).
+ * L'API Brevo est simulée : aucun appel réseau.
  *
  * Les migrations du projet ne passent pas sous SQLite (MODIFY COLUMN, cf.
  * TECHNICAL_DEBT.md) : on crée ici les seules colonnes utiles, plus la
@@ -26,6 +27,10 @@ use Tests\TestCase;
  */
 class RelanceFinCampagneServiceTest extends TestCase
 {
+    /** Réponse simulée de l'API Brevo (modifiable par test). */
+    private int $statutBrevo = 201;
+    private array $reponseBrevo = ['messageId' => '<abc@smtp-relay.brevo.com>'];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -59,12 +64,13 @@ class RelanceFinCampagneServiceTest extends TestCase
             'diffusion.fin_campagne.mode'  => 'production',
             'diffusion.fin_campagne.copie' => 'commercial@cible-ci.com',
             'diffusion.confirmation_email' => 'studio@cible-ci.com',
-            'brevo.api_key'      => null,
+            'brevo.api_key'      => 'cle-de-test',
             'brevo.sender.email' => 'commercial@cible-ci.com',
             'brevo.lists.tests'  => null,
         ]);
 
         Mail::fake();
+        Http::fake(fn() => Http::response($this->reponseBrevo, $this->statutBrevo));
 
         DB::table('users')->insert([
             ['id' => 1, 'name' => 'Créateur', 'email' => 'createur@cible-ci.com'],
@@ -90,6 +96,12 @@ class RelanceFinCampagneServiceTest extends TestCase
         return Campaign::findOrFail($id);
     }
 
+    /** @return \Illuminate\Support\Collection<int, \Illuminate\Http\Client\Request>  mails demandés à Brevo */
+    private function envoisBrevo(): \Illuminate\Support\Collection
+    {
+        return Http::recorded(fn($r) => str_ends_with($r->url(), '/smtp/email'))->map(fn($p) => $p[0])->values();
+    }
+
     private function service(): RelanceFinCampagneService
     {
         return app(RelanceFinCampagneService::class);
@@ -105,19 +117,26 @@ class RelanceFinCampagneServiceTest extends TestCase
         $this->assertSame([$cible->id], $this->service()->campagnesDuJour()->pluck('id')->all());
     }
 
-    public function test_envoi_production_au_client_reponse_au_commercial_copie_commercial(): void
+    public function test_envoi_production_par_brevo_au_client_reponse_au_commercial_copie_commercial(): void
     {
         $ligne = $this->service()->traiter($this->campagne());
 
         $this->assertSame('envoye', $ligne->statut);
-        $this->assertSame('smtp', $ligne->canal);
+        $this->assertSame('brevo', $ligne->canal);
+        $this->assertSame('<abc@smtp-relay.brevo.com>', $ligne->brevo_message_id);
         $this->assertSame('awa@orange.ci', $ligne->destinataire);
         $this->assertSame('k.yao@cible-ci.com', $ligne->repondre_a);
 
-        Mail::assertSent(CampaignEndingSoonMail::class, fn($m) => $m->hasTo('awa@orange.ci')
-            && $m->hasCc('commercial@cible-ci.com')
-            && $m->hasReplyTo('k.yao@cible-ci.com')
-            && $m->daysRemaining === 7);
+        $this->assertCount(1, $this->envoisBrevo());
+        $r = $this->envoisBrevo()->first();
+        $this->assertSame('awa@orange.ci', $r['to'][0]['email']);
+        $this->assertSame('commercial@cible-ci.com', $r['cc'][0]['email']);
+        $this->assertSame('k.yao@cible-ci.com', $r['replyTo']['email']);
+        $this->assertSame(['fin-campagne'], $r['tags']);
+        $this->assertStringContainsString('dans 7 jours', $r['textContent']);
+
+        // Rien par le serveur de mail de Panora : tout se suit dans Brevo.
+        Mail::assertNothingSent();
     }
 
     public function test_un_seul_mail_par_campagne(): void
@@ -126,7 +145,7 @@ class RelanceFinCampagneServiceTest extends TestCase
         $this->service()->traiter($campagne);
         $this->service()->traiter($campagne);
 
-        Mail::assertSentCount(1);
+        $this->assertCount(1, $this->envoisBrevo());
         $this->assertSame(1, RelanceFinCampagne::count());
     }
 
@@ -138,7 +157,7 @@ class RelanceFinCampagneServiceTest extends TestCase
         $campagne->update(['end_date' => '2026-11-30']);
         $this->service()->traiter($campagne->fresh());
 
-        Mail::assertSentCount(2);
+        $this->assertCount(2, $this->envoisBrevo());
     }
 
     public function test_deja_prevenu_par_l_ancienne_version_pas_de_renvoi(): void
@@ -148,7 +167,7 @@ class RelanceFinCampagneServiceTest extends TestCase
 
         $ligne = $this->service()->traiter($campagne);
 
-        Mail::assertNothingSent();
+        $this->assertCount(0, $this->envoisBrevo());
         $this->assertSame('envoye', $ligne->statut);
     }
 
@@ -159,11 +178,11 @@ class RelanceFinCampagneServiceTest extends TestCase
         $ligne = $this->service()->traiter($this->campagne());
 
         $this->assertSame('test', $ligne->mode);
-        Mail::assertSent(CampaignEndingSoonMail::class, fn($m) => $m->hasTo('studio@cible-ci.com')
-            && !$m->hasTo('awa@orange.ci')
-            && !$m->hasCc('commercial@cible-ci.com')
-            && str_starts_with($m->sujet(), '[TEST]'));
-        Mail::assertNotSent(CampaignEndingSoonMail::class, fn($m) => $m->hasTo('awa@orange.ci'));
+        $this->assertCount(1, $this->envoisBrevo());
+        $r = $this->envoisBrevo()->first();
+        $this->assertSame('studio@cible-ci.com', $r['to'][0]['email']);
+        $this->assertArrayNotHasKey('cc', $r->data());
+        $this->assertStringStartsWith('[TEST]', $r['subject']);
     }
 
     public function test_un_test_n_empeche_pas_le_vrai_mail_ensuite(): void
@@ -173,7 +192,7 @@ class RelanceFinCampagneServiceTest extends TestCase
         $ligne = $this->service()->traiter($campagne);
 
         $this->assertSame('production', $ligne->mode);
-        Mail::assertSent(CampaignEndingSoonMail::class, fn($m) => $m->hasTo('awa@orange.ci'));
+        $this->assertSame('awa@orange.ci', $this->envoisBrevo()->last()['to'][0]['email']);
     }
 
     public function test_client_avec_une_autre_campagne_qui_continue_n_est_pas_prevenu(): void
@@ -184,7 +203,7 @@ class RelanceFinCampagneServiceTest extends TestCase
         $ligne = $this->service()->traiter($campagne);
 
         $this->assertSame('exclu', $ligne->statut);
-        Mail::assertNothingSent();
+        $this->assertCount(0, $this->envoisBrevo());
     }
 
     public function test_adresse_desinscrite_pas_de_mail(): void
@@ -192,7 +211,7 @@ class RelanceFinCampagneServiceTest extends TestCase
         DB::table('diffusion_desinscriptions')->insert(['email' => 'awa@orange.ci', 'motif' => 'desinscription']);
 
         $this->assertSame('exclu', $this->service()->traiter($this->campagne())->statut);
-        Mail::assertNothingSent();
+        $this->assertCount(0, $this->envoisBrevo());
     }
 
     public function test_sans_adresse_le_mail_est_retente_les_jours_suivants(): void
@@ -208,25 +227,47 @@ class RelanceFinCampagneServiceTest extends TestCase
         DB::table('clients')->update(['email' => 'direction@orange.ci']);
         $this->assertSame([$campagne->id], $this->service()->campagnesDuJour()->pluck('id')->all());
 
-        $ligne = $this->service()->traiter($campagne->fresh());
-        $this->assertSame('envoye', $ligne->statut);
-        Mail::assertSent(CampaignEndingSoonMail::class, fn($m) => $m->hasTo('direction@orange.ci') && $m->daysRemaining === 6);
+        $this->assertSame('envoye', $this->service()->traiter($campagne->fresh())->statut);
+        $r = $this->envoisBrevo()->first();
+        $this->assertSame('direction@orange.ci', $r['to'][0]['email']);
+        $this->assertStringContainsString('dans 6 jours', $r['textContent']);
     }
 
-    public function test_brevo_configure_envoi_par_brevo_sans_doublon_smtp(): void
+    public function test_brevo_refuse_pas_de_secours_le_mail_est_retente_le_lendemain(): void
     {
-        config(['brevo.api_key' => 'cle-de-test']);
-        Http::fake(['*/smtp/email' => Http::response(['messageId' => '<abc@smtp-relay>'], 201)]);
+        $this->statutBrevo  = 400;
+        $this->reponseBrevo = ['message' => 'sender not valid'];
+        $campagne = $this->campagne();
+
+        $ligne = $this->service()->traiter($campagne);
+
+        $this->assertSame('echec', $ligne->statut);
+        $this->assertStringContainsString('sender not valid', $ligne->motif);
+        Mail::assertNothingSent();
+
+        // Le lendemain, Brevo accepte : le mail repart, par Brevo.
+        Carbon::setTestNow('2026-10-22 10:00:00');
+        $this->statutBrevo  = 201;
+        $this->reponseBrevo = ['messageId' => '<def@smtp-relay.brevo.com>'];
+        $this->assertSame([$campagne->id], $this->service()->campagnesDuJour()->pluck('id')->all());
+
+        $ligne = $this->service()->traiter($campagne->fresh());
+        $this->assertSame('envoye', $ligne->statut);
+        $this->assertSame('brevo', $ligne->canal);
+        $this->assertSame(2, $ligne->tentatives);
+        Mail::assertNothingSent();
+    }
+
+    public function test_brevo_non_configure_aucun_envoi(): void
+    {
+        config(['brevo.api_key' => null]);
 
         $ligne = $this->service()->traiter($this->campagne());
 
-        $this->assertSame('brevo', $ligne->canal);
-        $this->assertSame('<abc@smtp-relay>', $ligne->brevo_message_id);
+        $this->assertSame('echec', $ligne->statut);
+        $this->assertStringContainsString('BREVO_API_KEY', $ligne->motif);
+        $this->assertCount(0, $this->envoisBrevo());
         Mail::assertNothingSent();
-        Http::assertSent(fn($r) => str_ends_with($r->url(), '/smtp/email')
-            && $r['to'][0]['email'] === 'awa@orange.ci'
-            && $r['cc'][0]['email'] === 'commercial@cible-ci.com'
-            && $r['replyTo']['email'] === 'k.yao@cible-ci.com');
     }
 
     public function test_lien_de_desinscription_ouvrir_ne_desinscrit_pas_confirmer_desinscrit(): void
@@ -250,17 +291,5 @@ class RelanceFinCampagneServiceTest extends TestCase
 
         // Le mail suivant ne part plus.
         $this->assertSame('exclu', $this->service()->traiter($this->campagne())->statut);
-    }
-
-    public function test_brevo_refuse_le_mail_part_par_smtp(): void
-    {
-        config(['brevo.api_key' => 'cle-de-test']);
-        Http::fake(['*/smtp/email' => Http::response(['message' => 'sender not valid'], 400)]);
-
-        $ligne = $this->service()->traiter($this->campagne());
-
-        $this->assertSame('envoye', $ligne->statut);
-        $this->assertSame('smtp', $ligne->canal);
-        Mail::assertSent(CampaignEndingSoonMail::class, fn($m) => $m->hasTo('awa@orange.ci'));
     }
 }

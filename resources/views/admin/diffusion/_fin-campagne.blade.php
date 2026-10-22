@@ -27,6 +27,8 @@
         Destinataire : l'interlocuteur principal du client. Réponse : au commercial de la campagne.
         Copie : {{ implode(', ', $fc['copie']) ?: '—' }}.
         Pas de mail si le client a une autre campagne planifiée ou qui continue après, ni si son adresse est exclue.
+        <br>Envoyé par Brevo uniquement. Suivi de chaque mail (délivré, ouvert, cliqué) :
+        <strong>Brevo → Transactionnel → Journal</strong>, filtre sur le tag <code>fin-campagne</code>.
         @if($fc['modeTest'])
             <br><strong style="color:#92400e;">En mode test, ces mails partent vers la liste Brevo « Tests internes ».</strong>
             Pour écrire aux clients : <code>RELANCE_FIN_MODE=production</code> dans le <code>.env</code>.
