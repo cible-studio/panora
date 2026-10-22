@@ -173,7 +173,11 @@ Correctif local possible (non appliqué, décision utilisateur) :
 
 ### Mail de fin de campagne J-7 : pas de rattrapage d'un jour manqué (2026-10-21)
 
-`campaigns:notify-ending` vise les campagnes qui finissent **exactement**
+**Mise à jour 2026-10-22** : ne concerne plus que les campagnes de MOINS de
+12 mois. La séquence de renouvellement des campagnes annuelles, elle,
+rattrape un jour manqué (cf. `docs/RENOUVELLEMENTS.md`).
+
+Le mail J-7 simple de `campaigns:notify-ending` vise les campagnes qui finissent **exactement**
 dans 7 jours, comme avant la refonte. Une campagne n'a donc jamais son mail
 dans deux cas :
 - le planificateur n'a pas tourné le jour J-7 ;

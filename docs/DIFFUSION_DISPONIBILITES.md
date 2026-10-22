@@ -253,6 +253,11 @@ l'écran de diffusion. Un bandeau le rappelle tant qu'elles manquent.
 
 ## 8. Fin de campagne — mail au client (J-7)
 
+> **Depuis le 2026-10-22, ce mail ne concerne que les campagnes de MOINS de 12 mois.**
+> Les campagnes de 12 mois ou plus reçoivent la séquence de renouvellement (J-60 → J-7,
+> avec boutons de réponse) : voir `docs/RENOUVELLEMENTS.md`. Les textes de tous ces mails
+> se modifient dans *Renouvellements → Textes des mails* (onglet « Fin de campagne »).
+
 Ajouté le 2026-10-21. Ce n'est pas un nouveau mail : c'est le mail J-7 qui
 existait déjà (`campaigns:notify-ending`), refait selon les règles
 ci-dessous, validées par le métier le 2026-10-21. Il se pilote depuis la
@@ -262,7 +267,7 @@ carte « Fin de campagne » de l'écran *Diffusion dispos*.
 
 | Règle | Détail |
 |---|---|
-| Quand | Chaque jour à 10 h, pour les campagnes **actives** qui se terminent **dans 7 jours** |
+| Quand | Chaque jour à 10 h, pour les campagnes **actives de moins de 12 mois** qui se terminent **dans 7 jours** |
 | Combien | **Un seul** mail par campagne. Une prolongation, qui change la date de fin, en redonne un |
 | À qui | L'interlocuteur principal du client, sinon l'adresse de la fiche client. C'est la même règle que pour les disponibilités (`Client::destinataireCommercial`) |
 | Réponse | Au commercial de la campagne, sinon à celui qui l'a créée (`Campaign::resolveCommercialContact`, comme les autres mails clients) |

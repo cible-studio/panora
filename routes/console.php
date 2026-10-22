@@ -61,12 +61,23 @@ Schedule::command('invoices:send-reminders')
     ->dailyAt('09:15')
     ->withoutOverlapping();
 
-// 9. Mail au client : « Votre campagne se termine le … » (J-7).
-//    Propose une reconduction ; la réponse va au commercial de la campagne.
-//    Un seul mail par campagne (journal relances_fin_campagne). Mode test
-//    tant que RELANCE_FIN_MODE ≠ production. Cf. RelanceFinCampagneService.
+// 9. Mails aux clients avant l'échéance de leur campagne.
+//    · 12 mois ou plus (2026-10-22) : séquence de renouvellement J-60,
+//      J-45, J-30, J-15, J-7 avec boutons de réponse, arrêtée dès que le
+//      client répond (RenouvellementService).
+//    · Autres campagnes : mail J-7 simple (RelanceFinCampagneService).
+//    Un seul mail par campagne et par étape (journal relances_fin_campagne).
+//    Mode test tant que RELANCE_FIN_MODE ≠ production.
 Schedule::command('campaigns:notify-ending')
     ->dailyAt('10:00')
+    ->withoutOverlapping();
+
+// 9-ter. Mail du matin sur les renouvellements (2026-10-22) : clients à
+//        appeler (dès J-25), rappels demandés, réponses reçues → chaque
+//        commercial ; renouvellements à confirmer → les MP. Jours ouvrés.
+Schedule::command('renouvellements:digest')
+    ->weekdays()
+    ->at('08:00')
     ->withoutOverlapping();
 
 // 9-bis. Notif COMMERCIAL J-3 avant fin de campagne (préventif).

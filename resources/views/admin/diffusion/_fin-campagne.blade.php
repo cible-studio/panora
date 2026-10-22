@@ -5,13 +5,15 @@
 --}}
 @php
     $fc = $finCampagne;
-    $fmt = fn($d) => \App\Mail\CampaignEndingSoonMail::dateEnLettres($d);
+    $fmt = fn($d) => \App\Mail\MailClientCampagne::dateEnLettres($d);
     $pastille = 'padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;';
 @endphp
 
 <div style="{{ $card }}margin-top:18px;">
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;">
         <h2 style="{{ $h2 }}margin:0;margin-right:auto;">⏳ Fin de campagne — mail au client (J-{{ $fc['jours'] }})</h2>
+        <a href="{{ route('admin.renouvellements.index') }}" class="btn btn-ghost btn-sm">🔁 Renouvellements (12 mois et plus)</a>
+        <a href="{{ route('admin.renouvellements.modeles', ['cle' => 'fin']) }}" class="btn btn-ghost btn-sm">✏️ Textes des mails</a>
         @if($fc['modeTest'])
             <span style="{{ $pastille }}background:#fef3c7;color:#92400e;" title="RELANCE_FIN_MODE=test">
                 🧪 Mode test — aucun client ne reçoit
@@ -22,8 +24,9 @@
     </div>
 
     <p style="{{ $muted }}margin:0 0 14px;line-height:1.6;">
-        Chaque jour à 10 h, Panora écrit au client dont la campagne se termine dans {{ $fc['jours'] }} jours,
+        Chaque jour à 10 h, Panora écrit au client dont la campagne <strong>de moins de 12 mois</strong> se termine dans {{ $fc['jours'] }} jours,
         pour lui proposer une reconduction. Un seul mail par campagne.
+        Les campagnes de 12 mois ou plus reçoivent à la place la séquence de renouvellement (J-60 → J-7), suivie sur l'écran Renouvellements.
         Destinataire : l'interlocuteur principal du client. Réponse : au commercial de la campagne.
         Copie : {{ implode(', ', $fc['copie']) ?: '—' }}.
         Pas de mail si le client a une autre campagne planifiée ou qui continue après, ni si son adresse est exclue.
@@ -37,10 +40,10 @@
 
     {{-- ── Campagnes qui se terminent dans les 14 jours ── --}}
     <div style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:4px 0 8px;">
-        Campagnes qui se terminent dans les 14 jours
+        Campagnes de moins de 12 mois qui se terminent dans les 14 jours
     </div>
     @if($fc['prochaines']->isEmpty())
-        <div style="{{ $muted }}padding:12px 0;">Aucune campagne active ne se termine dans les 14 jours.</div>
+        <div style="{{ $muted }}padding:12px 0;">Aucune campagne active de moins de 12 mois ne se termine dans les 14 jours.</div>
     @else
         <div style="overflow-x:auto;">
             <table style="width:100%;font-size:13px;border-collapse:collapse;min-width:760px;">
@@ -128,7 +131,7 @@
                             <td style="padding:9px 6px;white-space:nowrap;">{{ ($l->envoye_at ?? $l->updated_at)->format('d/m/Y H\hi') }}</td>
                             <td style="padding:9px 6px;">
                                 {{ $l->campaign?->name ?? "Campagne #{$l->campaign_id}" }}
-                                <div style="{{ $muted }}">{{ $l->client?->name ?? '—' }} · fin le {{ $fmt($l->fin_campagne) }}</div>
+                                <div style="{{ $muted }}">{{ $l->client?->name ?? '—' }} · fin le {{ $fmt($l->fin_campagne) }} · {{ $l->libelleEtape() }}</div>
                             </td>
                             <td style="padding:9px 6px;">{{ $l->mode === 'production' ? 'Production' : 'Test' }}</td>
                             <td style="padding:9px 6px;">

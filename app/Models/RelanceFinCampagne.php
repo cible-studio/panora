@@ -8,8 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Journal du mail « Votre campagne se termine » (J-7) — 2026-10-21.
  *
- * Une ligne par campagne, par date de fin et par mode (test / production).
- * Cf. RelanceFinCampagneService.
+ * Une ligne par campagne, par date de fin, par mode (test / production) et
+ * par étape (2026-10-22) : « fin » = mail J-7 simple des campagnes de moins
+ * de 12 mois ; j60…j7 = séquence de renouvellement des campagnes annuelles ;
+ * « accuse » = accusé de réception d'une réponse.
+ * Cf. RelanceFinCampagneService et RenouvellementService.
  */
 class RelanceFinCampagne extends Model
 {
@@ -22,8 +25,21 @@ class RelanceFinCampagne extends Model
     public const MODE_TEST       = 'test';
     public const MODE_PRODUCTION = 'production';
 
+    public const ETAPE_FIN    = 'fin';
+    public const ETAPE_ACCUSE = 'accuse';
+
+    public const ETAPES = [
+        'fin'    => 'Fin de campagne (J-7)',
+        'j60'    => 'Renouvellement J-60',
+        'j45'    => 'Renouvellement J-45',
+        'j30'    => 'Renouvellement J-30',
+        'j15'    => 'Renouvellement J-15',
+        'j7'     => 'Renouvellement J-7',
+        'accuse' => 'Accusé de réception',
+    ];
+
     protected $fillable = [
-        'campaign_id', 'client_id', 'fin_campagne', 'mode', 'statut', 'canal',
+        'campaign_id', 'client_id', 'fin_campagne', 'mode', 'etape', 'statut', 'canal',
         'destinataire', 'copie', 'repondre_a', 'motif', 'brevo_message_id',
         'tentatives', 'envoye_at',
     ];
@@ -42,6 +58,11 @@ class RelanceFinCampagne extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class)->withTrashed();
+    }
+
+    public function libelleEtape(): string
+    {
+        return self::ETAPES[$this->etape ?? self::ETAPE_FIN] ?? (string) $this->etape;
     }
 
     /** @return array{0: string, 1: string, 2: string}  fond, texte, libellé */

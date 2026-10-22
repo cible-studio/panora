@@ -65,7 +65,7 @@ class RelanceFinCampagneMailTest extends TestCase
 
     public function test_l_objet_annonce_la_date_de_fin_sans_emoji(): void
     {
-        $this->assertSame('Votre campagne « Rentrée & Fêtes » se termine le 1er novembre', $this->mail()->sujet());
+        $this->assertSame('Votre campagne « Rentrée & Fêtes » se termine le 1er novembre 2026', $this->mail()->sujet());
         $this->assertStringStartsWith('[TEST] ', $this->mail('note')->sujet());
     }
 

@@ -57,6 +57,7 @@ class RelanceFinCampagneServiceTest extends TestCase
             $t->timestamp('survenu_at')->nullable(); $t->timestamps();
         });
         (require base_path('database/migrations/2026_10_21_100000_create_relances_fin_campagne_table.php'))->up();
+        (require base_path('database/migrations/2026_10_22_100000_create_renouvellements_tables.php'))->up();
 
         Carbon::setTestNow('2026-10-21 10:00:00');
 
