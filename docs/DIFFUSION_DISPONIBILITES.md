@@ -270,13 +270,22 @@ carte « Fin de campagne » de l'écran *Diffusion dispos*.
 | Pas de mail si | Le client a une **autre campagne planifiée**, ou **active qui continue après** celle-ci. Deux campagnes qui finissent le même jour reçoivent chacune leur mail |
 | Pas de mail si | L'adresse est **exclue** : désinscrite, invalide ou signalée comme spam (liste « Adresses exclues ») |
 | Contenu | Format léger, comme le modèle Brevo léger : aucune image, aucun bouton, réponse par retour de mail. Il propose une reconduction, les emplacements libres ou une recommandation. Plus d'« offre de fidélité » |
-| Canal | Brevo (API transactionnelle, statistiques par mail). Si Brevo n'est pas configuré ou refuse l'envoi, le système de mail habituel de Panora prend le relais |
-| Échec | Si le mail n'a pas pu partir (pas d'adresse, Brevo et le système de secours en panne), il est **retenté chaque jour** jusqu'à la veille de la fin. Une exclusion, elle, est définitive |
+| Canal | **Brevo uniquement** (API transactionnelle), pour que chaque mail se suive dans Brevo. Pas d'envoi de secours par le serveur de mail de Panora, qui serait invisible dans Brevo (décision du 2026-10-22) |
+| Échec | Si le mail n'a pas pu partir (pas d'adresse, Brevo indisponible ou qui refuse le mail), il est **retenté chaque jour** jusqu'à la veille de la fin. Une exclusion, elle, est définitive |
 
 **Désinscription** : le mail contient son propre lien, signé. Ce lien
 fonctionne aussi pour la désinscription en un clic de Gmail et Yahoo.
 - Ouvrir le lien **ne désinscrit pas** : la page demande une confirmation, parce que les antivirus de messagerie ouvrent les liens des mails.
 - Une fois confirmée, l'adresse rejoint les « Adresses exclues » : elle ne reçoit plus **ni les disponibilités, ni ce mail**.
+
+### Suivre les mails dans Brevo
+
+Ces mails ne sont pas une campagne : ils n'apparaissent pas dans le menu
+**Campagnes**, mais un par un dans **Transactionnel** :
+- **Transactionnel → Journal** (« Logs ») : une ligne par mail (délivré, ouvert, cliqué, rebond…). Filtrer sur le tag **`fin-campagne`**, ou chercher l'adresse du client. Les tests ont un objet qui commence par « [TEST] ».
+- **Transactionnel → Statistiques**, filtré sur le même tag : les totaux.
+
+Le journal Panora (carte « Fin de campagne ») garde aussi l'identifiant Brevo de chaque mail.
 
 ### Mise en service
 
@@ -306,7 +315,7 @@ php artisan campaigns:notify-ending --campagne=42  # traite une campagne précis
 | Fichier | Rôle |
 |---|---|
 | `app/Services/Diffusion/RelanceFinCampagneService.php` | Seul endroit qui décide : sélection, exclusions, envoi, journal |
-| `app/Mail/CampaignEndingSoonMail.php` + `resources/views/emails/campaign-ending-soon.blade.php` (+ `plain/`) | Le mail, identique sur Brevo et par le système de secours |
+| `app/Mail/CampaignEndingSoonMail.php` + `resources/views/emails/campaign-ending-soon.blade.php` (+ `plain/`) | Le mail : Panora rend le HTML et le texte, Brevo l'envoie |
 | `app/Console/Commands/NotifyEndingCampaigns.php` | `campaigns:notify-ending` (10 h) |
 | `app/Models/RelanceFinCampagne.php` | Journal `relances_fin_campagne` |
 | `app/Http/Controllers/DesinscriptionController.php` | Page du lien de désinscription |

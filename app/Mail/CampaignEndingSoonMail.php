@@ -22,8 +22,9 @@ use Illuminate\Queue\SerializesModels;
  *   · réponse au commercial de la campagne, copie commercial@ ;
  *   · plus d'« offre de fidélité » (elle n'existe pas).
  *
- * Le même rendu sert aux deux canaux : Brevo (HTML rendu par Panora, cf.
- * RelanceFinCampagneService::envoyer) et SMTP en secours.
+ * Envoyé par Brevo uniquement : Panora rend le HTML et le texte, Brevo les
+ * envoie (cf. RelanceFinCampagneService::envoyer). Suivi dans Brevo →
+ * Transactionnel → Journal, tag « fin-campagne ».
  */
 class CampaignEndingSoonMail extends Mailable
 {

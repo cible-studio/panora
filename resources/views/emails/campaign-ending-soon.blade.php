@@ -4,7 +4,7 @@
   (docs/diffusion/modele-brevo-disponibilites-leger.html) : aucune image,
   aucun bouton, réponse par retour de mail, marque discrète (signature et
   liseré aux cinq couleurs en CSS). Objectif : la boîte de réception.
-  Envoyé par RelanceFinCampagneService (Brevo, ou SMTP en secours).
+  Envoyé par RelanceFinCampagneService, par Brevo uniquement.
 --}}
 @php
     $coul    = $charte['couleurs'];

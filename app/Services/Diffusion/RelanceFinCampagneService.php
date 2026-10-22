@@ -8,7 +8,6 @@ use App\Models\Campaign;
 use App\Models\DiffusionDesinscription;
 use App\Models\RelanceFinCampagne;
 use App\Services\Brevo\BrevoClient;
-use App\Services\NotificationMailer;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -31,10 +30,13 @@ use Illuminate\Support\Facades\Log;
  *     qui se termine après celle-ci (deux campagnes qui finissent le même
  *     jour reçoivent chacune le leur) ;
  *   · pas de mail aux adresses désinscrites (ou mortes, ou spam) ;
- *   · mode test d'abord (config diffusion.fin_campagne.mode).
+ *   · mode test d'abord (config diffusion.fin_campagne.mode) ;
+ *   · envoi par Brevo UNIQUEMENT (2026-10-22) : chaque mail se suit dans
+ *     Brevo → Transactionnel → Journal, tag « fin-campagne ». Pas de
+ *     secours par le serveur de mail de Panora, invisible dans Brevo.
  *
- * Robustesse : un mail qui n'a pas pu partir (Brevo et SMTP en échec,
- * client sans adresse) est retenté chaque jour, tant que la campagne
+ * Robustesse : un mail qui n'a pas pu partir (Brevo indisponible ou qui
+ * refuse, client sans adresse) est retenté chaque jour, tant que la campagne
  * n'est pas terminée. Une exclusion (désinscrit, autre campagne) est
  * définitive.
  */
@@ -45,7 +47,6 @@ class RelanceFinCampagneService
 
     public function __construct(
         private BrevoClient $brevo,
-        private NotificationMailer $mailer,
     ) {}
 
     public function estModeTest(): bool
@@ -307,8 +308,8 @@ class RelanceFinCampagneService
     }
 
     /**
-     * Brevo d'abord (statistiques par mail) ; le système de mail habituel
-     * de Panora si Brevo n'est pas configuré ou refuse l'envoi.
+     * Par Brevo uniquement. Si Brevo n'est pas configuré ou refuse, l'erreur
+     * remonte : le mail reste « à retenter » et repart le lendemain.
      *
      * @param string[] $copie
      * @return array{0: string, 1: ?string}  canal, identifiant Brevo
@@ -319,25 +320,7 @@ class RelanceFinCampagneService
             $campagne, $jours, $contact, DiffusionDesinscription::lien($to), $repondreA, $copie, $note
         );
 
-        $erreurBrevo = null;
-        if ($this->brevo->estConfigure()) {
-            try {
-                return ['brevo', $this->brevo->envoyerEmail(self::payloadBrevo($mail, $to))];
-            } catch (\Throwable $e) {
-                $erreurBrevo = $e->getMessage();
-                Log::warning('fin_campagne.brevo_echec', ['campaign_id' => $campagne->id, 'erreur' => $erreurBrevo]);
-            }
-        }
-
-        $r = $this->mailer->send($to, $mail, context: ['campaign_id' => $campagne->id, 'fin_campagne' => true]);
-
-        if (!$r->ok) {
-            throw new \RuntimeException(
-                ($erreurBrevo ? "Brevo : {$erreurBrevo} — " : '') . "Envoi de secours : {$r->message}"
-            );
-        }
-
-        return ['smtp', null];
+        return ['brevo', $this->brevo->envoyerEmail(self::payloadBrevo($mail, $to))];
     }
 
     /** Requête de l'API transactionnelle Brevo pour ce mail. */

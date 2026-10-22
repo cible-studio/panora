@@ -36,7 +36,7 @@ class DiffusionDesinscription extends Model
 
     // ── Lien de désinscription des mails envoyés par Panora ──────────
     //
-    // Les mails transactionnels (Brevo /smtp/email ou SMTP) n'ont pas le
+    // Les mails individuels (API transactionnelle de Brevo) n'ont pas le
     // lien de désinscription automatique des campagnes Brevo : Panora
     // fournit le sien. Signature HMAC dans le chemin, sans expiration (un
     // lien de désinscription doit marcher des mois plus tard) et sans
