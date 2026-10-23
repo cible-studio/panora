@@ -90,6 +90,11 @@ class RenouvellementEcransTest extends TestCase
 
         $this->actingAs($admin)->get('/admin/renouvellements?campagne=' . $c->id)
             ->assertOk()->assertSee('dossier: ' . $c->id, false);
+
+        // Lien réel du client dans la fiche (admin), une fois le dossier créé.
+        $token = $this->service()->dossier($c)->token;
+        $this->actingAs($admin)->get('/admin/renouvellements?campagne=' . $c->id)->assertSee("/renouvellement/{$token}", false);
+        $this->actingAs(User::findOrFail(2))->get('/admin/renouvellements?campagne=' . $c->id)->assertDontSee("/renouvellement/{$token}", false);
         $this->actingAs($admin)->get("/admin/renouvellements/campagne/{$c->id}/apercu/j15")
             ->assertOk()->assertSee('La date limite de confirmation étant désormais dépassée', false);
 

@@ -128,6 +128,14 @@
                 @if($estAdmin && $l['statut'] === 'en_attente')
                     <a href="{{ route('admin.renouvellements.modeles', ['cle' => $prochaineEtape, 'campagne' => $c->id]) }}" class="rn-btn" data-tip="Ouvre l'éditeur avec cette campagne pour l'aperçu et l'envoi de test.">✉️ Tester un mail</a>
                 @endif
+                @if($estAdmin && $d)
+                    {{-- 2026-10-23 : le VRAI lien du client (pas un lien « essai ») —
+                         pour tester le parcours complet, ou saisir une réponse
+                         donnée par téléphone. La réponse est enregistrée comme
+                         celle du client : accusé de réception et équipe prévenue. --}}
+                    <a href="{{ route('renouvellement.show', ['token' => $d->token]) }}" target="_blank" rel="noopener" class="rn-btn"
+                       data-tip="Le lien personnel du client, celui de ses mails. La réponse saisie ici est enregistrée comme la sienne : il reçoit l'accusé de réception et le commercial est prévenu.">🔗 Page de réponse du client</a>
+                @endif
             </div>
         </div>
 
