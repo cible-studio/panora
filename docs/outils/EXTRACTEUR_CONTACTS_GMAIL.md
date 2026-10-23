@@ -13,12 +13,14 @@ s'ajoutent à une base commune, sans doublon.
 - **De** : tous ceux qui vous ont écrit, même sans réponse ;
 - **À** : tous ceux à qui vous avez écrit ;
 - **CC** : tous ceux qui étaient en copie, que vous ayez envoyé ou reçu le mail ;
-- **CCI** : seulement dans vos envois, car Gmail ne montre pas les copies cachées des autres.
+- **CCI** : seulement dans vos envois, car Gmail ne montre pas les copies cachées des autres ;
+- **le texte des mails reçus**, seulement pour y relever les numéros de téléphone de la signature de l'expéditeur. L'historique cité (« Le … a écrit : », « De : … Envoyé : … », transferts) est ignoré, car il contient la signature des autres. Rien d'autre du texte n'est gardé.
 
 **Ce qui est exclu automatiquement** (modifiable dans la feuille « Réglages ») :
 - vos propres adresses et les adresses `@cible-ci.com` ;
 - les adresses automatiques (`noreply`, `mailer-daemon`, notifications…) ;
-- les plateformes (Google, LinkedIn, Brevo…).
+- les plateformes (Google, LinkedIn, Brevo…) ;
+- les numéros de CIBLE : ceux de la colonne « Numéros internes (exclus) », et ceux que le script repère dans vos propres signatures quand vous écrivez à l'extérieur. Un numéro reconnu plus tard comme celui de CIBLE est aussi retiré des lignes déjà écrites.
 
 **Ce qui reste dans votre compte :** tout. Il n'y a aucun service tiers et aucun abonnement.
 
@@ -36,6 +38,7 @@ s'ajoutent à une base commune, sans doublon.
 | Boîtes CIBLE | Les collaborateurs qui ont échangé avec lui |
 | Objets récents | Les 5 derniers objets de mails, du plus récent au plus ancien, sans « RE: / TR: » ni doublon. Ils servent à rattacher l'adresse au bon client (« Devis campagne ORANGE ») |
 | **Statut CRM, Notes** | **À vous** : jamais écrasés par le script |
+| Téléphones (signature) | Jusqu'à 3 numéros trouvés dans la signature du contact, du plus récent au plus ancien. Format `+225 07 07 12 34 56`, ou `+33…` pour l'étranger. Placée en dernier pour ne rien décaler dans un fichier déjà rempli |
 
 Le **Statut CRM** vaut « Client » si le domaine figure dans « Réglages → Domaines clients ». Sinon, il vaut « À qualifier ».
 
@@ -61,7 +64,7 @@ Pour faire analyser les boîtes des collègues, mieux vaut un script rattaché a
 
 ### Mettre à jour le script
 
-Si une nouvelle version du script est fournie : ouvrez **Extensions → Apps Script**, remplacez **tout** le code, puis enregistrez. Les contacts, les réglages et l'avancement de l'analyse sont conservés.
+Si une nouvelle version du script est fournie : ouvrez **Extensions → Apps Script**, remplacez **tout** le code, puis enregistrez. Les contacts, les réglages et l'avancement de l'analyse sont conservés. Les nouvelles colonnes s'ajoutent toutes seules à droite au lancement suivant.
 
 ## Pour toutes les boîtes de CIBLE
 
@@ -89,4 +92,5 @@ Une adresse présente dans Gmail **n'a pas consenti** à recevoir des campagnes,
 - **Entreprise déduite** : elle est approximative. Corrigez-la à la main au besoin.
 - **Ne pas relancer l'historique** d'une boîte déjà analysée : les compteurs seraient doublés. La mise à jour quotidienne suffit.
 - **Double clic sans risque** : un seul lot tourne à la fois par boîte. Un second clic, ou la mise à jour de 6 h pendant l'historique, est ignoré.
+- **Téléphones** : ce sont des numéros lus dans des signatures, donc à vérifier avant usage (ancien numéro, signature d'une assistante…). Seuls les numéros ivoiriens à 10 chiffres et les numéros étrangers écrits avec leur indicatif sont relevés. Une boîte analysée avant l'ajout des téléphones (23/10/2026) ne les relève que dans ses nouveaux mails.
 - **Les compteurs sont approximatifs, pas les adresses** : si quelqu'un répond à une très vieille conversation pendant l'analyse de l'historique, Gmail la remonte en tête de liste. Un mail peut alors être compté une fois de trop, ou pas du tout. C'est rare, et l'adresse est quand même relevée.

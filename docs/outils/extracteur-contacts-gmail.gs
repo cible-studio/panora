@@ -8,6 +8,8 @@
  * « 📇 Contacts Gmail → Analyser ma boîte ». Le script lit SA boîte
  * (expéditeurs, destinataires, copies, copies cachées de ses envois) et
  * ajoute les contacts à la feuille commune « Contacts », sans doublon.
+ * Dans les mails reçus, il relève aussi les numéros de téléphone de la
+ * signature de l'expéditeur : seuls ces numéros sont gardés du texte.
  * Une même adresse vue dans plusieurs boîtes n'apparaît qu'une fois, avec
  * la liste des boîtes CIBLE qui ont échangé avec elle.
  *
@@ -31,6 +33,7 @@ var ENTETES = [
   'E-mail', 'Nom', 'Entreprise (déduite)', 'Domaine', "Type d'adresse",
   'Premier échange', 'Dernier échange', 'Échanges', 'Envoyés par CIBLE', 'Reçus de ce contact',
   'Rôles', 'Boîtes CIBLE', 'Objets récents', 'Statut CRM', 'Notes',
+  'Téléphones (signature)', // en dernier : les fichiers déjà remplis gardent leurs colonnes
 ];
 var COL = {}; ENTETES.forEach(function (e, i) { COL[e] = i; });
 
@@ -43,6 +46,9 @@ var REGLAGES_DEFAUT = {
   'Messageries personnelles': ['gmail.com', 'yahoo.fr', 'yahoo.com', 'hotmail.com', 'hotmail.fr', 'outlook.com', 'outlook.fr',
     'live.fr', 'live.com', 'icloud.com', 'aol.com', 'ymail.com', 'msn.com'],
   'Domaines clients (statut Client)': [],
+  // Standard et portables de CIBLE : jamais prêtés à un contact. Les numéros des
+  // signatures CIBLE sont aussi appris seuls, dans les mails envoyés aux clients.
+  'Numéros internes (exclus)': [],
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -115,6 +121,7 @@ function traiterLot_() {
   var reglages = lireReglages_();
   var boite = maBoite_();
   var agg = {};
+  var internes = { cles: {}, envoisLus: 0 }; // numéros de CIBLE vus dans nos signatures
   var termine = false;
   var erreur = null;
   var lus = 0;
@@ -140,7 +147,7 @@ function traiterLot_() {
         fil.getMessages().forEach(function (m) {
           // Une conversation contient aussi des messages hors période : on ne
           // compte que ceux de la période, pour ne jamais compter deux fois.
-          if (garder(m.getDate().getTime())) analyserMessage_(m, moi, page, boite);
+          if (garder(m.getDate().getTime())) analyserMessage_(m, moi, page, boite, reglages, internes);
         });
       });
       cumuler(agg, page);
@@ -154,7 +161,7 @@ function traiterLot_() {
 
   // Fusion puis sauvegarde de l'avancement : si Google coupe avant, rien
   // n'est perdu ni compté deux fois (le lot est simplement refait).
-  var nb = fusionner_(agg, reglages);
+  var nb = fusionner_(agg, reglages, internes.cles);
 
   if (termine) {
     if (etat.phase === 'complet') { etat = { phase: 'quotidien', depuis: etat.borne, curseur: 0 }; }
@@ -170,21 +177,42 @@ function traiterLot_() {
   return termine;
 }
 
-function analyserMessage_(m, moi, agg, boite) {
+function analyserMessage_(m, moi, agg, boite, reglages, internes) {
   var date = m.getDate();
   var objet = m.getSubject() || '';
   var exp = parserAdresses(m.getFrom())[0];
   var envoyeParMoi = !!(exp && moi[exp.email]);
   var vus = {};
+  var versExterieur = false;
 
   if (exp && !envoyeParMoi) noterContact(agg, exp, date, objet, 'De', boite, 'recu', vus);
 
   var champs = [['À', m.getTo()], ['CC', m.getCc()], ['CCI', envoyeParMoi ? m.getBcc() : '']];
   champs.forEach(function (c) {
     parserAdresses(c[1]).forEach(function (a) {
-      if (!moi[a.email]) noterContact(agg, a, date, objet, c[0], boite, envoyeParMoi ? 'envoye' : 'copie', vus);
+      if (moi[a.email]) return;
+      noterContact(agg, a, date, objet, c[0], boite, envoyeParMoi ? 'envoye' : 'copie', vus);
+      if (reglages && !estExclue(a.email, reglages)) versExterieur = true;
     });
   });
+
+  // Téléphones des signatures (l'analyse fournit toujours les réglages).
+  if (!reglages || !exp) return;
+  if (envoyeParMoi) {
+    // Notre propre signature, dans un mail à l'extérieur (pas un récap interne) :
+    // ces numéros sont ceux de CIBLE, jamais prêtés à un contact.
+    if (!versExterieur || internes.envoisLus >= 20) return;
+    internes.envoisLus++;
+    telephonesDuMessage_(m).forEach(function (n) { internes.cles[cleTelephone(n)] = true; });
+  } else if (!estExclue(exp.email, reglages)) {
+    var t = agg[exp.email].telephones;
+    if (Object.keys(t).length >= 3) return;
+    telephonesDuMessage_(m).forEach(function (n) { if (!t[n] || date > t[n]) t[n] = date; });
+  }
+}
+
+function telephonesDuMessage_(m) {
+  try { return telephonesDuTexte(m.getPlainBody()); } catch (e) { return []; }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -211,7 +239,7 @@ function noterContact(agg, adresse, date, objet, role, boite, sens, vus) {
   var e = agg[adresse.email];
   if (!e) {
     e = agg[adresse.email] = { email: adresse.email, nom: '', premier: date, dernier: date,
-      echanges: 0, envoyes: 0, recus: 0, roles: {}, boites: {}, objets: {} };
+      echanges: 0, envoyes: 0, recus: 0, roles: {}, boites: {}, objets: {}, telephones: {} };
   }
   if (adresse.nom && (!e.nom || date >= e.dernier)) e.nom = adresse.nom;
   if (date < e.premier) e.premier = date;
@@ -241,6 +269,7 @@ function cumuler(agg, page) {
     Object.keys(p.roles).forEach(function (r) { e.roles[r] = true; });
     Object.keys(p.boites).forEach(function (b) { e.boites[b] = true; });
     Object.keys(p.objets).forEach(function (o) { if (!e.objets[o] || p.objets[o] > e.objets[o]) e.objets[o] = p.objets[o]; });
+    Object.keys(p.telephones).forEach(function (n) { if (!e.telephones[n] || p.telephones[n] > e.telephones[n]) e.telephones[n] = p.telephones[n]; });
   });
 }
 
@@ -252,13 +281,62 @@ function nettoyerObjet(objet) {
   return s.slice(0, 120);
 }
 
-/** Les 5 objets les plus récents, sans doublon, séparés par « | ». */
-function objetsRecents(nouveaux, existants, nouveauxDabord) {
+/** Les 5 (ou max) objets les plus récents, sans doublon, séparés par « | ». */
+function objetsRecents(nouveaux, existants, nouveauxDabord, max) {
   var neufs = Object.keys(nouveaux).sort(function (a, b) { return nouveaux[b] - nouveaux[a]; });
   var anciens = String(existants || '').split(' | ').map(function (o) { return o.trim(); }).filter(String);
   var tous = nouveauxDabord ? neufs.concat(anciens) : anciens.concat(neufs);
   var vus = {};
-  return tous.filter(function (o) { var k = o.toLowerCase(); if (vus[k]) return false; vus[k] = true; return true; }).slice(0, 5).join(' | ');
+  return tous.filter(function (o) { var k = o.toLowerCase(); if (vus[k]) return false; vus[k] = true; return true; }).slice(0, max || 5).join(' | ');
+}
+
+/**
+ * Numéros de la signature : fin du texte écrit par l'expéditeur, sans
+ * l'historique cité (il contient les signatures des autres, dont CIBLE).
+ * Côte d'Ivoire : 10 chiffres (01, 05, 07, 21, 25, 27), rendus « +225 07 07 12 34 56 ».
+ * Étranger : seulement avec l'indicatif (+33…, 0033…). Les numéros ivoiriens
+ * à 8 chiffres sont ignorés : ils n'existent plus depuis 2021.
+ */
+function telephonesDuTexte(texte) {
+  var t = '\n' + String(texte || '').replace(/\r/g, '');
+  [
+    /\n[ \t]*(Le|On)\s[^\n]{0,250}(\n[^\n]{0,250})?\s(a\s+écrit|wrote)\s*:/i,               // Gmail, Apple Mail
+    /\n[ \t]*\*?(De|From)\s?:[^\n]*\n[^\n]*(Envoyé|Sent|Date|À|To|Objet|Subject)\s?:/i,  // Outlook
+    /\n[ \t]*-{2,}[ \t]*(Original Message|Message d'origine|Forwarded message|Message transféré)/i,
+    /\n[ \t]*_{10,}/,
+  ].forEach(function (re) { var m = re.exec(t); if (m) t = t.slice(0, m.index); });
+  var fin = t.split('\n').filter(function (l) { return l.trim() && !/^\s*>/.test(l); }).slice(-20).join('\n');
+
+  var vus = {}, numeros = [];
+  var garder = function (n) { if (!vus[n]) { vus[n] = true; numeros.push(n); } };
+  var m;
+  var ci = /(?:(?:\+|\b00)\s?\(?225\)?|\(\+?225\))[ .\-]*((?:0[157]|2[157])(?:[ .\-]?\d){8})(?!\d)|(?<![\d+])((?:0[157]|2[157])(?:[ .\-]?\d){8})(?!\d)/g;
+  while ((m = ci.exec(fin)) !== null) {
+    var brut = m[1] || m[2];
+    // Un seul type de séparateur : « 25.10.2026 10:15 » est une date, pas un numéro.
+    if (brut.replace(/\d/g, '').split('').filter(function (c, i, a) { return a.indexOf(c) === i; }).length > 1) continue;
+    garder('+225 ' + brut.replace(/\D/g, '').replace(/(\d{2})(?=\d)/g, '$1 '));
+  }
+  var etranger = /(?:\+|\b00)(?!\s?\(?225)\d[\d .\-()]{6,16}\d(?!\d)/g;
+  while ((m = etranger.exec(fin)) !== null) {
+    var chiffres = m[0].replace(/^(\+|00)/, '').replace(/\D/g, '');
+    if (chiffres.length >= 8 && chiffres.length <= 15 && chiffres.charAt(0) !== '0') garder('+' + chiffres);
+  }
+  return numeros;
+}
+
+/** Clé de comparaison : les 8 derniers chiffres (Sheets retire parfois le 0 de tête). */
+function cleTelephone(n) { return String(n).replace(/\D/g, '').slice(-8); }
+
+function sansInternes_(texte, internes) {
+  return String(texte || '').split(' | ').filter(function (n) { return n.trim() && !internes[cleTelephone(n)]; }).join(' | ');
+}
+
+/** Les 3 numéros les plus récents, sans ceux de CIBLE. */
+function telephonesRecents_(nouveaux, existants, nouveauxDabord, internes) {
+  var n = {};
+  Object.keys(nouveaux || {}).forEach(function (k) { if (!internes[cleTelephone(k)]) n[k] = nouveaux[k]; });
+  return objetsRecents(n, sansInternes_(existants, internes), nouveauxDabord, 3);
 }
 
 function domaineDe(email) { return email.split('@')[1] || ''; }
@@ -285,7 +363,9 @@ function entrepriseDuDomaine(dom, reglages) {
 }
 
 /** Fusionne les contacts lus avec les lignes existantes. Ne touche jamais à « Statut CRM » ni « Notes ». */
-function fusionnerLignes(lignes, agg, reglages) {
+function fusionnerLignes(lignes, agg, reglages, internes) {
+  internes = internes || {};
+  var TEL = COL['Téléphones (signature)'];
   var index = {};
   lignes.forEach(function (l, i) { index[String(l[COL['E-mail']]).toLowerCase()] = i; });
   var nb = 0;
@@ -312,6 +392,7 @@ function fusionnerLignes(lignes, agg, reglages) {
       l[COL['Rôles']] = Object.keys(a.roles).sort().join(', ');
       l[COL['Boîtes CIBLE']] = Object.keys(a.boites).sort().join(', ');
       l[COL['Objets récents']] = objetsRecents(a.objets, '', true);
+      l[TEL] = telephonesRecents_(a.telephones, '', true, internes);
       l[COL['Statut CRM']] = reglages['Domaines clients (statut Client)'].indexOf(dom) !== -1 ? 'Client' : 'À qualifier';
       index[email] = lignes.length;
       lignes.push(l);
@@ -325,6 +406,7 @@ function fusionnerLignes(lignes, agg, reglages) {
     // Les mails lus maintenant sont plus récents (mise à jour quotidienne) ou plus
     // anciens (historique, lu du plus récent au plus ancien) que ceux déjà notés.
     x[COL['Objets récents']] = objetsRecents(a.objets, x[COL['Objets récents']], a.dernier > dernier);
+    x[TEL] = telephonesRecents_(a.telephones, x[TEL], a.dernier > dernier, internes);
     x[COL['Premier échange']] = a.premier < premier ? a.premier : premier;
     x[COL['Dernier échange']] = a.dernier > dernier ? a.dernier : dernier;
     x[COL['Échanges']] = (Number(x[COL['Échanges']]) || 0) + a.echanges;
@@ -335,6 +417,8 @@ function fusionnerLignes(lignes, agg, reglages) {
     if (!x[COL['Statut CRM']] && reglages['Domaines clients (statut Client)'].indexOf(dom) !== -1) x[COL['Statut CRM']] = 'Client';
   });
 
+  // Un numéro reconnu plus tard comme celui de CIBLE disparaît aussi des lignes déjà écrites.
+  lignes.forEach(function (l) { if (l[TEL]) l[TEL] = sansInternes_(l[TEL], internes); });
   lignes.sort(function (p, q) { return (q[COL['Dernier échange']] || 0) - (p[COL['Dernier échange']] || 0); });
   return nb;
 }
@@ -350,20 +434,32 @@ function union_(texte, valeurs) {
 // GOOGLE SHEETS, ÉTAT ET DÉCLENCHEURS
 // ══════════════════════════════════════════════════════════════
 
-function fusionner_(agg, reglages) {
+function fusionner_(agg, reglages, internesLus) {
   if (!Object.keys(agg).length) return 0;
   // Verrou du script (et non du document) : il existe aussi pour un projet
   // créé hors du Sheets. Plusieurs collaborateurs peuvent écrire en même temps.
   var verrou = LockService.getScriptLock();
   verrou.waitLock(60000);
   try {
+    // Numéros de CIBLE : appris par toutes les boîtes (propriétés du script) + « Réglages ».
+    var props = PropertiesService.getScriptProperties();
+    var internes = JSON.parse(props.getProperty('NUMEROS_INTERNES') || '{}');
+    Object.keys(internesLus || {}).forEach(function (k) { internes[k] = true; });
+    props.setProperty('NUMEROS_INTERNES', JSON.stringify(internes));
+    reglages['Numéros internes (exclus)'].forEach(function (n) { var k = cleTelephone(n); if (k.length === 8) internes[k] = true; });
+
     var f = feuille_(CONFIG.FEUILLE_CONTACTS);
     var valeurs = f.getDataRange().getValues();
-    var lignes = valeurs.length > 1 ? valeurs.slice(1) : [];
-    var nb = fusionnerLignes(lignes, agg, reglages);
+    // Une colonne ajoutée par une nouvelle version du script : les anciennes lignes sont plus courtes.
+    var lignes = (valeurs.length > 1 ? valeurs.slice(1) : []).map(function (l) {
+      while (l.length < ENTETES.length) l.push('');
+      return l.slice(0, ENTETES.length);
+    });
+    var nb = fusionnerLignes(lignes, agg, reglages, internes);
     f.getRange(2, 1, Math.max(f.getMaxRows() - 1, 1), ENTETES.length).clearContent();
     if (f.getMaxRows() < lignes.length + 1) f.insertRowsAfter(f.getMaxRows(), lignes.length + 1 - f.getMaxRows());
     if (lignes.length) {
+      f.getRange(2, COL['Téléphones (signature)'] + 1, lignes.length, 1).setNumberFormat('@'); // « +33… » ne doit pas devenir un nombre
       f.getRange(2, 1, lignes.length, ENTETES.length).setValues(lignes);
       f.getRange(2, COL['Premier échange'] + 1, lignes.length, 2).setNumberFormat('dd/mm/yyyy');
     }
@@ -379,17 +475,24 @@ function preparerFeuilles_() {
     c.getRange(1, 1, 1, ENTETES.length).setValues([ENTETES]).setFontWeight('bold').setBackground('#E6E6E6');
     c.setFrozenRows(1);
     c.getRange(1, COL['Statut CRM'] + 1, 1, 2).setBackground('#FFF3CD');
+  } else {
+    // Une nouvelle version du script peut ajouter une colonne : on complète l'en-tête sans rien décaler.
+    if (c.getMaxColumns() < ENTETES.length) c.insertColumnsAfter(c.getMaxColumns(), ENTETES.length - c.getMaxColumns());
+    var entete = c.getRange(1, 1, 1, ENTETES.length).getValues()[0];
+    ENTETES.forEach(function (t, i) {
+      if (!entete[i]) c.getRange(1, i + 1).setValue(t).setFontWeight('bold').setBackground('#E6E6E6');
+    });
   }
   var r = feuille_(CONFIG.FEUILLE_REGLAGES);
-  if (r.getLastRow() === 0) {
-    var titres = Object.keys(REGLAGES_DEFAUT);
-    r.getRange(1, 1, 1, titres.length).setValues([titres]).setFontWeight('bold').setBackground('#E6E6E6');
-    titres.forEach(function (t, i) {
-      var v = REGLAGES_DEFAUT[t];
-      if (v.length) r.getRange(2, i + 1, v.length, 1).setValues(v.map(function (x) { return [x]; }));
-    });
-    r.setFrozenRows(1);
-  }
+  var presents = r.getLastRow() === 0 ? [] : r.getRange(1, 1, 1, r.getLastColumn()).getValues()[0];
+  Object.keys(REGLAGES_DEFAUT).forEach(function (t) {
+    if (presents.indexOf(t) !== -1) return;
+    var col = r.getLastColumn() + 1;
+    r.getRange(1, col).setValue(t).setFontWeight('bold').setBackground('#E6E6E6');
+    var v = REGLAGES_DEFAUT[t];
+    if (v.length) r.getRange(2, col, v.length, 1).setValues(v.map(function (x) { return [x]; }));
+  });
+  r.setFrozenRows(1);
   var j = feuille_(CONFIG.FEUILLE_JOURNAL);
   if (j.getLastRow() === 0) j.getRange(1, 1, 1, 3).setValues([['Date', 'Boîte', 'Résultat']]).setFontWeight('bold');
 }
@@ -475,6 +578,6 @@ function alerte_(texte) {
 if (typeof module !== 'undefined') {
   module.exports = { parserAdresses: parserAdresses, noterContact: noterContact, cumuler: cumuler, estExclue: estExclue,
     entrepriseDuDomaine: entrepriseDuDomaine, fusionnerLignes: fusionnerLignes, analyserMessage_: analyserMessage_,
-    nettoyerObjet: nettoyerObjet, objetsRecents: objetsRecents,
+    nettoyerObjet: nettoyerObjet, objetsRecents: objetsRecents, telephonesDuTexte: telephonesDuTexte, cleTelephone: cleTelephone,
     ENTETES: ENTETES, COL: COL, REGLAGES_DEFAUT: REGLAGES_DEFAUT };
 }
