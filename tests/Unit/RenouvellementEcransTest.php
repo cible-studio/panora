@@ -56,6 +56,19 @@ class RenouvellementEcransTest extends TestCase
         ])->assertOk()->assertSee('Échéance ORANGE CI', false)->assertSee('Bonjour Awa Koné', false)->assertSee('Je souhaite renouveler ma campagne', false);
     }
 
+    public function test_echeance_lointaine_expliquee_et_visible_avec_le_filtre_toutes(): void
+    {
+        // Fin dans plus d'un an : hors de la fenêtre des 90 jours.
+        $this->campagne(['name' => 'Campagne lointaine', 'start_date' => '2026-10-23', 'end_date' => '2027-10-30']);
+        $admin = User::findOrFail(1);
+
+        $this->actingAs($admin)->get('/admin/renouvellements')
+            ->assertOk()->assertSee('Prochaine échéance')->assertSee('Campagne lointaine')->assertSee('31/08/2027');
+
+        $this->actingAs($admin)->get('/admin/renouvellements?horizon=0')
+            ->assertOk()->assertSee('Campagne lointaine')->assertDontSee('Prochaine échéance');
+    }
+
     public function test_un_texte_modifie_s_applique_puis_se_retablit(): void
     {
         $admin = User::findOrFail(1);

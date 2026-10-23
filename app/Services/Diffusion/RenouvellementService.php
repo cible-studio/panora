@@ -51,6 +51,9 @@ class RenouvellementService
     /** Appels des commerciaux à partir de J-25 (process validé). */
     public const JOURS_APPEL = 25;
 
+    /** Filtre « Toutes » de l'écran : toutes les campagnes annuelles en cours. */
+    public const HORIZON_TOUTES = 3650;
+
     public function __construct(
         private RelanceFinCampagneService $socle,
         private NotificationMailer $mailer,
@@ -437,6 +440,25 @@ class RenouvellementService
                 'autre_planifiee' => $c->client_id ? ($planifiees[$c->client_id] ?? collect())->first()?->name : null,
             ];
         });
+    }
+
+    /**
+     * Prochaine campagne annuelle active qui finit APRÈS l'horizon affiché
+     * (pour expliquer une liste vide).
+     */
+    public function prochaineAnnuelle(?int $commercialId, int $apresJours): ?Campaign
+    {
+        $q = Campaign::query()
+            ->where('status', CampaignStatus::ACTIF->value)
+            ->whereDate('end_date', '>', today()->addDays($apresJours)->toDateString())
+            ->with('client:id,name')
+            ->orderBy('end_date');
+
+        if ($commercialId) {
+            $q->forCommercialUser($commercialId);
+        }
+
+        return $q->limit(200)->get()->first(fn(Campaign $c) => $c->estAnnuelle());
     }
 
     /**
