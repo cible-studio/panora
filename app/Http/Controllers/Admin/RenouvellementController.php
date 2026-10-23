@@ -203,7 +203,7 @@ class RenouvellementController extends Controller
         }
 
         $data = $request->validate([
-            'objet' => 'required|string|max:255',
+            'objet' => 'required|string|max:191', // colonne VARCHAR(191)
             'corps' => 'required|string|max:10000',
         ]);
 
@@ -218,7 +218,7 @@ class RenouvellementController extends Controller
     {
         $data = $request->validate([
             'cle'      => 'required|in:' . implode(',', array_keys(ModelesMail::ETAPES)),
-            'objet'    => 'nullable|string|max:255',
+            'objet'    => 'nullable|string|max:191',
             'corps'    => 'nullable|string|max:10000',
             'campagne' => 'nullable|integer',
         ]);
@@ -272,7 +272,7 @@ class RenouvellementController extends Controller
             'Exemple : nous souhaitons garder les mêmes emplacements pour 12 mois.'
         );
 
-        return $this->socle->ligne($campagne, RelanceFinCampagne::ETAPE_ACCUSE, RelanceFinCampagne::MODE_TEST);
+        return $this->socle->ligne($campagne, RelanceFinCampagne::ETAPE_ACCUSE, RelanceFinCampagne::MODE_ESSAI);
     }
 
     /** Campagnes proposées pour l'aperçu : annuelles pour la séquence, courtes pour « fin ». */

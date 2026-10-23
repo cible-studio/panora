@@ -24,6 +24,9 @@ class RelanceFinCampagne extends Model
 
     public const MODE_TEST       = 'test';
     public const MODE_PRODUCTION = 'production';
+    // Envoi de test déclenché à la main (éditeur, fiche dossier, liens « essai ») :
+    // rangé à part pour ne pas compter comme l'envoi automatique du mode test.
+    public const MODE_ESSAI      = 'essai';
 
     public const ETAPE_FIN    = 'fin';
     public const ETAPE_ACCUSE = 'accuse';

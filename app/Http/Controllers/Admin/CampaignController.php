@@ -2253,7 +2253,12 @@ class CampaignController extends Controller
             $panelIds,
             $campaign->end_date->format('Y-m-d'),
             $newEndDate->format('Y-m-d'),
-            $campaign->reservation_id
+            $campaign->reservation_id,
+            // 2026-10-23 : s'exclure soi-même, comme CampaignService. Sans ça,
+            // la campagne entrait en conflit avec ses propres panneaux (le
+            // jour de fin actuel est inclus dans la période vérifiée) et
+            // toute prolongation d'une campagne avec panneaux était refusée.
+            $campaign->id
         );
 
         if (!empty($conflicts)) {
@@ -2264,6 +2269,7 @@ class CampaignController extends Controller
 
         $oldEnd = $campaign->end_date->format('d/m/Y');
         $newEnd = $newEndDate->format('d/m/Y');
+        $ancienneFin = $campaign->end_date->toDateString();
 
         DB::transaction(function () use ($campaign, $newEndDate) {
             $campaign->update([
@@ -2287,6 +2293,14 @@ class CampaignController extends Controller
             'new_end_date' => $newEnd,
             'user_id'      => auth()->id(),
         ]);
+
+        // 2026-10-23 : le dossier de renouvellement suit la nouvelle date de fin.
+        try {
+            app(\App\Services\Diffusion\RenouvellementService::class)
+                ->campagneProlongee($campaign->fresh(), $ancienneFin, auth()->user());
+        } catch (\Throwable $e) {
+            Log::warning('campaign.prolonged.renouvellement', ['campaign_id' => $campaign->id, 'error' => $e->getMessage()]);
+        }
 
         AlertService::create(
             'campagne',

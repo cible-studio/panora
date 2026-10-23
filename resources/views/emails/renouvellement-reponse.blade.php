@@ -1,4 +1,5 @@
-{{-- Mail interne : réponse d'un client sur son renouvellement (2026-10-22). --}}
+{{-- Mail interne : réponse d'un client sur son renouvellement (2026-10-22).
+     ⚠ $message est réservé par Laravel dans les vues de mail : le message du client s'appelle $messageClient. --}}
 @php
     $pill = match ($choix) {
         'renouveler' => 'pill-success',
@@ -35,10 +36,10 @@
             <div class="lbl">Réponse</div>
             <div class="val"><strong>{{ $libelle }}</strong></div>
         </div>
-        @if($message)
+        @if($messageClient)
         <div class="info-row">
             <div class="lbl">Message</div>
-            <div class="val">« {{ $message }} »</div>
+            <div class="val">« {{ $messageClient }} »</div>
         </div>
         @endif
         <div class="info-row">

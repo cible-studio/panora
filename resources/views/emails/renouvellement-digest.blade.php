@@ -42,6 +42,19 @@
             @endforeach
         </table>
     @else
+        @if(isset($a_rappeler) && $a_rappeler->isNotEmpty())
+            <h2 style="font-size:15px;margin:22px 0 8px;">📅 Rappels prévus aujourd'hui ({{ $a_rappeler->count() }})</h2>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                @foreach($a_rappeler as $l)
+                    @php $v = $ligne($l); @endphp
+                    <tr>
+                        <td style="{{ $td }}"><strong>{{ $v['client'] }}</strong><br><span style="color:#777;">{{ $v['campagne'] }} · fin {{ $v['fin'] }}@if($l['dossier']?->rappel_le?->lt(today())) · <strong style="color:#E20613;">prévu le {{ $l['dossier']->rappel_le->format('d/m') }}</strong>@endif</span></td>
+                        <td style="{{ $td }}white-space:nowrap;text-align:right;">{{ $v['tel'] ?? 'pas de téléphone' }}</td>
+                    </tr>
+                @endforeach
+            </table>
+        @endif
+
         @if($rappels->isNotEmpty())
             <h2 style="font-size:15px;margin:22px 0 8px;">📞 Demandes de rappel ({{ $rappels->count() }})</h2>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
