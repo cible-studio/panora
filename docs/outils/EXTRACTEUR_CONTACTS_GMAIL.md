@@ -34,7 +34,7 @@ s'ajoutent à une base commune, sans doublon.
 | Envoyés par CIBLE / Reçus de ce contact | Qui sollicite qui |
 | Rôles | De, À, CC, CCI |
 | Boîtes CIBLE | Les collaborateurs qui ont échangé avec lui |
-| Dernier objet | L'objet du dernier mail |
+| Objets récents | Les 5 derniers objets de mails, du plus récent au plus ancien, sans « RE: / TR: » ni doublon. Ils servent à rattacher l'adresse au bon client (« Devis campagne ORANGE ») |
 | **Statut CRM, Notes** | **À vous** : jamais écrasés par le script |
 
 Le **Statut CRM** vaut « Client » si le domaine figure dans « Réglages → Domaines clients ». Sinon, il vaut « À qualifier ».
@@ -48,6 +48,20 @@ Le **Statut CRM** vaut « Client » si le domaine figure dans « Réglages → D
    - Si l'écran indique « Google n'a pas validé cette application » : c'est normal pour un script interne. Cliquez sur **Paramètres avancés** → **Accéder à … (non sécurisé)**.
 5. Les feuilles « Contacts », « Réglages » et « Journal » se créent. Une grosse boîte se traite en **plusieurs fois** : la suite repart toute seule chaque minute, vous pouvez fermer le fichier. Le **Journal** montre l'avancement.
 6. Une fois l'historique terminé : **Activer la mise à jour quotidienne**. Les nouveaux mails sont alors ajoutés chaque matin.
+   - Si elle a été activée avant l'analyse, ce n'est pas grave : elle reprend elle-même l'historique là où il en est.
+
+### Projet créé depuis script.google.com (hors du Sheets)
+
+Le menu **📇 Contacts Gmail** n'apparaît pas, car le script n'est rattaché à aucun Sheets. Il marche quand même :
+1. Dans l'éditeur, choisissez `analyserMaBoite` dans la liste des fonctions (à côté de **Exécuter**), puis cliquez sur **Exécuter**.
+2. Au premier lancement, le script crée lui-même un Google Sheets **« Contacts CIBLE »** dans « Mon Drive ». Son lien s'affiche dans le **journal d'exécution**, en bas de l'éditeur.
+3. Les lancements suivants réutilisent ce même fichier.
+
+Pour faire analyser les boîtes des collègues, mieux vaut un script rattaché au Sheets (étapes 1 à 3 ci-dessus) : chacun n'a alors qu'à ouvrir le fichier partagé.
+
+### Mettre à jour le script
+
+Si une nouvelle version du script est fournie : ouvrez **Extensions → Apps Script**, remplacez **tout** le code, puis enregistrez. Les contacts, les réglages et l'avancement de l'analyse sont conservés.
 
 ## Pour toutes les boîtes de CIBLE
 
@@ -74,3 +88,5 @@ Une adresse présente dans Gmail **n'a pas consenti** à recevoir des campagnes,
 - **Quotas Google** : une très grosse boîte (plusieurs dizaines de milliers de conversations) peut demander plusieurs jours. Le script fait une pause d'une heure quand le quota est atteint, puis reprend tout seul.
 - **Entreprise déduite** : elle est approximative. Corrigez-la à la main au besoin.
 - **Ne pas relancer l'historique** d'une boîte déjà analysée : les compteurs seraient doublés. La mise à jour quotidienne suffit.
+- **Double clic sans risque** : un seul lot tourne à la fois par boîte. Un second clic, ou la mise à jour de 6 h pendant l'historique, est ignoré.
+- **Les compteurs sont approximatifs, pas les adresses** : si quelqu'un répond à une très vieille conversation pendant l'analyse de l'historique, Gmail la remonte en tête de liste. Un mail peut alors être compté une fois de trop, ou pas du tout. C'est rare, et l'adresse est quand même relevée.
