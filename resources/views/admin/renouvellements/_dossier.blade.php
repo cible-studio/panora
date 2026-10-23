@@ -30,7 +30,7 @@
             <span class="rn-action {{ $l['action'][1] }}" style="font-size:14px;">{{ $l['action'][0] }}</span>
         </div>
 
-        @if($l['autre_planifiee'])
+        @if($l['autre_planifiee'] && !in_array($l['statut'], ['confirme', 'refus'], true))
             <div class="rn-section"><div class="rn-alerte jaune">⚠️ Le client a une autre campagne planifiée : <strong>{{ $l['autre_planifiee'] }}</strong>. Si c'est le renouvellement, mettez le statut à jour pour arrêter les relances.</div></div>
         @endif
 

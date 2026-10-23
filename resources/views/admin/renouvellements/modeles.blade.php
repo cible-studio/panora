@@ -87,7 +87,7 @@
                     <input type="hidden" name="campagne" value="{{ $campagneId ?: '' }}" id="champ-campagne-form">
 
                     <label class="rn-champ" style="margin-top:0;">Objet</label>
-                    <input type="text" name="objet" id="objet" value="{{ old('objet', $modele['objet']) }}" maxlength="255" required class="rn-input">
+                    <input type="text" name="objet" id="objet" value="{{ old('objet', $modele['objet']) }}" maxlength="191" required class="rn-input">
 
                     <div class="ed-outils">
                         <select class="rn-select" style="height:30px;font-size:12.5px;" onchange="if (this.value) { EDITEUR.inserer(this.value); this.value=''; }">

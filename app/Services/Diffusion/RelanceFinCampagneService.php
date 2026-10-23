@@ -259,7 +259,7 @@ class RelanceFinCampagneService
         bool $regleAutresCampagnes,
         bool $renvoyer = false,
     ): RelanceFinCampagne {
-        $mode  = $forcerTest ? RelanceFinCampagne::MODE_TEST : $this->mode();
+        $mode  = $forcerTest ? RelanceFinCampagne::MODE_ESSAI : $this->mode();
         $ligne = $this->ligne($campagne, $etape, $mode);
 
         if (!$forcerTest && !$renvoyer && $ligne->statut === RelanceFinCampagne::STATUT_ENVOYE) {
@@ -270,7 +270,7 @@ class RelanceFinCampagneService
         $ligne->fill([
             'client_id'    => $campagne->client_id,
             'destinataire' => $a['destinataire'] ?: null,
-            'copie'        => implode(', ', $a['copie']) ?: null,
+            'copie'        => mb_substr(implode(', ', $a['copie']), 0, 191) ?: null,
             'repondre_a'   => $a['repondre_a'],
         ]);
 
@@ -282,7 +282,7 @@ class RelanceFinCampagneService
 
         $jours = $this->joursRestants($campagne);
 
-        if ($mode === RelanceFinCampagne::MODE_TEST) {
+        if ($mode !== RelanceFinCampagne::MODE_PRODUCTION) {
             $destinataires = $this->adressesTest();
             $copie = [];
             $note  = self::noteTest($a);
@@ -313,7 +313,7 @@ class RelanceFinCampagneService
                 'statut'           => RelanceFinCampagne::STATUT_ENVOYE,
                 'canal'            => 'brevo',
                 'motif'            => $note ? 'Envoyé en test à ' . implode(', ', $destinataires) . '.' : null,
-                'brevo_message_id' => mb_substr(implode(', ', array_filter($ids)), 0, 255) ?: null,
+                'brevo_message_id' => mb_substr(implode(', ', array_filter($ids)), 0, 191) ?: null, // colonne VARCHAR(191)
                 'envoye_at'        => now(),
             ]);
         } catch (\Throwable $e) {

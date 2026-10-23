@@ -109,7 +109,7 @@
                     </td>
                     <td>
                         <span class="rn-chip" style="background:{{ $bgS }};color:{{ $fgS }};">{{ $libS }}</span>
-                        @if($l['autre_planifiee'])
+                        @if($l['autre_planifiee'] && !in_array($l['statut'], ['confirme', 'refus'], true))
                             <span data-tip="Le client a une autre campagne planifiée (« {{ $l['autre_planifiee'] }} ») : le renouvellement est peut-être déjà réservé. Vérifiez puis mettez le statut à jour." style="cursor:help;">⚠️</span>
                         @endif
                     </td>

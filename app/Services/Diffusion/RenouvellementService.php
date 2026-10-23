@@ -339,6 +339,40 @@ class RenouvellementService
     }
 
     /**
+     * La campagne a été prolongée (« 📅 Prolonger », CampaignController::prolonger) :
+     * l'ancien dossier (ancienne date de fin) est clos comme renouvelé, et le
+     * dossier de la nouvelle date de fin garde la trace de la prolongation.
+     * La séquence de mails reprend pour la nouvelle échéance, comme le mail
+     * J-7 (« une prolongation redonne droit à un mail », règle du 2026-10-21).
+     */
+    public function campagneProlongee(Campaign $campagne, string $ancienneFin, ?User $auteur): void
+    {
+        $ancien = Renouvellement::where('campaign_id', $campagne->id)->whereDate('fin_campagne', $ancienneFin)->first();
+        if (!$ancien || !$campagne->end_date) {
+            return;
+        }
+
+        $nouvelleFin = $campagne->end_date->format('d/m/Y');
+        $libelles    = array_map(fn($s) => $s[0], Renouvellement::STATUTS);
+
+        if (in_array($ancien->statut, [Renouvellement::EN_ATTENTE, Renouvellement::RENOUVELER, Renouvellement::AJUSTER, Renouvellement::RAPPEL], true)) {
+            $ancien->noter("Campagne prolongée jusqu'au {$nouvelleFin} · Statut : {$libelles[$ancien->statut]} → {$libelles[Renouvellement::CONFIRME]}", null, $auteur?->name);
+            $ancien->statut       = Renouvellement::CONFIRME;
+            $ancien->confirme_par = $auteur?->id;
+            $ancien->confirme_at  = now();
+        } else {
+            $ancien->noter("Campagne prolongée jusqu'au {$nouvelleFin}", null, $auteur?->name);
+        }
+        $ancien->save();
+
+        if ($campagne->estAnnuelle()) {
+            $nouveau = $this->dossier($campagne);
+            $nouveau->noter('Campagne prolongée', 'Fin précédente le ' . Carbon::parse($ancienneFin)->format('d/m/Y') . " (dossier précédent : {$libelles[$ancien->statut]}).", $auteur?->name);
+            $nouveau->save();
+        }
+    }
+
+    /**
      * La campagne a été renouvelée avec le bouton « Renouveler la campagne »
      * de sa fiche (CampaignController::duplicate) : les panneaux sont
      * réservés pour la période suivante. Le dossier passe à
@@ -539,7 +573,7 @@ class RenouvellementService
         $rappel = $l['dossier']?->rappel_le;
 
         return match (true) {
-            $l['statut'] === Renouvellement::CONFIRME   => ['Renouvellement confirmé', 'ok'],
+            $l['statut'] === Renouvellement::CONFIRME   => ['Aucune : relances arrêtées', 'ok'],
             $l['statut'] === Renouvellement::REFUS      => ['Aucune : ne renouvelle pas', 'neutre'],
             $l['statut'] === Renouvellement::RAPPEL     => ['Rappeler le client (à sa demande)', 'urgent'],
             in_array($l['statut'], [Renouvellement::RENOUVELER, Renouvellement::AJUSTER], true)

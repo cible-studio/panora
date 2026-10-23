@@ -259,6 +259,7 @@ TXT,
     /** Objet : champs remplacés, gras retiré, espaces resserrés. */
     public static function remplir(string $texte, array $valeurs): string
     {
+        $texte = self::utf8($texte);
         $s = self::substituer($texte, $valeurs, fn($v) => $v);
 
         return trim(preg_replace('/\s+/u', ' ', str_replace('**', '', $s)));
@@ -332,9 +333,16 @@ TXT,
         return implode("\n\n", $sortie);
     }
 
+    /** Texte mal codé (copié d'un autre logiciel) : converti plutôt que de faire échouer le rendu. */
+    private static function utf8(string $texte): string
+    {
+        return mb_check_encoding($texte, 'UTF-8') ? $texte : mb_convert_encoding($texte, 'UTF-8', 'Windows-1252');
+    }
+
     /** @return string[] */
     private static function paragraphes(string $corps): array
     {
+        $corps = self::utf8($corps);
         $corps = str_replace(["\r\n", "\r"], "\n", $corps);
 
         return array_values(array_filter(preg_split('/\n\s*\n/u', trim($corps)), fn($p) => trim($p) !== ''));
@@ -359,7 +367,8 @@ TXT,
         $echapperTexte ??= fn($t) => $t;
         $valeurs = self::cles($valeurs);
 
-        $morceaux = preg_split('/(\[[^\[\]\n]{2,40}\])/u', $texte, -1, PREG_SPLIT_DELIM_CAPTURE);
+        $texte    = self::utf8($texte);
+        $morceaux = preg_split('/(\[[^\[\]\n]{2,40}\])/u', $texte, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [$texte];
         $s = '';
         foreach ($morceaux as $m) {
             $cle = self::normaliser($m);

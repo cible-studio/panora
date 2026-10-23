@@ -171,6 +171,26 @@ Correctif local possible (non appliqué, décision utilisateur) :
 
 ---
 
+### Disponibilités : la campagne d'une réservation n'est pas toujours exclue du contrôle de conflit (repéré 2026-10-23)
+
+`AvailabilityService::getUnavailablePanelIds()` contrôle deux sources : les
+réservations et les campagnes. Un appel qui exclut une réservation sans exclure
+sa campagne peut donc trouver un conflit avec soi-même.
+
+**Corrigé le 2026-10-23** : `CampaignController::prolonger()`. Le bouton
+« Prolonger » était refusé pour toute campagne active avec des panneaux. Il
+passe maintenant `$campaign->id`, comme `CampaignService`.
+
+**À vérifier**, pas confirmé :
+- `ReservationService` (mise à jour d'une réservation, ligne ~111) ;
+- `ReservationController` (ajout d'un panneau, ligne ~3225).
+
+Ces deux appels excluent la réservation, mais pas la campagne liée. Si
+celle-ci existe et porte les mêmes panneaux, le même faux conflit est
+possible.
+
+---
+
 ### Mail de fin de campagne J-7 : pas de rattrapage d'un jour manqué (2026-10-21)
 
 **Mise à jour 2026-10-22** : ne concerne plus que les campagnes de MOINS de

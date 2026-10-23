@@ -55,7 +55,8 @@ class RenouvellementReponseMail extends Mailable
                 'client'   => $this->campagne->client,
                 'choix'    => $this->choix,
                 'libelle'  => ModelesMail::CHOIX[$this->choix] ?? $this->choix,
-                'message'  => $this->message,
+                // « message » est réservé par Laravel dans les vues de mail.
+                'messageClient' => $this->message,
                 'noteTest' => $this->noteTest,
                 'lien'     => route('admin.renouvellements.index', ['campagne' => $this->campagne->id]),
             ],

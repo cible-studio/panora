@@ -36,7 +36,7 @@ class NotifyEndingCampaigns extends Command
 
     protected $description = 'Prévient par mail les clients dont la campagne arrive à échéance (séquence de renouvellement ou J-7)';
 
-    private array $bilan = ['envoye' => 0, 'exclu' => 0, 'echec' => 0];
+    private array $bilan = ['envoye' => 0, 'deja' => 0, 'exclu' => 0, 'echec' => 0];
 
     public function handle(RelanceFinCampagneService $fin, RenouvellementService $renouvellement): int
     {
@@ -69,7 +69,7 @@ class NotifyEndingCampaigns extends Command
 
         if (!$dryRun) {
             $this->line('');
-            $this->info("Bilan : {$this->bilan['envoye']} envoyé(s) · {$this->bilan['exclu']} non envoyé(s) · {$this->bilan['echec']} à retenter");
+            $this->info("Bilan : {$this->bilan['envoye']} envoyé(s) · {$this->bilan['deja']} déjà envoyé(s) · {$this->bilan['exclu']} non envoyé(s) · {$this->bilan['echec']} à retenter");
         }
 
         return self::SUCCESS;
@@ -129,6 +129,14 @@ class NotifyEndingCampaigns extends Command
 
     private function afficher(string $titre, RelanceFinCampagne $ligne): void
     {
+        // Déjà parti un autre jour (ou plus tôt aujourd'hui) : rien n'a été envoyé cette fois.
+        if ($ligne->statut === RelanceFinCampagne::STATUT_ENVOYE && !$ligne->wasRecentlyCreated && !$ligne->wasChanged()) {
+            $this->bilan['deja']++;
+            $this->line("  = {$titre} : déjà envoyé le " . $ligne->envoye_at?->format('d/m/Y'));
+
+            return;
+        }
+
         $this->bilan[$ligne->statut] = ($this->bilan[$ligne->statut] ?? 0) + 1;
 
         match ($ligne->statut) {

@@ -319,6 +319,58 @@ class RenouvellementServiceTest extends TestCase
         $this->assertSame(100, $k['taux_reponse']); // seul B a reçu un mail, et il a répondu
     }
 
+    // ── Non-régression : bugs trouvés au test réel sur MySQL (2026-10-23) ──
+
+    public function test_le_mail_au_commercial_se_genere_vraiment(): void
+    {
+        // $message est réservé par Laravel dans les vues de mail : le mail plantait.
+        $c = $this->campagne();
+        $mail = new \App\Mail\RenouvellementReponseMail($this->service()->dossier($c), $c, 'ajuster', 'Retirer ABJ-101.');
+
+        $html = $mail->render();
+
+        $this->assertStringContainsString('Retirer ABJ-101.', $html);
+        $this->assertStringContainsString('Je souhaite ajuster mon dispositif', $html);
+    }
+
+    public function test_un_test_manuel_ne_compte_pas_comme_l_envoi_automatique(): void
+    {
+        config(['diffusion.fin_campagne.mode' => 'test']);
+        $c = $this->campagne();
+
+        $essai = $this->service()->traiter($c, forcerTest: true, etape: 'j60');
+        $auto  = $this->service()->traiter($c);
+
+        $this->assertSame('essai', $essai->mode);
+        $this->assertSame('test', $auto->mode);
+        $this->assertCount(2, $this->envoisBrevo()); // le test manuel n'a pas bloqué l'envoi du jour
+        $this->assertSame('envoye', $this->service()->lignes()->first()['sequence'][0]['etat']);
+    }
+
+    public function test_la_prolongation_clot_l_ancien_dossier_et_ouvre_le_suivant(): void
+    {
+        $c = $this->campagne();
+        $ancien = $this->service()->dossier($c);
+        $ancien->update(['statut' => 'renouveler']);
+
+        $c->update(['end_date' => '2027-02-28']);
+        $this->service()->campagneProlongee($c->fresh(), '2026-12-31', User::findOrFail(1));
+
+        $this->assertSame('confirme', $ancien->fresh()->statut);
+        $nouveau = Renouvellement::whereDate('fin_campagne', '2027-02-28')->firstOrFail();
+        $this->assertSame('en_attente', $nouveau->statut);
+        $this->assertStringContainsString('31/12/2026', json_encode($nouveau->historique, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    public function test_la_commande_n_annonce_pas_un_envoi_deja_fait(): void
+    {
+        $this->campagne();
+        $this->artisan('campaigns:notify-ending')->expectsOutputToContain('[j60]')->assertSuccessful();
+        $this->artisan('campaigns:notify-ending')->expectsOutputToContain('déjà envoyé')->assertSuccessful();
+
+        $this->assertCount(1, $this->envoisBrevo());
+    }
+
     // ── Liste et mail du matin ────────────────────────────────────
 
     public function test_liste_compteurs_et_mail_du_matin(): void

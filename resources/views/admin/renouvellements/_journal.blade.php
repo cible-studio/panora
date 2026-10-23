@@ -29,7 +29,7 @@
                     </td>
                     <td>
                         {{ $m->libelleEtape() }}
-                        @if($m->mode === 'test')<span class="rn-chip test" style="margin-left:4px;padding:1px 7px;font-size:11px;" data-tip="Envoyé en test (adresses de test), pas au client.">test</span>@endif
+                        @if($m->mode !== 'production')<span class="rn-chip test" style="margin-left:4px;padding:1px 7px;font-size:11px;" data-tip="{{ $m->mode === 'essai' ? 'Test lancé à la main' : 'Envoi automatique en mode test' }} : adresses de test, pas au client.">{{ $m->mode === 'essai' ? 'test manuel' : 'test' }}</span>@endif
                     </td>
                     <td><span class="rn-chip" style="background:{{ $bg }};color:{{ $fg }};" @if($m->motif) data-tip="{{ $m->motif }}" @endif>{{ $lib }}</span></td>
                     <td class="rn-hide-sm">{{ $m->destinataire ?? '—' }}</td>

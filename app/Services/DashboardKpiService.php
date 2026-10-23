@@ -2186,6 +2186,9 @@ class DashboardKpiService
                 'icon'     => '📅',
                 'title'    => "{$upcoming->count()} campagne(s) se termine(nt) dans les 7 jours",
                 'message'  => 'Planifiez les décapages et anticipez les relances clients pour renouvellement.',
+                // 2026-10-23 : le suivi des renouvellements a son écran.
+                'cta_label'=> 'Voir les renouvellements',
+                'cta_url'  => route('admin.renouvellements.index'),
             ]);
         }
 
