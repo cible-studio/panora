@@ -30,7 +30,7 @@ var CONFIG = {
 var ENTETES = [
   'E-mail', 'Nom', 'Entreprise (déduite)', 'Domaine', "Type d'adresse",
   'Premier échange', 'Dernier échange', 'Échanges', 'Envoyés par CIBLE', 'Reçus de ce contact',
-  'Rôles', 'Boîtes CIBLE', 'Dernier objet', 'Statut CRM', 'Notes',
+  'Rôles', 'Boîtes CIBLE', 'Objets récents', 'Statut CRM', 'Notes',
 ];
 var COL = {}; ENTETES.forEach(function (e, i) { COL[e] = i; });
 
@@ -96,6 +96,17 @@ function miseAJourQuotidienne() {
 
 /** @return {boolean} true si la phase en cours est terminée. */
 function traiterLot() {
+  // Un seul lot à la fois par boîte : un double clic, ou la mise à jour de
+  // 6 h pendant l'historique, feraient lire et compter deux fois les mêmes mails.
+  var verrou = LockService.getUserLock();
+  if (!verrou.tryLock(1000)) {
+    console.log('Un lot est déjà en cours pour ' + maBoite_() + ' : celui-ci est ignoré.');
+    return false;
+  }
+  try { return traiterLot_(); } finally { verrou.releaseLock(); }
+}
+
+function traiterLot_() {
   var debut = Date.now();
   var etat = lireEtat_() || { phase: 'complet', borne: Date.now(), curseur: 0 };
   if (etat.phase === 'quotidien' && etat.curseur === 0) etat.borneQuotidienne = Date.now();
@@ -200,14 +211,15 @@ function noterContact(agg, adresse, date, objet, role, boite, sens, vus) {
   var e = agg[adresse.email];
   if (!e) {
     e = agg[adresse.email] = { email: adresse.email, nom: '', premier: date, dernier: date,
-      echanges: 0, envoyes: 0, recus: 0, roles: {}, boites: {}, objet: '', objetDate: null };
+      echanges: 0, envoyes: 0, recus: 0, roles: {}, boites: {}, objets: {} };
   }
   if (adresse.nom && (!e.nom || date >= e.dernier)) e.nom = adresse.nom;
   if (date < e.premier) e.premier = date;
   if (date > e.dernier) e.dernier = date;
   e.roles[role] = true;
   e.boites[boite] = true;
-  if (!e.objetDate || date > e.objetDate) { e.objet = objet; e.objetDate = date; }
+  var sujet = nettoyerObjet(objet);
+  if (sujet && (!e.objets[sujet] || date > e.objets[sujet])) e.objets[sujet] = date;
 
   // Un message compte une fois par contact, même s'il y figure deux fois.
   if (vus[adresse.email]) return;
@@ -228,8 +240,25 @@ function cumuler(agg, page) {
     e.echanges += p.echanges; e.envoyes += p.envoyes; e.recus += p.recus;
     Object.keys(p.roles).forEach(function (r) { e.roles[r] = true; });
     Object.keys(p.boites).forEach(function (b) { e.boites[b] = true; });
-    if (p.objetDate && (!e.objetDate || p.objetDate > e.objetDate)) { e.objet = p.objet; e.objetDate = p.objetDate; }
+    Object.keys(p.objets).forEach(function (o) { if (!e.objets[o] || p.objets[o] > e.objets[o]) e.objets[o] = p.objets[o]; });
   });
+}
+
+/** « RE: TR: Devis campagne ORANGE » → « Devis campagne ORANGE ». */
+function nettoyerObjet(objet) {
+  var s = String(objet || '').trim();
+  var avant;
+  do { avant = s; s = s.replace(/^(re|tr|fw|fwd|réf|ref)\s*(\[\d+\])?\s*:\s*/i, '').trim(); } while (s !== avant);
+  return s.slice(0, 120);
+}
+
+/** Les 5 objets les plus récents, sans doublon, séparés par « | ». */
+function objetsRecents(nouveaux, existants, nouveauxDabord) {
+  var neufs = Object.keys(nouveaux).sort(function (a, b) { return nouveaux[b] - nouveaux[a]; });
+  var anciens = String(existants || '').split(' | ').map(function (o) { return o.trim(); }).filter(String);
+  var tous = nouveauxDabord ? neufs.concat(anciens) : anciens.concat(neufs);
+  var vus = {};
+  return tous.filter(function (o) { var k = o.toLowerCase(); if (vus[k]) return false; vus[k] = true; return true; }).slice(0, 5).join(' | ');
 }
 
 function domaineDe(email) { return email.split('@')[1] || ''; }
@@ -282,7 +311,7 @@ function fusionnerLignes(lignes, agg, reglages) {
       l[COL['Reçus de ce contact']] = a.recus;
       l[COL['Rôles']] = Object.keys(a.roles).sort().join(', ');
       l[COL['Boîtes CIBLE']] = Object.keys(a.boites).sort().join(', ');
-      l[COL['Dernier objet']] = a.objet;
+      l[COL['Objets récents']] = objetsRecents(a.objets, '', true);
       l[COL['Statut CRM']] = reglages['Domaines clients (statut Client)'].indexOf(dom) !== -1 ? 'Client' : 'À qualifier';
       index[email] = lignes.length;
       lignes.push(l);
@@ -293,7 +322,9 @@ function fusionnerLignes(lignes, agg, reglages) {
     var premier = x[COL['Premier échange']] instanceof Date ? x[COL['Premier échange']] : a.premier;
     var dernier = x[COL['Dernier échange']] instanceof Date ? x[COL['Dernier échange']] : a.dernier;
     if (!x[COL['Nom']] || (a.nom && a.dernier > dernier)) x[COL['Nom']] = a.nom || x[COL['Nom']];
-    if (a.objetDate && a.objetDate > dernier) x[COL['Dernier objet']] = a.objet;
+    // Les mails lus maintenant sont plus récents (mise à jour quotidienne) ou plus
+    // anciens (historique, lu du plus récent au plus ancien) que ceux déjà notés.
+    x[COL['Objets récents']] = objetsRecents(a.objets, x[COL['Objets récents']], a.dernier > dernier);
     x[COL['Premier échange']] = a.premier < premier ? a.premier : premier;
     x[COL['Dernier échange']] = a.dernier > dernier ? a.dernier : dernier;
     x[COL['Échanges']] = (Number(x[COL['Échanges']]) || 0) + a.echanges;
@@ -321,8 +352,10 @@ function union_(texte, valeurs) {
 
 function fusionner_(agg, reglages) {
   if (!Object.keys(agg).length) return 0;
-  var verrou = LockService.getDocumentLock();
-  verrou.waitLock(60000); // plusieurs collaborateurs peuvent écrire en même temps
+  // Verrou du script (et non du document) : il existe aussi pour un projet
+  // créé hors du Sheets. Plusieurs collaborateurs peuvent écrire en même temps.
+  var verrou = LockService.getScriptLock();
+  verrou.waitLock(60000);
   try {
     var f = feuille_(CONFIG.FEUILLE_CONTACTS);
     var valeurs = f.getDataRange().getValues();
@@ -378,8 +411,25 @@ function lireReglages_() {
 }
 
 function feuille_(nom) {
-  var ss = SpreadsheetApp.getActive();
+  var ss = classeur_();
   return ss.getSheetByName(nom) || ss.insertSheet(nom);
+}
+
+/**
+ * Le Google Sheets du script. Si le projet a été créé depuis
+ * script.google.com (et non depuis le Sheets : Extensions → Apps Script),
+ * le script crée son propre fichier « Contacts CIBLE » et le réutilise.
+ */
+function classeur_() {
+  var ss = SpreadsheetApp.getActive();
+  if (ss) return ss;
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('CLASSEUR_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  ss = SpreadsheetApp.create('Contacts CIBLE');
+  props.setProperty('CLASSEUR_ID', ss.getId());
+  console.log('Fichier créé : ' + ss.getUrl());
+  return ss;
 }
 
 function maBoite_() { return (Session.getActiveUser().getEmail() || 'boîte inconnue').toLowerCase(); }
@@ -391,7 +441,7 @@ function adressesPersonnelles_() {
   return moi;
 }
 
-function cleEtat_() { return 'etat_' + SpreadsheetApp.getActive().getId(); }
+function cleEtat_() { return 'etat_' + classeur_().getId(); }
 function lireEtat_() { var s = PropertiesService.getUserProperties().getProperty(cleEtat_()); return s ? JSON.parse(s) : null; }
 function ecrireEtat_(e) { PropertiesService.getUserProperties().setProperty(cleEtat_(), JSON.stringify(e)); }
 
@@ -413,15 +463,18 @@ function arreterMiseAJourQuotidienne_(silencieux) {
 
 function journal_(boite, texte) {
   feuille_(CONFIG.FEUILLE_JOURNAL).appendRow([new Date(), boite, texte]);
+  console.log(boite + ' : ' + texte + ' — fichier : ' + classeur_().getUrl()); // visible dans le journal d'exécution
 }
 
 function alerte_(texte) {
-  try { SpreadsheetApp.getUi().alert(texte); } catch (e) { /* exécution automatique : pas d'écran */ }
+  console.log(texte + ' — fichier : ' + classeur_().getUrl()); // lancé depuis l'éditeur : visible dans le journal d'exécution
+  try { SpreadsheetApp.getUi().alert(texte); } catch (e) { /* exécution automatique ou projet hors Sheets : pas d'écran */ }
 }
 
 // Pour les tests hors Google (Node) — ignoré par Apps Script.
 if (typeof module !== 'undefined') {
   module.exports = { parserAdresses: parserAdresses, noterContact: noterContact, cumuler: cumuler, estExclue: estExclue,
     entrepriseDuDomaine: entrepriseDuDomaine, fusionnerLignes: fusionnerLignes, analyserMessage_: analyserMessage_,
+    nettoyerObjet: nettoyerObjet, objetsRecents: objetsRecents,
     ENTETES: ENTETES, COL: COL, REGLAGES_DEFAUT: REGLAGES_DEFAUT };
 }
