@@ -19,7 +19,7 @@ class RenouvellementDigestMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    /** @param array{email: string, nom: string, role: string, appeler: mixed, rappels: mixed, reponses: mixed, a_confirmer: mixed} $contenu */
+    /** @param array{email: string, nom: string, role: string, a_rappeler: mixed, appeler: mixed, rappels: mixed, reponses: mixed, a_confirmer: mixed} $contenu */
     public function __construct(
         public readonly array $contenu,
         public readonly ?string $noteTest = null,
@@ -32,6 +32,7 @@ class RenouvellementDigestMail extends Mailable
             ? "Renouvellements à confirmer : {$c['a_confirmer']->count()}"
             : 'Renouvellements du jour : '
                 . collect([
+                    ($c['a_rappeler'] ?? collect())->count() ? $c['a_rappeler']->count() . ' rappel(s) prévu(s)' : null,
                     $c['appeler']->count() ? $c['appeler']->count() . ' à appeler' : null,
                     $c['rappels']->count() ? $c['rappels']->count() . ' rappel(s) demandé(s)' : null,
                     $c['reponses']->count() ? $c['reponses']->count() . ' réponse(s)' : null,

@@ -42,7 +42,7 @@ class RenouvellementsDigest extends Command
             $resume = "{$contenu['nom']} <{$contenu['email']}> : "
                 . ($contenu['role'] === 'mediaplanner'
                     ? "{$contenu['a_confirmer']->count()} à confirmer"
-                    : "{$contenu['appeler']->count()} à appeler · {$contenu['rappels']->count()} rappel(s) · {$contenu['reponses']->count()} réponse(s)");
+                    : "{$contenu['a_rappeler']->count()} rappel(s) prévu(s) · {$contenu['appeler']->count()} à appeler · {$contenu['rappels']->count()} rappel(s) · {$contenu['reponses']->count()} réponse(s)");
 
             if ($this->option('dry-run')) {
                 $this->line("  [→] {$resume}");

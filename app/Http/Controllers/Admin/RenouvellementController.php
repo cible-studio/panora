@@ -9,6 +9,7 @@ use App\Models\ClientContact;
 use App\Models\ModeleMail;
 use App\Models\RelanceFinCampagne;
 use App\Models\Renouvellement;
+use App\Models\User;
 use App\Services\Diffusion\ModelesMail;
 use App\Services\Diffusion\RelanceFinCampagneService;
 use App\Services\Diffusion\RenouvellementService;
@@ -32,29 +33,85 @@ class RenouvellementController extends Controller
         private ModelesMail $modeles,
     ) {}
 
+    /** Groupes de statuts derrière les compteurs cliquables. */
+    private const VUES = [
+        'attente'    => [Renouvellement::EN_ATTENTE],
+        'discussion' => [Renouvellement::RENOUVELER, Renouvellement::AJUSTER, Renouvellement::RAPPEL],
+        'confirmes'  => [Renouvellement::CONFIRME],
+        'perdus'     => [Renouvellement::REFUS],
+    ];
+
+    /**
+     * Trois onglets (2026-10-23) : campagnes annuelles (renouvellement),
+     * autres campagnes (mail J-7 simple), journal des envois. Par défaut
+     * TOUTES les campagnes en cours : 30 / 60 / 90 jours sont des filtres.
+     * ?campagne=ID ouvre directement la fiche du dossier.
+     */
     public function index(Request $request)
     {
-        $user    = $request->user();
-        $estCom  = $user->role?->value === 'commercial';
-        // 30 / 60 / 90 jours, ou 0 = toutes les campagnes annuelles en cours.
-        $horizon = in_array((int) $request->query('horizon', 90), [0, 30, 60, 90], true) ? (int) $request->query('horizon', 90) : 90;
-        $statut  = array_key_exists((string) $request->query('statut'), Renouvellement::STATUTS) ? $request->query('statut') : null;
+        $user   = $request->user();
+        $role   = $user->role?->value;
+        $estCom = $role === 'commercial';
+        $onglet = in_array($request->query('onglet'), ['annuelles', 'courtes', 'journal'], true) ? $request->query('onglet') : 'annuelles';
+        $horizon = in_array((int) $request->query('horizon', 0), [0, 30, 60, 90], true) ? (int) $request->query('horizon', 0) : 0;
+        $vue    = array_key_exists((string) $request->query('vue'), self::VUES) ? $request->query('vue') : null;
+        $statut = array_key_exists((string) $request->query('statut'), Renouvellement::STATUTS) ? $request->query('statut') : null;
+        $q      = trim((string) $request->query('q'));
+        $commercialId = $estCom ? $user->id : ((int) $request->query('commercial') ?: null);
+        $ouvrir = (int) $request->query('campagne') ?: null;
 
-        $lignes     = $this->service->lignes($estCom ? $user->id : null, $horizon ?: RenouvellementService::HORIZON_TOUTES);
-        $compteurs  = RenouvellementService::compteurs($lignes);
-        $affichees  = $statut ? $lignes->where('statut', $statut)->values() : $lignes;
+        // ── Campagnes annuelles ──
+        $lignes = $this->service->lignes($commercialId, $horizon ?: RenouvellementService::HORIZON_TOUTES);
+        if ($ouvrir && !$lignes->contains(fn($l) => $l['campagne']->id === $ouvrir)) {
+            $lignes = $lignes->merge($this->service->lignes($estCom ? $user->id : null, RenouvellementService::HORIZON_TOUTES, $ouvrir));
+        }
+        $compteurs = RenouvellementService::compteurs($lignes);
+
+        $affichees = $lignes
+            ->when($vue, fn($c) => $c->whereIn('statut', self::VUES[$vue]))
+            ->when($statut, fn($c) => $c->where('statut', $statut))
+            ->when($q !== '', fn($c) => $c->filter(fn($l) => str_contains(
+                mb_strtolower($l['campagne']->name . ' ' . $l['campagne']->client?->name . ' ' . ($l['contact']['contact'] ?? '')),
+                mb_strtolower($q)
+            )))
+            ->values();
+
+        // ── Autres campagnes (mail J-7 simple) ──
+        $courtes = $this->socle->prochaines($horizon ?: RenouvellementService::HORIZON_TOUTES, $commercialId)
+            ->when($q !== '', fn($c) => $c->filter(fn($p) => str_contains(
+                mb_strtolower($p['campagne']->name . ' ' . $p['campagne']->client?->name), mb_strtolower($q)
+            )))
+            ->values();
+
+        // ── Journal des envois ──
+        $journal = $onglet === 'journal'
+            ? RelanceFinCampagne::with(['campaign:id,name', 'client:id,name'])
+                ->when($commercialId, fn($j) => $j->whereIn('campaign_id', Campaign::forCommercialUser($commercialId)->pluck('id')))
+                ->latest('updated_at')
+                ->paginate(30)
+                ->withQueryString()
+            : null;
 
         return view('admin.renouvellements.index', [
-            'lignes'      => $affichees,
-            'compteurs'   => $compteurs,
-            'horizon'     => $horizon,
-            'statut'      => $statut,
-            'peutConfirmer' => in_array($user->role?->value, ['admin', 'mediaplanner'], true),
-            'estAdmin'    => $user->role?->value === 'admin',
-            'modeTest'    => $this->socle->estModeTest(),
+            'onglet'        => $onglet,
+            'lignes'        => $affichees,
+            'nbAnnuelles'   => $lignes->count(),
+            'compteurs'     => $compteurs,
+            'courtes'       => $courtes,
+            'journal'       => $journal,
+            'horizon'       => $horizon,
+            'vue'           => $vue,
+            'q'             => $q,
+            'commercialId'  => $estCom ? null : $commercialId,
+            'commerciaux'   => $estCom ? collect() : User::where('role', 'commercial')->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'ouvrir'        => $ouvrir,
+            'peutConfirmer' => in_array($role, ['admin', 'mediaplanner'], true),
+            'estAdmin'      => $role === 'admin',
+            'estCom'        => $estCom,
+            'modeTest'      => $this->socle->estModeTest(),
             // Liste vide : on dit quand arrive la prochaine échéance annuelle.
-            'prochaine'   => $lignes->isEmpty() && $horizon
-                ? $this->service->prochaineAnnuelle($estCom ? $user->id : null, $horizon)
+            'prochaine'     => $lignes->isEmpty() && $horizon
+                ? $this->service->prochaineAnnuelle($commercialId, $horizon)
                 : null,
         ]);
     }
@@ -74,13 +131,35 @@ class RenouvellementController extends Controller
         }
 
         $data = $request->validate([
-            'statut' => 'required|in:' . implode(',', $permis),
-            'note'   => 'nullable|string|max:2000',
+            'statut'    => 'required|in:' . implode(',', $permis),
+            'note'      => 'nullable|string|max:2000',
+            'rappel_le' => 'nullable|date',
         ]);
 
-        $this->service->changerStatut($renouvellement, $data['statut'], $data['note'] ?? null, $user);
+        $this->service->changerStatut(
+            $renouvellement,
+            $data['statut'],
+            $data['note'] ?? null,
+            $user,
+            $request->has('rappel_le') ? ($data['rappel_le'] ?? null) : false,
+        );
 
-        return back()->with('success', 'Renouvellement mis à jour.');
+        return redirect()->to(url()->previous())->with('success', 'Dossier mis à jour.');
+    }
+
+    /** Aperçu d'un mail de la campagne (frise de la fiche dossier, onglet J-7). */
+    public function apercuMail(Request $request, Campaign $campaign, string $cle): Response
+    {
+        $user = $request->user();
+        if ($user->role?->value === 'commercial') {
+            abort_unless($campaign->belongsToCommercialUser($user->id), 403);
+        }
+        abort_unless($campaign->end_date && array_key_exists($cle, ModelesMail::ETAPES), 404);
+        $campaign->loadMissing(['client.contacts', 'commercial', 'user']);
+
+        $mail = $cle === RelanceFinCampagne::ETAPE_FIN ? $this->socle->mail($campaign) : $this->service->mail($campaign, $cle);
+
+        return response($mail->render());
     }
 
     public function confirmer(Request $request, Campaign $campaign): RedirectResponse
@@ -106,6 +185,7 @@ class RenouvellementController extends Controller
             'defaut'     => ModelesMail::DEFAUTS[$cle],
             'champs'     => ModelesMail::CHAMPS,
             'ligne'      => ModeleMail::with('auteur:id,name')->where('cle', $cle)->first(),
+            'modifies'   => ModeleMail::pluck('cle')->all(),
             'campagnes'  => $this->campagnesApercu($cle),
             'campagneId' => (int) $request->query('campagne'),
         ]);

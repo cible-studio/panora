@@ -35,13 +35,14 @@ class Renouvellement extends Model
     ];
 
     protected $fillable = [
-        'campaign_id', 'client_id', 'fin_campagne', 'statut', 'token',
+        'campaign_id', 'client_id', 'fin_campagne', 'statut', 'rappel_le', 'token',
         'reponse_choix', 'reponse_message', 'reponse_at', 'reponse_par',
         'confirme_par', 'confirme_at', 'historique',
     ];
 
     protected $casts = [
         'fin_campagne' => 'date',
+        'rappel_le'    => 'date',
         'reponse_at'   => 'datetime',
         'confirme_at'  => 'datetime',
         'historique'   => 'array',

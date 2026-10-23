@@ -183,7 +183,7 @@ class RenouvellementServiceTest extends TestCase
 
         $dossier = Renouvellement::firstOrFail();
         $this->assertSame('refus', $dossier->statut);
-        $this->assertStringContainsString('budget réorienté', json_encode($dossier->historique, JSON_UNESCAPED_UNICODE));
+        $this->assertStringContainsString('budget réorienté', json_encode($dossier->historique, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         $this->aujourdhui('2026-11-16');
         $this->assertNull($this->service()->traiter($c));
     }
@@ -245,6 +245,78 @@ class RenouvellementServiceTest extends TestCase
 
         $this->post("/renouvellement/{$dossier->token}", ['choix' => 'refus'])->assertOk()->assertSee('est confirmé');
         $this->assertSame('confirme', $dossier->fresh()->statut);
+    }
+
+    // ── Suivi de l'équipe (2026-10-23) ────────────────────────────
+
+    public function test_date_de_rappel_notee_puis_reprise_dans_le_mail_du_matin(): void
+    {
+        $c = $this->campagne();
+        $this->service()->changerStatut($this->service()->dossier($c), 'en_attente', 'Absent, rappeler mardi.', User::findOrFail(2), '2026-11-03');
+
+        $dossier = Renouvellement::firstOrFail();
+        $this->assertSame('2026-11-03', $dossier->rappel_le->toDateString());
+        $this->assertStringContainsString('Rappel prévu le 03/11/2026', json_encode($dossier->historique, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $this->assertSame(['Rappel prévu le 03/11', 'info'], $this->service()->lignes()->first()['action']);
+
+        $this->aujourdhui('2026-11-03');
+        $digest = $this->service()->digest();
+        $this->assertCount(1, $digest[0]['a_rappeler']);
+        $this->assertSame(['Rappel prévu aujourd\'hui', 'urgent'], $this->service()->lignes()->first()['action']);
+    }
+
+    public function test_renouveler_la_campagne_depuis_sa_fiche_arrete_les_relances(): void
+    {
+        $c = $this->campagne();
+        $this->service()->traiter($c); // J-60 parti
+        $nouvelle = $this->campagne(['name' => 'Affichage annuel (renouvelée)', 'status' => 'planifie', 'start_date' => '2027-01-01', 'end_date' => '2027-12-31']);
+
+        $this->service()->campagneRenouvelee($c, $nouvelle, User::findOrFail(2));
+
+        $dossier = Renouvellement::where('campaign_id', $c->id)->firstOrFail();
+        $this->assertSame('confirme', $dossier->statut);
+        $this->assertStringContainsString('Affichage annuel (renouvelée)', json_encode($dossier->historique, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $this->aujourdhui('2026-11-16');
+        $this->assertNull($this->service()->traiter($c));
+    }
+
+    public function test_une_campagne_courte_renouvelee_n_a_pas_de_dossier(): void
+    {
+        $courte = $this->campagne(['start_date' => '2026-09-01', 'end_date' => '2026-12-31']);
+        $this->service()->campagneRenouvelee($courte, $this->campagne(['status' => 'planifie']), User::findOrFail(2));
+
+        $this->assertSame(0, Renouvellement::count());
+    }
+
+    public function test_frise_des_mails_et_prochaine_action(): void
+    {
+        $c = $this->campagne();
+        $this->service()->traiter($c);
+
+        $l = $this->service()->lignes()->first();
+        $this->assertSame(['envoye', 'prevu', 'prevu', 'prevu', 'prevu'], array_column($l['sequence'], 'etat'));
+        $this->assertSame(['Mail J-45 le 16/11', 'info'], $l['action']);
+
+        $this->service()->enregistrerReponse($this->service()->dossier($c), 'renouveler', null);
+        $l = $this->service()->lignes()->first();
+        $this->assertSame(['envoye', 'arrete', 'arrete', 'arrete', 'arrete'], array_column($l['sequence'], 'etat'));
+        $this->assertSame(['À confirmer par le MP', 'alerte'], $l['action']);
+        $this->assertSame('envoye', $l['accuse']->statut);
+    }
+
+    public function test_indicateurs_de_ca(): void
+    {
+        $c1 = $this->campagne(['name' => 'A', 'end_date' => '2026-11-20', 'start_date' => '2025-11-01']); // J-19, en attente → à risque
+        $c2 = $this->campagne(['name' => 'B']);                                                           // J-60
+        $this->service()->traiter($c2);
+        $this->service()->enregistrerReponse($this->service()->dossier($c2), 'refus', null);
+
+        $k = RenouvellementService::compteurs($this->service()->lignes(null, RenouvellementService::HORIZON_TOUTES));
+
+        $this->assertSame(['nb' => 1, 'montant' => 18000000], $k['attente']);
+        $this->assertSame(18000000, $k['a_risque']);
+        $this->assertSame(['nb' => 1, 'montant' => 18000000], $k['perdus']);
+        $this->assertSame(100, $k['taux_reponse']); // seul B a reçu un mail, et il a répondu
     }
 
     // ── Liste et mail du matin ────────────────────────────────────

@@ -955,6 +955,16 @@ class CampaignController extends Controller
                 $newCampaign
             );
 
+            // 2026-10-23 : campagne annuelle renouvelée → son dossier de
+            // renouvellement passe à « confirmé » et les relances au client
+            // s'arrêtent. Ne bloque jamais la duplication.
+            try {
+                app(\App\Services\Diffusion\RenouvellementService::class)
+                    ->campagneRenouvelee($source, $newCampaign, auth()->user());
+            } catch (\Throwable $e) {
+                Log::warning('campaign.duplicate.renouvellement', ['source_id' => $source->id, 'error' => $e->getMessage()]);
+            }
+
             return redirect()
                 ->route('admin.campaigns.show', $newCampaign)
                 ->with('success', "✅ Campagne dupliquée avec mêmes panneaux + commercial. Ajustez si besoin puis cliquez « ▶ Démarrer la campagne ».");

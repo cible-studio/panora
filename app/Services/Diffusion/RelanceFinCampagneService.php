@@ -456,12 +456,13 @@ class RelanceFinCampagneService
      *
      * @return Collection<int, array{campagne: Campaign, date_mail: CarbonInterface, analyse: array, journal: ?RelanceFinCampagne}>
      */
-    public function prochaines(int $horizon = 14): Collection
+    public function prochaines(int $horizon = 14, ?int $commercialId = null): Collection
     {
         $campagnes = Campaign::query()
             ->where('status', CampaignStatus::ACTIF->value)
             ->whereDate('end_date', '>', today()->toDateString())
             ->whereDate('end_date', '<=', today()->addDays($horizon)->toDateString())
+            ->when($commercialId, fn($q) => $q->forCommercialUser($commercialId))
             ->with(['client.contacts', 'commercial', 'user'])
             ->orderBy('end_date')
             ->get()
