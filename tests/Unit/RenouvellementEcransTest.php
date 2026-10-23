@@ -46,7 +46,7 @@ class RenouvellementEcransTest extends TestCase
         $admin = User::findOrFail(1);
 
         $this->actingAs($admin)->get('/admin/renouvellements')
-            ->assertOk()->assertSee('Renouvellements des campagnes annuelles')->assertSee('Affichage annuel');
+            ->assertOk()->assertSee('Campagnes annuelles')->assertSee('Affichage annuel')->assertSee('Comment ça marche', false);
 
         $this->actingAs($admin)->get('/admin/renouvellements/textes?cle=j15')
             ->assertOk()->assertSee('Disponibilité de vos emplacements');
@@ -56,17 +56,46 @@ class RenouvellementEcransTest extends TestCase
         ])->assertOk()->assertSee('Échéance ORANGE CI', false)->assertSee('Bonjour Awa Koné', false)->assertSee('Je souhaite renouveler ma campagne', false);
     }
 
-    public function test_echeance_lointaine_expliquee_et_visible_avec_le_filtre_toutes(): void
+    public function test_par_defaut_tout_est_visible_et_une_fenetre_vide_est_expliquee(): void
     {
-        // Fin dans plus d'un an : hors de la fenêtre des 90 jours.
+        // Fin dans plus d'un an : visible par défaut (rien n'est caché).
         $this->campagne(['name' => 'Campagne lointaine', 'start_date' => '2026-10-23', 'end_date' => '2027-10-30']);
         $admin = User::findOrFail(1);
 
         $this->actingAs($admin)->get('/admin/renouvellements')
-            ->assertOk()->assertSee('Prochaine échéance')->assertSee('Campagne lointaine')->assertSee('31/08/2027');
+            ->assertOk()->assertSee('Campagne lointaine')->assertSee('Mail J-60 le 31/08')->assertDontSee('Prochaine échéance');
 
-        $this->actingAs($admin)->get('/admin/renouvellements?horizon=0')
-            ->assertOk()->assertSee('Campagne lointaine')->assertDontSee('Prochaine échéance');
+        // Filtre ≤ 90 j : liste vide, mais l'écran dit quand arrive la prochaine.
+        $this->actingAs($admin)->get('/admin/renouvellements?horizon=90')
+            ->assertOk()->assertSee('Prochaine échéance')->assertSee('31/08/2027');
+    }
+
+    public function test_onglets_autres_campagnes_et_journal(): void
+    {
+        $this->campagne(['name' => 'Courte', 'start_date' => '2026-10-01', 'end_date' => '2026-11-20']);
+        $annuelle = $this->campagne();
+        $this->service()->traiter($annuelle);
+        $admin = User::findOrFail(1);
+
+        $this->actingAs($admin)->get('/admin/renouvellements?onglet=courtes')
+            ->assertOk()->assertSee('Courte')->assertSee('Ne partira pas'); // le client a une autre campagne qui continue après
+        $this->actingAs($admin)->get('/admin/renouvellements?onglet=journal')
+            ->assertOk()->assertSee('Renouvellement J-60');
+    }
+
+    public function test_lien_direct_vers_un_dossier_et_apercu_d_un_mail(): void
+    {
+        $c = $this->campagne();
+        $admin = User::findOrFail(1);
+
+        $this->actingAs($admin)->get('/admin/renouvellements?campagne=' . $c->id)
+            ->assertOk()->assertSee('dossier: ' . $c->id, false);
+        $this->actingAs($admin)->get("/admin/renouvellements/campagne/{$c->id}/apercu/j15")
+            ->assertOk()->assertSee('La date limite de confirmation étant désormais dépassée', false);
+
+        // Un commercial ne voit pas l'aperçu d'une campagne qui n'est pas la sienne.
+        $autre = $this->campagne(['name' => 'Pas à lui', 'commercial_user_id' => 1, 'user_id' => 1]);
+        $this->actingAs(User::findOrFail(2))->get("/admin/renouvellements/campagne/{$autre->id}/apercu/j60")->assertForbidden();
     }
 
     public function test_un_texte_modifie_s_applique_puis_se_retablit(): void
@@ -88,9 +117,10 @@ class RenouvellementEcransTest extends TestCase
 
         $this->actingAs($commercial)->get('/admin/renouvellements')->assertOk()->assertSee('Affichage annuel');
 
-        $this->actingAs($commercial)->post("/admin/renouvellements/campagne/{$c->id}/statut", ['statut' => 'rappel', 'note' => 'Rappeler lundi.'])
+        $this->actingAs($commercial)->post("/admin/renouvellements/campagne/{$c->id}/statut", ['statut' => 'rappel', 'note' => 'Rappeler lundi.', 'rappel_le' => '2026-11-03'])
             ->assertRedirect();
         $this->assertSame('rappel', Renouvellement::firstOrFail()->statut);
+        $this->assertSame('2026-11-03', Renouvellement::firstOrFail()->rappel_le->toDateString());
 
         // La confirmation reste au MP (règle validée).
         $this->actingAs($commercial)->post("/admin/renouvellements/campagne/{$c->id}/statut", ['statut' => 'confirme'])

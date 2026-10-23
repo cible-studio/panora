@@ -305,6 +305,42 @@
         @endif
     </div>
 
+    {{-- ── RENOUVELLEMENT (campagnes de 12 mois ou plus, 2026-10-23) ── --}}
+    @php
+        try {
+            $renouv = app(\App\Services\Diffusion\RenouvellementService::class)->resume($campaign);
+        } catch (\Throwable) {
+            $renouv = null;
+        }
+    @endphp
+    @if($renouv)
+        @php
+            [$rnLib, $rnBg, $rnFg] = \App\Models\Renouvellement::STATUTS[$renouv['statut']];
+            $rnTon = ['urgent' => '#dc2626', 'alerte' => '#d97706', 'ok' => '#16a34a', 'info' => 'var(--text2)', 'neutre' => 'var(--text3)'][$renouv['action'][1]] ?? 'var(--text2)';
+            $rnCouleurs = ['envoye' => '#3aa835', 'aujourdhui' => '#fab80b', 'echec' => '#e20613', 'exclu' => '#9ca3af'];
+        @endphp
+        <div class="mb-6 rounded-xl border p-4 flex flex-wrap items-center gap-4" style="background:var(--surface);border-color:var(--border)">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center text-xl" style="background:rgba(58,168,53,0.12)">🔁</div>
+            <div class="flex-1" style="min-width:220px">
+                <div class="font-bold flex flex-wrap items-center gap-2" style="color:var(--text)">
+                    Renouvellement
+                    <span style="padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:700;background:{{ $rnBg }};color:{{ $rnFg }}">{{ $rnLib }}</span>
+                </div>
+                <div class="text-sm" style="color:{{ $rnTon }};font-weight:600">{{ $renouv['action'][0] }}</div>
+            </div>
+            @if($renouv['sequence'])
+                <div style="display:flex;gap:4px" title="Mails au client : J-60, J-45, J-30, J-15, J-7">
+                    @foreach($renouv['sequence'] as $e)
+                        <span title="{{ strtoupper(str_replace('j', 'J-', $e['etape'])) }} · {{ $e['info'] }}"
+                              style="display:block;width:22px;height:8px;border-radius:4px;box-sizing:border-box;{{ isset($rnCouleurs[$e['etat']]) ? 'background:' . $rnCouleurs[$e['etat']] : 'border:1.5px solid var(--border)' }}"></span>
+                    @endforeach
+                </div>
+            @endif
+            <a href="{{ route('admin.renouvellements.index', ['campagne' => $campaign->id]) }}" class="px-4 py-2 rounded-lg text-sm font-bold"
+               style="background:var(--surface2);color:var(--text);border:1px solid var(--border)">Ouvrir le dossier</a>
+        </div>
+    @endif
+
     {{-- ── GRILLE PRINCIPALE ── --}}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
 
@@ -1736,6 +1772,11 @@
     }
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') closeDuplicateModal();
+    });
+    // 2026-10-23 : arrivée depuis un dossier de renouvellement (#renouveler)
+    // → la fenêtre « Renouveler la campagne » s'ouvre directement.
+    document.addEventListener('DOMContentLoaded', () => {
+        if (location.hash === '#renouveler' && document.getElementById('modal-duplicate')) openDuplicateModal();
     });
     </script>
     @endif

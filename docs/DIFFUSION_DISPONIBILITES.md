@@ -260,8 +260,8 @@ l'écran de diffusion. Un bandeau le rappelle tant qu'elles manquent.
 
 Ajouté le 2026-10-21. Ce n'est pas un nouveau mail : c'est le mail J-7 qui
 existait déjà (`campaigns:notify-ending`), refait selon les règles
-ci-dessous, validées par le métier le 2026-10-21. Il se pilote depuis la
-carte « Fin de campagne » de l'écran *Diffusion dispos*.
+ci-dessous, validées par le métier le 2026-10-21. Depuis le 2026-10-23, il se suit dans *Renouvellements → onglet « Autres campagnes · mail J-7 »*.
+L'écran *Diffusion dispos* n'en garde qu'un résumé.
 
 ### Règles
 

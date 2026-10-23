@@ -649,6 +649,8 @@ Route::prefix('admin')
             ->group(function () {
                 Route::get('/', 'index')->name('index');
                 Route::post('/campagne/{campaign}/statut', 'statut')->name('statut');
+                Route::get('/campagne/{campaign}/apercu/{cle}', 'apercuMail')
+                    ->where('cle', 'j60|j45|j30|j15|j7|accuse|fin')->name('apercu-mail');
                 Route::post('/campagne/{campaign}/confirmer', 'confirmer')
                     ->middleware('role:admin,mediaplanner')->name('confirmer');
                 Route::middleware('role:admin')->group(function () {

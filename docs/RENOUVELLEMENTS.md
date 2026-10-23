@@ -62,24 +62,55 @@ Le bouton ouvre une page personnelle, sans connexion : `/renouvellement/{jeton}/
 **Mails de test** : les boutons pointent vers des liens « essai » signés. Ils n'enregistrent
 rien. L'accusé et le mail à l'équipe partent alors vers les adresses de test.
 
-## L'écran « Renouvellements »
+## L'écran « Renouvellements » (refait le 2026-10-23)
 
-- **Accès** : admin, MP et commercial. Un commercial ne voit que ses clients
-  (`Campaign::forCommercialUser`).
-- **Compteurs** : échéances à 30, 60 et 90 jours (nombre et CA), sans réponse à appeler
-  (dès J-25), veulent renouveler, à confirmer, refus.
-- **Liste** : client, campagne, échéance, statut, message du client, dernier et prochain
-  mail, commercial et téléphone cliquable.
-- **Noter un appel** : changer le statut et ajouter une note. Tout est conservé dans
-  l'historique du dossier.
-- **Confirmer le renouvellement** : réservé au MP et à l'admin. Les panneaux sortent alors
-  du **catalogue des disponibilités** envoyé aux clients. Cette retenue dure jusqu'à
-  30 jours après la fin de la campagne (`RENOUVELLEMENT_RETENUE_JOURS`), le temps de
-  saisir la nouvelle réservation, qui prend ensuite le relais.
+Menu **Renouvellements**. Accès : admin, MP et commercial. Un commercial ne voit que ses clients
+(`Campaign::forCommercialUser`). Les explications sont dans le bouton **Guide** et les info-bulles,
+pas affichées en bloc.
+
+**Trois onglets :**
+- **Campagnes annuelles** : toutes les campagnes de 12 mois ou plus en cours, par échéance.
+  Rien n'est caché : « ≤ 30 j », « ≤ 60 j » et « ≤ 90 j » sont de simples filtres.
+- **Autres campagnes · mail J-7** : les campagnes plus courtes et l'état de leur mail J-7
+  (prévu, envoyé, ne partira pas, avec la raison). Cela remplace la carte de l'écran Diffusion dispos,
+  qui n'affiche plus qu'un résumé.
+- **Journal des envois** : tous les mails clients avant échéance, avec leur statut.
+
+**Compteurs** (cliquables, ils filtrent la liste) :
+
+| Compteur | Contenu |
+|---|---|
+| Échéances à venir | Campagnes annuelles pas encore terminées, avec leur CA |
+| Sans réponse | En attente, échéance dans 60 jours ou moins. « À risque » : leur CA à 30 jours ou moins |
+| En discussion | Veut renouveler, veut ajuster, demande un rappel |
+| Confirmés | CA sécurisé |
+| Ne renouvellent pas | CA perdu |
+
+Le **taux de réponse** est le nombre de clients qui ont répondu, rapporté au nombre de clients qui ont reçu au moins un mail.
+
+**Liste** : client, campagne, échéance (J-x), frise des 5 mails, statut, prochaine action en
+couleur, commercial. Recherche par client, campagne ou interlocuteur ; filtre par commercial.
+
+**Fiche dossier** : un clic sur une ligne l'ouvre en panneau latéral.
+`Renouvellements?campagne=ID` l'ouvre directement : c'est ce lien qu'utilisent la fiche campagne et les mails internes.
+- Réponse du client, campagne et contact (téléphone et mail cliquables).
+- Frise des mails (envoyé le…, prévu le…, arrêté), avec l'aperçu de chacun.
+- **Mettre à jour** : statut, **date de rappel**, note d'appel. Si le statut n'est plus
+  « En attente », les relances s'arrêtent.
+- **Confirmer le renouvellement** (MP et admin) : les panneaux sortent du **catalogue des
+  disponibilités** jusqu'à 30 jours après la fin de la campagne (`RENOUVELLEMENT_RETENUE_JOURS`).
+- **Renouveler la campagne** : ouvre la fiche campagne sur la fenêtre de duplication existante.
+  Quand la campagne suivante est créée, le dossier passe automatiquement en « Renouvellement
+  confirmé » et les relances s'arrêtent (`RenouvellementService::campagneRenouvelee`).
+- Historique complet.
+
+**Fiche campagne** : un encart « Renouvellement » (statut, prochaine action, frise) s'affiche
+sur les campagnes de 12 mois ou plus, avec le lien vers le dossier.
 
 ## Le mail du matin (jours ouvrés, 8 h, `renouvellements:digest`)
 
 - **À chaque commercial** :
+  - les rappels prévus ce jour-là (date de rappel notée dans le dossier) ;
   - les clients sans réponse à appeler, dès J-25, avec leur téléphone ;
   - les demandes de rappel ;
   - les réponses reçues depuis la veille (depuis vendredi le lundi).

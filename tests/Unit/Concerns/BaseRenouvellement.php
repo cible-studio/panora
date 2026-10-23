@@ -59,6 +59,7 @@ trait BaseRenouvellement
         });
         (require base_path('database/migrations/2026_10_21_100000_create_relances_fin_campagne_table.php'))->up();
         (require base_path('database/migrations/2026_10_22_100000_create_renouvellements_tables.php'))->up();
+        (require base_path('database/migrations/2026_10_23_100000_add_rappel_le_to_renouvellements.php'))->up();
 
         Carbon::setTestNow('2026-11-01 10:00:00'); // J-60 de la campagne de référence
 

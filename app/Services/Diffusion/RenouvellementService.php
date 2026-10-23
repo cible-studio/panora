@@ -299,11 +299,17 @@ class RenouvellementService
         }
     }
 
-    /** Statut changé par l'équipe (après un appel…), avec note facultative. */
-    public function changerStatut(Renouvellement $dossier, string $statut, ?string $note, User $auteur): void
+    /**
+     * Décision de l'équipe après un appel : statut, note, date de rappel.
+     *
+     * @param string|false|null $rappelLe  date « Y-m-d » ; null = effacer ; false = inchangée
+     */
+    public function changerStatut(Renouvellement $dossier, string $statut, ?string $note, User $auteur, string|false|null $rappelLe = false): void
     {
-        $avant = $dossier->statut;
-        $note  = self::nettoyer($note);
+        $avant    = $dossier->statut;
+        $note     = self::nettoyer($note);
+        $libelles = array_map(fn($s) => $s[0], Renouvellement::STATUTS);
+        $actions  = [];
 
         if ($statut !== $avant) {
             $dossier->statut = $statut;
@@ -314,10 +320,47 @@ class RenouvellementService
                 $dossier->confirme_par = null;
                 $dossier->confirme_at  = null;
             }
-            $libelles = array_map(fn($s) => $s[0], Renouvellement::STATUTS);
-            $dossier->noter("Statut : {$libelles[$avant]} → {$libelles[$statut]}", $note, $auteur->name);
-        } elseif ($note) {
-            $dossier->noter('Note', $note, $auteur->name);
+            $actions[] = "Statut : {$libelles[$avant]} → {$libelles[$statut]}";
+        }
+
+        if ($rappelLe !== false) {
+            $nouvelle = $rappelLe ? Carbon::parse($rappelLe)->toDateString() : null;
+            if ($nouvelle !== $dossier->rappel_le?->toDateString()) {
+                $dossier->rappel_le = $nouvelle;
+                $actions[] = $nouvelle ? 'Rappel prévu le ' . Carbon::parse($nouvelle)->format('d/m/Y') : 'Rappel retiré';
+            }
+        }
+
+        if ($actions || $note) {
+            $dossier->noter($actions ? implode(' · ', $actions) : 'Note', $note, $auteur->name);
+        }
+
+        $dossier->save();
+    }
+
+    /**
+     * La campagne a été renouvelée avec le bouton « Renouveler la campagne »
+     * de sa fiche (CampaignController::duplicate) : les panneaux sont
+     * réservés pour la période suivante. Le dossier passe à
+     * « Renouvellement confirmé » et les relances au client s'arrêtent.
+     */
+    public function campagneRenouvelee(Campaign $source, Campaign $nouvelle, ?User $auteur): void
+    {
+        if (!$source->end_date || !$source->estAnnuelle()) {
+            return;
+        }
+
+        $dossier  = $this->dossier($source);
+        $texte    = "Campagne « {$nouvelle->name} » créée du {$nouvelle->start_date?->format('d/m/Y')} au {$nouvelle->end_date?->format('d/m/Y')}.";
+        $libelles = array_map(fn($s) => $s[0], Renouvellement::STATUTS);
+
+        if ($dossier->statut !== Renouvellement::CONFIRME) {
+            $dossier->noter("Renouvellement saisi dans Panora · Statut : {$libelles[$dossier->statut]} → {$libelles[Renouvellement::CONFIRME]}", $texte, $auteur?->name);
+            $dossier->statut       = Renouvellement::CONFIRME;
+            $dossier->confirme_par = $auteur?->id;
+            $dossier->confirme_at  = now();
+        } else {
+            $dossier->noter('Renouvellement saisi dans Panora', $texte, $auteur?->name);
         }
 
         $dossier->save();
@@ -378,12 +421,13 @@ class RenouvellementService
 
     /**
      * Campagnes annuelles qui se terminent dans les $horizon jours (et
-     * celles terminées depuis moins de 30 jours, pour finir le suivi).
+     * celles terminées depuis moins de 30 jours, pour finir le suivi),
+     * avec leur dossier, la frise des mails et la prochaine action.
      *
      * @param ?int $commercialId  périmètre d'un commercial (Campaign::forCommercialUser)
      * @return Collection<int, array>
      */
-    public function lignes(?int $commercialId = null, int $horizon = 90): Collection
+    public function lignes(?int $commercialId = null, int $horizon = 90, ?int $campagneId = null): Collection
     {
         $q = Campaign::query()
             ->whereIn('status', [CampaignStatus::ACTIF->value, CampaignStatus::TERMINE->value])
@@ -396,6 +440,9 @@ class RenouvellementService
         if ($commercialId) {
             $q->forCommercialUser($commercialId);
         }
+        if ($campagneId) {
+            $q->whereKey($campagneId);
+        }
 
         $campagnes = $q->get()->filter(fn(Campaign $c) => $c->estAnnuelle())->values();
         if ($campagnes->isEmpty()) {
@@ -407,26 +454,28 @@ class RenouvellementService
         $dossiers = Renouvellement::with('confirmateur:id,name')->whereIn('campaign_id', $campagnes->pluck('id'))->get()
             ->keyBy(fn(Renouvellement $d) => $cle($d->campaign_id, $d->fin_campagne));
 
-        $envois = RelanceFinCampagne::whereIn('campaign_id', $campagnes->pluck('id'))
+        $journal = RelanceFinCampagne::whereIn('campaign_id', $campagnes->pluck('id'))
             ->where('mode', $this->socle->mode())
-            ->whereIn('etape', array_keys(self::ETAPES))
-            ->where('statut', RelanceFinCampagne::STATUT_ENVOYE)
+            ->whereIn('etape', [...array_keys(self::ETAPES), RelanceFinCampagne::ETAPE_ACCUSE])
             ->get()
-            ->groupBy(fn(RelanceFinCampagne $l) => $cle($l->campaign_id, $l->fin_campagne));
+            ->groupBy(fn(RelanceFinCampagne $l) => $cle($l->campaign_id, $l->fin_campagne))
+            ->map(fn(Collection $lignes) => $lignes->keyBy('etape'));
 
         $planifiees = Campaign::whereIn('client_id', $campagnes->pluck('client_id')->filter())
             ->where('status', CampaignStatus::PLANIFIE->value)
             ->get(['id', 'name', 'client_id'])
             ->groupBy('client_id');
 
-        return $campagnes->map(function (Campaign $c) use ($cle, $dossiers, $envois, $planifiees) {
+        return $campagnes->map(function (Campaign $c) use ($cle, $dossiers, $journal, $planifiees) {
             $k       = $cle($c->id, $c->end_date);
             $dossier = $dossiers[$k] ?? null;
             $statut  = $dossier?->statut ?? Renouvellement::EN_ATTENTE;
             $jours   = $this->socle->joursRestants($c);
-            $dernier = ($envois[$k] ?? collect())->sortBy(fn($l) => self::ETAPES[$l->etape] ?? 0)->first();
+            $mails   = $journal[$k] ?? collect();
+            // filter() et non only() : sur une collection Eloquent, only() filtre par id de ligne.
+            $envoyes = $mails->filter(fn($m, $etape) => isset(self::ETAPES[$etape]) && $m->statut === RelanceFinCampagne::STATUT_ENVOYE);
 
-            return [
+            $ligne = [
                 'campagne'        => $c,
                 'dossier'         => $dossier,
                 'statut'          => $statut,
@@ -434,12 +483,78 @@ class RenouvellementService
                 'montant'         => (int) round($c->computedAmountHt()),
                 'panneaux'        => (int) ($c->total_panels ?: $c->panels_count),
                 'commercial'      => $c->resolveCommercialContact(),
+                'contact'         => $c->client?->destinataireCommercial(),
                 'telephone'       => self::telephone($c->client),
-                'dernier_mail'    => $dernier,
-                'prochain_mail'   => $statut === Renouvellement::EN_ATTENTE ? self::prochainMail($c, $jours, ($envois[$k] ?? collect())->pluck('etape')->all()) : null,
+                'dernier_mail'    => $envoyes->sortBy(fn($l) => self::ETAPES[$l->etape] ?? 0)->first(),
+                'prochain_mail'   => $statut === Renouvellement::EN_ATTENTE ? self::prochainMail($c, $jours, $envoyes->keys()->all()) : null,
+                'sequence'        => self::sequence($c, $statut, $mails, $jours),
+                'accuse'          => $mails[RelanceFinCampagne::ETAPE_ACCUSE] ?? null,
                 'autre_planifiee' => $c->client_id ? ($planifiees[$c->client_id] ?? collect())->first()?->name : null,
             ];
+            $ligne['action'] = self::action($ligne);
+
+            return $ligne;
         });
+    }
+
+    /**
+     * Frise des 5 mails : pour chaque étape, ce qui s'est passé ou se passera.
+     *
+     * @param Collection<string, RelanceFinCampagne> $mails  journal de la campagne, par étape
+     * @return list<array{etape: string, jours: int, date: Carbon, etat: string, info: string}>
+     *         etat : envoye | echec | exclu | aujourdhui | prevu | arrete | saute
+     */
+    public static function sequence(Campaign $c, string $statut, Collection $mails, int $joursRestants): array
+    {
+        $due = self::etapePour($joursRestants);
+        $frise = [];
+
+        foreach (self::ETAPES as $etape => $j) {
+            $date  = $c->end_date->copy()->subDays($j);
+            $ligne = $mails[$etape] ?? null;
+
+            [$etat, $info] = match (true) {
+                $ligne?->statut === RelanceFinCampagne::STATUT_ENVOYE => ['envoye', 'Envoyé le ' . ($ligne->envoye_at ?? $ligne->updated_at)->format('d/m/Y')],
+                $ligne?->statut === RelanceFinCampagne::STATUT_ECHEC  => ['echec', 'À retenter : ' . $ligne->motif],
+                $ligne?->statut === RelanceFinCampagne::STATUT_EXCLU  => ['exclu', 'Non envoyé : ' . $ligne->motif],
+                $statut !== Renouvellement::EN_ATTENTE                => ['arrete', 'Pas envoyé : relances arrêtées'],
+                $due === $etape                                       => ['aujourdhui', 'Part au prochain envoi (10 h)'],
+                $j < $joursRestants                                   => ['prevu', 'Prévu le ' . $date->format('d/m/Y')],
+                default                                               => ['saute', 'Non envoyé : date passée'],
+            };
+
+            $frise[] = ['etape' => $etape, 'jours' => $j, 'date' => $date, 'etat' => $etat, 'info' => $info];
+        }
+
+        return $frise;
+    }
+
+    /**
+     * Prochaine action à faire sur le dossier.
+     *
+     * @return array{0: string, 1: string}  [texte, ton : ok | info | alerte | urgent | neutre]
+     */
+    public static function action(array $l): array
+    {
+        $rappel = $l['dossier']?->rappel_le;
+
+        return match (true) {
+            $l['statut'] === Renouvellement::CONFIRME   => ['Renouvellement confirmé', 'ok'],
+            $l['statut'] === Renouvellement::REFUS      => ['Aucune : ne renouvelle pas', 'neutre'],
+            $l['statut'] === Renouvellement::RAPPEL     => ['Rappeler le client (à sa demande)', 'urgent'],
+            in_array($l['statut'], [Renouvellement::RENOUVELER, Renouvellement::AJUSTER], true)
+                                                        => ['À confirmer par le MP', 'alerte'],
+            $rappel !== null && $rappel->lte(today())   => [$rappel->isToday() ? 'Rappel prévu aujourd\'hui' : 'Rappel en retard (' . $rappel->format('d/m') . ')', 'urgent'],
+            $rappel !== null                            => ['Rappel prévu le ' . $rappel->format('d/m'), 'info'],
+            $l['jours'] <= 0                            => ['Terminée sans réponse', 'neutre'],
+            $l['jours'] <= self::JOURS_APPEL            => ['Appeler le client', 'urgent'],
+            $l['prochain_mail'] !== null                => [
+                'Mail ' . strtoupper(str_replace('j', 'J-', $l['prochain_mail'][0])) . ' '
+                    . ($l['prochain_mail'][1]->isToday() ? 'aujourd\'hui' : 'le ' . $l['prochain_mail'][1]->format('d/m')),
+                'info',
+            ],
+            default                                     => ['En attente de réponse', 'info'],
+        };
     }
 
     /**
@@ -483,29 +598,49 @@ class RenouvellementService
         return null;
     }
 
-    /** @return array<string, array{nb: int, montant: int}|int> */
+    /**
+     * Indicateurs de l'écran. Définitions (affichées dans le guide) :
+     *   · en attente  : sans réponse, échéance dans 60 jours ou moins ;
+     *   · à risque    : CA en attente à 30 jours ou moins (date limite passée) ;
+     *   · en discussion : veut renouveler, veut ajuster, demande un rappel ;
+     *   · sécurisé    : renouvellement confirmé ;
+     *   · perdu       : ne renouvelle pas ;
+     *   · taux de réponse : clients ayant répondu / clients ayant reçu au moins un mail.
+     *
+     * @return array<string, mixed>
+     */
     public static function compteurs(Collection $lignes): array
     {
-        $fenetre = fn(int $max) => $lignes->filter(fn($l) => $l['jours'] > 0 && $l['jours'] <= $max);
+        $fenetre  = fn(int $max) => $lignes->filter(fn($l) => $l['jours'] > 0 && $l['jours'] <= $max);
+        $bloc     = fn(Collection $c) => ['nb' => $c->count(), 'montant' => (int) $c->sum('montant')];
+        $attente  = $lignes->filter(fn($l) => $l['statut'] === Renouvellement::EN_ATTENTE && $l['jours'] > 0 && $l['jours'] <= max(self::ETAPES));
+        $sollicites = $lignes->filter(fn($l) => $l['dernier_mail'] !== null);
 
         return [
-            '30'           => ['nb' => $fenetre(30)->count(), 'montant' => (int) $fenetre(30)->sum('montant')],
-            '60'           => ['nb' => $fenetre(60)->count(), 'montant' => (int) $fenetre(60)->sum('montant')],
-            '90'           => ['nb' => $fenetre(90)->count(), 'montant' => (int) $fenetre(90)->sum('montant')],
-            'reponses'     => $lignes->where('statut', '!=', Renouvellement::EN_ATTENTE)->count(),
+            'a_venir'      => $bloc($lignes->filter(fn($l) => $l['jours'] > 0)),
+            '30'           => $bloc($fenetre(30)),
+            '60'           => $bloc($fenetre(60)),
+            '90'           => $bloc($fenetre(90)),
+            'attente'      => $bloc($attente),
+            'a_risque'     => (int) $attente->filter(fn($l) => $l['jours'] <= 30)->sum('montant'),
+            'sans_reponse' => $attente->filter(fn($l) => $l['jours'] <= self::JOURS_APPEL)->count(),
+            'discussion'   => $bloc($lignes->whereIn('statut', [Renouvellement::RENOUVELER, Renouvellement::AJUSTER, Renouvellement::RAPPEL])),
+            'confirmes'    => $bloc($lignes->where('statut', Renouvellement::CONFIRME)),
+            'perdus'       => $bloc($lignes->where('statut', Renouvellement::REFUS)),
             'renouvellent' => $lignes->whereIn('statut', [Renouvellement::RENOUVELER, Renouvellement::CONFIRME])->count(),
             'a_confirmer'  => $lignes->whereIn('statut', [Renouvellement::RENOUVELER, Renouvellement::AJUSTER])->count(),
             'refus'        => $lignes->where('statut', Renouvellement::REFUS)->count(),
-            'sans_reponse' => $lignes->filter(fn($l) => $l['statut'] === Renouvellement::EN_ATTENTE && $l['jours'] > 0 && $l['jours'] <= self::JOURS_APPEL)->count(),
+            'taux_reponse' => $sollicites->isEmpty() ? null
+                : (int) round(100 * $sollicites->filter(fn($l) => $l['dossier']?->reponse_at !== null)->count() / $sollicites->count()),
         ];
     }
 
     /**
-     * Mail du matin. Commerciaux : clients sans réponse à appeler (dès
-     * J-25), demandes de rappel, réponses reçues depuis le dernier mail.
-     * MP : renouvellements à confirmer.
+     * Mail du matin. Commerciaux : rappels prévus ce jour, clients sans
+     * réponse à appeler (dès J-25), demandes de rappel, réponses reçues
+     * depuis le dernier mail. MP : renouvellements à confirmer.
      *
-     * @return Collection<int, array{email: string, nom: string, role: string, appeler: Collection, rappels: Collection, reponses: Collection, a_confirmer: Collection}>
+     * @return Collection<int, array{email: string, nom: string, role: string, a_rappeler: Collection, appeler: Collection, rappels: Collection, reponses: Collection, a_confirmer: Collection}>
      */
     public function digest(): Collection
     {
@@ -521,11 +656,14 @@ class RenouvellementService
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 continue;
             }
-            $appeler  = $siennes->filter(fn($l) => $l['statut'] === Renouvellement::EN_ATTENTE && $l['jours'] > 0 && $l['jours'] <= self::JOURS_APPEL)->values();
+            $aRappeler = $siennes->filter(fn($l) => $l['dossier']?->rappel_le?->lte(today())
+                && !in_array($l['statut'], [Renouvellement::CONFIRME, Renouvellement::REFUS], true))->values();
+            $appeler  = $siennes->filter(fn($l) => $l['statut'] === Renouvellement::EN_ATTENTE && $l['jours'] > 0 && $l['jours'] <= self::JOURS_APPEL)
+                ->reject(fn($l) => $aRappeler->contains(fn($r) => $r['campagne']->id === $l['campagne']->id))->values();
             $rappels  = $siennes->where('statut', Renouvellement::RAPPEL)->values();
             $reponses = $siennes->filter(fn($l) => $l['dossier']?->reponse_at?->gte($depuis))->values();
 
-            if ($appeler->isEmpty() && $rappels->isEmpty() && $reponses->isEmpty()) {
+            if ($aRappeler->isEmpty() && $appeler->isEmpty() && $rappels->isEmpty() && $reponses->isEmpty()) {
                 continue;
             }
 
@@ -533,6 +671,7 @@ class RenouvellementService
                 'email'       => $email,
                 'nom'         => $siennes->first()['commercial']?->name ?? 'Équipe commerciale',
                 'role'        => 'commercial',
+                'a_rappeler'  => $aRappeler,
                 'appeler'     => $appeler,
                 'rappels'     => $rappels,
                 'reponses'    => $reponses,
@@ -548,6 +687,7 @@ class RenouvellementService
                         'email'       => mb_strtolower($mp->email),
                         'nom'         => $mp->name,
                         'role'        => 'mediaplanner',
+                        'a_rappeler'  => collect(),
                         'appeler'     => collect(),
                         'rappels'     => collect(),
                         'reponses'    => collect(),
@@ -558,6 +698,25 @@ class RenouvellementService
         }
 
         return $mails;
+    }
+
+    /**
+     * Encart « Renouvellement » de la fiche campagne : dossier, statut et
+     * prochaine action, ou null si la campagne n'est pas annuelle.
+     */
+    public function resume(Campaign $campagne): ?array
+    {
+        if (!$campagne->end_date || !$campagne->estAnnuelle()) {
+            return null;
+        }
+
+        $ligne = $this->lignes(null, RenouvellementService::HORIZON_TOUTES, $campagne->id)->first();
+
+        return $ligne ?? [
+            'campagne' => $campagne, 'dossier' => $this->dossierExistant($campagne),
+            'statut'   => $this->dossierExistant($campagne)?->statut ?? Renouvellement::EN_ATTENTE,
+            'action'   => ['Campagne terminée', 'neutre'], 'sequence' => [], 'jours' => $this->socle->joursRestants($campagne),
+        ];
     }
 
     /** Téléphone à appeler : celui de l'interlocuteur principal, sinon de la fiche client. */

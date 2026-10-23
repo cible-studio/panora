@@ -57,7 +57,7 @@ class RenouvellementReponseMail extends Mailable
                 'libelle'  => ModelesMail::CHOIX[$this->choix] ?? $this->choix,
                 'message'  => $this->message,
                 'noteTest' => $this->noteTest,
-                'lien'     => route('admin.renouvellements.index', ['statut' => $this->choix]),
+                'lien'     => route('admin.renouvellements.index', ['campagne' => $this->campagne->id]),
             ],
         );
     }

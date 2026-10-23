@@ -1,151 +1,43 @@
 {{--
-  Mail au client « Votre campagne se termine le … » (J-7) — 2026-10-21.
-  Inclus dans admin/diffusion/index. Données : $finCampagne
-  (DiffusionDisponibilitesController::index, RelanceFinCampagneService).
+  Encart « Mails clients avant échéance » de l'écran Diffusion dispos
+  (2026-10-23). Le suivi détaillé (mail J-7, renouvellements, journal) est
+  sur l'écran Renouvellements ; ici, un résumé et les liens.
+  Données : $finCampagne (DiffusionDisponibilitesController::index).
 --}}
 @php
     $fc = $finCampagne;
-    $fmt = fn($d) => \App\Mail\MailClientCampagne::dateEnLettres($d);
-    $pastille = 'padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;';
+    $envoyes7j = $fc['journal']->filter(fn($l) => $l->statut === 'envoye' && ($l->envoye_at ?? $l->updated_at)->gte(now()->subDays(7)))->count();
+    $aRetenter = $fc['journal']->where('statut', 'echec')->count();
+    $mini = 'flex:1;min-width:150px;background:var(--surface2);border-radius:12px;padding:12px 14px;';
 @endphp
 
 <div style="{{ $card }}margin-top:18px;">
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;">
-        <h2 style="{{ $h2 }}margin:0;margin-right:auto;">⏳ Fin de campagne — mail au client (J-{{ $fc['jours'] }})</h2>
-        <a href="{{ route('admin.renouvellements.index') }}" class="btn btn-ghost btn-sm">🔁 Renouvellements (12 mois et plus)</a>
-        <a href="{{ route('admin.renouvellements.modeles', ['cle' => 'fin']) }}" class="btn btn-ghost btn-sm">✏️ Textes des mails</a>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px;">
+        <h2 style="{{ $h2 }}margin:0;">✉️ Mails clients avant échéance</h2>
         @if($fc['modeTest'])
-            <span style="{{ $pastille }}background:#fef3c7;color:#92400e;" title="RELANCE_FIN_MODE=test">
-                🧪 Mode test — aucun client ne reçoit
-            </span>
-        @else
-            <span style="{{ $pastille }}background:#dcfce7;color:#166534;">🟢 Production — les clients reçoivent</span>
+            <span style="padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;background:#fef3c7;color:#92400e;"
+                  title="RELANCE_FIN_MODE=test : ces mails partent vers la liste Brevo « Tests internes ».">🧪 Mode test</span>
         @endif
+        <span style="{{ $muted }}" title="Campagnes de 12 mois ou plus : séquence J-60 → J-7 avec boutons de réponse. Autres campagnes : un mail 7 jours avant la fin.">ⓘ Séquence de renouvellement et mail J-7</span>
+        <a href="{{ route('admin.renouvellements.index') }}" class="btn btn-primary btn-sm" style="margin-left:auto;">Ouvrir les renouvellements →</a>
     </div>
 
-    <p style="{{ $muted }}margin:0 0 14px;line-height:1.6;">
-        Chaque jour à 10 h, Panora écrit au client dont la campagne <strong>de moins de 12 mois</strong> se termine dans {{ $fc['jours'] }} jours,
-        pour lui proposer une reconduction. Un seul mail par campagne.
-        Les campagnes de 12 mois ou plus reçoivent à la place la séquence de renouvellement (J-60 → J-7), suivie sur l'écran Renouvellements.
-        Destinataire : l'interlocuteur principal du client. Réponse : au commercial de la campagne.
-        Copie : {{ implode(', ', $fc['copie']) ?: '—' }}.
-        Pas de mail si le client a une autre campagne planifiée ou qui continue après, ni si son adresse est exclue.
-        <br>Envoyé par Brevo uniquement. Suivi de chaque mail (délivré, ouvert, cliqué) :
-        <strong>Brevo → Transactionnel → Journal</strong>, filtre sur le tag <code>fin-campagne</code>.
-        @if($fc['modeTest'])
-            <br><strong style="color:#92400e;">En mode test, ces mails partent vers la liste Brevo « Tests internes ».</strong>
-            Pour écrire aux clients : <code>RELANCE_FIN_MODE=production</code> dans le <code>.env</code>.
-        @endif
-    </p>
-
-    {{-- ── Campagnes qui se terminent dans les 14 jours ── --}}
-    <div style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:4px 0 8px;">
-        Campagnes de moins de 12 mois qui se terminent dans les 14 jours
+    <div style="display:flex;flex-wrap:wrap;gap:10px;">
+        <a href="{{ route('admin.renouvellements.index', ['onglet' => 'courtes', 'horizon' => 30]) }}" style="{{ $mini }}text-decoration:none;">
+            <div style="{{ $muted }}font-weight:700;">Mails J-7 à venir (14 j)</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin-top:4px;">{{ $fc['prochaines']->count() }}</div>
+        </a>
+        <a href="{{ route('admin.renouvellements.index', ['onglet' => 'journal']) }}" style="{{ $mini }}text-decoration:none;">
+            <div style="{{ $muted }}font-weight:700;">Envoyés (7 derniers jours)</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin-top:4px;">{{ $envoyes7j }}</div>
+        </a>
+        <a href="{{ route('admin.renouvellements.index', ['onglet' => 'journal']) }}" style="{{ $mini }}text-decoration:none;">
+            <div style="{{ $muted }}font-weight:700;">À retenter</div>
+            <div style="font-size:22px;font-weight:800;color:{{ $aRetenter ? '#991b1b' : 'var(--text)' }};margin-top:4px;">{{ $aRetenter }}</div>
+        </a>
+        <a href="{{ route('admin.renouvellements.modeles') }}" style="{{ $mini }}text-decoration:none;">
+            <div style="{{ $muted }}font-weight:700;">Textes des mails</div>
+            <div style="font-size:14px;font-weight:700;color:var(--accent);margin-top:8px;">✏️ Modifier</div>
+        </a>
     </div>
-    @if($fc['prochaines']->isEmpty())
-        <div style="{{ $muted }}padding:12px 0;">Aucune campagne active de moins de 12 mois ne se termine dans les 14 jours.</div>
-    @else
-        <div style="overflow-x:auto;">
-            <table style="width:100%;font-size:13px;border-collapse:collapse;min-width:760px;">
-                <thead>
-                    <tr style="text-align:left;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.5px;">
-                        <th style="padding:8px 6px;">Campagne</th>
-                        <th style="padding:8px 6px;">Fin</th>
-                        <th style="padding:8px 6px;">Mail</th>
-                        <th style="padding:8px 6px;">Destinataire</th>
-                        <th style="padding:8px 6px;text-align:right;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($fc['prochaines'] as $p)
-                        @php
-                            $c = $p['campagne']; $a = $p['analyse']; $j = $p['journal'];
-                            $datePassee = $p['date_mail']->lt(today());
-                        @endphp
-                        <tr style="border-top:1px solid var(--border);vertical-align:top;">
-                            <td style="padding:9px 6px;">
-                                <strong>{{ $c->name }}</strong>
-                                <div style="{{ $muted }}">{{ $c->client?->name ?? '—' }}</div>
-                            </td>
-                            <td style="padding:9px 6px;white-space:nowrap;">{{ $c->end_date->format('d/m/Y') }}</td>
-                            <td style="padding:9px 6px;">
-                                @if($j)
-                                    @php [$bg, $fg, $lib] = $j->badge(); @endphp
-                                    <span style="{{ $pastille }}background:{{ $bg }};color:{{ $fg }};">{{ $lib }}</span>
-                                    <div style="{{ $muted }}margin-top:3px;">{{ ($j->envoye_at ?? $j->updated_at)->format('d/m H\hi') }}</div>
-                                @elseif($datePassee)
-                                    <span style="{{ $pastille }}background:var(--surface2);color:var(--text2);"
-                                          title="La campagne a été créée ou prolongée après la date du mail.">Date passée</span>
-                                @else
-                                    <span style="{{ $pastille }}background:#e0e7ff;color:#3730a3;">Prévu le {{ $p['date_mail']->format('d/m') }}</span>
-                                @endif
-                            </td>
-                            <td style="padding:9px 6px;max-width:320px;">
-                                @if($j && $j->statut !== 'envoye')
-                                    <div style="font-size:12px;color:{{ $j->statut === 'echec' ? '#991b1b' : 'var(--text2)' }};">{{ $j->motif }}</div>
-                                @elseif(!$j && $a['statut'])
-                                    <div style="font-size:12px;color:{{ $a['statut'] === 'echec' ? '#991b1b' : 'var(--text2)' }};">{{ $a['motif'] }}</div>
-                                @else
-                                    {{ $a['destinataire'] }}
-                                    <div style="{{ $muted }}">réponse à {{ $a['repondre_a'] ?? '—' }}</div>
-                                @endif
-                            </td>
-                            <td style="padding:9px 6px;text-align:right;white-space:nowrap;">
-                                <a href="{{ route('admin.diffusion-dispos.fin-campagne.apercu', $c) }}" target="_blank" rel="noopener"
-                                   class="btn btn-ghost btn-sm">Aperçu</a>
-                                <form method="POST" action="{{ route('admin.diffusion-dispos.fin-campagne.tester', $c) }}" style="display:inline;"
-                                      onsubmit="return confirm('Envoyer ce mail aux adresses de test (pas au client) ?')">
-                                    @csrf
-                                    <button class="btn btn-ghost btn-sm">Envoyer un test</button>
-                                </form>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    @endif
-
-    {{-- ── Derniers mails ── --}}
-    <div style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 8px;">
-        Derniers mails
-    </div>
-    @if($fc['journal']->isEmpty())
-        <div style="{{ $muted }}padding:12px 0;">Aucun mail pour l'instant.</div>
-    @else
-        <div style="overflow-x:auto;">
-            <table style="width:100%;font-size:13px;border-collapse:collapse;min-width:760px;">
-                <thead>
-                    <tr style="text-align:left;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.5px;">
-                        <th style="padding:8px 6px;">Date</th>
-                        <th style="padding:8px 6px;">Campagne</th>
-                        <th style="padding:8px 6px;">Mode</th>
-                        <th style="padding:8px 6px;">Statut</th>
-                        <th style="padding:8px 6px;">Destinataire</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($fc['journal'] as $l)
-                        @php [$bg, $fg, $lib] = $l->badge(); @endphp
-                        <tr style="border-top:1px solid var(--border);vertical-align:top;">
-                            <td style="padding:9px 6px;white-space:nowrap;">{{ ($l->envoye_at ?? $l->updated_at)->format('d/m/Y H\hi') }}</td>
-                            <td style="padding:9px 6px;">
-                                {{ $l->campaign?->name ?? "Campagne #{$l->campaign_id}" }}
-                                <div style="{{ $muted }}">{{ $l->client?->name ?? '—' }} · fin le {{ $fmt($l->fin_campagne) }} · {{ $l->libelleEtape() }}</div>
-                            </td>
-                            <td style="padding:9px 6px;">{{ $l->mode === 'production' ? 'Production' : 'Test' }}</td>
-                            <td style="padding:9px 6px;">
-                                <span style="{{ $pastille }}background:{{ $bg }};color:{{ $fg }};">{{ $lib }}</span>
-                                @if($l->canal)<div style="{{ $muted }}margin-top:3px;">via {{ $l->canal === 'smtp' ? 'mail de secours' : 'Brevo' }}</div>@endif
-                            </td>
-                            <td style="padding:9px 6px;max-width:360px;">
-                                {{ $l->destinataire ?? '—' }}
-                                @if($l->motif)<div style="font-size:12px;color:{{ $l->statut === 'echec' ? '#991b1b' : 'var(--text3)' }};margin-top:3px;">{{ $l->motif }}</div>@endif
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    @endif
 </div>
