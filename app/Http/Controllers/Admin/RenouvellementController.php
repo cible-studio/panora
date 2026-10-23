@@ -36,10 +36,11 @@ class RenouvellementController extends Controller
     {
         $user    = $request->user();
         $estCom  = $user->role?->value === 'commercial';
-        $horizon = in_array((int) $request->query('horizon'), [30, 60, 90], true) ? (int) $request->query('horizon') : 90;
+        // 30 / 60 / 90 jours, ou 0 = toutes les campagnes annuelles en cours.
+        $horizon = in_array((int) $request->query('horizon', 90), [0, 30, 60, 90], true) ? (int) $request->query('horizon', 90) : 90;
         $statut  = array_key_exists((string) $request->query('statut'), Renouvellement::STATUTS) ? $request->query('statut') : null;
 
-        $lignes     = $this->service->lignes($estCom ? $user->id : null, $horizon);
+        $lignes     = $this->service->lignes($estCom ? $user->id : null, $horizon ?: RenouvellementService::HORIZON_TOUTES);
         $compteurs  = RenouvellementService::compteurs($lignes);
         $affichees  = $statut ? $lignes->where('statut', $statut)->values() : $lignes;
 
@@ -51,6 +52,10 @@ class RenouvellementController extends Controller
             'peutConfirmer' => in_array($user->role?->value, ['admin', 'mediaplanner'], true),
             'estAdmin'    => $user->role?->value === 'admin',
             'modeTest'    => $this->socle->estModeTest(),
+            // Liste vide : on dit quand arrive la prochaine échéance annuelle.
+            'prochaine'   => $lignes->isEmpty() && $horizon
+                ? $this->service->prochaineAnnuelle($estCom ? $user->id : null, $horizon)
+                : null,
         ]);
     }
 

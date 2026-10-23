@@ -10,7 +10,7 @@
         $etapes = \App\Models\RelanceFinCampagne::ETAPES;
         $statuts = \App\Models\Renouvellement::STATUTS;
         $choisis = $peutConfirmer ? $statuts : array_diff_key($statuts, ['confirme' => 1]);
-        $lien = fn(array $p) => route('admin.renouvellements.index', array_filter(array_merge(['horizon' => $horizon, 'statut' => $statut], $p)));
+        $lien = fn(array $p) => route('admin.renouvellements.index', array_filter(array_merge(['horizon' => $horizon, 'statut' => $statut], $p), fn($v) => $v !== null && $v !== ''));
     @endphp
 
     {{-- ═══ EN-TÊTE ═══ --}}
@@ -54,8 +54,8 @@
     {{-- ═══ FILTRES ═══ --}}
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;">
         <span style="{{ $muted }}font-weight:700;">Échéance :</span>
-        @foreach([30, 60, 90] as $h)
-            <a href="{{ $lien(['horizon' => $h]) }}" style="{{ $pastille }}text-decoration:none;{{ $horizon === $h ? 'background:var(--accent);color:#fff;' : 'background:var(--surface2);color:var(--text2);' }}">{{ $h }} jours</a>
+        @foreach([30 => '30 jours', 60 => '60 jours', 90 => '90 jours', 0 => 'Toutes'] as $h => $libH)
+            <a href="{{ $lien(['horizon' => $h]) }}" title="{{ $h ? "Campagnes annuelles qui se terminent dans les {$h} jours" : 'Toutes les campagnes annuelles en cours' }}" style="{{ $pastille }}text-decoration:none;{{ $horizon === $h ? 'background:var(--accent);color:#fff;' : 'background:var(--surface2);color:var(--text2);' }}">{{ $libH }}</a>
         @endforeach
         <span style="{{ $muted }}font-weight:700;margin-left:12px;">Statut :</span>
         <a href="{{ route('admin.renouvellements.index', ['horizon' => $horizon]) }}" style="{{ $pastille }}text-decoration:none;{{ !$statut ? 'background:var(--accent);color:#fff;' : 'background:var(--surface2);color:var(--text2);' }}">Tous</a>
@@ -67,7 +67,19 @@
     {{-- ═══ LISTE ═══ --}}
     <div style="{{ $card }}padding:0;overflow:hidden;">
         @if($lignes->isEmpty())
-            <div style="{{ $muted }}padding:30px;text-align:center;">Aucune campagne annuelle dans cette sélection.</div>
+            <div style="{{ $muted }}padding:30px;text-align:center;line-height:1.7;">
+                @if($statut)
+                    Aucune campagne annuelle avec ce statut dans cette sélection.
+                @elseif($prochaine)
+                    Aucune campagne annuelle ne se termine dans les {{ $horizon }} prochains jours.<br>
+                    Prochaine échéance : <strong style="color:var(--text);">{{ $prochaine->client?->name }} — {{ $prochaine->name }}</strong>,
+                    le {{ $prochaine->end_date->format('d/m/Y') }}.
+                    Son premier mail (J-60) partira le {{ $prochaine->end_date->copy()->subDays(60)->format('d/m/Y') }}.<br>
+                    <a href="{{ $lien(['horizon' => 0]) }}" style="color:var(--accent);font-weight:700;">Voir toutes les campagnes annuelles en cours</a>
+                @else
+                    Aucune campagne annuelle (12 mois ou plus) en cours.
+                @endif
+            </div>
         @else
         <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:980px;">
