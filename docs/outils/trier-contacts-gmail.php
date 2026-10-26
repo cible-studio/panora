@@ -162,6 +162,7 @@ foreach ($res as $x) {
     $groupes[$x['cat']][] = [
         'Entreprise' => $x['perso'] ? '' : $v($r, 'Entreprise (déduite)'),
         'Nom' => $v($r, 'Nom'),
+        'Poste' => isset($H['Poste (signature)']) ? $v($r, 'Poste (signature)') : '',
         'E-mail' => $x['email'],
         'Téléphone(s)' => isset($H['Téléphones (signature)']) ? $v($r, 'Téléphones (signature)') : '',
         "Type d'adresse" => $x['perso'] ? 'Personnelle' : 'Professionnelle',
@@ -208,7 +209,7 @@ $lire->fromArray([
     ['À savoir'],
     ['• « Client probable » est déduit des objets de mails. La comparaison avec la liste des clients Panora confirmera chaque client.'],
     ['• Les colonnes « Indices » et « Classement » montrent ce qui a décidé du classement.'],
-    ['• Les téléphones viennent des signatures : à vérifier avant usage.'],
+    ['• Les téléphones et les postes viennent des signatures : à vérifier avant usage.'],
     ['• Fichier confidentiel : coordonnées de clients et prospects. Ne pas diffuser hors de CIBLE.'],
 ], null, 'A1');
 $lire->getStyle('A1')->getFont()->setBold(true)->setSize(14);
@@ -218,11 +219,11 @@ foreach (['A' => 22, 'B' => 12, 'C' => 12, 'D' => 110] as $c => $l) $lire->getCo
 $lire->getStyle('D7:D10')->getAlignment()->setWrapText(true);
 
 $onglets = ['client' => ['Clients probables', 'D9F2D0'], 'prospect' => ['Prospects', 'DCE8F7'], 'verifier' => ['À vérifier', 'FFF2CC'], 'ecarte' => ['Écartés', 'EDEDED']];
-$largeurs = ['Entreprise' => 22, 'Nom' => 26, 'E-mail' => 34, 'Téléphone(s)' => 24, "Type d'adresse" => 15, 'Dernier échange' => 14, 'Premier échange' => 14,
+$largeurs = ['Entreprise' => 22, 'Nom' => 26, 'Poste' => 26, 'E-mail' => 34, 'Téléphone(s)' => 24, "Type d'adresse" => 15, 'Dernier échange' => 14, 'Premier échange' => 14,
     'Échanges' => 10, 'Sens des échanges' => 19, 'Boîtes CIBLE' => 30, 'Objets récents' => 70, 'Indices' => 30, 'Classement' => 34];
 $entetes = array_keys($largeurs);
 $lettre = fn ($nom) => Coordinate::stringFromColumnIndex(array_search($nom, $entetes) + 1);
-$texte = ['E-mail', 'Téléphone(s)', 'Nom', 'Objets récents']; // jamais convertis en nombre ou en formule
+$texte = ['E-mail', 'Téléphone(s)', 'Nom', 'Poste', 'Objets récents']; // jamais convertis en nombre ou en formule
 foreach ($onglets as $cle => [$titre, $couleur]) {
     $ws = $wb->createSheet()->setTitle($titre);
     $ws->fromArray($entetes, null, 'A1');

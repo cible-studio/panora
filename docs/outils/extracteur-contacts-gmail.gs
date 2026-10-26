@@ -8,8 +8,8 @@
  * « 📇 Contacts Gmail → Analyser ma boîte ». Le script lit SA boîte
  * (expéditeurs, destinataires, copies, copies cachées de ses envois) et
  * ajoute les contacts à la feuille commune « Contacts », sans doublon.
- * Dans les mails reçus, il relève aussi les numéros de téléphone de la
- * signature de l'expéditeur : seuls ces numéros sont gardés du texte.
+ * Dans les mails reçus, il relève aussi le téléphone et le poste indiqués
+ * dans la signature de l'expéditeur : rien d'autre n'est gardé du texte.
  * Une même adresse vue dans plusieurs boîtes n'apparaît qu'une fois, avec
  * la liste des boîtes CIBLE qui ont échangé avec elle.
  *
@@ -27,13 +27,16 @@ var CONFIG = {
   FILS_PAR_PAGE: 50,              // conversations lues par recherche Gmail
   DUREE_MAX_MS: 4.5 * 60 * 1000,  // Google coupe une exécution à 6 minutes
   HEURE_QUOTIDIENNE: 6,
+  // Version du relevé des signatures : une boîte lue avec une version plus
+  // ancienne est relue une fois, pour ses signatures seulement (téléphones, poste).
+  SIGNATURES: 2,
 };
 
 var ENTETES = [
   'E-mail', 'Nom', 'Entreprise (déduite)', 'Domaine', "Type d'adresse",
   'Premier échange', 'Dernier échange', 'Échanges', 'Envoyés par CIBLE', 'Reçus de ce contact',
   'Rôles', 'Boîtes CIBLE', 'Objets récents', 'Statut CRM', 'Notes',
-  'Téléphones (signature)', // en dernier : les fichiers déjà remplis gardent leurs colonnes
+  'Téléphones (signature)', 'Poste (signature)', // ajoutées en dernier : les fichiers déjà remplis gardent leurs colonnes
 ];
 var COL = {}; ENTETES.forEach(function (e, i) { COL[e] = i; });
 
@@ -88,7 +91,9 @@ function afficherEtat() {
   if (!e) { alerte_("Votre boîte n'a pas encore été analysée."); return; }
   alerte_(e.phase === 'complet'
     ? "Analyse de l'historique en cours : " + e.curseur + ' conversations lues.'
-    : "Historique terminé. Nouveaux mails pris en compte jusqu'au " + new Date(e.depuis).toLocaleString('fr-FR') + '.');
+    : e.rattrapage
+      ? 'Historique terminé. Relecture des signatures (téléphones, postes) en cours : ' + e.rattrapage.curseur + ' conversations relues.'
+      : "Historique terminé. Nouveaux mails pris en compte jusqu'au " + new Date(e.depuis).toLocaleString('fr-FR') + '.');
 }
 
 /** Déclencheur quotidien : reprend l'historique s'il n'est pas fini, sinon ajoute les nouveaux mails. */
@@ -109,12 +114,16 @@ function traiterLot() {
     console.log('Un lot est déjà en cours pour ' + maBoite_() + ' : celui-ci est ignoré.');
     return false;
   }
-  try { return traiterLot_(); } finally { verrou.releaseLock(); }
+  try {
+    var debut = Date.now();
+    var termine = traiterLot_(debut);
+    // Boîte lue avant le relevé des postes : ses signatures sont relues, une fois.
+    return termine ? rattraperSignatures_(debut) : false;
+  } finally { verrou.releaseLock(); }
 }
 
-function traiterLot_() {
-  var debut = Date.now();
-  var etat = lireEtat_() || { phase: 'complet', borne: Date.now(), curseur: 0 };
+function traiterLot_(debut) {
+  var etat = lireEtat_() || { phase: 'complet', borne: Date.now(), curseur: 0, sig: CONFIG.SIGNATURES };
   if (etat.phase === 'quotidien' && etat.curseur === 0) etat.borneQuotidienne = Date.now();
 
   var moi = adressesPersonnelles_();
@@ -164,17 +173,70 @@ function traiterLot_() {
   var nb = fusionner_(agg, reglages, internes.cles);
 
   if (termine) {
-    if (etat.phase === 'complet') { etat = { phase: 'quotidien', depuis: etat.borne, curseur: 0 }; }
-    else { etat = { phase: 'quotidien', depuis: etat.borneQuotidienne, curseur: 0 }; }
+    // Le même objet est gardé : il porte aussi la version des signatures et leur rattrapage.
+    etat.depuis = etat.phase === 'complet' ? etat.borne : etat.borneQuotidienne;
+    etat.phase = 'quotidien';
+    etat.curseur = 0;
+    delete etat.borne; delete etat.borneQuotidienne;
     supprimerDeclencheurs_('traiterLot');
   } else {
     // Quota Google atteint ou incident : on réessaie dans une heure.
     planifierSuite_(erreur ? 60 : 1);
   }
   ecrireEtat_(etat);
-  journal_(boite, lus + ' conversation(s) lue(s), ' + nb + ' contact(s) mis à jour'
-    + (termine ? ' — terminé.' : erreur ? ' — pause (' + erreur.message + '), reprise dans 1 heure.' : ' — suite dans 1 minute.'));
+  if (lus || !termine) { // rien de nouveau : pas de ligne au Journal
+    journal_(boite, lus + ' conversation(s) lue(s), ' + nb + ' contact(s) mis à jour'
+      + (termine ? ' — terminé.' : erreur ? ' — pause (' + erreur.message + '), reprise dans 1 heure.' : ' — suite dans 1 minute.'));
+  }
   return termine;
+}
+
+/**
+ * Boîte lue avant le relevé des postes : on relit son historique pour les
+ * signatures seulement (téléphones, poste). Aucun compteur n'est touché et
+ * aucun contact n'est créé : les lignes existantes sont complétées.
+ * @return {boolean} true s'il ne reste rien à relire.
+ */
+function rattraperSignatures_(debut) {
+  var etat = lireEtat_();
+  if (!etat || etat.phase !== 'quotidien' || etat.sig === CONFIG.SIGNATURES) return true;
+  if (Date.now() - debut > CONFIG.DUREE_MAX_MS - 30000) { planifierSuite_(1); return false; }
+  var r = etat.rattrapage || (etat.rattrapage = { borne: Date.now(), curseur: 0 });
+  var moi = adressesPersonnelles_();
+  var reglages = lireReglages_();
+  var boite = maBoite_();
+  var agg = {};
+  var internes = { cles: {}, envoisLus: 0 };
+  var fini = false;
+  var erreur = null;
+  var lus = 0;
+
+  while (Date.now() - debut < CONFIG.DUREE_MAX_MS) {
+    try {
+      var fils = GmailApp.search('before:' + Math.floor(r.borne / 1000), r.curseur, CONFIG.FILS_PAR_PAGE);
+      if (!fils.length) { fini = true; break; }
+      var page = {};
+      fils.forEach(function (fil) {
+        fil.getMessages().forEach(function (m) {
+          if (m.getDate().getTime() < r.borne) analyserSignature_(m, moi, page, reglages, internes);
+        });
+      });
+      cumulerSignatures(agg, page);
+      r.curseur += fils.length;
+      lus += fils.length;
+    } catch (e) {
+      erreur = e;
+      break;
+    }
+  }
+
+  var nb = fusionner_(agg, reglages, internes.cles, true);
+  if (fini) { etat.sig = CONFIG.SIGNATURES; delete etat.rattrapage; }
+  else { planifierSuite_(erreur ? 60 : 1); }
+  ecrireEtat_(etat);
+  journal_(boite, 'Signatures : ' + lus + ' conversation(s) relue(s), ' + nb + ' contact(s) complété(s)'
+    + (fini ? ' — terminé.' : erreur ? ' — pause (' + erreur.message + '), reprise dans 1 heure.' : ' — suite dans 1 minute.'));
+  return fini;
 }
 
 function analyserMessage_(m, moi, agg, boite, reglages, internes) {
@@ -196,23 +258,49 @@ function analyserMessage_(m, moi, agg, boite, reglages, internes) {
     });
   });
 
-  // Téléphones des signatures (l'analyse fournit toujours les réglages).
-  if (!reglages || !exp) return;
-  if (envoyeParMoi) {
-    // Notre propre signature, dans un mail à l'extérieur (pas un récap interne) :
-    // ces numéros sont ceux de CIBLE, jamais prêtés à un contact.
-    if (!versExterieur || internes.envoisLus >= 20) return;
-    internes.envoisLus++;
-    telephonesDuMessage_(m).forEach(function (n) { internes.cles[cleTelephone(n)] = true; });
-  } else if (!estExclue(exp.email, reglages)) {
-    var t = agg[exp.email].telephones;
-    if (Object.keys(t).length >= 3) return;
-    telephonesDuMessage_(m).forEach(function (n) { if (!t[n] || date > t[n]) t[n] = date; });
-  }
+  // Signatures (l'analyse fournit toujours les réglages).
+  if (reglages && exp) noterSignature_(m, exp, envoyeParMoi, versExterieur, date, agg, reglages, internes);
 }
 
-function telephonesDuMessage_(m) {
-  try { return telephonesDuTexte(m.getPlainBody()); } catch (e) { return []; }
+/** Rattrapage : seulement la signature (téléphones, poste), sans rien compter. */
+function analyserSignature_(m, moi, agg, reglages, internes) {
+  var exp = parserAdresses(m.getFrom())[0];
+  if (!exp) return;
+  var date = m.getDate();
+  var envoyeParMoi = !!moi[exp.email];
+  var versExterieur = envoyeParMoi && parserAdresses(m.getTo() + ', ' + m.getCc()).some(function (a) {
+    return !moi[a.email] && !estExclue(a.email, reglages);
+  });
+  if (!envoyeParMoi && !estExclue(exp.email, reglages)) {
+    var e = agg[exp.email] || (agg[exp.email] = { email: exp.email, nom: exp.nom, dernier: date, telephones: {}, postes: {} });
+    if (date > e.dernier) e.dernier = date;
+  }
+  noterSignature_(m, exp, envoyeParMoi, versExterieur, date, agg, reglages, internes);
+}
+
+/**
+ * Téléphones et poste de la signature. Mail reçu : ceux de l'expéditeur.
+ * Mail envoyé à l'extérieur (pas un récap interne) : notre propre signature,
+ * dont les numéros sont ceux de CIBLE, jamais prêtés à un contact.
+ */
+function noterSignature_(m, exp, envoyeParMoi, versExterieur, date, agg, reglages, internes) {
+  if (envoyeParMoi) {
+    if (!versExterieur || internes.envoisLus >= 20) return;
+    internes.envoisLus++;
+    telephonesDuTexte(corpsDuMessage_(m)).forEach(function (n) { internes.cles[cleTelephone(n)] = true; });
+    return;
+  }
+  var e = agg[exp.email];
+  if (!e || estExclue(exp.email, reglages)) return;
+  if (Object.keys(e.telephones).length >= 3 && Object.keys(e.postes).length) return;
+  var corps = corpsDuMessage_(m);
+  telephonesDuTexte(corps).forEach(function (n) { if (!e.telephones[n] || date > e.telephones[n]) e.telephones[n] = date; });
+  var poste = posteDuTexte(corps, exp.nom, exp.email);
+  if (poste && (!e.postes[poste] || date > e.postes[poste])) e.postes[poste] = date;
+}
+
+function corpsDuMessage_(m) {
+  try { return m.getPlainBody() || ''; } catch (e) { return ''; }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -239,7 +327,7 @@ function noterContact(agg, adresse, date, objet, role, boite, sens, vus) {
   var e = agg[adresse.email];
   if (!e) {
     e = agg[adresse.email] = { email: adresse.email, nom: '', premier: date, dernier: date,
-      echanges: 0, envoyes: 0, recus: 0, roles: {}, boites: {}, objets: {}, telephones: {} };
+      echanges: 0, envoyes: 0, recus: 0, roles: {}, boites: {}, objets: {}, telephones: {}, postes: {} };
   }
   if (adresse.nom && (!e.nom || date >= e.dernier)) e.nom = adresse.nom;
   if (date < e.premier) e.premier = date;
@@ -269,8 +357,25 @@ function cumuler(agg, page) {
     Object.keys(p.roles).forEach(function (r) { e.roles[r] = true; });
     Object.keys(p.boites).forEach(function (b) { e.boites[b] = true; });
     Object.keys(p.objets).forEach(function (o) { if (!e.objets[o] || p.objets[o] > e.objets[o]) e.objets[o] = p.objets[o]; });
-    Object.keys(p.telephones).forEach(function (n) { if (!e.telephones[n] || p.telephones[n] > e.telephones[n]) e.telephones[n] = p.telephones[n]; });
+    fusionnerDates_(e, p, 'telephones');
+    fusionnerDates_(e, p, 'postes');
   });
+}
+
+/** Cumul du rattrapage des signatures : seulement les téléphones et le poste. */
+function cumulerSignatures(agg, page) {
+  Object.keys(page).forEach(function (email) {
+    var p = page[email], e = agg[email];
+    if (!e) { agg[email] = p; return; }
+    if (p.dernier > e.dernier) e.dernier = p.dernier;
+    fusionnerDates_(e, p, 'telephones');
+    fusionnerDates_(e, p, 'postes');
+  });
+}
+
+/** { valeur: date } : garde la date la plus récente de chaque valeur. */
+function fusionnerDates_(e, p, cle) {
+  Object.keys(p[cle] || {}).forEach(function (k) { if (!e[cle][k] || p[cle][k] > e[cle][k]) e[cle][k] = p[cle][k]; });
 }
 
 /** « RE: TR: Devis campagne ORANGE » → « Devis campagne ORANGE ». */
@@ -291,13 +396,11 @@ function objetsRecents(nouveaux, existants, nouveauxDabord, max) {
 }
 
 /**
- * Numéros de la signature : fin du texte écrit par l'expéditeur, sans
+ * Fin du texte écrit par l'expéditeur, là où est sa signature : sans
  * l'historique cité (il contient les signatures des autres, dont CIBLE).
- * Côte d'Ivoire : 10 chiffres (01, 05, 07, 21, 25, 27), rendus « +225 07 07 12 34 56 ».
- * Étranger : seulement avec l'indicatif (+33…, 0033…). Les numéros ivoiriens
- * à 8 chiffres sont ignorés : ils n'existent plus depuis 2021.
+ * @return {string[]} les 20 dernières lignes non vides.
  */
-function telephonesDuTexte(texte) {
+function zoneSignature_(texte) {
   var t = '\n' + String(texte || '').replace(/\r/g, '');
   [
     /\n[ \t]*(Le|On)\s[^\n]{0,250}(\n[^\n]{0,250})?\s(a\s+écrit|wrote)\s*:/i,               // Gmail, Apple Mail
@@ -305,7 +408,17 @@ function telephonesDuTexte(texte) {
     /\n[ \t]*-{2,}[ \t]*(Original Message|Message d'origine|Forwarded message|Message transféré)/i,
     /\n[ \t]*_{10,}/,
   ].forEach(function (re) { var m = re.exec(t); if (m) t = t.slice(0, m.index); });
-  var fin = t.split('\n').filter(function (l) { return l.trim() && !/^\s*>/.test(l); }).slice(-20).join('\n');
+  return t.split('\n').filter(function (l) { return l.trim() && !/^\s*>/.test(l); }).slice(-20);
+}
+
+/**
+ * Numéros de la signature.
+ * Côte d'Ivoire : 10 chiffres (01, 05, 07, 21, 25, 27), rendus « +225 07 07 12 34 56 ».
+ * Étranger : seulement avec l'indicatif (+33…, 0033…). Les numéros ivoiriens
+ * à 8 chiffres sont ignorés : ils n'existent plus depuis 2021.
+ */
+function telephonesDuTexte(texte) {
+  var fin = zoneSignature_(texte).join('\n');
 
   var vus = {}, numeros = [];
   var garder = function (n) { if (!vus[n]) { vus[n] = true; numeros.push(n); } };
@@ -327,6 +440,55 @@ function telephonesDuTexte(texte) {
 
 /** Clé de comparaison : les 8 derniers chiffres (Sheets retire parfois le 0 de tête). */
 function cleTelephone(n) { return String(n).replace(/\D/g, '').slice(-8); }
+
+// Formule de politesse : la signature commence juste après (« Cordialement, », « Best regards »…).
+var POLITESSE = /^(bien |tres )?(cordialement|cordiales salutations|salutations|sinceres salutations|bien a vous|bonne (journee|soiree|reception)|merci|regards|best|kind regards|warm regards|thanks|thank you|sincerely|respectueusement|a (tres )?bientot)\b/;
+// Mots de métier d'une ligne de poste (sans accents).
+var MOTS_POSTE = /\b(directeur|directrice|director|dg|dga|pdg|ceo|coo|cfo|cmo|cto|cco|president|presidente|vice-?president|vp|gerant|gerante|manager|responsable|head of|chef|cheffe|charge|chargee|assistant|assistante|attache|attachee|conseiller|conseillere|consultant|consultante|coordinateur|coordinatrice|coordinator|superviseur|superviseure|supervisor|account|commercial|commerciale|comptable|controleur|controleuse|juriste|avocat|avocate|planner|planneur|buyer|acheteur|acheteuse|officer|specialist|specialiste|secretaire|secretary|administrateur|administratrice|analyste|analyst|ingenieur|engineer|designer|graphiste|fondateur|fondatrice|founder|cofondateur|co-fondateur|owner|associe|associee|delegue|deleguee|agent|chief|lead|tresorier|tresoriere|auditeur|auditrice|caissier|caissiere|stagiaire|intern)\b/;
+// Parties d'adresse trop générales pour reconnaître le nom de quelqu'un.
+var ADRESSES_GENERIQUES = ['info', 'infos', 'contact', 'contacts', 'commercial', 'marketing', 'direction', 'admin', 'service', 'sales', 'hello',
+  'team', 'secretariat', 'compta', 'comptabilite', 'support', 'accueil', 'communication', 'office', 'mail', 'agence', 'groupe', 'group'];
+
+/** « Koné » → « kone » : pour comparer sans accents ni majuscules. */
+function simplifier_(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
+ * Poste lu dans la signature : sur la ligne du nom ou les deux suivantes,
+ * sinon la première ligne courte de la signature qui contient un mot de métier.
+ * Vide si rien de sûr : une phrase du message n'est jamais prise pour un poste.
+ */
+function posteDuTexte(texte, nom, email) {
+  var lignes = zoneSignature_(texte);
+  var debut = 0;
+  lignes.forEach(function (l, i) { var s = simplifier_(l).trim(); if (s.length < 60 && POLITESSE.test(s)) debut = i + 1; });
+  var zone = lignes.slice(debut);
+  var mots = (simplifier_(nom) + ' ' + simplifier_(String(email || '').split('@')[0])).split(/[^a-z]+/)
+    .filter(function (m) { return m.length >= 3 && ADRESSES_GENERIQUES.indexOf(m) === -1; });
+  var iNom = -1;
+  zone.forEach(function (l, i) {
+    if (iNom < 0 && mots.some(function (m) { return new RegExp('\\b' + m + '\\b').test(simplifier_(l)); })) iNom = i;
+  });
+  var candidats = iNom >= 0 ? zone.slice(iNom, iNom + 3) : zone;
+  for (var i = 0; i < candidats.length; i++) {
+    var morceaux = candidats[i].split(/\s+[|•–—-]\s+|\s*\|\s*|\t|\s{3,}/);
+    for (var j = 0; j < morceaux.length; j++) {
+      var p = morceaux[j].replace(/^[\s*•·|\-–—]+|[\s*•·|\-–—,]+$/g, '').replace(/\s+/g, ' ');
+      if (estPoste_(p)) return p;
+    }
+  }
+  return '';
+}
+
+function estPoste_(p) {
+  var s = simplifier_(p);
+  if (s.length < 3 || s.length > 60 || p.split(' ').length > 8) return false;
+  if (/@|https?:|www\.|\d{3}/.test(s)) return false;
+  if (/^(tel|cel|cell|mob|mobile|fax|e-?mail|site|web|adresse|address|bp|b\.p|rccm|ncc|cc |boite|whatsapp)\b/.test(s)) return false;
+  if (/[.?!:;]$/.test(s) || POLITESSE.test(s)) return false;
+  return MOTS_POSTE.test(s);
+}
 
 function sansInternes_(texte, internes) {
   return String(texte || '').split(' | ').filter(function (n) { return n.trim() && !internes[cleTelephone(n)]; }).join(' | ');
@@ -363,9 +525,9 @@ function entrepriseDuDomaine(dom, reglages) {
 }
 
 /** Fusionne les contacts lus avec les lignes existantes. Ne touche jamais à « Statut CRM » ni « Notes ». */
-function fusionnerLignes(lignes, agg, reglages, internes) {
+function fusionnerLignes(lignes, agg, reglages, internes, signaturesSeules) {
   internes = internes || {};
-  var TEL = COL['Téléphones (signature)'];
+  var TEL = COL['Téléphones (signature)'], POSTE = COL['Poste (signature)'];
   var index = {};
   lignes.forEach(function (l, i) { index[String(l[COL['E-mail']]).toLowerCase()] = i; });
   var nb = 0;
@@ -375,6 +537,18 @@ function fusionnerLignes(lignes, agg, reglages, internes) {
     var a = agg[email];
     var dom = domaineDe(email);
     var i = index[email];
+
+    if (signaturesSeules) {
+      // Rattrapage : on complète les lignes existantes, sans rien compter ni créer.
+      if (i === undefined) return;
+      var y = lignes[i];
+      var d = y[COL['Dernier échange']] instanceof Date ? y[COL['Dernier échange']] : a.dernier;
+      var avant = y[TEL] + '§' + y[POSTE];
+      y[TEL] = telephonesRecents_(a.telephones, y[TEL], a.dernier > d, internes);
+      y[POSTE] = objetsRecents(a.postes, y[POSTE], a.dernier > d, 1);
+      if (y[TEL] + '§' + y[POSTE] !== avant) nb++;
+      return;
+    }
     nb++;
 
     if (i === undefined) {
@@ -393,6 +567,7 @@ function fusionnerLignes(lignes, agg, reglages, internes) {
       l[COL['Boîtes CIBLE']] = Object.keys(a.boites).sort().join(', ');
       l[COL['Objets récents']] = objetsRecents(a.objets, '', true);
       l[TEL] = telephonesRecents_(a.telephones, '', true, internes);
+      l[POSTE] = objetsRecents(a.postes, '', true, 1);
       l[COL['Statut CRM']] = reglages['Domaines clients (statut Client)'].indexOf(dom) !== -1 ? 'Client' : 'À qualifier';
       index[email] = lignes.length;
       lignes.push(l);
@@ -407,6 +582,7 @@ function fusionnerLignes(lignes, agg, reglages, internes) {
     // anciens (historique, lu du plus récent au plus ancien) que ceux déjà notés.
     x[COL['Objets récents']] = objetsRecents(a.objets, x[COL['Objets récents']], a.dernier > dernier);
     x[TEL] = telephonesRecents_(a.telephones, x[TEL], a.dernier > dernier, internes);
+    x[POSTE] = objetsRecents(a.postes, x[POSTE], a.dernier > dernier, 1);
     x[COL['Premier échange']] = a.premier < premier ? a.premier : premier;
     x[COL['Dernier échange']] = a.dernier > dernier ? a.dernier : dernier;
     x[COL['Échanges']] = (Number(x[COL['Échanges']]) || 0) + a.echanges;
@@ -434,7 +610,7 @@ function union_(texte, valeurs) {
 // GOOGLE SHEETS, ÉTAT ET DÉCLENCHEURS
 // ══════════════════════════════════════════════════════════════
 
-function fusionner_(agg, reglages, internesLus) {
+function fusionner_(agg, reglages, internesLus, signaturesSeules) {
   if (!Object.keys(agg).length) return 0;
   // Verrou du script (et non du document) : il existe aussi pour un projet
   // créé hors du Sheets. Plusieurs collaborateurs peuvent écrire en même temps.
@@ -455,7 +631,7 @@ function fusionner_(agg, reglages, internesLus) {
       while (l.length < ENTETES.length) l.push('');
       return l.slice(0, ENTETES.length);
     });
-    var nb = fusionnerLignes(lignes, agg, reglages, internes);
+    var nb = fusionnerLignes(lignes, agg, reglages, internes, signaturesSeules);
     f.getRange(2, 1, Math.max(f.getMaxRows() - 1, 1), ENTETES.length).clearContent();
     if (f.getMaxRows() < lignes.length + 1) f.insertRowsAfter(f.getMaxRows(), lignes.length + 1 - f.getMaxRows());
     if (lignes.length) {
@@ -579,5 +755,6 @@ if (typeof module !== 'undefined') {
   module.exports = { parserAdresses: parserAdresses, noterContact: noterContact, cumuler: cumuler, estExclue: estExclue,
     entrepriseDuDomaine: entrepriseDuDomaine, fusionnerLignes: fusionnerLignes, analyserMessage_: analyserMessage_,
     nettoyerObjet: nettoyerObjet, objetsRecents: objetsRecents, telephonesDuTexte: telephonesDuTexte, cleTelephone: cleTelephone,
+    posteDuTexte: posteDuTexte, analyserSignature_: analyserSignature_, cumulerSignatures: cumulerSignatures,
     ENTETES: ENTETES, COL: COL, REGLAGES_DEFAUT: REGLAGES_DEFAUT };
 }
