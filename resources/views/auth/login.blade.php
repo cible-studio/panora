@@ -218,6 +218,19 @@
             gap: 8px;
         }
 
+        .session-warning {
+            margin-bottom: 14px;
+            padding: 10px 14px;
+            background: rgba(250, 184, 11, .08);
+            border: 1px solid rgba(250, 184, 11, .25);
+            border-radius: 10px;
+            font-size: 12px;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         .auth-error {
             padding: 10px 14px;
             margin-bottom: 14px;
@@ -242,6 +255,11 @@
     {{-- Session status --}}
     @if (session('status'))
         <div class="session-status">✅ {{ session('status') }}</div>
+    @endif
+
+    {{-- Session expirée (bootstrap/app.php) --}}
+    @if (session('warning'))
+        <div class="session-warning">⏱ {{ session('warning') }}</div>
     @endif
 
     {{-- Erreurs --}}
