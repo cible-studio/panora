@@ -4,6 +4,8 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -72,5 +74,27 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Jeton de sécurité périmé (2026-10-26) : session expirée, ou application
+        // mise à jour pendant que la page était ouverte. Au lieu de la page
+        // « 419 Page Expired », que les utilisateurs prenaient pour une panne :
+        //   - session perdue → page de connexion, puis retour sur la page d'avant ;
+        //   - encore connecté, ou page publique → page d'avant, saisie conservée.
+        // Laravel a déjà converti TokenMismatchException en HttpException 419.
+        $exceptions->render(function (HttpException $e, Request $request) {
+            if ($e->getStatusCode() !== 419) {
+                return null;
+            }
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Votre session a expiré. Rechargez la page.'], 419);
+            }
+            $public = $request->is('satisfaction/*', 'proposition/*', 'renouvellement/*', 'renouvellement-essai/*');
+            $client = $request->is('client', 'client/*');
+            if (! $public && ! Auth::guard($client ? 'client' : 'web')->check()) {
+                return redirect()->guest(route($client ? 'client.login' : 'login'))
+                    ->with('warning', 'Votre session a expiré. Reconnectez-vous : vous reviendrez sur la page où vous étiez.');
+            }
+            return redirect()->back()
+                ->withInput($request->except(['_token', 'password', 'password_confirmation', 'current_password']))
+                ->with('error', 'La page avait expiré : vérifiez puis renvoyez le formulaire.');
+        });
     })->create();
