@@ -280,7 +280,12 @@ class RelanceFinCampagneService
             return $ligne;
         }
 
-        $jours = $this->joursRestants($campagne);
+        // Un vrai client lit toujours les jours réels, même si l'envoi a été
+        // forcé à la main (--campagne, --days, --etape) ; un mail de test, le
+        // texte qu'il recevra à l'étape.
+        $jours = $mode === RelanceFinCampagne::MODE_PRODUCTION
+            ? $this->joursRestants($campagne)
+            : $this->joursAffiches($campagne, $etape);
 
         if ($mode !== RelanceFinCampagne::MODE_PRODUCTION) {
             $destinataires = $this->adressesTest();
@@ -355,6 +360,23 @@ class RelanceFinCampagneService
         return (int) today()->diffInDays($campagne->end_date->copy()->startOfDay(), false);
     }
 
+    /**
+     * Jours annoncés dans l'aperçu et les mails de test d'une étape
+     * (2026-10-26) : jamais plus que l'étape. Le mail est montré tel qu'il
+     * partira (J-7 → « dans 7 jours »), et non avec les jours qui restent
+     * aujourd'hui. Un vrai client, lui, lit toujours les jours réels (voir
+     * envoyerEtJournaliser) : l'envoi automatique part à l'étape ou après
+     * (rattrapage), un envoi forcé à la main dit la vérité.
+     * Accusé de réception : jours réels, il part quand le client répond.
+     */
+    public function joursAffiches(Campaign $campagne, string $etape): int
+    {
+        $reels = $this->joursRestants($campagne);
+        $duree = RenouvellementService::ETAPES[$etape] ?? ($etape === RelanceFinCampagne::ETAPE_FIN ? $this->jours() : null);
+
+        return $duree === null ? $reels : min($reels, $duree);
+    }
+
     /** Bandeau des mails de test : à qui le mail serait parti en production. */
     public static function noteTest(array $a): string
     {
@@ -372,7 +394,7 @@ class RelanceFinCampagneService
 
         return new CampaignEndingSoonMail(
             $campagne,
-            $this->joursRestants($campagne),
+            $this->joursAffiches($campagne, RelanceFinCampagne::ETAPE_FIN),
             $a['contact'],
             filter_var($a['destinataire'], FILTER_VALIDATE_EMAIL) ? DiffusionDesinscription::lien($a['destinataire']) : null,
             $a['repondre_a'],

@@ -62,6 +62,11 @@ Le bouton ouvre une page personnelle, sans connexion : `/renouvellement/{jeton}/
 **Mails de test** : les boutons pointent vers des liens « essai » signés. Ils n'enregistrent
 rien. L'accusé et le mail à l'équipe partent alors vers les adresses de test.
 
+**Jours annoncés** (« se termine dans 7 jours ») : l'aperçu et les mails de test montrent le
+mail tel qu'il partira à son étape, jamais plus que l'étape (J-7 → 7 jours), même si la
+campagne finit bien plus tard. Un vrai client lit toujours les jours réels, y compris pour
+un envoi forcé à la main. Règle unique : `RelanceFinCampagneService::joursAffiches()`.
+
 ## L'écran « Renouvellements » (refait le 2026-10-23)
 
 Menu **Renouvellements**. Accès : admin, MP et commercial. Un commercial ne voit que ses clients

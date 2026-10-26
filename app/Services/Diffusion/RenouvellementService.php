@@ -196,7 +196,7 @@ class RenouvellementService
         return new MailClientCampagne(
             campaign: $campagne,
             cle: $cle,
-            daysRemaining: $campagne->end_date ? $this->socle->joursRestants($campagne) : 0,
+            daysRemaining: $campagne->end_date ? $this->socle->joursAffiches($campagne, $cle) : 0,
             contact: $a['contact'],
             lienDesinscription: filter_var($a['destinataire'], FILTER_VALIDATE_EMAIL) ? DiffusionDesinscription::lien($a['destinataire']) : null,
             repondreA: $a['repondre_a'],

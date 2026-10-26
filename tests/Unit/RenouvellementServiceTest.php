@@ -52,6 +52,57 @@ class RenouvellementServiceTest extends TestCase
         Carbon::setTestNow($date . ' 10:00:00');
     }
 
+    // ── Jours annoncés au client (2026-10-26) ─────────────────────
+
+    public function test_apercu_test_et_etape_forcee_annoncent_les_jours_de_l_etape(): void
+    {
+        $this->aujourdhui('2026-10-26'); // fin le 31/12 : 66 jours réels
+        $c = $this->campagne();
+        $socle = app(RelanceFinCampagneService::class);
+
+        $this->assertSame(66, $socle->joursRestants($c));
+        $this->assertSame(7, $socle->joursAffiches($c, 'j7'));
+        $this->assertSame(60, $socle->joursAffiches($c, 'j60'));
+        $this->assertSame(7, $socle->joursAffiches($c, RelanceFinCampagne::ETAPE_FIN));
+        $this->assertSame(66, $socle->joursAffiches($c, RelanceFinCampagne::ETAPE_ACCUSE)); // accusé : jours réels
+
+        // Aperçus : écran Renouvellements (👁, éditeur des textes) et mail J-7 simple.
+        // (Les modèles J-60 à J-15 ne citent que la date, pas le nombre de jours.)
+        $this->assertStringContainsString('dans 7 jours', $this->service()->mail($c, 'j7')->render());
+        $this->assertStringContainsString('dans 7 jours', $socle->mail($c)->render());
+        $this->assertStringNotContainsString('66 jours', $this->service()->mail($c, 'j7')->render());
+
+        // Mail de test : le texte que le client recevra à J-7.
+        $this->service()->traiter($c, forcerTest: true, etape: 'j7');
+        $this->assertStringContainsString('dans 7 jours', $this->envoisBrevo()->last()['textContent']);
+    }
+
+    public function test_envoi_reel_force_a_la_main_annonce_les_jours_reels(): void
+    {
+        $this->aujourdhui('2026-10-26');
+        config(['diffusion.fin_campagne.mode' => 'production']);
+        $c = $this->campagne();
+
+        $this->service()->traiter($c, etape: 'j7'); // --campagne=… --etape=j7
+        $r = $this->envoisBrevo()->last();
+
+        $this->assertSame('awa@orange.ci', $r['to'][0]['email']);
+        $this->assertStringContainsString('dans 66 jours', $r['textContent']); // la vérité, cohérente avec la date
+    }
+
+    public function test_envoi_automatique_et_rattrapage_gardent_les_jours_reels(): void
+    {
+        $c = $this->campagne();
+        $socle = app(RelanceFinCampagneService::class);
+
+        $this->aujourdhui('2026-12-26'); // 5 jours : J-7 rattrapé
+        $this->assertSame(5, $socle->joursAffiches($c, 'j7'));
+        $this->aujourdhui('2026-12-24'); // J-7 pile
+        $this->assertSame(7, $socle->joursAffiches($c, 'j7'));
+        $this->aujourdhui('2027-01-03'); // terminée
+        $this->assertSame(-3, $socle->joursAffiches($c, 'j7'));
+    }
+
     // ── Séquence ──────────────────────────────────────────────────
 
     public function test_j60_part_par_brevo_avec_trois_boutons_personnels(): void
