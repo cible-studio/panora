@@ -74,6 +74,18 @@ Pour une boîte générique comme commercial@, quelqu'un qui y a accès se conne
 
 Le script ne lit que la boîte de la personne qui le lance : personne ne peut lire la boîte d'un autre.
 
+## Trier l'export
+
+1. Dans le Sheets : **Fichier → Télécharger → Microsoft Excel (.xlsx)**, puis rangez le fichier dans `docs/emails clients/`. Ce dossier est ignoré par Git, car il contient des données personnelles de clients.
+2. Lancez `php docs/outils/trier-contacts-gmail.php "docs/emails clients/CONTACTS GMAIL.xlsx"`.
+3. Le fichier **« Contacts triés.xlsx »** est créé dans le même dossier, avec ces onglets :
+   - **Clients probables** : les objets montrent une affaire conclue (facture, bon de commande, BAT, pose, pige, règlement…) ;
+   - **Prospects** : demandes de disponibilités, devis, propositions ;
+   - **À vérifier** ;
+   - **Écartés**, avec la raison.
+
+   Les colonnes « Indices » et « Classement » expliquent chaque décision. Relancer le script sur un export plus récent refait tout le tri.
+
 ## Avant d'utiliser ces contacts dans Brevo ⚠
 
 Une adresse présente dans Gmail **n'a pas consenti** à recevoir des campagnes, surtout si elle n'était qu'en copie.

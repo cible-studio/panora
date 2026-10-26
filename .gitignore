@@ -37,3 +37,6 @@ vendor
 .env.backup
 .env.local
 .env.production
+
+# Contacts clients extraits de Gmail (données personnelles) — jamais dans Git
+docs/emails clients/
