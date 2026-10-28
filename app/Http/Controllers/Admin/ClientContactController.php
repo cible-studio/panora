@@ -117,6 +117,8 @@ class ClientContactController extends Controller
             'is_primary'             => 'sometimes|boolean',
             'receives_notifications' => 'sometimes|boolean',
             'notes'                  => 'nullable|string|max:1000',
+            // Chaque adresse a son statut (2026-10-28).
+            'statut'                 => 'sometimes|in:' . implode(',', array_keys(ClientContact::STATUTS)),
         ]);
     }
 
@@ -136,6 +138,7 @@ class ClientContactController extends Controller
                     'position'                 => $contact->position,
                     'is_primary'               => $contact->is_primary,
                     'receives_notifications'   => $contact->receives_notifications,
+                    'statut'                   => $contact->statut,
                     'notes'                    => $contact->notes,
                 ],
             ]);

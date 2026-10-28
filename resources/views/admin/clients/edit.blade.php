@@ -84,6 +84,22 @@
                     </select>
                 </div>
 
+                {{-- Statut (2026-10-28) : un prospect passe client à sa première campagne. --}}
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);
+                                  letter-spacing:.5px;display:block;margin-bottom:6px;">
+                        STATUT
+                    </label>
+                    <select name="statut_commercial"
+                            style="width:100%;background:var(--surface2);
+                                   border:1px solid var(--border2);border-radius:8px;
+                                   padding:10px 14px;color:var(--text);font-size:13px;outline:none;">
+                        @foreach(\App\Models\Client::STATUTS as $code => $libelle)
+                        <option value="{{ $code }}" {{ old('statut_commercial', $client->statut_commercial ?? 'client') === $code ? 'selected' : '' }}>{{ $libelle }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 {{-- Nom contact --}}
                 <div>
                     <label style="font-size:11px;font-weight:700;color:var(--text3);

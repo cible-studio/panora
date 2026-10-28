@@ -26,7 +26,9 @@ class ClientController extends Controller
         $query = $this->buildClientsQuery($request);
 
         $stats = [
-            'total'    => Client::count(),
+            // Clients seulement ; les prospects ont leur propre compteur (2026-10-28).
+            'total'     => Client::clients()->count(),
+            'prospects' => Client::prospects()->count(),
             'actifs'   => Client::whereHas('campaigns', fn($q) => $q->where('status', 'actif'))->count(),
             'ca_total' => \App\Models\Campaign::sum('total_amount'),
         ];
@@ -101,6 +103,13 @@ class ClientController extends Controller
             });
         }
 
+        // Client / prospect (2026-10-28) : les clients par défaut, pour que les
+        // prospects importés de Gmail ne noient pas le portefeuille. « tous » = les deux.
+        $statut = $request->input('statut', Client::STATUT_CLIENT);
+        if (is_string($statut) && isset(Client::STATUTS[$statut])) {
+            $query->where('statut_commercial', $statut);
+        }
+
         // Bug 5.1 — filtre "Clients avec campagne active"
         if ($request->boolean('active_only')) {
             $query->whereHas('campaigns', fn($q) => $q->where('status', 'actif'));
@@ -150,7 +159,7 @@ class ClientController extends Controller
             fwrite($out, "\xEF\xBB\xBF");
 
             fputcsv($out, [
-                'Nom', 'NCC', 'Secteur', 'Contact', 'Email', 'Téléphone',
+                'Nom', 'Statut', 'NCC', 'Secteur', 'Contact', 'Email', 'Téléphone',
                 'Adresse', 'Campagnes', 'Campagnes actives', 'Réservations',
                 'Compte client', 'Créé le',
             ], ';');
@@ -158,6 +167,7 @@ class ClientController extends Controller
             foreach ($clients as $c) {
                 fputcsv($out, [
                     $c->name,
+                    Client::STATUTS[$c->statut_commercial] ?? 'Client',
                     $c->ncc            ?? '',
                     $c->sector         ?? '',
                     $c->contact_name   ?? '',
@@ -195,6 +205,7 @@ class ClientController extends Controller
             'search'      => $request->input('search'),
             'sector'      => $request->input('sector'),
             'active_only' => $request->boolean('active_only'),
+            'statut'      => $request->input('statut', Client::STATUT_CLIENT),
         ];
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.clients.pdf.list', [
@@ -220,6 +231,7 @@ class ClientController extends Controller
             'search'      => $request->input('search'),
             'sector'      => $request->input('sector'),
             'active_only' => $request->boolean('active_only'),
+            'statut'      => $request->input('statut', Client::STATUT_CLIENT),
         ];
         $filename = 'clients-' . now()->format('Ymd_His') . '.xlsx';
         return Excel::download(new \App\Exports\ClientsExport($clients, $filters), $filename);
@@ -245,11 +257,12 @@ class ClientController extends Controller
             'user_id' => auth()->id(),
         ]);
 
+        $quoi = $client->estProspect() ? 'prospect' : 'client';
         AlertService::create(
             'client',
             'info',
-            '👥 Nouveau client — ' . $client->name,
-            auth()->user()->name . ' a créé le client ' . $client->name . ' (NCC : ' . $client->ncc . ').',
+            '👥 Nouveau ' . $quoi . ' — ' . $client->name,
+            auth()->user()->name . ' a créé le ' . $quoi . ' ' . $client->name . ($client->ncc ? ' (NCC : ' . $client->ncc . ').' : '.'),
             $client
         );
         return redirect()
@@ -417,6 +430,11 @@ class ClientController extends Controller
     {
         if ($client->hasAccount()) {
             return $this->accountResponse(false, 'Ce client a déjà un compte actif.');
+        }
+
+        // Un prospect n'a ni campagne ni facture : son espace serait vide (2026-10-28).
+        if ($client->estProspect()) {
+            return $this->accountResponse(false, "C'est un prospect : l'espace client s'ouvre quand il devient client (première campagne).");
         }
 
         if (empty($client->email)) {
@@ -773,10 +791,11 @@ class ClientController extends Controller
      */
     public function importTemplate(): StreamedResponse
     {
-        $headers = ['nom', 'email', 'telephone', 'entreprise', 'ncc', 'contact', 'secteur', 'adresse'];
+        // « statut » (2026-10-28) : client ou prospect ; vide = client. Un prospect n'a pas de NCC auto.
+        $headers = ['nom', 'email', 'telephone', 'entreprise', 'ncc', 'contact', 'secteur', 'adresse', 'statut'];
         $sample  = [
-            ['EXEMPLE SARL', 'contact@exemple.ci', '0707070707', 'EXEMPLE GROUP', 'NCC-2026-001', 'Mr KOFFI', 'Telecom', 'Plateau, Abidjan'],
-            ['CIBLE TEST',   'test@cible.ci',     '0102030405', '',                '',           '',          '',         ''],
+            ['EXEMPLE SARL', 'contact@exemple.ci', '0707070707', 'EXEMPLE GROUP', 'NCC-2026-001', 'Mr KOFFI', 'Télécommunications', 'Plateau, Abidjan', 'client'],
+            ['CIBLE TEST',   'test@cible.ci',     '0102030405', '',                '',           '',          '',         '',                 'prospect'],
         ];
 
         $callback = function () use ($headers, $sample) {

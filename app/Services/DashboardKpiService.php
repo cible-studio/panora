@@ -885,6 +885,10 @@ class DashboardKpiService
                     DB::raw('MAX(campaigns.start_date) as last_campaign_at'),
                 )
                 ->groupBy('clients.id', 'clients.name', 'clients.email')
+                // Au moins une campagne sur la période (2026-10-28) : sinon des
+                // prospects à 0 FCFA complètent le classement quand peu de
+                // clients ont du chiffre d'affaires.
+                ->havingRaw('COUNT(DISTINCT campaigns.id) > 0')
                 ->orderByDesc('total_revenue')
                 ->limit($limit)
                 ->get();

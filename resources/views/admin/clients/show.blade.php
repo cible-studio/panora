@@ -75,12 +75,19 @@
                 {{ $client->ncc }}
             </div>
             @endif
-            @if($client->sector)
-            <div>
+            @if($client->sector || $client->estProspect())
+            <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+                @if($client->estProspect())
+                    <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
+                                 background:rgba(59,130,246,.12);color:#3b82f6;"
+                          title="Pas encore d'affaire conclue : passe client à sa première campagne.">Prospect</span>
+                @endif
+                @if($client->sector)
                 <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;
                              background:var(--surface3);color:var(--text2);">
                     {{ $client->sector }}
                 </span>
+                @endif
             </div>
             @endif
         </div>
@@ -815,14 +822,23 @@
                     <textarea name="notes" id="contact-notes" maxlength="1000" rows="2"
                         class="filter-input" style="width:100%;resize:vertical;font-family:inherit;" placeholder="Préférences de contact, dispo, langue…"></textarea>
                 </div>
-                <div style="grid-column:1/3;display:flex;gap:18px;">
+                <div>
+                    <label class="filter-label">Statut</label>
+                    <select name="statut" id="contact-statut" class="filter-select" style="width:100%;">
+                        @foreach(\App\Models\ClientContact::STATUTS as $code => $libelle)
+                            <option value="{{ $code }}">{{ $libelle }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div style="grid-column:1/3;display:flex;gap:18px;flex-wrap:wrap;">
                     <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;">
                         <input type="checkbox" name="is_primary" id="contact-primary" value="1">
                         Contact principal
                     </label>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;"
+                           title="Renouvellement, fin de campagne : chaque contact coché reçoit son mail.">
                         <input type="checkbox" name="receives_notifications" id="contact-notif" value="1" checked>
-                        Reçoit les notifications
+                        Reçoit les mails de campagne
                     </label>
                 </div>
             </div>
@@ -860,6 +876,8 @@ document.addEventListener('keydown', e => {
 // ══════════════════════════════
 window.ClientContacts = (function () {
     const clientId = {{ $client->id }};
+    // Un nouvel interlocuteur prend le statut de son entreprise (2026-10-28).
+    const statutEntreprise = @json($client->statut_commercial ?? 'client');
     const csrf     = '{{ csrf_token() }}';
     const modal    = document.getElementById('contact-modal');
     const list     = document.getElementById('contacts-list');
@@ -892,7 +910,8 @@ window.ClientContacts = (function () {
         document.getElementById('contact-position').value = '';
         document.getElementById('contact-notes').value = '';
         document.getElementById('contact-primary').checked = false;
-        document.getElementById('contact-notif').checked = true;
+        document.getElementById('contact-notif').checked = statutEntreprise === 'client';
+        document.getElementById('contact-statut').value = statutEntreprise;
     }
 
     function fillForm(row) {
@@ -928,6 +947,11 @@ window.ClientContacts = (function () {
             if (phoneSpan) document.getElementById('contact-phone').value = phoneSpan.textContent.replace('📞', '').trim();
             // Primary actuel
             document.getElementById('contact-primary').checked = !!row.querySelector('span[style*="rgba(232,160,32"]');
+            // Statut, mails de campagne, rôle, fonction : valeurs réelles (data-*), pas les défauts.
+            document.getElementById('contact-statut').value = row.dataset.statut || 'client';
+            document.getElementById('contact-notif').checked = row.dataset.notif === '1';
+            if (row.dataset.role) document.getElementById('contact-role').value = row.dataset.role;
+            document.getElementById('contact-position').value = row.dataset.position || '';
 
             document.getElementById('contact-modal-title').textContent = 'Modifier l\'interlocuteur';
             modal.style.display = 'flex';
@@ -961,6 +985,7 @@ window.ClientContacts = (function () {
             fd.append('notes',    document.getElementById('contact-notes').value);
             fd.append('is_primary', document.getElementById('contact-primary').checked ? '1' : '0');
             fd.append('receives_notifications', document.getElementById('contact-notif').checked ? '1' : '0');
+            fd.append('statut', document.getElementById('contact-statut').value);
 
             try {
                 const r = await fetch(url, {

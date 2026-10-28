@@ -40,6 +40,7 @@ class ClientsExport implements FromCollection, WithHeadings, WithMapping, WithSt
             'Nom', 'NCC', 'Secteur', 'Contact', 'Email', 'Téléphone',
             'Adresse', 'Campagnes', 'Camp. actives', 'Réservations',
             'Compte client', 'Créé le',
+            'Statut', // en dernier : les styles visent les colonnes par leur lettre
         ];
     }
 
@@ -58,6 +59,7 @@ class ClientsExport implements FromCollection, WithHeadings, WithMapping, WithSt
             (int) ($c->reservations_count     ?? 0),
             (method_exists($c, 'hasAccount') && $c->hasAccount()) ? 'Actif' : 'Non actif',
             $c->created_at?->format('d/m/Y') ?? '',
+            \App\Models\Client::STATUTS[$c->statut_commercial] ?? 'Client',
         ];
     }
 
@@ -87,6 +89,7 @@ class ClientsExport implements FromCollection, WithHeadings, WithMapping, WithSt
                     !empty($this->filters['search'])      ? 'Recherche : "' . $this->filters['search'] . '"' : null,
                     !empty($this->filters['sector'])      ? 'Secteur : ' . $this->filters['sector'] : null,
                     !empty($this->filters['active_only']) ? 'Avec campagne active' : null,
+                    match ($this->filters['statut'] ?? 'client') { 'prospect' => 'Prospects', 'tous' => 'Clients et prospects', default => null },
                 ]));
 
                 // Spécificités data Clients : colonnes numériques centrées + mise en
