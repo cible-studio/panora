@@ -32,6 +32,26 @@ $lignes = $feuille->toArray(null, true, false, false);
 $H = array_flip(array_shift($lignes));
 $v = fn ($r, $k) => trim((string) ($r[$H[$k]] ?? ''));
 
+// Secteurs d'activité (2026-10-28), vérifiés en ligne : « secteurs.csv » à côté de l'export
+// (domaine;nom;secteur;confiance;source), modifiable dans Excel. Mêmes libellés que les
+// fiches clients de Panora (Client::SECTORS) : un libellé inconnu est ignoré et signalé.
+$SECTEURS = [];
+$fichierSecteurs = dirname($source) . '/secteurs.csv';
+if (is_file($fichierSecteurs)) {
+    $f = fopen($fichierSecteurs, 'r');
+    $entete = array_map(fn ($c) => trim(preg_replace('/^\xEF\xBB\xBF/', '', $c)), fgetcsv($f, 0, ';'));
+    $inconnus = [];
+    while (($l = fgetcsv($f, 0, ';')) !== false) {
+        $l = array_combine($entete, array_pad($l, count($entete), ''));
+        $dom = strtolower(trim($l['domaine'] ?? ''));
+        if ($dom === '') continue;
+        if (!in_array($l['secteur'], \App\Models\Client::SECTORS, true)) { $inconnus[] = "$dom ({$l['secteur']})"; continue; }
+        $SECTEURS[$dom] = $l;
+    }
+    fclose($f);
+    if ($inconnus) fwrite(STDERR, 'Secteurs inconnus de Panora, ignorés : ' . implode(', ', $inconnus) . "\n");
+}
+
 function sansAccent(string $s): string {
     return strtolower(strtr($s, ['é'=>'e','è'=>'e','ê'=>'e','ë'=>'e','É'=>'e','È'=>'e','Ê'=>'e','à'=>'a','â'=>'a','À'=>'a','Â'=>'a',
         'î'=>'i','ï'=>'i','Î'=>'i','ô'=>'o','Ô'=>'o','ù'=>'u','û'=>'u','ü'=>'u','Û'=>'u','ç'=>'c','Ç'=>'c','²'=>'2']));
@@ -119,7 +139,7 @@ $MOTS_DOMAINE = [
 // d'annonceur (« Direction Communication »).
 $MOTS_NOM = [
     'Régie publicitaire'      => '/\bregie\b|affichage|afficheur|outdoor/',
-    'Agence de communication' => '/\bagence\b|agency|communication|\bmedias?\b|advertising|\bpub\b|production|\bevents?\b/',
+    'Agence de communication' => '/\bagence\b|agency|\bcommunications?\b|\bmedias?\b|advertising|\bpub\b|production|\bevents?\b/',
 ];
 $NOM_DE_SERVICE = '/^(direction|service|departement|dept|pole|cellule|responsable|charge)\b/';
 $POSTES = [
@@ -246,6 +266,20 @@ foreach ($res as $x) {
     $parDomaine[$x['dom']] ??= [];
     array_push($parDomaine[$x['dom']], ...$x['signaux']);
 }
+// Nom vérifié en ligne (secteurs.csv) : « Red Africa (Publicis) », « Ecko Agency » trahissent une agence.
+// Seulement si la recherche a aussi classé l'entreprise dans la communication : sinon « Agence
+// Nationale de Gestion des Déchets » ou « Productions Animales » passeraient pour des agences.
+foreach (array_keys($parDomaine) as $dom) {
+    $nomVerifie = sansAccent($SECTEURS[$dom]['nom'] ?? '');
+    if ($nomVerifie === '' || !in_array($SECTEURS[$dom]['secteur'], ['Agence & Conseil', 'Médias & Communication'], true)) continue;
+    $source = 'nom vérifié « ' . $SECTEURS[$dom]['nom'] . ' »';
+    foreach ($CONNUS as $type => $re) {
+        if (preg_match($re, str_replace(' ', '', $nomVerifie))) { $parDomaine[$dom][] = ['rang' => 1, 'type' => $type, 'source' => $source]; continue 2; }
+    }
+    foreach ($MOTS_NOM as $type => $re) {
+        if (preg_match($re, $nomVerifie)) { $parDomaine[$dom][] = ['rang' => 4, 'type' => $type, 'source' => $source]; break; }
+    }
+}
 $typesDomaine = array_map($choisir, $parDomaine);
 $commercial = [];
 foreach ($res as $x) if (in_array($x['cat'], ['client', 'prospect'], true)) $commercial[$x['dom']] = true;
@@ -270,6 +304,7 @@ foreach ($res as $x) {
     $groupes[$x['cat']][] = [
         'Entreprise' => $x['perso'] ? '' : $v($r, 'Entreprise (déduite)'),
         'Type' => $x['type'],
+        'Secteur' => $SECTEURS[$x['dom']]['secteur'] ?? '',
         'Nom' => $v($r, 'Nom'),
         'Poste' => isset($H['Poste (signature)']) ? $v($r, 'Poste (signature)') : '',
         'E-mail' => $x['email'],
@@ -295,8 +330,11 @@ foreach ($res as $x) {
     if ($x['perso'] || $x['dom'] === '' || $x['cat'] === 'ecarte') continue;
     $r = $x['r'];
     $s = &$societes[$x['dom']];
-    $s ??= ['Entreprise' => $v($r, 'Entreprise (déduite)'), 'Type' => $x['type'], 'Relation' => $x['cat'], 'Contacts' => 0,
-        'Échanges' => 0, 'Dernier échange' => null, 'Domaine' => $x['dom'], 'Type : indice' => $x['typeSource'], 'liste' => []];
+    $sect = $SECTEURS[$x['dom']] ?? [];
+    $s ??= ['Entreprise' => $v($r, 'Entreprise (déduite)'), 'Nom vérifié' => $sect['nom'] ?? '', 'Type' => $x['type'],
+        'Secteur' => $sect['secteur'] ?? '', 'Confiance' => $sect['confiance'] ?? '', 'Relation' => $x['cat'], 'Contacts' => 0,
+        'Échanges' => 0, 'Dernier échange' => null, 'Domaine' => $x['dom'], 'Type : indice' => $x['typeSource'],
+        'Secteur : source' => $sect['source'] ?? '', 'liste' => []];
     $s['Contacts']++;
     $s['Échanges'] += $x['ech'];
     $d = $date($r[$H['Dernier échange']]);
@@ -313,8 +351,11 @@ foreach ($societes as &$s) {
 }
 unset($s);
 $societes = array_values($societes);
-usort($societes, fn ($a, $b) => [array_search($a['Type'], $ORDRE_TYPES), -$a['Échanges']] <=> [array_search($b['Type'], $ORDRE_TYPES), -$b['Échanges']]);
+// Par secteur (sans secteur à la fin), puis les entreprises les plus actives d'abord.
+usort($societes, fn ($a, $b) => [$a['Secteur'] === '' ? 1 : 0, $a['Secteur'], -$a['Échanges']] <=> [$b['Secteur'] === '' ? 1 : 0, $b['Secteur'], -$b['Échanges']]);
 $parType = array_count_values(array_column($societes, 'Type'));
+$parSecteur = array_count_values(array_filter(array_column($societes, 'Secteur')));
+arsort($parSecteur);
 
 // Entreprises A→Z (adresses personnelles à la fin), puis les contacts les plus actifs d'abord.
 $parEntreprise = function ($a, $b) {
@@ -333,7 +374,11 @@ ksort($boites);
 
 $wb = new Spreadsheet();
 $lire = $wb->getActiveSheet()->setTitle('Lisez-moi');
-$lire->fromArray([
+$secteursLire = $parSecteur
+    ? [[''], ["Secteurs d'activité", 'Entreprises'], ...array_map(fn ($sec, $n) => [$sec, $n], array_keys($parSecteur), $parSecteur),
+       ['Sans secteur', count($societes) - array_sum($parSecteur)]]
+    : [];
+$contenuLire = [
     ['Contacts Gmail de CIBLE — tri du ' . date('d/m/Y')],
     [''],
     ['Boîtes analysées', implode(', ', array_keys($boites))],
@@ -344,28 +389,31 @@ $lire->fromArray([
     ['Prospects', count($groupes['prospect']), $entreprises('prospect'), "Demandes de disponibilités, devis, propositions et prospections de CIBLE, sans trace d'affaire conclue."],
     ['À vérifier', count($groupes['verifier']), $entreprises('verifier'), 'Échanges réels mais objet non commercial : partenaires, cabinets, fournisseurs, contacts personnels.'],
     ['Écartés', count($groupes['ecarte']), $entreprises('ecarte'), 'CIBLE (interne), RH et personnel, outils et plateformes, envois automatiques, publicités et événements, candidatures, adresses vues une seule fois en copie, « Exclure » du Statut CRM. La raison est indiquée pour chacun.'],
-    ['Entreprises', '', count($societes), "Une ligne par entreprise (adresses professionnelles, hors écartés) : type, relation, nombre de contacts, contacts principaux."],
+    ['Entreprises', '', count($societes), "Une ligne par entreprise (adresses professionnelles, hors écartés), rangée par secteur : nom vérifié, type, secteur, relation, contacts principaux."],
     [''],
     ['Types d\'entreprise', 'Entreprises'],
     ...array_map(fn ($t) => [$t, $parType[$t] ?? 0], $ORDRE_TYPES),
+    ...$secteursLire,
     [''],
     ['À savoir'],
+    ['• Secteurs : mêmes libellés que les fiches clients de Panora. Vérifiés en ligne (nom ou domaine de l\'entreprise) ; la colonne « Confiance » dit s\'ils sont sûrs. « basse » = à vérifier. Pour corriger : modifiez « secteurs.csv » (à côté de ce fichier), puis relancez le tri.'],
     ['• « Client probable » est déduit des objets de mails. La comparaison avec la liste des clients Panora confirmera chaque client.'],
     ['• Le type vient, du plus sûr au moins sûr : du Statut CRM, d\'un nom connu (Havas, McCann, JCDecaux, Unfold, RTI…), du domaine (regie, agence, media, tv…), du nom affiché, du poste de la signature, puis des objets (« notre client »). Sans indice : « Annonceur ».'],
     ['• Pour corriger : dans le Sheets, écrivez « Agence », « Régie », « Média », « Annonceur », « Fournisseur », « Client » ou « Exclure » dans la colonne Statut CRM d\'un contact, puis réexportez. Le type vaut pour toute l\'entreprise.'],
     ['• Les colonnes « Indices », « Classement » et « Type : indice » montrent ce qui a décidé de chaque classement.'],
     ['• Les téléphones et les postes viennent des signatures : à vérifier avant usage.'],
     ['• Fichier confidentiel : coordonnées de clients et prospects. Ne pas diffuser hors de CIBLE.'],
-], null, 'A1');
+];
+$lire->fromArray($contenuLire, null, 'A1');
 $lire->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-$lire->getStyle('A6:D6')->getFont()->setBold(true);
-$lire->getStyle('A13:B13')->getFont()->setBold(true);
-$lire->getStyle('A' . (14 + count($ORDRE_TYPES) + 1))->getFont()->setBold(true);
-foreach (['A' => 24, 'B' => 12, 'C' => 12, 'D' => 110] as $c => $l) $lire->getColumnDimension($c)->setWidth($l);
+foreach ($contenuLire as $i => $l) {
+    if (in_array($l[0], ['Onglet', "Types d'entreprise", "Secteurs d'activité", 'À savoir'], true)) $lire->getStyle('A' . ($i + 1) . ':D' . ($i + 1))->getFont()->setBold(true);
+}
+foreach (['A' => 34, 'B' => 12, 'C' => 12, 'D' => 110] as $c => $l) $lire->getColumnDimension($c)->setWidth($l);
 $lire->getStyle('D7:D11')->getAlignment()->setWrapText(true);
 
 $onglets = ['client' => ['Clients probables', 'D9F2D0'], 'prospect' => ['Prospects', 'DCE8F7'], 'verifier' => ['À vérifier', 'FFF2CC'], 'ecarte' => ['Écartés', 'EDEDED']];
-$largeurs = ['Entreprise' => 22, 'Type' => 22, 'Nom' => 26, 'Poste' => 26, 'E-mail' => 34, 'Téléphone(s)' => 24, "Type d'adresse" => 15, 'Dernier échange' => 14, 'Premier échange' => 14,
+$largeurs = ['Entreprise' => 22, 'Type' => 22, 'Secteur' => 24, 'Nom' => 26, 'Poste' => 26, 'E-mail' => 34, 'Téléphone(s)' => 24, "Type d'adresse" => 15, 'Dernier échange' => 14, 'Premier échange' => 14,
     'Échanges' => 10, 'Sens des échanges' => 19, 'Boîtes CIBLE' => 30, 'Objets récents' => 70, 'Indices' => 30, 'Classement' => 34, 'Type : indice' => 34];
 $entetes = array_keys($largeurs);
 $lettre = fn ($nom) => Coordinate::stringFromColumnIndex(array_search($nom, $entetes) + 1);
@@ -391,28 +439,39 @@ foreach ($onglets as $cle => [$titre, $couleur]) {
 }
 // Onglet « Entreprises »
 $ws = $wb->createSheet()->setTitle('Entreprises');
-$colonnes = ['Entreprise' => 26, 'Type' => 24, 'Relation' => 16, 'Contacts' => 10, 'Échanges' => 10, 'Dernier échange' => 14,
-    'Domaine' => 26, 'Type : indice' => 36, 'Contacts principaux' => 90];
+$colonnes = ['Entreprise' => 24, 'Nom vérifié' => 30, 'Type' => 24, 'Secteur' => 28, 'Confiance' => 11, 'Relation' => 16, 'Contacts' => 10,
+    'Échanges' => 10, 'Dernier échange' => 14, 'Domaine' => 26, 'Type : indice' => 36, 'Secteur : source' => 40, 'Contacts principaux' => 90];
 $noms = array_keys($colonnes);
+$col = fn ($nom) => Coordinate::stringFromColumnIndex(array_search($nom, $noms) + 1);
 $ws->fromArray($noms, null, 'A1');
 foreach ($societes as $i => $s) {
     foreach ($noms as $c => $e) {
         $cell = $ws->getCell([$c + 1, $i + 2]);
-        in_array($e, ['Entreprise', 'Domaine', 'Contacts principaux'], true) ? $cell->setValueExplicit((string) $s[$e], DataType::TYPE_STRING) : $cell->setValue($s[$e]);
+        in_array($e, ['Entreprise', 'Nom vérifié', 'Domaine', 'Secteur : source', 'Contacts principaux'], true)
+            ? $cell->setValueExplicit((string) $s[$e], DataType::TYPE_STRING) : $cell->setValue($s[$e]);
     }
 }
 $der = max(count($societes) + 1, 2);
-$ws->getStyle('F2:F' . $der)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
-$ws->getStyle('A1:I1')->getFont()->setBold(true);
-$ws->getStyle('A1:I1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E8DDF7');
+$fin = $col('Contacts principaux');
+$ws->getStyle($col('Dernier échange') . '2:' . $col('Dernier échange') . $der)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+$ws->getStyle("A1:{$fin}1")->getFont()->setBold(true);
+$ws->getStyle("A1:{$fin}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E8DDF7');
 $ws->freezePane('C2');
-$ws->setAutoFilter('A1:I' . $der);
+$ws->setAutoFilter("A1:{$fin}{$der}");
 foreach ($noms as $n => $e) $ws->getColumnDimensionByColumn($n + 1)->setWidth($colonnes[$e]);
 $ws->getTabColor()->setRGB('E8DDF7');
 
 $wb->setActiveSheetIndex(1);
+// Fichier ouvert dans Excel (verrouillé) : on écrit une copie datée à côté plutôt que d'échouer.
+if (is_file($sortie) && !($h = @fopen($sortie, 'r+'))) {
+    $sortie = preg_replace('/\.xlsx$/', ' ' . date('Y-m-d Hi') . '.xlsx', $sortie);
+    fwrite(STDERR, "Le fichier trié est ouvert dans Excel : copie écrite à côté.\n");
+} elseif (isset($h) && $h) {
+    fclose($h);
+}
 (new Xlsx($wb))->save($sortie);
 
 echo "Écrit : $sortie\n";
 foreach ($onglets as $cle => [$titre]) echo '  ' . str_pad($titre, 20) . count($groupes[$cle]) . ' contacts, ' . $entreprises($cle) . " entreprises\n";
 echo "  Types (entreprises) : " . implode(' · ', array_map(fn ($t) => $t . ' ' . ($parType[$t] ?? 0), $ORDRE_TYPES)) . "\n";
+echo '  Secteurs (entreprises) : ' . ($parSecteur ? implode(' · ', array_map(fn ($s, $n) => "$s $n", array_keys($parSecteur), $parSecteur)) : 'aucun fichier secteurs.csv') . "\n";
