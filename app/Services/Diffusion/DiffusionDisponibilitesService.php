@@ -218,18 +218,14 @@ class DiffusionDisponibilitesService
 
             $envoi->update(['statut' => DiffusionEnvoi::STATUT_PREPARE, 'erreur' => null]);
 
-            $panneaux = $this->panneauxDiffusables($debut, $fin);
-            $pdf = $this->pdfBuilder->rendre($panneaux, $debut->toDateString(), $fin->toDateString(), [
-                'hide_status'  => false,  // la disponibilité DOIT apparaître
-                'show_pricing' => false,  // règle validée : pas de prix
-            ]);
+            [$nbPanneaux, $contenu] = $this->renduCatalogue($debut, $fin);
 
             $token = Str::random(48);
             $chemin = sprintf('diffusions/%s_%s_%s.pdf', $creneau->format('Y-m-d'), $mode, $token);
-            Storage::disk('local')->put($chemin, $pdf->output());
+            Storage::disk('local')->put($chemin, $contenu);
 
             $envoi->update([
-                'nb_panneaux' => $panneaux->count(),
+                'nb_panneaux' => $nbPanneaux,
                 'pdf_path'    => $chemin,
                 'pdf_token'   => $token,
             ]);
@@ -239,6 +235,58 @@ class DiffusionDisponibilitesService
         }
 
         return $envoi;
+    }
+
+    /**
+     * Le catalogue d'une période, tel qu'il part aux clients.
+     *
+     * @return array{0: int, 1: string}  nombre de panneaux, contenu du PDF
+     */
+    public function renduCatalogue(CarbonInterface $debut, CarbonInterface $fin): array
+    {
+        $panneaux = $this->panneauxDiffusables($debut, $fin);
+        $pdf = $this->pdfBuilder->rendre($panneaux, $debut->toDateString(), $fin->toDateString(), [
+            'hide_status'  => false,  // la disponibilité DOIT apparaître
+            'show_pricing' => false,  // règle validée : pas de prix
+        ]);
+
+        return [$panneaux->count(), $pdf->output()];
+    }
+
+    /**
+     * Catalogues envoyés dont le PDF a disparu du disque (2026-10-28).
+     *
+     * En production, le conteneur est recréé à chaque mise en ligne : un
+     * fichier hors volume persistant est perdu, et le lien reçu par les
+     * clients répondait 404. On refait le PDF au même chemin, donc avec le
+     * même lien, sans toucher au statut ni au jeton : un envoi déjà parti ne
+     * doit jamais repartir. Une seule génération par période (~7 min),
+     * partagée par les envois de cette période. Le catalogue refait montre
+     * les disponibilités du moment.
+     *
+     * @return int  nombre de PDF refaits
+     */
+    public function reparerPdfsManquants(): int
+    {
+        $disque = Storage::disk('local');
+        $manquants = DiffusionEnvoi::where('statut', DiffusionEnvoi::STATUT_ENVOYE)
+            ->whereNotNull('pdf_path')
+            ->whereDate('periode_fin', '>=', today()->toDateString())
+            ->get()
+            ->reject(fn (DiffusionEnvoi $e) => $disque->exists($e->pdf_path));
+
+        $refaits = 0;
+        foreach ($manquants->groupBy(fn (DiffusionEnvoi $e) => $e->periode_debut->toDateString() . '_' . $e->periode_fin->toDateString()) as $envois) {
+            @ini_set('memory_limit', '1024M');
+            @set_time_limit(0);
+            [, $contenu] = $this->renduCatalogue($envois->first()->periode_debut, $envois->first()->periode_fin);
+            foreach ($envois as $envoi) {
+                $disque->put($envoi->pdf_path, $contenu);
+                $refaits++;
+            }
+        }
+
+        return $refaits;
     }
 
     /**

@@ -4,6 +4,11 @@
 @php
     $espaceClient = request()->is('client', 'client/*');
     $connexion = $espaceClient ? route('client.login') : route('login');
+    // Lien reçu par un client, sans compte Panora (catalogue, proposition, renouvellement…) :
+    // on lui donne les coordonnées de CIBLE, pas une page de connexion (2026-10-28).
+    $lienClient = request()->is('dispos/*', 'proposition/*', 'renouvellement/*', 'renouvellement-essai/*',
+        'satisfaction/*', 'pige/*', 'tech/*', 'pose/*', 'desinscription/*');
+    $coordonnees = config('charte.coordonnees');
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
@@ -51,17 +56,30 @@
         <img class="logo" src="{{ asset('images/panora-blanc.png') }}" alt="Panora">
         <div class="code">@yield('code')</div>
         <h1>@yield('titre')</h1>
-        @yield('message')
+        @if($lienClient)
+            @hasSection('message-client') @yield('message-client') @else @yield('message') @endif
+        @else
+            @yield('message')
+        @endif
         <div class="actions">
-            @section('actions')
-                <a class="btn btn-primaire" href="{{ $connexion }}">Se connecter</a>
-                <button type="button" class="btn btn-secondaire" data-repli="{{ $connexion }}"
-                        onclick="history.length > 1 ? history.back() : location.assign(this.dataset.repli)">Revenir à la page précédente</button>
-            @show
+            @if($lienClient)
+                <a class="btn btn-primaire" href="mailto:{{ $coordonnees['email'] }}?subject={{ rawurlencode('Lien reçu de CIBLE') }}">Écrire à CIBLE</a>
+                <button type="button" class="btn btn-secondaire" onclick="location.reload()">Réessayer</button>
+            @else
+                @section('actions')
+                    <a class="btn btn-primaire" href="{{ $connexion }}">Se connecter</a>
+                    <button type="button" class="btn btn-secondaire" data-repli="{{ $connexion }}"
+                            onclick="history.length > 1 ? history.back() : location.assign(this.dataset.repli)">Revenir à la page précédente</button>
+                @show
+            @endif
         </div>
-        @section('note')
-            <div class="note">Déjà connecté ? « Se connecter » vous ramène directement à votre tableau de bord.</div>
-        @show
+        @if($lienClient)
+            <div class="note">{{ $coordonnees['email'] }} · {{ $coordonnees['telephones'] }}</div>
+        @else
+            @section('note')
+                <div class="note">Déjà connecté ? « Se connecter » vous ramène directement à votre tableau de bord.</div>
+            @show
+        @endif
     </main>
 </body>
 </html>
