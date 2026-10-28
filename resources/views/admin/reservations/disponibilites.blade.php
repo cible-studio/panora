@@ -227,7 +227,7 @@
                 </div>
                 <button id="btn-select-all" type="button" onclick="DISPO.selectAll()"
                         class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
-                        title="Sélectionner tous les panneaux disponibles + en option">
+                        title="Sélectionner tous les panneaux du résultat, toutes pages confondues (disponibles + en option)">
                     ☑ <span id="btn-select-all-label">Tout sélectionner</span>
                 </button>
             </div>
@@ -1390,6 +1390,8 @@
                     debounce: null,
                     searchDebounce: null,
                     _lastPanels: [],
+                    _toutIds: null,    // panneaux cochés par « Tout sélectionner » (toutes pages)
+                    _cleFiltres: '',   // filtres du dernier chargement, page exclue
                 };
 
                 // ✅ FIX CRITIQUE — exposer S globalement pour submitForm()
@@ -1865,6 +1867,7 @@
                             if (chk) chk.checked = sel;
                         }
                         this._syncSelBar();
+                        this._syncSelectAllLabel();
                     },
 
                     clearSelection() {
@@ -1881,41 +1884,48 @@
                             const chk = el.querySelector('.card-chk');
                             if (chk) chk.checked = false;
                         });
+                        S._toutIds = null;
                         this._syncSelBar();
-                    },
-
-                    // Toggle "Tout sélectionner" / "Tout désélectionner".
-                    // Cible tous les panneaux is_selectable du résultat AJAX
-                    // courant (S._lastPanels). Bascule via toggle() pour
-                    // garder le state cohérent (statuses inclus).
-                    selectAll() {
-                        const all = (S._lastPanels || []).filter(p => p.is_selectable);
-                        if (all.length === 0) return;
-                        const allSelected = all.every(p => S.sel.ids.includes(String(p.id)));
-
-                        if (allSelected) {
-                            // Tout déjà coché → décocher tout
-                            all.forEach(p => {
-                                if (S.sel.ids.includes(String(p.id))) {
-                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status, p.selectable_from || null);
-                                }
-                            });
-                        } else {
-                            all.forEach(p => {
-                                if (!S.sel.ids.includes(String(p.id))) {
-                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status, p.selectable_from || null);
-                                }
-                            });
-                        }
                         this._syncSelectAllLabel();
                     },
 
+                    // Toggle "Tout sélectionner" / "Tout désélectionner" (2026-10-28) :
+                    // vise TOUT le résultat des filtres, toutes pages confondues,
+                    // et plus seulement la page affichée. Seuls les panneaux
+                    // is_selectable sont cochés. Bascule via toggle() pour garder
+                    // le state cohérent (statuses inclus).
+                    async selectAll() {
+                        const btn = _el('btn-select-all');
+                        const lbl = _el('btn-select-all-label');
+                        if (btn) btn.disabled = true;
+                        if (lbl) lbl.textContent = 'Chargement…';
+                        try {
+                            const all = (await this._chargerTout()).filter(p => p.is_selectable);
+                            if (all.length === 0) return;
+                            const allSelected = all.every(p => S.sel.ids.includes(String(p.id)));
+                            all.forEach(p => {
+                                const coche = S.sel.ids.includes(String(p.id));
+                                if (allSelected ? coche : !coche) {
+                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status, p.selectable_from || null);
+                                }
+                            });
+                            S._toutIds = allSelected ? null : all.map(p => String(p.id));
+                        } catch (err) {
+                            this.showError(['Impossible de charger tous les panneaux. Vérifiez votre connexion et réessayez.']);
+                            console.error('[DISPO]', err);
+                        } finally {
+                            if (btn) btn.disabled = false;
+                            this._syncSelectAllLabel();
+                        }
+                    },
+
+                    // « Tout désélectionner » seulement quand tout le résultat a été
+                    // coché par « Tout sélectionner » et l'est toujours.
                     _syncSelectAllLabel() {
-                        const all = (S._lastPanels || []).filter(p => p.is_selectable);
                         const lbl = _el('btn-select-all-label');
                         if (!lbl) return;
-                        if (all.length === 0) { lbl.textContent = 'Tout sélectionner'; return; }
-                        const allSelected = all.every(p => S.sel.ids.includes(String(p.id)));
+                        const tout = S._toutIds || [];
+                        const allSelected = tout.length > 0 && tout.every(id => S.sel.ids.includes(id));
                         lbl.textContent = allSelected ? 'Tout désélectionner' : 'Tout sélectionner';
                     },
 
@@ -2296,19 +2306,13 @@
                         const rid = ++S.reqId;
                         S.loading = true;
                         _showLoader();
-                        const p = new URLSearchParams();
-                        S.f.commune_ids.forEach(id => p.append('commune_ids[]', id));
-                        S.f.zone_ids.forEach(id => p.append('zone_ids[]', id));
-                        S.f.format_ids.forEach(id => p.append('format_ids[]', id));
-                        S.f.category_ids.forEach(id => p.append('category_ids[]', id));
-                        S.f.agency_ids.forEach(id => p.append('agency_ids[]', id));
-                        if (S.f.dimensions) p.set('dimensions', S.f.dimensions);
-                        if (S.f.is_lit !== '') p.set('is_lit', S.f.is_lit);
-                        if (S.f.statut !== 'tous') p.set('statut', S.f.statut);
-                        if (S.f.du) p.set('dispo_du', S.f.du);
-                        if (S.f.au) p.set('dispo_au', S.f.au);
-                        if (S.f.source !== 'all') p.set('source', S.f.source);
-                        if (S.f.q) p.set('q', S.f.q);
+                        const p = this._params();
+                        // Filtres changés (pas seulement la page) : « Tout désélectionner »
+                        // ne vaut plus pour ce nouveau résultat.
+                        if (p.toString() !== S._cleFiltres) {
+                            S._cleFiltres = p.toString();
+                            S._toutIds = null;
+                        }
                         p.set('page', S.page);
                         p.set('per_page', S.perPage);
                         try {
@@ -2352,6 +2356,45 @@
                             _showEmpty('Erreur de chargement', 'Vérifiez votre connexion ou réessayez.');
                             console.error('[DISPO]', err);
                         }
+                    },
+
+                    // Filtres de l'écran, sans la page : partagés par l'affichage et
+                    // par « Tout sélectionner », pour viser exactement le même résultat.
+                    _params() {
+                        const p = new URLSearchParams();
+                        S.f.commune_ids.forEach(id => p.append('commune_ids[]', id));
+                        S.f.zone_ids.forEach(id => p.append('zone_ids[]', id));
+                        S.f.format_ids.forEach(id => p.append('format_ids[]', id));
+                        S.f.category_ids.forEach(id => p.append('category_ids[]', id));
+                        S.f.agency_ids.forEach(id => p.append('agency_ids[]', id));
+                        if (S.f.dimensions) p.set('dimensions', S.f.dimensions);
+                        if (S.f.is_lit !== '') p.set('is_lit', S.f.is_lit);
+                        if (S.f.statut !== 'tous') p.set('statut', S.f.statut);
+                        if (S.f.du) p.set('dispo_du', S.f.du);
+                        if (S.f.au) p.set('dispo_au', S.f.au);
+                        if (S.f.source !== 'all') p.set('source', S.f.source);
+                        if (S.f.q) p.set('q', S.f.q);
+                        return p;
+                    },
+
+                    // Tous les panneaux du résultat, toutes pages confondues
+                    // (2026-10-28) : le serveur en renvoie 200 au plus par appel.
+                    async _chargerTout() {
+                        const url = D.ajaxUrl.replace(/^http:\/\//i, 'https://');
+                        const tous = [];
+                        for (let page = 1; page <= 100; page++) {
+                            const p = this._params();
+                            p.set('page', page);
+                            p.set('per_page', 200);
+                            const res = await fetch(`${url}?${p}`, {
+                                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': D.csrf }
+                            });
+                            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                            const data = await res.json();
+                            tous.push(...(data.panels || []));
+                            if (page >= ((data.stats && data.stats.pages) || 1)) break;
+                        }
+                        return tous;
                     },
 
                     // ── RENDU PANNEAUX ────────────────────────────────────
