@@ -366,7 +366,14 @@ class ClientController extends Controller
     public function update(UpdateClientRequest $request, Client $client)
     {
         $oldName = $client->name;
+        $etaitProspect = $client->estProspect();
         $client->update($request->validated());
+
+        // Fiche passée de Prospect à Client à la main : même règle qu'à la
+        // première campagne, ses interlocuteurs passent clients (2026-10-28).
+        if ($etaitProspect && !$client->estProspect()) {
+            $client->passerClient();
+        }
 
         Log::info('client.updated', [
             'client_id' => $client->id,

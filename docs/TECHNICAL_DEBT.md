@@ -13,9 +13,16 @@ Remplacée par `destinatairesCampagne()` (mails de campagne : contacts cochés
 « reçoit les mails ») et `destinatairesDiffusion()` (dispos : contacts au
 statut client, jamais les prospects). Gardée (règle additive) et encore
 couverte par `RelanceFinCampagneMailTest`. À retirer quand plus rien ne
-l'attend. Point métier ouvert : passer une fiche de prospect à client à la
-main (formulaire) ne change pas le statut de ses interlocuteurs ; seule la
-première campagne les convertit tous.
+l'attend.
+
+### Liste des messageries personnelles en trois exemplaires (2026-10-28)
+
+Source unique côté Panora : `config/contacts.php` (`messageries_personnelles`),
+servie au Google Sheets par `/api/contacts-gmail/listes`. Les deux anciens
+outils de `docs/outils/` (`trier-contacts-gmail.php` ligne 69,
+`extracteur-contacts-gmail.gs` ligne 49) gardent leur propre copie. Le
+nouveau script du Sheets (étape 3) lit la liste de Panora ; à l'ajout d'une
+messagerie, mettre à jour les trois tant que les anciens outils servent.
 
 ### Migrations non SQLite-portables
 

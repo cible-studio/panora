@@ -50,6 +50,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // Webhook Brevo (2026-09-29) : c'est un serveur qui appelle, pas
             // un navigateur. Authentifié par le jeton secret de l'URL.
             'webhooks/brevo/*',
+            // Bouton « Envoyer à Panora » du Google Sheets (2026-10-28) :
+            // authentifié par le jeton secret de l'en-tête Authorization.
+            'api/contacts-gmail/*',
             // Désinscription (2026-10-21) : Gmail / Yahoo l'appellent en un
             // clic, sans jeton CSRF. Authentifiée par la signature du lien.
             'desinscription/*',
