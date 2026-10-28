@@ -94,6 +94,42 @@ $MOTS_PUB = '/webinar|webinaire|inscription|inscrivez|newsletter|forum|salon|con
     . 'magazine|edition|actualite|weekly|hebdo|mensuel|catalogue|black friday|cyber monday|nouvelle collection|vente flash/';
 $MOTS_EMPLOI = '/candidature|\bcv\b|curriculum|stage|stagiaire|demande d.?emploi|offre d.?emploi|lettre de motivation|recrutement|alternance|job\b|emploi/';
 
+// ── Type d'entreprise (2026-10-28) ────────────────────────────
+// Correction à la main : la colonne « Statut CRM » du Sheets l'emporte sur tout.
+$TYPES_CRM = ['agence' => 'Agence de communication', 'agence de communication' => 'Agence de communication',
+    'regie' => 'Régie publicitaire', 'regie publicitaire' => 'Régie publicitaire', 'media' => 'Média', 'medias' => 'Média',
+    'annonceur' => 'Annonceur', 'client' => 'Annonceur', 'fournisseur' => 'Fournisseur', 'institution' => 'Institution'];
+// Noms connus, cherchés dans le domaine.
+$CONNUS = [
+    'Régie publicitaire'      => '/jcdecaux|clearchannel|unfold|pubregie/',
+    'Agence de communication' => '/havas|mccann|dentsu|publicis|ogilvy|starcom|mindshare|wavemaker|carat|mediacom|groupm|tbwa|bbdo|leoburnett|saatchi|voodoo|orig[i]?n7|mediabrands|iprospect|zenithmedia|phdmedia|artdepartment/',
+    'Fournisseur'             => '/kpmg|deloitte|(^|\.)pwc\.|mazars|grantthornton|forvis|(^|[-.])bdo([-.]|$)|bdo-/',
+    'Média'                   => '/(^|\.)(rti|nci|groupefratmat|fratmat|abidjan\.net|linfodrome|lifetv|jeuneafrique|rfi|france24|canalplus|canal-plus)\./',
+];
+$INSTITUTION = '/(^|\.)gouv\.|\.gouv$|\.gov(\.|$)|\.edu(\.|$)|\.int$|ambassade|embassy|mairie|ministere|afdb\.org|(^|\.)un\.org|unicef|undp|worldbank|banquemondiale|bceao|uemoa/';
+// Mots du domaine (sans l'extension) : ordre = priorité (une « régie média » est une régie).
+$MOTS_DOMAINE = [
+    'Régie publicitaire'      => '/regie|afficheur|affichage|outdoor|ooh|billboard|kikaffich/',
+    'Média'                   => '/(^|[-.])(tv|radio|fm|presse|journal)([-.]|$)|tv$|magazine|onair|television/',
+    // Cabinets et prestataires de CIBLE (avocats, audit, comptables, imprimeurs) : avant « agence ».
+    'Fournisseur'             => '/avocat|notaire|audit|fiduciaire|comptab|imprim|print|serigraph|signaletique/',
+    'Agence de communication' => '/agenc|agency|communic|(^|[-.])com([-.]|$)|^com|com$|media|(^|[-.])pub|pub$|advertis|marketing|creati|studio|design|event|production|prod$|brand|digital|graphi/',
+];
+// Nom affiché : seulement des mots d'entreprise (« 100TASH COMMUNICATION »), jamais un service
+// d'annonceur (« Direction Communication »).
+$MOTS_NOM = [
+    'Régie publicitaire'      => '/\bregie\b|affichage|afficheur|outdoor/',
+    'Agence de communication' => '/\bagence\b|agency|communication|\bmedias?\b|advertising|\bpub\b|production|\bevents?\b/',
+];
+$NOM_DE_SERVICE = '/^(direction|service|departement|dept|pole|cellule|responsable|charge)\b/';
+$POSTES = [
+    'Régie publicitaire'      => '/regie/',
+    'Agence de communication' => '/media ?plann|media ?buyer|chef de publicite|head of advertising|directeu?r(ice)? de clientele|directeu?r(ice)? conseil|account (manager|director|executive)|planneur|traffic manager|directeu?r(ice)? de (la )?creation|directeu?r(ice)? artistique|concepteur|conceptrice/',
+    'Média'                   => '/journaliste|redacteur en chef|redactrice en chef/',
+];
+// Une agence achète pour le compte de ses annonceurs.
+$OBJETS_AGENCE = '/notre client|votre client/';
+
 // ══════════════════════════════════════════════════════════════
 // CLASSEMENT
 // ══════════════════════════════════════════════════════════════
@@ -109,8 +145,11 @@ foreach ($lignes as $r) {
     $metier = (bool) preg_match($MOTS_METIER, $objets);
     $client = (bool) preg_match($MOTS_CLIENT, $objets);
 
+    $crm = trim(sansAccent(isset($H['Statut CRM']) ? $v($r, 'Statut CRM') : ''));
+
     $cat = null; $raison = '';
-    if (domaineDans($dom, $INTERNES) || str_contains($local, 'cible') && ($perso || $dom === '')
+    if ($crm === 'exclure') { $cat = 'ecarte'; $raison = 'Marqué « Exclure » dans le fichier'; }
+    elseif (domaineDans($dom, $INTERNES) || str_contains($local, 'cible') && ($perso || $dom === '')
         || preg_match($MOTS_INTERNE, $objets)) { $cat = 'ecarte'; $raison = 'CIBLE (interne)'; }
     elseif (preg_match($MOTS_RH, $objets) && !preg_match($MOTS_PANNEAU, $objets)) { $cat = 'ecarte'; $raison = 'RH / personnel'; }
     elseif (domaineDans($dom, $OUTILS)) { $cat = 'ecarte'; $raison = 'Outil / plateforme'; }
@@ -121,7 +160,39 @@ foreach ($lignes as $r) {
 
     preg_match_all($MOTS_CLIENT, $objets, $m1); preg_match_all($MOTS_METIER, $objets, $m2);
     $indices = implode(', ', array_slice(array_unique(array_map('trim', array_merge($m1[0], $m2[0]))), 0, 5));
-    $res[] = compact('r', 'email', 'dom', 'env', 'rec', 'ech', 'perso', 'cat', 'raison', 'client', 'indices');
+
+    // Indices du type d'entreprise, du plus sûr (0) au moins sûr.
+    $signaux = [];
+    $ajouter = function (int $rang, string $type, string $source) use (&$signaux) { $signaux[] = compact('rang', 'type', 'source'); };
+    if (isset($TYPES_CRM[$crm])) $ajouter(0, $TYPES_CRM[$crm], 'Statut CRM « ' . $v($r, 'Statut CRM') . ' »');
+    if (!$perso && $dom !== '') {
+        foreach ($CONNUS as $type => $re) if (preg_match($re, $dom)) { $ajouter(1, $type, 'nom connu'); break; }
+        if (preg_match($INSTITUTION, $dom, $m)) $ajouter(2, 'Institution', 'domaine « ' . $m[0] . ' »');
+        $etiquette = preg_replace('/\.[a-z]{2,}(\.[a-z]{2})?$/', '', $dom);
+        if (!str_contains($etiquette, 'telecom')) {
+            foreach ($MOTS_DOMAINE as $type => $re) if (preg_match($re, $etiquette, $m)) { $ajouter(3, $type, 'domaine « ' . trim($m[0], '-.') . ' »'); break; }
+        }
+    } elseif ($perso) {
+        foreach ($MOTS_NOM as $type => $re) if (preg_match($re, str_replace(['.', '_', '-'], ' ', $local), $m)) { $ajouter(4, $type, 'adresse « ' . $m[0] . ' »'); break; }
+    }
+    // Nom affiché, sans ce qui est entre crochets ou parenthèses (« [ECI-Marketing & Communication] »).
+    // Une boîte de service (communication@, agencecentrale@, events.abidjan@) décrit un service
+    // de l'entreprise, pas son métier : son nom ne compte pas pour « agence ».
+    $nom = trim(preg_replace('/\[[^\]]*\]|\([^)]*\)/', ' ', sansAccent($v($r, 'Nom'))));
+    $boiteDeService = (bool) preg_match($MOTS_NOM['Agence de communication'], str_replace(['.', '_', '-'], ' ', $local))
+        || (bool) preg_match('/^(agence|communication|events?)/', $local);
+    if (!preg_match($NOM_DE_SERVICE, $nom)) {
+        foreach ($MOTS_NOM as $type => $re) {
+            if (!preg_match($re, $nom, $m)) continue;
+            if (!($type === 'Agence de communication' && $boiteDeService)) $ajouter(4, $type, 'nom « ' . $m[0] . ' »');
+            break;
+        }
+    }
+    $poste = sansAccent(isset($H['Poste (signature)']) ? $v($r, 'Poste (signature)') : '');
+    foreach ($POSTES as $type => $re) if (preg_match($re, $poste)) { $ajouter(5, $type, 'poste « ' . $v($r, 'Poste (signature)') . ' »'); break; }
+    if (preg_match($OBJETS_AGENCE, $objets, $m)) $ajouter(6, 'Agence de communication', 'objets « ' . $m[0] . ' »');
+
+    $res[] = compact('r', 'email', 'dom', 'env', 'rec', 'ech', 'perso', 'cat', 'raison', 'client', 'indices', 'crm', 'signaux');
 }
 
 // Les collègues d'une entreprise déjà en relation commerciale sont gardés aussi.
@@ -149,6 +220,43 @@ foreach ($res as &$x) {
     }
 }
 unset($x);
+// « Client » écrit dans le Statut CRM (à la main, ou via « Domaines clients » des Réglages).
+foreach ($res as &$x) {
+    if ($x['crm'] === 'client' && in_array($x['cat'], ['prospect', 'verifier'], true)) {
+        $x['cat'] = 'client';
+        $x['raison'] = 'Marqué « Client » dans le fichier';
+    }
+}
+unset($x);
+
+// Type d'entreprise : décidé pour tout le domaine (un indice d'un contact vaut pour ses collègues),
+// par l'indice le plus sûr, puis par le type le plus fréquent à sûreté égale.
+$choisir = function (array $signaux): ?array {
+    if (!$signaux) return null;
+    $rang = min(array_column($signaux, 'rang'));
+    $meilleurs = array_values(array_filter($signaux, fn ($s) => $s['rang'] === $rang));
+    $nb = array_count_values(array_column($meilleurs, 'type'));
+    arsort($nb);
+    $type = array_key_first($nb);
+    foreach ($meilleurs as $s) if ($s['type'] === $type) return $s;
+};
+$parDomaine = [];
+foreach ($res as $x) {
+    if ($x['perso'] || $x['dom'] === '') continue;
+    $parDomaine[$x['dom']] ??= [];
+    array_push($parDomaine[$x['dom']], ...$x['signaux']);
+}
+$typesDomaine = array_map($choisir, $parDomaine);
+$commercial = [];
+foreach ($res as $x) if (in_array($x['cat'], ['client', 'prospect'], true)) $commercial[$x['dom']] = true;
+foreach ($res as &$x) {
+    $s = (!$x['perso'] && $x['dom'] !== '') ? $typesDomaine[$x['dom']] : $choisir($x['signaux']);
+    if ($s) { $x['type'] = $s['type']; $x['typeSource'] = $s['source']; }
+    elseif ($x['perso']) { $x['type'] = 'Non déterminé'; $x['typeSource'] = 'adresse personnelle sans indice'; }
+    elseif (isset($commercial[$x['dom']])) { $x['type'] = 'Annonceur'; $x['typeSource'] = 'par défaut : ni régie, ni agence, ni média repérés'; }
+    else { $x['type'] = 'Autre'; $x['typeSource'] = 'aucun indice'; }
+}
+unset($x);
 
 // ══════════════════════════════════════════════════════════════
 // FICHIER EXCEL
@@ -161,6 +269,7 @@ foreach ($res as $x) {
     $sens = $x['env'] > 0 && $x['rec'] > 0 ? 'Dans les deux sens' : ($x['env'] > 0 ? 'CIBLE lui a écrit' : ($x['rec'] > 0 ? 'Il a écrit à CIBLE' : 'En copie'));
     $groupes[$x['cat']][] = [
         'Entreprise' => $x['perso'] ? '' : $v($r, 'Entreprise (déduite)'),
+        'Type' => $x['type'],
         'Nom' => $v($r, 'Nom'),
         'Poste' => isset($H['Poste (signature)']) ? $v($r, 'Poste (signature)') : '',
         'E-mail' => $x['email'],
@@ -174,8 +283,38 @@ foreach ($res as $x) {
         'Objets récents' => $v($r, 'Objets récents'),
         'Indices' => $x['indices'],
         'Classement' => $x['raison'],
+        'Type : indice' => $x['typeSource'],
     ];
 }
+
+// Une ligne par entreprise (domaine professionnel), hors contacts écartés.
+$RELATIONS = ['client' => 'Client probable', 'prospect' => 'Prospect', 'verifier' => 'À vérifier'];
+$ORDRE_TYPES = ['Régie publicitaire', 'Agence de communication', 'Média', 'Annonceur', 'Institution', 'Fournisseur', 'Autre'];
+$societes = [];
+foreach ($res as $x) {
+    if ($x['perso'] || $x['dom'] === '' || $x['cat'] === 'ecarte') continue;
+    $r = $x['r'];
+    $s = &$societes[$x['dom']];
+    $s ??= ['Entreprise' => $v($r, 'Entreprise (déduite)'), 'Type' => $x['type'], 'Relation' => $x['cat'], 'Contacts' => 0,
+        'Échanges' => 0, 'Dernier échange' => null, 'Domaine' => $x['dom'], 'Type : indice' => $x['typeSource'], 'liste' => []];
+    $s['Contacts']++;
+    $s['Échanges'] += $x['ech'];
+    $d = $date($r[$H['Dernier échange']]);
+    if ($d && (!$s['Dernier échange'] || $d > $s['Dernier échange'])) $s['Dernier échange'] = $d;
+    if (array_search($x['cat'], array_keys($RELATIONS)) < array_search($s['Relation'], array_keys($RELATIONS))) $s['Relation'] = $x['cat'];
+    $s['liste'][] = [$x['ech'], trim($v($r, 'Nom') . ' <' . $x['email'] . '>')];
+    unset($s);
+}
+foreach ($societes as &$s) {
+    rsort($s['liste']);
+    $s['Contacts principaux'] = implode(' ; ', array_column(array_slice($s['liste'], 0, 3), 1));
+    $s['Relation'] = $RELATIONS[$s['Relation']];
+    unset($s['liste']);
+}
+unset($s);
+$societes = array_values($societes);
+usort($societes, fn ($a, $b) => [array_search($a['Type'], $ORDRE_TYPES), -$a['Échanges']] <=> [array_search($b['Type'], $ORDRE_TYPES), -$b['Échanges']]);
+$parType = array_count_values(array_column($societes, 'Type'));
 
 // Entreprises A→Z (adresses personnelles à la fin), puis les contacts les plus actifs d'abord.
 $parEntreprise = function ($a, $b) {
@@ -204,23 +343,30 @@ $lire->fromArray([
     ['Clients probables', count($groupes['client']), $entreprises('client'), "Les objets des mails montrent une affaire conclue : facture, bon de commande, BAT, pose, pige, règlement, contrat, renouvellement… Toute l'entreprise est classée ainsi."],
     ['Prospects', count($groupes['prospect']), $entreprises('prospect'), "Demandes de disponibilités, devis, propositions et prospections de CIBLE, sans trace d'affaire conclue."],
     ['À vérifier', count($groupes['verifier']), $entreprises('verifier'), 'Échanges réels mais objet non commercial : partenaires, cabinets, fournisseurs, contacts personnels.'],
-    ['Écartés', count($groupes['ecarte']), $entreprises('ecarte'), 'CIBLE (interne), RH et personnel, outils et plateformes, envois automatiques, publicités et événements, candidatures, adresses vues une seule fois en copie. La raison est indiquée pour chacun.'],
+    ['Écartés', count($groupes['ecarte']), $entreprises('ecarte'), 'CIBLE (interne), RH et personnel, outils et plateformes, envois automatiques, publicités et événements, candidatures, adresses vues une seule fois en copie, « Exclure » du Statut CRM. La raison est indiquée pour chacun.'],
+    ['Entreprises', '', count($societes), "Une ligne par entreprise (adresses professionnelles, hors écartés) : type, relation, nombre de contacts, contacts principaux."],
+    [''],
+    ['Types d\'entreprise', 'Entreprises'],
+    ...array_map(fn ($t) => [$t, $parType[$t] ?? 0], $ORDRE_TYPES),
     [''],
     ['À savoir'],
     ['• « Client probable » est déduit des objets de mails. La comparaison avec la liste des clients Panora confirmera chaque client.'],
-    ['• Les colonnes « Indices » et « Classement » montrent ce qui a décidé du classement.'],
+    ['• Le type vient, du plus sûr au moins sûr : du Statut CRM, d\'un nom connu (Havas, McCann, JCDecaux, Unfold, RTI…), du domaine (regie, agence, media, tv…), du nom affiché, du poste de la signature, puis des objets (« notre client »). Sans indice : « Annonceur ».'],
+    ['• Pour corriger : dans le Sheets, écrivez « Agence », « Régie », « Média », « Annonceur », « Fournisseur », « Client » ou « Exclure » dans la colonne Statut CRM d\'un contact, puis réexportez. Le type vaut pour toute l\'entreprise.'],
+    ['• Les colonnes « Indices », « Classement » et « Type : indice » montrent ce qui a décidé de chaque classement.'],
     ['• Les téléphones et les postes viennent des signatures : à vérifier avant usage.'],
     ['• Fichier confidentiel : coordonnées de clients et prospects. Ne pas diffuser hors de CIBLE.'],
 ], null, 'A1');
 $lire->getStyle('A1')->getFont()->setBold(true)->setSize(14);
 $lire->getStyle('A6:D6')->getFont()->setBold(true);
-$lire->getStyle('A12')->getFont()->setBold(true);
-foreach (['A' => 22, 'B' => 12, 'C' => 12, 'D' => 110] as $c => $l) $lire->getColumnDimension($c)->setWidth($l);
-$lire->getStyle('D7:D10')->getAlignment()->setWrapText(true);
+$lire->getStyle('A13:B13')->getFont()->setBold(true);
+$lire->getStyle('A' . (14 + count($ORDRE_TYPES) + 1))->getFont()->setBold(true);
+foreach (['A' => 24, 'B' => 12, 'C' => 12, 'D' => 110] as $c => $l) $lire->getColumnDimension($c)->setWidth($l);
+$lire->getStyle('D7:D11')->getAlignment()->setWrapText(true);
 
 $onglets = ['client' => ['Clients probables', 'D9F2D0'], 'prospect' => ['Prospects', 'DCE8F7'], 'verifier' => ['À vérifier', 'FFF2CC'], 'ecarte' => ['Écartés', 'EDEDED']];
-$largeurs = ['Entreprise' => 22, 'Nom' => 26, 'Poste' => 26, 'E-mail' => 34, 'Téléphone(s)' => 24, "Type d'adresse" => 15, 'Dernier échange' => 14, 'Premier échange' => 14,
-    'Échanges' => 10, 'Sens des échanges' => 19, 'Boîtes CIBLE' => 30, 'Objets récents' => 70, 'Indices' => 30, 'Classement' => 34];
+$largeurs = ['Entreprise' => 22, 'Type' => 22, 'Nom' => 26, 'Poste' => 26, 'E-mail' => 34, 'Téléphone(s)' => 24, "Type d'adresse" => 15, 'Dernier échange' => 14, 'Premier échange' => 14,
+    'Échanges' => 10, 'Sens des échanges' => 19, 'Boîtes CIBLE' => 30, 'Objets récents' => 70, 'Indices' => 30, 'Classement' => 34, 'Type : indice' => 34];
 $entetes = array_keys($largeurs);
 $lettre = fn ($nom) => Coordinate::stringFromColumnIndex(array_search($nom, $entetes) + 1);
 $texte = ['E-mail', 'Téléphone(s)', 'Nom', 'Poste', 'Objets récents']; // jamais convertis en nombre ou en formule
@@ -234,7 +380,7 @@ foreach ($onglets as $cle => [$titre, $couleur]) {
         }
     }
     $der = max(count($groupes[$cle]) + 1, 2);
-    $fin = $lettre('Classement');
+    $fin = $lettre('Type : indice');
     $ws->getStyle($lettre('Dernier échange') . '2:' . $lettre('Premier échange') . $der)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
     $ws->getStyle("A1:{$fin}1")->getFont()->setBold(true);
     $ws->getStyle("A1:{$fin}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($couleur);
@@ -243,8 +389,30 @@ foreach ($onglets as $cle => [$titre, $couleur]) {
     foreach ($entetes as $n => $e) $ws->getColumnDimensionByColumn($n + 1)->setWidth($largeurs[$e]);
     $ws->getTabColor()->setRGB($couleur);
 }
+// Onglet « Entreprises »
+$ws = $wb->createSheet()->setTitle('Entreprises');
+$colonnes = ['Entreprise' => 26, 'Type' => 24, 'Relation' => 16, 'Contacts' => 10, 'Échanges' => 10, 'Dernier échange' => 14,
+    'Domaine' => 26, 'Type : indice' => 36, 'Contacts principaux' => 90];
+$noms = array_keys($colonnes);
+$ws->fromArray($noms, null, 'A1');
+foreach ($societes as $i => $s) {
+    foreach ($noms as $c => $e) {
+        $cell = $ws->getCell([$c + 1, $i + 2]);
+        in_array($e, ['Entreprise', 'Domaine', 'Contacts principaux'], true) ? $cell->setValueExplicit((string) $s[$e], DataType::TYPE_STRING) : $cell->setValue($s[$e]);
+    }
+}
+$der = max(count($societes) + 1, 2);
+$ws->getStyle('F2:F' . $der)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+$ws->getStyle('A1:I1')->getFont()->setBold(true);
+$ws->getStyle('A1:I1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E8DDF7');
+$ws->freezePane('C2');
+$ws->setAutoFilter('A1:I' . $der);
+foreach ($noms as $n => $e) $ws->getColumnDimensionByColumn($n + 1)->setWidth($colonnes[$e]);
+$ws->getTabColor()->setRGB('E8DDF7');
+
 $wb->setActiveSheetIndex(1);
 (new Xlsx($wb))->save($sortie);
 
 echo "Écrit : $sortie\n";
 foreach ($onglets as $cle => [$titre]) echo '  ' . str_pad($titre, 20) . count($groupes[$cle]) . ' contacts, ' . $entreprises($cle) . " entreprises\n";
+echo "  Types (entreprises) : " . implode(' · ', array_map(fn ($t) => $t . ' ' . ($parType[$t] ?? 0), $ORDRE_TYPES)) . "\n";

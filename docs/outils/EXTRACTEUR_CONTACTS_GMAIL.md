@@ -87,9 +87,22 @@ Le script ne lit que la boîte de la personne qui le lance : personne ne peut li
    - **Clients probables** : les objets montrent une affaire conclue (facture, bon de commande, BAT, pose, pige, règlement…) ;
    - **Prospects** : demandes de disponibilités, devis, propositions ;
    - **À vérifier** ;
-   - **Écartés**, avec la raison.
+   - **Écartés**, avec la raison ;
+   - **Entreprises** : une ligne par entreprise, avec son type, sa relation et ses contacts principaux.
 
    Les colonnes « Indices » et « Classement » expliquent chaque décision. Relancer le script sur un export plus récent refait tout le tri.
+
+**Type d'entreprise** (régie publicitaire, agence de communication, média, annonceur, institution, fournisseur). Il est déduit, du plus sûr au moins sûr :
+1. du Statut CRM ;
+2. d'un nom connu (Havas, McCann, Dentsu, Art Department, JCDecaux, Unfold, RTI, NCI…) ;
+3. du domaine (`regie`, `ooh`, `agence`, `media`, `tv`, `avocat`, `print`…) ;
+4. du nom affiché (« 100TASH COMMUNICATION »), sauf pour une boîte de service comme `communication@` ;
+5. du poste de la signature (« Media Planner », « Chef de publicité », « Responsable régie ») ;
+6. des objets de mails (« notre client »).
+
+Il vaut pour toute l'entreprise. Une entreprise sans indice est classée « Annonceur ». La colonne « Type : indice » montre d'où vient le type.
+
+**Corriger à la main :** dans le Sheets, écrivez dans la colonne **Statut CRM** d'un contact « Agence », « Régie », « Média », « Annonceur », « Fournisseur », « Institution », « Client » ou « Exclure », puis réexportez. Le tri obéit à ces valeurs avant toute déduction.
 
 ## Avant d'utiliser ces contacts dans Brevo ⚠
 
