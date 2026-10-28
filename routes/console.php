@@ -167,6 +167,13 @@ Schedule::command('dispos:diffuser', ['--demandes'])
     ->everyMinute()
     ->withoutOverlapping(30)
     ->runInBackground();
+//     Chaque minute (2026-10-28) : catalogue envoyé dont le PDF a disparu
+//     (conteneur recréé à chaque mise en ligne) → refait au même lien.
+//     Une seule requête quand rien ne manque.
+Schedule::command('dispos:reparer-pdf')
+    ->everyMinute()
+    ->withoutOverlapping(30)
+    ->runInBackground();
 
 // 15. Sauvegarde nocturne de la base + des fichiers déposés (2026-10-02).
 //     spatie/laravel-backup, configuré dans config/backup.php ; guide :
