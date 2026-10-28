@@ -31,8 +31,25 @@ class DiffusionDisponibilitesController extends Controller
         private RelanceFinCampagneService $finCampagne,
     ) {}
 
-    public function index()
+    public function index(Request $request)
     {
+        // Journal (2026-10-28) : filtre, mois et pages courtes. Même avec des
+        // milliers d'envois, l'écran reste lisible ; le choix suit les pages.
+        $f = $request->query('journal');
+        $filtre = is_string($f) && isset(DiffusionEnvoi::FILTRES[$f]) ? $f : 'tous';
+        $m = $request->query('mois');
+        $mois = is_string($m) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $m) ? $m : null;
+        $compteurs = [];
+        foreach (array_keys(DiffusionEnvoi::FILTRES) as $cle) {
+            $compteurs[$cle] = DiffusionEnvoi::duMois($mois)->filtre($cle)->count();
+        }
+
+        // Adresses exclues : les 50 plus récentes, ou celles qui correspondent à la recherche.
+        $x = $request->query('exclu');
+        $rechercheExclu = is_string($x) ? trim($x) : '';
+        $exclusions = DiffusionDesinscription::when($rechercheExclu !== '',
+            fn($q) => $q->where('email', 'like', '%' . addcslashes($rechercheExclu, '%_\\') . '%'));
+
         $calendrier = $this->diffusion->calendrier();
         $prochain = $calendrier->prochainEnvoi(now());
         [$debut, $fin] = $calendrier->periode($prochain['creneau']);
@@ -57,14 +74,27 @@ class DiffusionDisponibilitesController extends Controller
             'confirmation'     => $this->diffusion->destinatairesInternes(
                 new DiffusionEnvoi(['mode' => DiffusionEnvoi::MODE_MANUEL])
             ),
-            'envois'           => DiffusionEnvoi::with('auteur:id,name')->latest('id')->paginate(15),
+            'envois'           => DiffusionEnvoi::with('auteur:id,name')->duMois($mois)->filtre($filtre)
+                                    ->latest('id')->paginate(10)->withQueryString()->fragment('journal'),
+            'journalEnvois'    => [
+                'filtre'     => $filtre,
+                'mois'       => $mois,
+                'compteurs'  => $compteurs,
+                'moisDispos' => DiffusionEnvoi::orderByDesc('created_at')->pluck('created_at')
+                                    ->map(fn($d) => $d->format('Y-m'))->unique()->values(),
+            ],
             'joursFeries'      => JourFerie::whereBetween('date', ["{$annee}-01-01", ($annee + 1) . '-12-31'])
                                     ->orderBy('date')->get(),
             'musulmanesManquantes' => array_values(array_filter(
                 [$annee, $annee + 1],
                 fn($a) => !$this->joursFeries->musulmanesSaisies($a)
             )),
-            'exclusions'       => DiffusionDesinscription::orderByDesc('survenu_at')->get(),
+            'exclusions'       => (clone $exclusions)->orderByDesc('survenu_at')->limit(50)->get(),
+            'exclusionsInfo'   => [
+                'total'     => DiffusionDesinscription::count(),
+                'trouvees'  => $rechercheExclu !== '' ? $exclusions->count() : null,
+                'recherche' => $rechercheExclu,
+            ],
             // Mail « Votre campagne se termine » J-7 (2026-10-21).
             'finCampagne'      => [
                 'modeTest'   => $this->finCampagne->estModeTest(),

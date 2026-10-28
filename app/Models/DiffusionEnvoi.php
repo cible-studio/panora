@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Journal des envois de disponibilités aux clients.
@@ -49,6 +51,30 @@ class DiffusionEnvoi extends Model
     public function lienPdf(): ?string
     {
         return $this->pdf_token ? route('diffusion.pdf', $this->pdf_token) : null;
+    }
+
+    /** Filtres du journal des envois (2026-10-28). */
+    public const FILTRES = ['tous' => 'Tous', 'clients' => 'Envois aux clients', 'tests' => 'Tests', 'echecs' => 'Échecs'];
+
+    public function scopeFiltre(Builder $q, string $filtre): Builder
+    {
+        return match ($filtre) {
+            'clients' => $q->whereIn('mode', [self::MODE_AUTO, self::MODE_MANUEL]),
+            'tests'   => $q->where('mode', self::MODE_TEST),
+            'echecs'  => $q->where('statut', self::STATUT_ECHEC),
+            default   => $q,
+        };
+    }
+
+    /** « 2026-10 » → les envois créés ce mois-là ; null ou autre chose → tous. */
+    public function scopeDuMois(Builder $q, ?string $mois): Builder
+    {
+        if ($mois === null || !preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $mois)) {
+            return $q;
+        }
+        $debut = Carbon::createFromFormat('Y-m-d', $mois . '-01')->startOfDay();
+
+        return $q->whereBetween('created_at', [$debut, $debut->copy()->endOfMonth()]);
     }
 
     public function libelleMode(): string
