@@ -8,7 +8,6 @@ use App\Jobs\SendSatisfactionSurvey;
 use App\Models\Campaign;
 use App\Models\PoseTask;
 use App\Services\AlertService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -57,12 +56,7 @@ class CampaignObserver
             if (!$client || !$client->estProspect()) {
                 return;
             }
-            DB::transaction(function () use ($client) {
-                $client->update(['statut_commercial' => \App\Models\Client::STATUT_CLIENT]);
-                // Requête simple : la relation contacts() est triée (UPDATE … ORDER BY refusé par SQLite).
-                \App\Models\ClientContact::where('client_id', $client->id)
-                    ->update(['statut' => \App\Models\Client::STATUT_CLIENT, 'receives_notifications' => true]);
-            });
+            $client->passerClient();
             Log::info('client.prospect_converti', ['client_id' => $client->id, 'campaign_id' => $campaign->id]);
         } catch (\Throwable $e) {
             Log::warning('client.prospect_conversion_echec', ['campaign_id' => $campaign->id, 'erreur' => $e->getMessage()]);

@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Notifications\Notifiable;
 
 class Client extends Authenticatable  // ← était "extends Model"
@@ -85,6 +86,21 @@ class Client extends Authenticatable  // ← était "extends Model"
     public function scopeProspects($query)
     {
         return $query->where('statut_commercial', self::STATUT_PROSPECT);
+    }
+
+    /**
+     * L'entreprise devient cliente : elle et tous ses interlocuteurs passent
+     * « client » et reçoivent les mails de campagne. Première campagne
+     * (CampaignObserver) ou fiche passée en Client à la main (2026-10-28).
+     */
+    public function passerClient(): void
+    {
+        DB::transaction(function () {
+            $this->update(['statut_commercial' => self::STATUT_CLIENT]);
+            // Requête simple : la relation contacts() est triée (UPDATE … ORDER BY refusé par SQLite).
+            ClientContact::where('client_id', $this->id)
+                ->update(['statut' => self::STATUT_CLIENT, 'receives_notifications' => true]);
+        });
     }
 
     /**

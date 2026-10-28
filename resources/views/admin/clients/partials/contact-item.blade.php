@@ -21,6 +21,10 @@
             @if(($contact->statut ?? 'client') === 'prospect')
                 <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;background:rgba(59,130,246,.12);color:#3b82f6;letter-spacing:.4px;">PROSPECT</span>
             @endif
+            @if($contact->source === \App\Services\Contacts\ContactsGmailService::SOURCE)
+                <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;background:rgba(234,67,53,.12);color:#ea4335;letter-spacing:.4px;cursor:help;"
+                      title="Arrivé du Google Sheets le {{ $contact->created_at?->format('d/m/Y') }}">GMAIL</span>
+            @endif
             @if(!$contact->receives_notifications)
                 <span style="font-size:9px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--surface3);color:var(--text3);" title="Ne reçoit pas les mails de campagne (renouvellement, fin de campagne)">sans mails de campagne</span>
             @endif

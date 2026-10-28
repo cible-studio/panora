@@ -19,7 +19,7 @@ class ClientContact extends Model
     protected $fillable = [
         'client_id', 'name', 'email', 'phone',
         'role', 'position', 'is_primary',
-        'receives_notifications', 'notes', 'statut',
+        'receives_notifications', 'notes', 'statut', 'source',
     ];
 
     /** Statut propre à chaque adresse (2026-10-28) : mêmes valeurs que Client::STATUTS. */

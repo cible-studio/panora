@@ -340,6 +340,17 @@ Route::post('/webhooks/brevo/{token}', [\App\Http\Controllers\Webhooks\BrevoWebh
     ->middleware('throttle:120,1')
     ->name('webhooks.brevo');
 
+// Bouton « Envoyer à Panora » du Google Sheets (2026-10-28). Jeton secret
+// dans l'en-tête Authorization, jamais dans l'adresse ; CSRF exempté dans
+// bootstrap/app.php.
+Route::prefix('api/contacts-gmail')->name('api.contacts-gmail.')
+    ->controller(\App\Http\Controllers\Api\ContactsGmailController::class)
+    ->middleware('throttle:30,1')
+    ->group(function () {
+        Route::get('/listes', 'listes')->name('listes');
+        Route::post('/envoyer', 'envoyer')->name('envoyer');
+    });
+
 // Lien « Ne plus recevoir nos messages commerciaux » des mails envoyés
 // par Panora (fin de campagne, 2026-10-21). Signature HMAC dans le chemin ;
 // le POST (bouton, ou désinscription en un clic de Gmail) est exempté de
@@ -985,6 +996,10 @@ Route::prefix('admin')
             ->name('clients.export.pdf');
         Route::get('clients/export/excel', [ClientController::class, 'exportExcel'])
             ->name('clients.export.excel');
+        // Journal des envois du Google Sheets (2026-10-28) — admin uniquement.
+        Route::get('clients/envois-gmail', [\App\Http\Controllers\Admin\EnvoisContactsGmailController::class, 'index'])
+            ->middleware('role:admin')
+            ->name('clients.envois-gmail');
         // Lecture clients : tous les staff
         Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
         Route::get('clients/create', [ClientController::class, 'create'])

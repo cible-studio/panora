@@ -51,6 +51,9 @@
                 <a class="ci-export-btn" href="#" id="export-pdf" style="text-decoration:none" title="Export PDF (paysage A4)">📄 PDF</a>
                 <button class="ci-export-btn" onclick="document.getElementById('modal-import-clients').style.display='flex'">📥 Import</button>
                 <a class="ci-export-btn" href="{{ route('admin.clients.import.template') }}" style="text-decoration:none">📋 Modèle</a>
+                @if(auth()->user()?->role?->value === 'admin')
+                    <a class="ci-export-btn" href="{{ route('admin.clients.envois-gmail') }}" style="text-decoration:none" title="Contacts reçus du Google Sheets (bouton « Envoyer à Panora »)">📨 Envois du Sheet</a>
+                @endif
             </div>
         </div>
     </div>
