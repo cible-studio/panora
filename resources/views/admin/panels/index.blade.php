@@ -3,7 +3,7 @@
 
     <x-slot name="topbarActions">
         <div style="position:relative;display:inline-block;" id="export-wrap">
-            <button onclick="document.getElementById('export-dropdown').classList.toggle('hidden')"
+            <button type="button" onclick="ouvrirExportPdf(this)"
                 class="btn btn-ghost btn-sm">
                 📄 Export PDF ▾
             </button>
@@ -271,6 +271,25 @@
 
     @push('scripts')
         <script>
+            // Menu « Export PDF » (2026-10-28) : la barre d'actions du haut coupe ce
+            // qui dépasse de sa hauteur (overflow, app.css .topbar-actions). Ouvert en
+            // position absolue, le menu était invisible et le bouton semblait mort.
+            // On le place par rapport à l'écran, juste sous le bouton.
+            function ouvrirExportPdf(bouton) {
+                const menu = document.getElementById('export-dropdown');
+                const ouvert = !menu.classList.toggle('hidden');
+                if (!ouvert) return;
+                const r = bouton.getBoundingClientRect();
+                menu.style.position = 'fixed';
+                menu.style.top = (r.bottom + 6) + 'px';
+                menu.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+                menu.style.maxHeight = (window.innerHeight - r.bottom - 16) + 'px';
+                menu.style.overflowY = 'auto';
+            }
+            // Le menu fixe ne suit pas le défilement : on le referme.
+            window.addEventListener('scroll', () => document.getElementById('export-dropdown')?.classList.add('hidden'), { passive: true });
+            window.addEventListener('resize', () => document.getElementById('export-dropdown')?.classList.add('hidden'));
+
             document.addEventListener('click', function(e) {
                 const wrap = document.getElementById('export-wrap');
                 if (wrap && !wrap.contains(e.target)) {
