@@ -101,6 +101,7 @@ class Client extends Authenticatable  // ← était "extends Model"
         'Médias & Communication',
         'ONG & Institutions',
         'Pharmaceutique & Santé',
+        'Régie publicitaire',      // 2026-10-28 : régies concurrentes ou partenaires (contacts Gmail)
         'Restauration',
         'Agence & Conseil',
         'Télécommunications',
