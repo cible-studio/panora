@@ -134,11 +134,41 @@
         </div>
     </div>
 
-    {{-- ═══ JOURNAL ═══ --}}
-    <div style="{{ $card }}margin-top:18px;">
-        <h2 style="{{ $h2 }}">📋 Journal des envois</h2>
+    {{-- ═══ JOURNAL ═══ (filtres et mois : 2026-10-28) --}}
+    @php $je = $journalEnvois; @endphp
+    <div id="journal" style="{{ $card }}margin-top:18px;scroll-margin-top:84px;">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">
+            <h2 style="{{ $h2 }}margin:0;">📋 Journal des envois</h2>
+            @if($je['moisDispos']->count() > 1)
+                <form method="GET" action="{{ url()->current() }}#journal" style="margin:0;">
+                    @if($je['filtre'] !== 'tous')<input type="hidden" name="journal" value="{{ $je['filtre'] }}">@endif
+                    <select name="mois" class="filter-input" style="height:34px;" onchange="this.form.submit()" aria-label="Mois">
+                        <option value="">Tous les mois</option>
+                        @foreach($je['moisDispos'] as $m)
+                            <option value="{{ $m }}" @selected($je['mois'] === $m)>{{ ucfirst(\Illuminate\Support\Carbon::createFromFormat('Y-m-d', $m . '-01')->locale('fr')->translatedFormat('F Y')) }}</option>
+                        @endforeach
+                    </select>
+                </form>
+            @endif
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
+            @foreach(\App\Models\DiffusionEnvoi::FILTRES as $cle => $lib)
+                @php $actif = $je['filtre'] === $cle; $n = $je['compteurs'][$cle]; @endphp
+                <a href="{{ request()->fullUrlWithQuery(['journal' => $cle === 'tous' ? null : $cle, 'page' => null]) }}#journal"
+                   style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;text-decoration:none;
+                          border:1px solid {{ $actif ? 'var(--accent)' : 'var(--border)' }};
+                          background:{{ $actif ? 'var(--accent)' : 'transparent' }};color:{{ $actif ? '#14100a' : 'var(--text2)' }};">
+                    {{ $lib }}
+                    <span style="font-weight:600;{{ $cle === 'echecs' && $n > 0 && !$actif ? 'color:#ef4444;' : 'opacity:.75;' }}">{{ number_format($n, 0, ',', ' ') }}</span>
+                </a>
+            @endforeach
+        </div>
+
         @if($envois->isEmpty())
-            <div style="{{ $muted }}padding:20px 0;text-align:center;">Aucun envoi pour l'instant.</div>
+            <div style="{{ $muted }}padding:20px 0;text-align:center;">
+                {{ $je['compteurs']['tous'] === 0 && !$je['mois'] ? "Aucun envoi pour l'instant." : 'Aucun envoi pour ce choix.' }}
+            </div>
         @else
             <div style="overflow-x:auto;">
                 <table style="width:100%;font-size:13px;border-collapse:collapse;min-width:720px;">
@@ -165,7 +195,17 @@
                                 </td>
                                 <td style="padding:9px 6px;">
                                     <span style="padding:3px 9px;border-radius:999px;background:{{ $bg }};color:{{ $fg }};font-size:11px;font-weight:700;">{{ $lib }}</span>
-                                    @if($e->erreur)<div style="font-size:11px;color:#991b1b;margin-top:4px;max-width:320px;">{{ $e->erreur }}</div>@endif
+                                    @if($e->erreur)
+                                        @if(mb_strlen($e->erreur) <= 70)
+                                            <div style="font-size:11px;color:#991b1b;margin-top:4px;max-width:340px;">{{ $e->erreur }}</div>
+                                        @else
+                                            {{-- Message long replié : la ligne reste compacte. --}}
+                                            <details style="font-size:11px;color:#991b1b;margin-top:4px;max-width:340px;">
+                                                <summary style="cursor:pointer;">{{ \Illuminate\Support\Str::limit($e->erreur, 60) }}</summary>
+                                                <div style="margin-top:4px;line-height:1.45;">{{ $e->erreur }}</div>
+                                            </details>
+                                        @endif
+                                    @endif
                                 </td>
                                 <td style="padding:9px 6px;text-align:right;">{{ $e->nb_panneaux }}</td>
                                 <td style="padding:9px 6px;text-align:right;">{{ $e->nb_destinataires }}</td>
@@ -246,6 +286,22 @@
                 <button class="btn btn-ghost btn-sm" style="height:36px;">Exclure</button>
             </form>
 
+            {{-- Recherche (2026-10-28) : seules les 50 plus récentes sont affichées. --}}
+            @php $xi = $exclusionsInfo; @endphp
+            @if($xi['total'] > 0)
+                <form method="GET" action="{{ url()->current() }}" style="display:flex;gap:8px;margin-bottom:8px;">
+                    <input type="search" name="exclu" value="{{ $xi['recherche'] }}" maxlength="191" placeholder="Chercher une adresse exclue…" class="filter-input" style="height:34px;flex:1;">
+                    @if($xi['recherche'] !== '')<a href="{{ url()->current() }}" class="btn btn-ghost btn-sm" style="height:34px;">Effacer</a>@endif
+                </form>
+                <div style="{{ $muted }}margin-bottom:6px;">
+                    @if($xi['recherche'] !== '')
+                        {{ $xi['trouvees'] }} résultat{{ $xi['trouvees'] > 1 ? 's' : '' }} pour « {{ $xi['recherche'] }} »{{ $xi['trouvees'] > 50 ? ' · les 50 plus récents' : '' }}
+                    @else
+                        {{ number_format($xi['total'], 0, ',', ' ') }} adresse{{ $xi['total'] > 1 ? 's' : '' }} exclue{{ $xi['total'] > 1 ? 's' : '' }}{{ $xi['total'] > 50 ? ' · les 50 plus récentes (cherchez une adresse pour les autres)' : '' }}
+                    @endif
+                </div>
+            @endif
+
             <div style="max-height:360px;overflow-y:auto;">
                 <table style="width:100%;font-size:13px;border-collapse:collapse;">
                     @forelse($exclusions as $x)
@@ -263,7 +319,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td style="{{ $muted }}padding:10px 0;">Aucune adresse exclue.</td></tr>
+                        <tr><td style="{{ $muted }}padding:10px 0;">{{ $xi['recherche'] !== '' ? 'Aucune adresse ne correspond.' : 'Aucune adresse exclue.' }}</td></tr>
                     @endforelse
                 </table>
             </div>
