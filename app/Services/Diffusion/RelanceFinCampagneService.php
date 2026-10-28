@@ -30,8 +30,9 @@ use Illuminate\Support\Facades\Log;
  * Règles validées par le métier le 2026-10-21 :
  *   · 7 jours avant la fin d'une campagne active, UN seul mail par
  *     campagne (et par date de fin : une prolongation en redonne un) ;
- *   · destinataire : l'interlocuteur principal du client (même règle que
- *     la diffusion des disponibilités, Client::destinataireCommercial) ;
+ *   · destinataires : chaque interlocuteur coché « reçoit les mails », à
+ *     défaut l'adresse de la fiche (Client::destinatairesCampagne, depuis
+ *     le 2026-10-28 ; avant : l'interlocuteur principal seul) ;
  *   · réponse au commercial de la campagne, copie commercial@ ;
  *   · pas de mail si le client a une autre campagne planifiée, ou active
  *     qui se termine après celle-ci (deux campagnes qui finissent le même
@@ -115,23 +116,27 @@ class RelanceFinCampagneService
     }
 
     /**
-     * À qui écrire pour cette campagne : destinataire, interlocuteur,
-     * copie, adresse de réponse.
+     * À qui écrire pour cette campagne : les interlocuteurs cochés « reçoit
+     * les mails » (Client::destinatairesCampagne, 2026-10-28 ; avant : une
+     * seule adresse), copie, adresse de réponse. `destinataire` les liste
+     * tous, séparés par des virgules (affichage, journal) ; `contact` est
+     * le nom du premier.
      *
-     * @return array{destinataire: string, contact: ?string, copie: string[], repondre_a: ?string}
+     * @return array{destinataires: list<array{email: string, contact: ?string}>, destinataire: string, contact: ?string, copie: string[], repondre_a: ?string}
      */
     public function coordonnees(Campaign $campagne): array
     {
         $client     = $campagne->client;
-        $dest       = $client?->destinataireCommercial() ?? ['email' => '', 'contact' => null];
+        $liste      = $client?->destinatairesCampagne() ?? [];
         $copie      = $this->copie();
         $commercial = mb_strtolower(trim((string) $campagne->resolveCommercialContact()?->email));
 
         return [
-            'destinataire' => $dest['email'],
-            'contact'      => $dest['contact'] ?: $client?->name,
-            'copie'        => $copie,
-            'repondre_a'   => filter_var($commercial, FILTER_VALIDATE_EMAIL) ? $commercial : ($copie[0] ?? null),
+            'destinataires' => $liste,
+            'destinataire'  => implode(', ', array_column($liste, 'email')),
+            'contact'       => ($liste[0]['contact'] ?? null) ?: $client?->name,
+            'copie'         => $copie,
+            'repondre_a'    => filter_var($commercial, FILTER_VALIDATE_EMAIL) ? $commercial : ($copie[0] ?? null),
         ];
     }
 
@@ -160,13 +165,20 @@ class RelanceFinCampagneService
                 ])
             : collect();
 
-        $exclusion = DiffusionDesinscription::where('email', $coord['destinataire'])->first();
+        // Une adresse désinscrite est retirée ; le mail ne s'arrête que si
+        // toutes les adresses le sont.
+        $tous    = $coord['destinataires'];
+        $exclues = DiffusionDesinscription::whereIn('email', array_column($tous, 'email'))->get()->keyBy('email');
+        $gardes  = array_values(array_filter($tous, fn($d) => !$exclues->has($d['email'])));
+        $coord['destinataires'] = $gardes;
+        $coord['destinataire']  = implode(', ', array_column($gardes ?: $tous, 'email'));
+        $coord['contact']       = ($gardes[0]['contact'] ?? null) ?: $coord['contact'];
 
         [$statut, $motif] = self::exclusion(
-            $coord['destinataire'],
+            $gardes[0]['email'] ?? ($tous[0]['email'] ?? ''),
             $campagne->end_date?->toDateString() ?? '',
             $autres,
-            $exclusion ? $exclusion->libelleMotif() : null,
+            !$gardes && $tous ? $exclues->first()->libelleMotif() : null,
             today()->toDateString(),
         ) ?? [null, null];
 
@@ -268,8 +280,9 @@ class RelanceFinCampagneService
 
         $a = $this->analyser($campagne, $regleAutresCampagnes);
         $ligne->fill([
-            'client_id'    => $campagne->client_id,
-            'destinataire' => $a['destinataire'] ?: null,
+            'client_id'     => $campagne->client_id,
+            'destinataire'  => mb_substr($a['destinataire'], 0, 191) ?: null, // colonne VARCHAR(191)
+            'destinataires' => $a['destinataire'] ?: null,                     // liste complète (2026-10-28)
             'copie'        => mb_substr(implode(', ', $a['copie']), 0, 191) ?: null,
             'repondre_a'   => $a['repondre_a'],
         ]);
@@ -292,10 +305,12 @@ class RelanceFinCampagneService
             $copie = [];
             $note  = self::noteTest($a);
         } else {
-            $destinataires = [$a['destinataire']];
+            // Un mail par interlocuteur coché (2026-10-28), chacun à son nom.
+            $destinataires = array_column($a['destinataires'], 'email');
             $copie = $a['copie'];
             $note  = null;
         }
+        $noms = array_column($a['destinataires'], 'contact', 'email');
 
         if ($destinataires === []) {
             $ligne->fill([
@@ -308,30 +323,46 @@ class RelanceFinCampagneService
 
         $ligne->tentatives = (int) $ligne->tentatives + 1;
 
-        try {
-            $ids = [];
-            foreach ($destinataires as $email) {
-                $ids[] = $this->envoyerParBrevo($fabrique($email, $note, $copie, $a, $jours), $email);
-            }
+        // Chaque adresse est envoyée à part (2026-10-28) : un refus pour l'une
+        // n'empêche pas les autres, et une adresse déjà servie ne reçoit pas
+        // le mail une seconde fois quand l'échec des autres est retenté.
+        $ids = [];
+        $rates = [];
+        foreach ($destinataires as $email) {
+            try {
+                // Chacun est salué par son nom ; la copie au commercial ne part
+                // qu'une fois (avec le premier mail accepté, pas N exemplaires).
+                $pour = empty($noms[$email]) ? $a : ['contact' => $noms[$email]] + $a;
+                $ids[] = $this->envoyerParBrevo($fabrique($email, $note, $ids === [] ? $copie : [], $pour, $jours), $email);
+            } catch (\Throwable $e) {
+                $rates[$email] = $e->getMessage();
 
+                Log::error('fin_campagne.echec', [
+                    'campaign_id'  => $campagne->id,
+                    'etape'        => $etape,
+                    'mode'         => $mode,
+                    'destinataire' => $email,
+                    'erreur'       => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($ids === []) {
+            $ligne->fill([
+                'statut' => RelanceFinCampagne::STATUT_ECHEC,
+                'motif'  => mb_substr((string) reset($rates), 0, 1000),
+            ]);
+        } else {
+            $servis = array_values(array_diff($destinataires, array_keys($rates)));
             $ligne->fill([
                 'statut'           => RelanceFinCampagne::STATUT_ENVOYE,
                 'canal'            => 'brevo',
-                'motif'            => $note ? 'Envoyé en test à ' . implode(', ', $destinataires) . '.' : null,
+                'motif'            => mb_substr(trim(
+                    ($note ? 'Envoyé en test à ' . implode(', ', $servis) . '. ' : '')
+                    . ($rates ? 'Non parvenu à ' . implode(', ', array_keys($rates)) . ' : ' . reset($rates) : '')
+                ), 0, 1000) ?: null,
                 'brevo_message_id' => mb_substr(implode(', ', array_filter($ids)), 0, 191) ?: null, // colonne VARCHAR(191)
                 'envoye_at'        => now(),
-            ]);
-        } catch (\Throwable $e) {
-            $ligne->fill([
-                'statut' => RelanceFinCampagne::STATUT_ECHEC,
-                'motif'  => mb_substr($e->getMessage(), 0, 1000),
-            ]);
-
-            Log::error('fin_campagne.echec', [
-                'campaign_id' => $campagne->id,
-                'etape'       => $etape,
-                'mode'        => $mode,
-                'erreur'      => $e->getMessage(),
             ]);
         }
 
@@ -396,7 +427,7 @@ class RelanceFinCampagneService
             $campagne,
             $this->joursAffiches($campagne, RelanceFinCampagne::ETAPE_FIN),
             $a['contact'],
-            filter_var($a['destinataire'], FILTER_VALIDATE_EMAIL) ? DiffusionDesinscription::lien($a['destinataire']) : null,
+            isset($a['destinataires'][0]) ? DiffusionDesinscription::lien($a['destinataires'][0]['email']) : null,
             $a['repondre_a'],
             $a['copie'],
             $noteTest,

@@ -33,7 +33,8 @@ trait BaseRenouvellement
         });
         Schema::create('client_contacts', function (Blueprint $t) {
             $t->id(); $t->unsignedBigInteger('client_id'); $t->string('name'); $t->string('email')->nullable();
-            $t->string('phone')->nullable(); $t->boolean('is_primary')->default(false); $t->softDeletes(); $t->timestamps();
+            $t->string('phone')->nullable(); $t->boolean('is_primary')->default(false);
+            $t->boolean('receives_notifications')->default(true); $t->softDeletes(); $t->timestamps();
         });
         Schema::create('reservations', function (Blueprint $t) {
             $t->id(); $t->unsignedBigInteger('commercial_user_id')->nullable(); $t->unsignedBigInteger('user_id')->nullable();
@@ -60,6 +61,7 @@ trait BaseRenouvellement
         (require base_path('database/migrations/2026_10_21_100000_create_relances_fin_campagne_table.php'))->up();
         (require base_path('database/migrations/2026_10_22_100000_create_renouvellements_tables.php'))->up();
         (require base_path('database/migrations/2026_10_23_100000_add_rappel_le_to_renouvellements.php'))->up();
+        (require base_path('database/migrations/2026_10_28_120000_add_statut_commercial_to_clients.php'))->up();
 
         Carbon::setTestNow('2026-11-01 10:00:00'); // J-60 de la campagne de référence
 

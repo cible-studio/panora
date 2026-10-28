@@ -7,6 +7,16 @@ en crée ou clôt une.
 
 ## Ouvertes
 
+### `Client::destinataireCommercial()` conservée sans appelant (2026-10-28)
+
+Remplacée par `destinatairesCampagne()` (mails de campagne : contacts cochés
+« reçoit les mails ») et `destinatairesDiffusion()` (dispos : contacts au
+statut client, jamais les prospects). Gardée (règle additive) et encore
+couverte par `RelanceFinCampagneMailTest`. À retirer quand plus rien ne
+l'attend. Point métier ouvert : passer une fiche de prospect à client à la
+main (formulaire) ne change pas le statut de ses interlocuteurs ; seule la
+première campagne les convertit tous.
+
 ### Migrations non SQLite-portables
 
 Certaines migrations utilisent la syntaxe MySQL `MODIFY COLUMN` (ex: enums,

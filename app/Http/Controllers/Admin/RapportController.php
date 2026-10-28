@@ -339,6 +339,7 @@ class RapportController extends Controller
 
         // ── Top clients SUR LA PÉRIODE (filtres appliqués) ─────
         $topClients = Client::query()
+            ->whereHas('campaigns') // 2026-10-28 : même résultat, sans charger les prospects
             ->when($filterClient, fn($q) => $q->where('id', $filterClient))
             ->with(['campaigns' => function ($q) use ($dateFrom, $dateTo, $applyCampaignFilters) {
                 $applyCampaignFilters(
@@ -414,6 +415,7 @@ class RapportController extends Controller
         // soit 250+ queries sur un parc de 50 clients. Après : 1 query
         // agrégée. Le total_panneaux est strictement identique.
         $statsClients = Client::query()
+            ->whereHas('campaigns') // 2026-10-28 : même résultat, sans charger les prospects
             ->when($filterClient, fn($q) => $q->where('id', $filterClient))
             ->with(['campaigns' => fn($q) => $applyCampaignFilters($q)->withCount('panels')])
             ->get()

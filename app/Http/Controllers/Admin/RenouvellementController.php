@@ -299,7 +299,7 @@ class RenouvellementController extends Controller
         }
 
         $client = new Client(['name' => 'Société Exemple', 'email' => 'contact@exemple.ci']);
-        $client->setRelation('contacts', collect([new ClientContact(['name' => 'Awa Koné', 'email' => 'awa.kone@exemple.ci', 'is_primary' => true])]));
+        $client->setRelation('contacts', collect([new ClientContact(['name' => 'Awa Koné', 'email' => 'awa.kone@exemple.ci', 'is_primary' => true, 'receives_notifications' => true, 'statut' => 'client'])]));
 
         $c = new Campaign([
             'name'         => 'Campagne exemple',

@@ -59,9 +59,11 @@
 
     {{-- Banner filtres actifs — n'apparaît que si au moins un filtre est posé,
          pour rappeler à l'admin (ou au lecteur) le scope du document. --}}
-    @if(!empty($filters['search']) || !empty($filters['sector']) || !empty($filters['active_only']))
+    @php $statutPdf = ['prospect' => 'Prospects', 'tous' => 'Clients et prospects'][$filters['statut'] ?? 'client'] ?? null; @endphp
+    @if(!empty($filters['search']) || !empty($filters['sector']) || !empty($filters['active_only']) || $statutPdf)
         <div class="ch-info">
             <strong class="accent">Filtres appliqués :</strong>
+            @if($statutPdf)<span><strong class="accent">{{ $statutPdf }}</strong></span> · @endif
             @if(!empty($filters['active_only']))
                 <span>Avec campagne active</span>
             @endif

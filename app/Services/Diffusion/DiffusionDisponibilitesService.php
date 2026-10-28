@@ -128,9 +128,10 @@ class DiffusionDisponibilitesService
     }
 
     /**
-     * Destinataires : une adresse par client — le contact principal, à
-     * défaut l'adresse de la fiche client. Exclus : adresses invalides,
-     * désinscrits, adresses mortes, doublons.
+     * Destinataires : chaque interlocuteur au statut client des entreprises
+     * clientes (2026-10-28 ; avant : une seule adresse par client), à
+     * défaut l'adresse de la fiche. Aucun prospect. Exclus : adresses
+     * invalides, désinscrits, adresses mortes, doublons.
      *
      * @return Collection<int, array{email: string, contact: ?string, societe: string, client_id: int}>
      */
@@ -140,14 +141,17 @@ class DiffusionDisponibilitesService
             ->map(fn($e) => mb_strtolower(trim($e)))
             ->flip();
 
+        // Chaque adresse au statut client, plus seulement une par entreprise ;
+        // aucun prospect (2026-10-28, cf. Client::destinatairesDiffusion).
         return Client::query()
-            ->with(['contacts' => fn($q) => $q->select('id', 'client_id', 'name', 'email', 'is_primary')])
+            ->clients()
+            ->with(['contacts' => fn($q) => $q->select('id', 'client_id', 'name', 'email', 'is_primary', 'statut')])
             ->orderBy('name')
-            ->get(['id', 'name', 'contact_name', 'email'])
-            ->map(fn(Client $c) => $c->destinataireCommercial() + [
+            ->get(['id', 'name', 'contact_name', 'email', 'statut_commercial'])
+            ->flatMap(fn(Client $c) => array_map(fn($d) => $d + [
                 'societe'   => $c->name,
                 'client_id' => $c->id,
-            ])
+            ], $c->destinatairesDiffusion()))
             ->filter(fn($d) => filter_var($d['email'], FILTER_VALIDATE_EMAIL))
             ->reject(fn($d) => $exclues->has($d['email']))
             ->unique('email')

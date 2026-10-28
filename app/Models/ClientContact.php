@@ -19,8 +19,11 @@ class ClientContact extends Model
     protected $fillable = [
         'client_id', 'name', 'email', 'phone',
         'role', 'position', 'is_primary',
-        'receives_notifications', 'notes',
+        'receives_notifications', 'notes', 'statut',
     ];
+
+    /** Statut propre à chaque adresse (2026-10-28) : mêmes valeurs que Client::STATUTS. */
+    public const STATUTS = Client::STATUTS;
 
     protected $casts = [
         'is_primary'             => 'boolean',

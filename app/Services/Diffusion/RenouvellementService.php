@@ -198,7 +198,7 @@ class RenouvellementService
             cle: $cle,
             daysRemaining: $campagne->end_date ? $this->socle->joursAffiches($campagne, $cle) : 0,
             contact: $a['contact'],
-            lienDesinscription: filter_var($a['destinataire'], FILTER_VALIDATE_EMAIL) ? DiffusionDesinscription::lien($a['destinataire']) : null,
+            lienDesinscription: isset($a['destinataires'][0]) ? DiffusionDesinscription::lien($a['destinataires'][0]['email']) : null,
             repondreA: $a['repondre_a'],
             copie: $accuse ? [] : $a['copie'],
             noteTest: $noteTest,
@@ -517,7 +517,8 @@ class RenouvellementService
                 'montant'         => (int) round($c->computedAmountHt()),
                 'panneaux'        => (int) ($c->total_panels ?: $c->panels_count),
                 'commercial'      => $c->resolveCommercialContact(),
-                'contact'         => $c->client?->destinataireCommercial(),
+                // Ceux qui recevront les mails (2026-10-28 : tous les cochés).
+                'contact'         => self::contactsAffiches($c->client?->destinatairesCampagne() ?? []),
                 'telephone'       => self::telephone($c->client),
                 'dernier_mail'    => $envoyes->sortBy(fn($l) => self::ETAPES[$l->etape] ?? 0)->first(),
                 'prochain_mail'   => $statut === Renouvellement::EN_ATTENTE ? self::prochainMail($c, $jours, $envoyes->keys()->all()) : null,
@@ -750,6 +751,21 @@ class RenouvellementService
             'campagne' => $campagne, 'dossier' => $this->dossierExistant($campagne),
             'statut'   => $this->dossierExistant($campagne)?->statut ?? Renouvellement::EN_ATTENTE,
             'action'   => ['Campagne terminée', 'neutre'], 'sequence' => [], 'jours' => $this->socle->joursRestants($campagne),
+        ];
+    }
+
+    /**
+     * Interlocuteurs affichés dans la fiche dossier : noms et adresses de
+     * ceux qui reçoivent les mails, séparés par des virgules.
+     *
+     * @param list<array{email: string, contact: ?string}> $liste
+     * @return array{contact: ?string, email: string}
+     */
+    public static function contactsAffiches(array $liste): array
+    {
+        return [
+            'contact' => implode(', ', array_filter(array_column($liste, 'contact'))) ?: null,
+            'email'   => implode(', ', array_column($liste, 'email')),
         ];
     }
 

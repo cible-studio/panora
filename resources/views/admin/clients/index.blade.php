@@ -22,7 +22,7 @@
             <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
             <div class="kpi-card__value" style="color:var(--accent)">{{ $stats['total'] }}</div>
             <div class="kpi-card__label">Total clients</div>
-            <div class="kpi-card__sub">portefeuille complet</div>
+            <div class="kpi-card__sub">{{ $stats['prospects'] ? '+ ' . number_format($stats['prospects'], 0, ',', ' ') . ' prospect' . ($stats['prospects'] > 1 ? 's' : '') : 'portefeuille complet' }}</div>
             <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
         </button>
 
@@ -67,6 +67,16 @@
                 <input type="text" id="filter-search" class="ci-input" placeholder="Nom, NCC, email, téléphone…"
                     autocomplete="off">
             </div>
+        </div>
+        {{-- Client / prospect (2026-10-28) : les clients par défaut. --}}
+        <div class="ci-filter-group">
+            <label class="ci-filter-label">Statut</label>
+            <select id="filter-statut" class="ci-select">
+                @foreach (\App\Models\Client::STATUTS as $code => $libelle)
+                    <option value="{{ $code }}">{{ $libelle }}s</option>
+                @endforeach
+                <option value="tous">Clients et prospects</option>
+            </select>
         </div>
         <div class="ci-filter-group">
             <label class="ci-filter-label">Secteur</label>
@@ -1041,6 +1051,7 @@
                 let filters = {
                     search: '{{ request('search') }}',
                     sector: '{{ request('sector') }}',
+                    statut: '{{ in_array(request('statut'), ['client', 'prospect', 'tous'], true) ? request('statut') : 'client' }}',
                     sort: '{{ request('sort', 'name') }}',
                     active_only: {{ request()->boolean('active_only') ? 'true' : 'false' }},
                 };
@@ -1054,11 +1065,13 @@
                 function init() {
                     const s = document.getElementById('filter-search');
                     const sec = document.getElementById('filter-sector');
+                    const stt = document.getElementById('filter-statut');
                     const srt = document.getElementById('filter-sort');
                     const rst = document.getElementById('btn-reset');
 
                     s.value = filters.search;
                     sec.value = filters.sector;
+                    stt.value = filters.statut;
                     srt.value = filters.sort;
                     updateReset();
 
@@ -1067,6 +1080,7 @@
                         debTimer = setTimeout(applyFilters, 380);
                     });
                     sec.addEventListener('change', applyFilters);
+                    stt.addEventListener('change', applyFilters);
                     srt.addEventListener('change', applyFilters);
                     rst.addEventListener('click', resetFilters);
 
@@ -1122,6 +1136,7 @@
                     const params = new URLSearchParams();
                     if (filters.search)      params.set('search', filters.search);
                     if (filters.sector)      params.set('sector', filters.sector);
+                    if (filters.statut !== 'client') params.set('statut', filters.statut);
                     if (filters.sort && filters.sort !== 'name') params.set('sort', filters.sort);
                     if (filters.active_only) params.set('active_only', '1');
                     return params.toString() ? `${base}?${params}` : base;
@@ -1139,6 +1154,7 @@
                 function applyFilters() {
                     filters.search = document.getElementById('filter-search').value;
                     filters.sector = document.getElementById('filter-sector').value;
+                    filters.statut = document.getElementById('filter-statut').value;
                     filters.sort = document.getElementById('filter-sort').value;
                     filters.page = 1;
                     updateReset();
@@ -1150,12 +1166,14 @@
                     filters = {
                         search: '',
                         sector: '',
+                        statut: 'client',
                         sort: 'name',
                         page: 1,
                         active_only: false,
                     };
                     document.getElementById('filter-search').value = '';
                     document.getElementById('filter-sector').value = '';
+                    document.getElementById('filter-statut').value = 'client';
                     document.getElementById('filter-sort').value = 'name';
                     // Reset → toutes les KPI cards reviennent en état neutre
                     document.querySelectorAll('.kpi-card[data-active-filter]').forEach(c => {
@@ -1170,7 +1188,7 @@
                 }
 
                 function updateReset() {
-                    const hasFilter = filters.search || filters.sector
+                    const hasFilter = filters.search || filters.sector || filters.statut !== 'client'
                         || filters.sort !== 'name' || filters.active_only;
                     document.getElementById('reset-wrapper').style.display = hasFilter ? 'flex' : 'none';
                 }
@@ -1183,6 +1201,7 @@
                     const params = new URLSearchParams();
                     if (filters.search) params.set('search', filters.search);
                     if (filters.sector) params.set('sector', filters.sector);
+                    if (filters.statut !== 'client') params.set('statut', filters.statut);
                     if (filters.sort && filters.sort !== 'name') params.set('sort', filters.sort);
                     if (filters.active_only) params.set('active_only', '1');
                     if (filters.page && filters.page > 1) params.set('page', filters.page);

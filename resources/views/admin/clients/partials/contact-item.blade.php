@@ -7,6 +7,8 @@
     ClientContacts.* (cf. show.blade.php).
 --}}
 <div class="contact-item" data-contact-id="{{ $contact->id }}"
+     data-statut="{{ $contact->statut ?? 'client' }}" data-notif="{{ $contact->receives_notifications ? 1 : 0 }}"
+     data-role="{{ $contact->role }}" data-position="{{ $contact->position }}"
      style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;{{ $contact->is_primary ? 'border-left:3px solid var(--accent);' : '' }}">
 
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
@@ -14,6 +16,13 @@
             <span style="font-weight:700;font-size:13px;color:var(--text);">{{ $contact->name }}</span>
             @if($contact->is_primary)
                 <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;background:rgba(232,160,32,.15);color:var(--accent);letter-spacing:.4px;">PRINCIPAL</span>
+            @endif
+            {{-- Statut propre à chaque adresse (2026-10-28) --}}
+            @if(($contact->statut ?? 'client') === 'prospect')
+                <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;background:rgba(59,130,246,.12);color:#3b82f6;letter-spacing:.4px;">PROSPECT</span>
+            @endif
+            @if(!$contact->receives_notifications)
+                <span style="font-size:9px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--surface3);color:var(--text3);" title="Ne reçoit pas les mails de campagne (renouvellement, fin de campagne)">sans mails de campagne</span>
             @endif
         </div>
         <div style="display:flex;gap:2px;flex-shrink:0;">

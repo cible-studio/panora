@@ -26,6 +26,9 @@
                     {{ $client->name }}
                 </a>
                 <div style="display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap">
+                    @if($client->estProspect())
+                        <span style="font-size:10px;font-weight:700;background:rgba(59,130,246,.12);color:#3b82f6;border-radius:4px;padding:1px 6px;">Prospect</span>
+                    @endif
                     @if($client->ncc)
                         <span style="font-family:monospace;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--text3)">
                             {{ $client->ncc }}

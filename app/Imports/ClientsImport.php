@@ -59,6 +59,9 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
         $contact    = trim((string) ($row['contact']    ?? $row['contact_name']?? ''));
         $sector     = trim((string) ($row['secteur']    ?? $row['sector']      ?? ''));
         $address    = trim((string) ($row['adresse']    ?? $row['address']     ?? ''));
+        // Statut (2026-10-28) : « prospect » reconnu ; tout le reste = client.
+        $statut     = str_starts_with(mb_strtolower(trim((string) ($row['statut'] ?? $row['status'] ?? ''))), 'prospect')
+            ? Client::STATUT_PROSPECT : Client::STATUT_CLIENT;
 
         // ── Validation tolérante de l'email ──────────────────────────────
         // Maatwebsite Excel applique les règles `rules()` AVANT model() et
@@ -94,8 +97,9 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
             return null;
         }
 
-        // Auto-NCC si vide (aligné avec StoreClientRequest)
-        if ($ncc === '') {
+        // Auto-NCC si vide (aligné avec StoreClientRequest) — jamais pour un
+        // prospect : la direction ne veut pas de NCC sans affaire conclue.
+        if ($ncc === '' && $statut === Client::STATUT_CLIENT) {
             try { $ncc = Client::generateNcc(); } catch (Throwable $e) { $ncc = null; }
         }
 
@@ -128,6 +132,7 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
             'contact_name' => $finalContact !== '' ? $finalContact : null,
             'sector'       => $sector !== '' ? $sector : null,
             'address'      => $address !== '' ? $address : null,
+            'statut_commercial' => $statut,
         ]);
     }
 

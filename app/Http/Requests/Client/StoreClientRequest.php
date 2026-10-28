@@ -35,6 +35,8 @@ class StoreClientRequest extends FormRequest
                 'nullable',
                 Rule::in(Client::SECTORS),
             ],
+            // Client ou prospect (2026-10-28). Absent : inchangé (défaut « client » en base).
+            'statut_commercial' => ['sometimes', Rule::in(array_keys(Client::STATUTS))],
             'contact_name' => ['nullable', 'string', 'max:100'],
             'email' => [
                 'nullable',
@@ -74,6 +76,9 @@ class StoreClientRequest extends FormRequest
         }
         if ($this->email) {
             $this->merge(['email' => strtolower(trim($this->email))]);
+        }
+        if ($this->has('statut_commercial') && !$this->statut_commercial) {
+            $this->merge(['statut_commercial' => Client::STATUT_CLIENT]);
         }
         // NCC laissé tel quel — null si non rempli. Plus d'auto-génération
         // forcée : la patronne préfère pouvoir créer un client sans NCC.

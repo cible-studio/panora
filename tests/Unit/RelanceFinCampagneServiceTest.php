@@ -30,6 +30,8 @@ class RelanceFinCampagneServiceTest extends TestCase
     /** Réponse simulée de l'API Brevo (modifiable par test). */
     private int $statutBrevo = 201;
     private array $reponseBrevo = ['messageId' => '<abc@smtp-relay.brevo.com>'];
+    /** Adresses que Brevo refuse (test d'un refus partiel). */
+    private array $refusPour = [];
 
     protected function setUp(): void
     {
@@ -44,7 +46,8 @@ class RelanceFinCampagneServiceTest extends TestCase
         });
         Schema::create('client_contacts', function (Blueprint $t) {
             $t->id(); $t->unsignedBigInteger('client_id'); $t->string('name'); $t->string('email')->nullable();
-            $t->boolean('is_primary')->default(false); $t->softDeletes(); $t->timestamps();
+            $t->boolean('is_primary')->default(false); $t->boolean('receives_notifications')->default(true);
+            $t->softDeletes(); $t->timestamps();
         });
         Schema::create('campaigns', function (Blueprint $t) {
             $t->id(); $t->string('name'); $t->unsignedBigInteger('client_id');
@@ -58,6 +61,7 @@ class RelanceFinCampagneServiceTest extends TestCase
         });
         (require base_path('database/migrations/2026_10_21_100000_create_relances_fin_campagne_table.php'))->up();
         (require base_path('database/migrations/2026_10_22_100000_create_renouvellements_tables.php'))->up();
+        (require base_path('database/migrations/2026_10_28_120000_add_statut_commercial_to_clients.php'))->up();
 
         Carbon::setTestNow('2026-10-21 10:00:00');
 
@@ -71,7 +75,9 @@ class RelanceFinCampagneServiceTest extends TestCase
         ]);
 
         Mail::fake();
-        Http::fake(fn() => Http::response($this->reponseBrevo, $this->statutBrevo));
+        Http::fake(fn($r) => in_array($r->data()['to'][0]['email'] ?? null, $this->refusPour, true)
+            ? Http::response(['message' => 'email is blocked'], 400)
+            : Http::response($this->reponseBrevo, $this->statutBrevo));
 
         DB::table('users')->insert([
             ['id' => 1, 'name' => 'Créateur', 'email' => 'createur@cible-ci.com'],
@@ -292,5 +298,88 @@ class RelanceFinCampagneServiceTest extends TestCase
 
         // Le mail suivant ne part plus.
         $this->assertSame('exclu', $this->service()->traiter($this->campagne())->statut);
+    }
+
+    // ── Plusieurs interlocuteurs, sans contact principal (2026-10-28) ──
+
+    private function ajouterInterlocuteurs(): void
+    {
+        DB::table('client_contacts')->insert([
+            ['client_id' => 10, 'name' => 'Jean Kouassi', 'email' => 'Jean@Orange.ci', 'is_primary' => false, 'receives_notifications' => true],
+            ['client_id' => 10, 'name' => 'Paul Diallo', 'email' => 'paul@orange.ci', 'is_primary' => false, 'receives_notifications' => false],
+        ]);
+    }
+
+    public function test_chaque_interlocuteur_coche_recoit_son_mail_a_son_nom_copie_une_seule_fois(): void
+    {
+        $this->ajouterInterlocuteurs();
+
+        $ligne = $this->service()->traiter($this->campagne());
+
+        $this->assertSame('envoye', $ligne->statut);
+        $this->assertSame('awa@orange.ci, jean@orange.ci', $ligne->destinataire);
+        $this->assertSame('awa@orange.ci, jean@orange.ci', $ligne->destinataires);
+
+        $envois = $this->envoisBrevo();
+        $this->assertCount(2, $envois); // Paul n'est pas coché « reçoit les mails »
+        $this->assertSame('awa@orange.ci', $envois[0]['to'][0]['email']);
+        $this->assertSame('jean@orange.ci', $envois[1]['to'][0]['email']);
+        $this->assertStringContainsString('Awa Koné', $envois[0]['textContent']);
+        $this->assertStringContainsString('Jean Kouassi', $envois[1]['textContent']);
+        $this->assertSame('commercial@cible-ci.com', $envois[0]['cc'][0]['email']);
+        $this->assertArrayNotHasKey('cc', $envois[1]->data());
+    }
+
+    public function test_aucun_interlocuteur_coche_le_mail_part_a_l_adresse_de_la_fiche(): void
+    {
+        DB::table('client_contacts')->update(['receives_notifications' => false]);
+
+        $ligne = $this->service()->traiter($this->campagne());
+
+        $this->assertSame('envoye', $ligne->statut);
+        $this->assertSame('contact@orange.ci', $this->envoisBrevo()->sole()['to'][0]['email']);
+    }
+
+    public function test_une_adresse_desinscrite_est_retiree_les_autres_recoivent(): void
+    {
+        $this->ajouterInterlocuteurs();
+        DB::table('diffusion_desinscriptions')->insert(['email' => 'awa@orange.ci', 'motif' => 'desinscription']);
+
+        $ligne = $this->service()->traiter($this->campagne());
+
+        $this->assertSame('envoye', $ligne->statut);
+        $this->assertSame('jean@orange.ci', $ligne->destinataire);
+        $r = $this->envoisBrevo()->sole();
+        $this->assertSame('jean@orange.ci', $r['to'][0]['email']);
+        $this->assertSame('commercial@cible-ci.com', $r['cc'][0]['email']);
+    }
+
+    public function test_un_refus_pour_une_adresse_n_empeche_pas_les_autres_ni_ne_fait_renvoyer(): void
+    {
+        $this->ajouterInterlocuteurs();
+        $this->refusPour = ['awa@orange.ci'];
+        $campagne = $this->campagne();
+
+        $ligne = $this->service()->traiter($campagne);
+
+        $this->assertSame('envoye', $ligne->statut);
+        $this->assertStringContainsString('Non parvenu à awa@orange.ci', $ligne->motif);
+        $this->assertStringContainsString('email is blocked', $ligne->motif);
+        // La copie part avec le premier mail accepté.
+        $this->assertSame('commercial@cible-ci.com', $this->envoisBrevo()->last()['cc'][0]['email']);
+
+        // Pas de renvoi le lendemain : Jean ne reçoit pas le mail deux fois.
+        $this->service()->traiter($campagne->fresh());
+        $this->assertCount(2, $this->envoisBrevo());
+    }
+
+    public function test_toutes_les_adresses_refusees_le_mail_est_en_echec(): void
+    {
+        $this->refusPour = ['awa@orange.ci'];
+
+        $ligne = $this->service()->traiter($this->campagne());
+
+        $this->assertSame('echec', $ligne->statut);
+        $this->assertStringContainsString('email is blocked', $ligne->motif);
     }
 }

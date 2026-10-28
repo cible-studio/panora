@@ -43,7 +43,7 @@ class RelanceFinCampagne extends Model
 
     protected $fillable = [
         'campaign_id', 'client_id', 'fin_campagne', 'mode', 'etape', 'statut', 'canal',
-        'destinataire', 'copie', 'repondre_a', 'motif', 'brevo_message_id',
+        'destinataire', 'destinataires', 'copie', 'repondre_a', 'motif', 'brevo_message_id',
         'tentatives', 'envoye_at',
     ];
 

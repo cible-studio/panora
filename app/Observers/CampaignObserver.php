@@ -40,6 +40,33 @@ class CampaignObserver
         // interne de la campagne. Évite à l'admin de saisir N tâches dès
         // la confirmation d'une proposition.
         $this->autoCreatePoseTasks($campaign);
+
+        self::convertirProspect($campaign);
+    }
+
+    /**
+     * Première campagne d'un prospect (2026-10-28) : l'entreprise et tous ses
+     * interlocuteurs passent client. Couvre tous les chemins de création
+     * (formulaire, renouvellement, réservation confirmée, proposition
+     * acceptée, import PDF). Ne lève jamais : la campagne prime.
+     */
+    public static function convertirProspect(Campaign $campaign): void
+    {
+        try {
+            $client = $campaign->client;
+            if (!$client || !$client->estProspect()) {
+                return;
+            }
+            DB::transaction(function () use ($client) {
+                $client->update(['statut_commercial' => \App\Models\Client::STATUT_CLIENT]);
+                // Requête simple : la relation contacts() est triée (UPDATE … ORDER BY refusé par SQLite).
+                \App\Models\ClientContact::where('client_id', $client->id)
+                    ->update(['statut' => \App\Models\Client::STATUT_CLIENT, 'receives_notifications' => true]);
+            });
+            Log::info('client.prospect_converti', ['client_id' => $client->id, 'campaign_id' => $campaign->id]);
+        } catch (\Throwable $e) {
+            Log::warning('client.prospect_conversion_echec', ['campaign_id' => $campaign->id, 'erreur' => $e->getMessage()]);
+        }
     }
 
     /**

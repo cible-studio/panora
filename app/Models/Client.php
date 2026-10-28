@@ -30,6 +30,7 @@ class Client extends Authenticatable  // ← était "extends Model"
         'ncc',
         'regime_imposition',
         'sector',
+        'statut_commercial',
         'user_id',
         // Ajoute ici tout autre champ déjà présent dans ta table
 
@@ -64,11 +65,88 @@ class Client extends Authenticatable  // ← était "extends Model"
         return $this->hasOne(ClientContact::class)->where('is_primary', true);
     }
 
+    // ── Client ou prospect (2026-10-28) ──────────────────────────
+    // Un prospect est une entreprise sans affaire conclue (contacts Gmail).
+    // Il passe client à sa première campagne (CampaignObserver).
+    public const STATUT_CLIENT   = 'client';
+    public const STATUT_PROSPECT = 'prospect';
+    public const STATUTS = [self::STATUT_CLIENT => 'Client', self::STATUT_PROSPECT => 'Prospect'];
+
+    public function estProspect(): bool
+    {
+        return $this->statut_commercial === self::STATUT_PROSPECT;
+    }
+
+    public function scopeClients($query)
+    {
+        return $query->where('statut_commercial', self::STATUT_CLIENT);
+    }
+
+    public function scopeProspects($query)
+    {
+        return $query->where('statut_commercial', self::STATUT_PROSPECT);
+    }
+
     /**
-     * À qui écrire pour les envois commerciaux (diffusion des
-     * disponibilités, mail de fin de campagne) : le premier interlocuteur
-     * qui a une adresse valide — le principal d'abord —, à défaut
+     * Mails liés à une campagne (renouvellement, fin de campagne, accusé de
+     * réception) : chaque interlocuteur dont la case « reçoit les mails »
+     * est cochée, avec une adresse valide. Plus de contact principal
+     * (règle de la direction, 2026-10-28). À défaut d'interlocuteur coché,
      * l'adresse de la fiche client. Source unique de cette règle.
+     *
+     * @return list<array{email: string, contact: ?string}>
+     */
+    public function destinatairesCampagne(): array
+    {
+        $liste = $this->adressesDe($this->contacts->filter(fn ($ct) => $ct->receives_notifications));
+
+        return $liste ?: $this->adresseFiche();
+    }
+
+    /**
+     * Diffusion des disponibilités : chaque interlocuteur au statut client,
+     * avec une adresse valide. Un prospect ne la reçoit pas (pas de
+     * consentement : il passera par une liste Brevo séparée). À défaut
+     * d'interlocuteur client, l'adresse de la fiche. Source unique.
+     *
+     * @return list<array{email: string, contact: ?string}>
+     */
+    public function destinatairesDiffusion(): array
+    {
+        if ($this->estProspect()) {
+            return [];
+        }
+        $liste = $this->adressesDe($this->contacts->filter(fn ($ct) => ($ct->statut ?? self::STATUT_CLIENT) === self::STATUT_CLIENT));
+
+        return $liste ?: $this->adresseFiche();
+    }
+
+    /** @return list<array{email: string, contact: ?string}> */
+    private function adressesDe(iterable $contacts): array
+    {
+        $vus = [];
+        foreach ($contacts as $ct) {
+            $email = mb_strtolower(trim((string) $ct->email));
+            if (filter_var($email, FILTER_VALIDATE_EMAIL) && !isset($vus[$email])) {
+                $vus[$email] = ['email' => $email, 'contact' => $ct->name];
+            }
+        }
+
+        return array_values($vus);
+    }
+
+    /** @return list<array{email: string, contact: ?string}> */
+    private function adresseFiche(): array
+    {
+        $email = mb_strtolower(trim((string) $this->email));
+
+        return filter_var($email, FILTER_VALIDATE_EMAIL) ? [['email' => $email, 'contact' => $this->contact_name]] : [];
+    }
+
+    /**
+     * Ancienne règle : UNE seule adresse par client (le principal d'abord,
+     * puis la fiche). Remplacée le 2026-10-28 par destinatairesCampagne()
+     * et destinatairesDiffusion() ; conservée pour l'existant.
      *
      * @return array{email: string, contact: ?string}  email vide si aucune
      */
