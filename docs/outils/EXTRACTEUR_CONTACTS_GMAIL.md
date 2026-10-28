@@ -104,6 +104,14 @@ Il vaut pour toute l'entreprise. Une entreprise sans indice est classée « Anno
 
 **Corriger à la main :** dans le Sheets, écrivez dans la colonne **Statut CRM** d'un contact « Agence », « Régie », « Média », « Annonceur », « Fournisseur », « Institution », « Client » ou « Exclure », puis réexportez. Le tri obéit à ces valeurs avant toute déduction.
 
+**Secteur d'activité** : il vient de `docs/emails clients/secteurs.csv`, un fichier hors de Git avec les colonnes `domaine;nom;secteur;confiance;source`. Les entreprises y ont été vérifiées en ligne le 28/10/2026, à partir de leur nom ou de leur domaine seulement, jamais d'un nom de personne.
+- Les libellés sont ceux des fiches clients de Panora (`Client::SECTORS`). Un libellé inconnu est refusé et signalé.
+- Pour corriger, modifiez le CSV dans Excel (séparateur `;`), puis relancez le tri.
+- Une entreprise apparue depuis n'a pas de secteur tant qu'elle n'est pas ajoutée au CSV.
+- Le nom vérifié affine aussi le type : « Red Africa (Publicis) » est une agence. Cela ne vaut que si son secteur est « Agence & Conseil » ou « Médias & Communication ».
+
+Si le fichier trié est ouvert dans Excel, le script écrit une copie datée à côté au lieu d'échouer.
+
 ## Avant d'utiliser ces contacts dans Brevo ⚠
 
 Une adresse présente dans Gmail **n'a pas consenti** à recevoir des campagnes, surtout si elle n'était qu'en copie.
