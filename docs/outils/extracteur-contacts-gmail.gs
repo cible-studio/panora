@@ -9,7 +9,8 @@
  * (expéditeurs, destinataires, copies, copies cachées de ses envois) et
  * ajoute les contacts à la feuille commune « Contacts », sans doublon.
  * Dans les mails reçus, il relève aussi le téléphone et le poste indiqués
- * dans la signature de l'expéditeur : rien d'autre n'est gardé du texte.
+ * dans la signature de l'expéditeur, et le NCC (numéro de compte
+ * contribuable) s'il est écrit dans le message : rien d'autre n'est gardé du texte.
  * Une même adresse vue dans plusieurs boîtes n'apparaît qu'une fois, avec
  * la liste des boîtes CIBLE qui ont échangé avec elle.
  *
@@ -28,8 +29,8 @@ var CONFIG = {
   DUREE_MAX_MS: 4.5 * 60 * 1000,  // Google coupe une exécution à 6 minutes
   HEURE_QUOTIDIENNE: 6,
   // Version du relevé des signatures : une boîte lue avec une version plus
-  // ancienne est relue une fois, pour ses signatures seulement (téléphones, poste).
-  SIGNATURES: 2,
+  // ancienne est relue une fois, pour ses signatures seulement (téléphones, poste, NCC).
+  SIGNATURES: 3, // 3 : NCC (2026-10-28)
 };
 
 var ENTETES = [
@@ -37,6 +38,7 @@ var ENTETES = [
   'Premier échange', 'Dernier échange', 'Échanges', 'Envoyés par CIBLE', 'Reçus de ce contact',
   'Rôles', 'Boîtes CIBLE', 'Objets récents', 'Statut CRM', 'Notes',
   'Téléphones (signature)', 'Poste (signature)', // ajoutées en dernier : les fichiers déjà remplis gardent leurs colonnes
+  'NCC (mails)',
 ];
 var COL = {}; ENTETES.forEach(function (e, i) { COL[e] = i; });
 
@@ -52,6 +54,8 @@ var REGLAGES_DEFAUT = {
   // Standard et portables de CIBLE : jamais prêtés à un contact. Les numéros des
   // signatures CIBLE sont aussi appris seuls, dans les mails envoyés aux clients.
   'Numéros internes (exclus)': [],
+  // NCC de CIBLE : jamais prêté à un contact. Aussi appris seul, dans nos mails envoyés.
+  'NCC internes (exclus)': [],
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -66,6 +70,8 @@ function onOpen() {
     .addSeparator()
     .addItem("Où en est l'analyse de ma boîte ?", 'afficherEtat')
     .addToUi();
+  // Second fichier du projet (panora-contacts.gs) : menu « 📇 Panora ».
+  if (typeof menuPanora_ === 'function') menuPanora_();
 }
 
 function analyserMaBoite() {
@@ -130,7 +136,7 @@ function traiterLot_(debut) {
   var reglages = lireReglages_();
   var boite = maBoite_();
   var agg = {};
-  var internes = { cles: {}, envoisLus: 0 }; // numéros de CIBLE vus dans nos signatures
+  var internes = { cles: {}, nccs: {}, envoisLus: 0 }; // numéros et NCC de CIBLE vus dans nos mails
   var termine = false;
   var erreur = null;
   var lus = 0;
@@ -170,7 +176,7 @@ function traiterLot_(debut) {
 
   // Fusion puis sauvegarde de l'avancement : si Google coupe avant, rien
   // n'est perdu ni compté deux fois (le lot est simplement refait).
-  var nb = fusionner_(agg, reglages, internes.cles);
+  var nb = fusionner_(agg, reglages, internes);
 
   if (termine) {
     // Le même objet est gardé : il porte aussi la version des signatures et leur rattrapage.
@@ -206,7 +212,7 @@ function rattraperSignatures_(debut) {
   var reglages = lireReglages_();
   var boite = maBoite_();
   var agg = {};
-  var internes = { cles: {}, envoisLus: 0 };
+  var internes = { cles: {}, nccs: {}, envoisLus: 0 };
   var fini = false;
   var erreur = null;
   var lus = 0;
@@ -230,7 +236,7 @@ function rattraperSignatures_(debut) {
     }
   }
 
-  var nb = fusionner_(agg, reglages, internes.cles, true);
+  var nb = fusionner_(agg, reglages, internes, true);
   if (fini) { etat.sig = CONFIG.SIGNATURES; delete etat.rattrapage; }
   else { planifierSuite_(erreur ? 60 : 1); }
   ecrireEtat_(etat);
@@ -272,31 +278,36 @@ function analyserSignature_(m, moi, agg, reglages, internes) {
     return !moi[a.email] && !estExclue(a.email, reglages);
   });
   if (!envoyeParMoi && !estExclue(exp.email, reglages)) {
-    var e = agg[exp.email] || (agg[exp.email] = { email: exp.email, nom: exp.nom, dernier: date, telephones: {}, postes: {} });
+    var e = agg[exp.email] || (agg[exp.email] = { email: exp.email, nom: exp.nom, dernier: date, telephones: {}, postes: {}, nccs: {} });
     if (date > e.dernier) e.dernier = date;
   }
   noterSignature_(m, exp, envoyeParMoi, versExterieur, date, agg, reglages, internes);
 }
 
 /**
- * Téléphones et poste de la signature. Mail reçu : ceux de l'expéditeur.
- * Mail envoyé à l'extérieur (pas un récap interne) : notre propre signature,
- * dont les numéros sont ceux de CIBLE, jamais prêtés à un contact.
+ * Téléphones et poste de la signature, NCC du message. Mail reçu : ceux de
+ * l'expéditeur. Mail envoyé à l'extérieur (pas un récap interne) : nos
+ * propres numéros et NCC, ceux de CIBLE, jamais prêtés à un contact.
  */
 function noterSignature_(m, exp, envoyeParMoi, versExterieur, date, agg, reglages, internes) {
   if (envoyeParMoi) {
     if (!versExterieur || internes.envoisLus >= 20) return;
     internes.envoisLus++;
-    telephonesDuTexte(corpsDuMessage_(m)).forEach(function (n) { internes.cles[cleTelephone(n)] = true; });
+    var envoi = corpsDuMessage_(m);
+    telephonesDuTexte(envoi).forEach(function (n) { internes.cles[cleTelephone(n)] = true; });
+    internes.nccs = internes.nccs || {};
+    nccDuTexte(envoi).forEach(function (n) { internes.nccs[n] = true; });
     return;
   }
   var e = agg[exp.email];
   if (!e || estExclue(exp.email, reglages)) return;
-  if (Object.keys(e.telephones).length >= 3 && Object.keys(e.postes).length) return;
+  e.nccs = e.nccs || {};
+  if (Object.keys(e.telephones).length >= 3 && Object.keys(e.postes).length && Object.keys(e.nccs).length) return;
   var corps = corpsDuMessage_(m);
   telephonesDuTexte(corps).forEach(function (n) { if (!e.telephones[n] || date > e.telephones[n]) e.telephones[n] = date; });
   var poste = posteDuTexte(corps, exp.nom, exp.email);
   if (poste && (!e.postes[poste] || date > e.postes[poste])) e.postes[poste] = date;
+  nccDuTexte(corps).forEach(function (n) { if (!e.nccs[n] || date > e.nccs[n]) e.nccs[n] = date; });
 }
 
 function corpsDuMessage_(m) {
@@ -327,7 +338,7 @@ function noterContact(agg, adresse, date, objet, role, boite, sens, vus) {
   var e = agg[adresse.email];
   if (!e) {
     e = agg[adresse.email] = { email: adresse.email, nom: '', premier: date, dernier: date,
-      echanges: 0, envoyes: 0, recus: 0, roles: {}, boites: {}, objets: {}, telephones: {}, postes: {} };
+      echanges: 0, envoyes: 0, recus: 0, roles: {}, boites: {}, objets: {}, telephones: {}, postes: {}, nccs: {} };
   }
   if (adresse.nom && (!e.nom || date >= e.dernier)) e.nom = adresse.nom;
   if (date < e.premier) e.premier = date;
@@ -359,10 +370,11 @@ function cumuler(agg, page) {
     Object.keys(p.objets).forEach(function (o) { if (!e.objets[o] || p.objets[o] > e.objets[o]) e.objets[o] = p.objets[o]; });
     fusionnerDates_(e, p, 'telephones');
     fusionnerDates_(e, p, 'postes');
+    fusionnerDates_(e, p, 'nccs');
   });
 }
 
-/** Cumul du rattrapage des signatures : seulement les téléphones et le poste. */
+/** Cumul du rattrapage des signatures : seulement les téléphones, le poste et le NCC. */
 function cumulerSignatures(agg, page) {
   Object.keys(page).forEach(function (email) {
     var p = page[email], e = agg[email];
@@ -370,11 +382,13 @@ function cumulerSignatures(agg, page) {
     if (p.dernier > e.dernier) e.dernier = p.dernier;
     fusionnerDates_(e, p, 'telephones');
     fusionnerDates_(e, p, 'postes');
+    fusionnerDates_(e, p, 'nccs');
   });
 }
 
 /** { valeur: date } : garde la date la plus récente de chaque valeur. */
 function fusionnerDates_(e, p, cle) {
+  e[cle] = e[cle] || {};
   Object.keys(p[cle] || {}).forEach(function (k) { if (!e[cle][k] || p[cle][k] > e[cle][k]) e[cle][k] = p[cle][k]; });
 }
 
@@ -401,6 +415,11 @@ function objetsRecents(nouveaux, existants, nouveauxDabord, max) {
  * @return {string[]} les 20 dernières lignes non vides.
  */
 function zoneSignature_(texte) {
+  return texteEcrit_(texte).slice(-20);
+}
+
+/** Lignes non vides écrites par l'expéditeur, sans l'historique cité. */
+function texteEcrit_(texte) {
   var t = '\n' + String(texte || '').replace(/\r/g, '');
   [
     /\n[ \t]*(Le|On)\s[^\n]{0,250}(\n[^\n]{0,250})?\s(a\s+écrit|wrote)\s*:/i,               // Gmail, Apple Mail
@@ -408,7 +427,40 @@ function zoneSignature_(texte) {
     /\n[ \t]*-{2,}[ \t]*(Original Message|Message d'origine|Forwarded message|Message transféré)/i,
     /\n[ \t]*_{10,}/,
   ].forEach(function (re) { var m = re.exec(t); if (m) t = t.slice(0, m.index); });
-  return t.split('\n').filter(function (l) { return l.trim() && !/^\s*>/.test(l); }).slice(-20);
+  return t.split('\n').filter(function (l) { return l.trim() && !/^\s*>/.test(l); });
+}
+
+/**
+ * NCC (numéro de compte contribuable) écrits par l'expéditeur, historique
+ * cité exclu : « NCC : 1234567 A », « N° CC 1234567A », « CC N° 1234567-A »,
+ * « compte contribuable 1234567A ». Forme ivoirienne : 7 chiffres et une
+ * lettre, rendue « 1234567A ». Sans le mot « NCC » (ou équivalent) devant,
+ * rien n'est pris : un numéro seul peut être n'importe quoi.
+ */
+function nccDuTexte(texte) {
+  var t = texteEcrit_(texte).join('\n');
+  var re = /(?:\bN\.?\s?[°º]?\s?C\.?\s?C\b\.?|\bC\.?\s?C\.?\s?N\s?[°º]|\bcompte\s+contribuable)\s*(?:N\s?[°º]\s*)?[:.\-]?\s*(\d{7})\s?-?\s?([A-Za-z])(?![A-Za-z0-9])/gi;
+  var vus = {}, nccs = [], m;
+  while ((m = re.exec(t)) !== null) {
+    var n = m[1] + m[2].toUpperCase();
+    if (!vus[n]) { vus[n] = true; nccs.push(n); }
+  }
+  return nccs;
+}
+
+/** « 1234567 a » → « 1234567A » ; vide si ce n'est pas un NCC. */
+function normaliserNcc_(v) {
+  var s = String(v || '').replace(/[\s\-]/g, '').toUpperCase();
+  return /^\d{7}[A-Z]$/.test(s) ? s : '';
+}
+
+/** Les 2 NCC les plus récents, sans celui de CIBLE (deux : un doute se voit). */
+function nccRecents_(nouveaux, existants, nouveauxDabord, internes) {
+  internes = internes || {};
+  var n = {};
+  Object.keys(nouveaux || {}).forEach(function (k) { if (!internes[k]) n[k] = nouveaux[k]; });
+  var anciens = String(existants || '').split(' | ').filter(function (k) { return k.trim() && !internes[normaliserNcc_(k)]; }).join(' | ');
+  return objetsRecents(n, anciens, nouveauxDabord, 2);
 }
 
 /**
@@ -525,9 +577,10 @@ function entrepriseDuDomaine(dom, reglages) {
 }
 
 /** Fusionne les contacts lus avec les lignes existantes. Ne touche jamais à « Statut CRM » ni « Notes ». */
-function fusionnerLignes(lignes, agg, reglages, internes, signaturesSeules) {
+function fusionnerLignes(lignes, agg, reglages, internes, signaturesSeules, nccInternes) {
   internes = internes || {};
-  var TEL = COL['Téléphones (signature)'], POSTE = COL['Poste (signature)'];
+  nccInternes = nccInternes || {};
+  var TEL = COL['Téléphones (signature)'], POSTE = COL['Poste (signature)'], NCC = COL['NCC (mails)'];
   var index = {};
   lignes.forEach(function (l, i) { index[String(l[COL['E-mail']]).toLowerCase()] = i; });
   var nb = 0;
@@ -543,10 +596,11 @@ function fusionnerLignes(lignes, agg, reglages, internes, signaturesSeules) {
       if (i === undefined) return;
       var y = lignes[i];
       var d = y[COL['Dernier échange']] instanceof Date ? y[COL['Dernier échange']] : a.dernier;
-      var avant = y[TEL] + '§' + y[POSTE];
+      var avant = y[TEL] + '§' + y[POSTE] + '§' + y[NCC];
       y[TEL] = telephonesRecents_(a.telephones, y[TEL], a.dernier > d, internes);
       y[POSTE] = objetsRecents(a.postes, y[POSTE], a.dernier > d, 1);
-      if (y[TEL] + '§' + y[POSTE] !== avant) nb++;
+      y[NCC] = nccRecents_(a.nccs, y[NCC], a.dernier > d, nccInternes);
+      if (y[TEL] + '§' + y[POSTE] + '§' + y[NCC] !== avant) nb++;
       return;
     }
     nb++;
@@ -568,6 +622,7 @@ function fusionnerLignes(lignes, agg, reglages, internes, signaturesSeules) {
       l[COL['Objets récents']] = objetsRecents(a.objets, '', true);
       l[TEL] = telephonesRecents_(a.telephones, '', true, internes);
       l[POSTE] = objetsRecents(a.postes, '', true, 1);
+      l[NCC] = nccRecents_(a.nccs, '', true, nccInternes);
       l[COL['Statut CRM']] = reglages['Domaines clients (statut Client)'].indexOf(dom) !== -1 ? 'Client' : 'À qualifier';
       index[email] = lignes.length;
       lignes.push(l);
@@ -583,6 +638,7 @@ function fusionnerLignes(lignes, agg, reglages, internes, signaturesSeules) {
     x[COL['Objets récents']] = objetsRecents(a.objets, x[COL['Objets récents']], a.dernier > dernier);
     x[TEL] = telephonesRecents_(a.telephones, x[TEL], a.dernier > dernier, internes);
     x[POSTE] = objetsRecents(a.postes, x[POSTE], a.dernier > dernier, 1);
+    x[NCC] = nccRecents_(a.nccs, x[NCC], a.dernier > dernier, nccInternes);
     x[COL['Premier échange']] = a.premier < premier ? a.premier : premier;
     x[COL['Dernier échange']] = a.dernier > dernier ? a.dernier : dernier;
     x[COL['Échanges']] = (Number(x[COL['Échanges']]) || 0) + a.echanges;
@@ -593,8 +649,11 @@ function fusionnerLignes(lignes, agg, reglages, internes, signaturesSeules) {
     if (!x[COL['Statut CRM']] && reglages['Domaines clients (statut Client)'].indexOf(dom) !== -1) x[COL['Statut CRM']] = 'Client';
   });
 
-  // Un numéro reconnu plus tard comme celui de CIBLE disparaît aussi des lignes déjà écrites.
-  lignes.forEach(function (l) { if (l[TEL]) l[TEL] = sansInternes_(l[TEL], internes); });
+  // Un numéro (ou NCC) reconnu plus tard comme celui de CIBLE disparaît aussi des lignes déjà écrites.
+  lignes.forEach(function (l) {
+    if (l[TEL]) l[TEL] = sansInternes_(l[TEL], internes);
+    if (l[NCC]) l[NCC] = nccRecents_({}, l[NCC], false, nccInternes);
+  });
   lignes.sort(function (p, q) { return (q[COL['Dernier échange']] || 0) - (p[COL['Dernier échange']] || 0); });
   return nb;
 }
@@ -620,9 +679,13 @@ function fusionner_(agg, reglages, internesLus, signaturesSeules) {
     // Numéros de CIBLE : appris par toutes les boîtes (propriétés du script) + « Réglages ».
     var props = PropertiesService.getScriptProperties();
     var internes = JSON.parse(props.getProperty('NUMEROS_INTERNES') || '{}');
-    Object.keys(internesLus || {}).forEach(function (k) { internes[k] = true; });
+    Object.keys((internesLus || {}).cles || {}).forEach(function (k) { internes[k] = true; });
     props.setProperty('NUMEROS_INTERNES', JSON.stringify(internes));
     reglages['Numéros internes (exclus)'].forEach(function (n) { var k = cleTelephone(n); if (k.length === 8) internes[k] = true; });
+    var nccInternes = JSON.parse(props.getProperty('NCC_INTERNES') || '{}');
+    Object.keys((internesLus || {}).nccs || {}).forEach(function (k) { nccInternes[k] = true; });
+    props.setProperty('NCC_INTERNES', JSON.stringify(nccInternes));
+    (reglages['NCC internes (exclus)'] || []).forEach(function (n) { var k = normaliserNcc_(n); if (k) nccInternes[k] = true; });
 
     var f = feuille_(CONFIG.FEUILLE_CONTACTS);
     var valeurs = f.getDataRange().getValues();
@@ -631,7 +694,7 @@ function fusionner_(agg, reglages, internesLus, signaturesSeules) {
       while (l.length < ENTETES.length) l.push('');
       return l.slice(0, ENTETES.length);
     });
-    var nb = fusionnerLignes(lignes, agg, reglages, internes, signaturesSeules);
+    var nb = fusionnerLignes(lignes, agg, reglages, internes, signaturesSeules, nccInternes);
     f.getRange(2, 1, Math.max(f.getMaxRows() - 1, 1), ENTETES.length).clearContent();
     if (f.getMaxRows() < lignes.length + 1) f.insertRowsAfter(f.getMaxRows(), lignes.length + 1 - f.getMaxRows());
     if (lignes.length) {
@@ -756,5 +819,6 @@ if (typeof module !== 'undefined') {
     entrepriseDuDomaine: entrepriseDuDomaine, fusionnerLignes: fusionnerLignes, analyserMessage_: analyserMessage_,
     nettoyerObjet: nettoyerObjet, objetsRecents: objetsRecents, telephonesDuTexte: telephonesDuTexte, cleTelephone: cleTelephone,
     posteDuTexte: posteDuTexte, analyserSignature_: analyserSignature_, cumulerSignatures: cumulerSignatures,
+    nccDuTexte: nccDuTexte, nccRecents_: nccRecents_, normaliserNcc_: normaliserNcc_, zoneSignature_: zoneSignature_,
     ENTETES: ENTETES, COL: COL, REGLAGES_DEFAUT: REGLAGES_DEFAUT };
 }

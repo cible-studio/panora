@@ -40,6 +40,7 @@ s'ajoutent à une base commune, sans doublon.
 | **Statut CRM, Notes** | **À vous** : jamais écrasés par le script |
 | Téléphones (signature) | Jusqu'à 3 numéros trouvés dans la signature du contact, du plus récent au plus ancien. Format `+225 07 07 12 34 56`, ou `+33…` pour l'étranger |
 | Poste (signature) | Le poste le plus récent lu dans la signature : sur la ligne du nom ou les deux suivantes, sinon sur une ligne courte avec un mot de métier (« Directrice Marketing », « Media Planner »…). Jamais dans une phrase du message |
+| NCC (mails) | Le numéro de compte contribuable écrit par le contact (« NCC : 1234567 A », « N° CC… »), rendu `1234567A`. Jusqu'à 2, du plus récent au plus ancien : deux valeurs signalent un doute. Le NCC de CIBLE n'est jamais prêté à un contact |
 
 Les colonnes de signature sont placées en dernier, pour ne rien décaler dans un fichier déjà rempli.
 
@@ -69,7 +70,7 @@ Pour faire analyser les boîtes des collègues, mieux vaut un script rattaché a
 
 Si une nouvelle version du script est fournie : ouvrez **Extensions → Apps Script**, remplacez **tout** le code, puis enregistrez. Les contacts, les réglages et l'avancement de l'analyse sont conservés. Les nouvelles colonnes s'ajoutent toutes seules à droite au lancement suivant.
 
-Quand une nouvelle version relève davantage dans les signatures (le poste, le 26/10/2026), chaque boîte déjà analysée est **relue une fois, pour ses signatures seulement**. Ce rattrapage complète les lignes existantes : il ne crée aucun contact et ne touche à aucun compteur. Il démarre seul à la mise à jour de 6 h, ou au prochain clic sur *Analyser ma boîte*. Le Journal le signale par des lignes « Signatures : … ».
+Quand une nouvelle version relève davantage dans les signatures (le poste le 26/10/2026, le NCC le 28/10/2026), chaque boîte déjà analysée est **relue une fois, pour ses signatures seulement**. Ce rattrapage complète les lignes existantes : il ne crée aucun contact et ne touche à aucun compteur. Il démarre seul à la mise à jour de 6 h, ou au prochain clic sur *Analyser ma boîte*. Le Journal le signale par des lignes « Signatures : … ».
 
 ## Pour toutes les boîtes de CIBLE
 
@@ -78,6 +79,29 @@ Partagez le Sheets (en modification) avec chaque collaborateur concerné : direc
 Pour une boîte générique comme commercial@, quelqu'un qui y a accès se connecte avec ce compte et fait les mêmes étapes.
 
 Le script ne lit que la boîte de la personne qui le lance : personne ne peut lire la boîte d'un autre.
+
+## Envoyer à Panora (menu « 📇 Panora »)
+
+Un second script, `panora-contacts.gs`, range chaque matin les adresses de « Contacts » et envoie les contacts gardés à Panora.
+
+**Installation, une seule fois :**
+1. **Extensions → Apps Script** : remplacez `Code.gs` par la dernière version de `extracteur-contacts-gmail.gs`. Ajoutez un fichier (➕ → Script) nommé `panora`, collez-y `panora-contacts.gs`, puis enregistrez.
+2. Rechargez le Sheets : le menu **📇 Panora** apparaît à côté de 📇 Contacts Gmail.
+3. **📇 Panora → Connecter à Panora** : collez le jeton donné par l'administrateur. Il reste caché dans votre compte, jamais dans une cellule. À faire par chaque personne qui envoie.
+4. **📇 Panora → Activer le tri chaque matin** (vers 7 h, après la récupération des boîtes).
+
+**Les onglets :**
+
+| Onglet | Rôle |
+|---|---|
+| Référence | Les contacts gardés. **Statut** (Client ou Prospect) obligatoire pour l'envoi. **Nouveau** : collègue ajouté seul, le jour indiqué. **Panora** : le verdict de Panora |
+| À valider | Les nouvelles adresses. Colonne **Décision** : Garder (avec un statut), Écarter, Écarter le domaine |
+| Écartés | Ce qui a été retiré, adresse ou domaine entier. Rien n'en revient. **Remettre** pour annuler |
+| Ignorés | Écartés par le script (adresses personnelles). **À valider** pour en reprendre une |
+
+Les décisions s'appliquent au tri du matin, ou tout de suite avec **Ranger maintenant**. Une ligne **supprimée** à la main est rangée dans « Écartés » : elle ne revient pas.
+
+**Envoyer :** **Vérifier** d'abord (rien n'est écrit dans Panora), puis **Envoyer à Panora**. Seules les lignes avec un statut, jamais envoyées ou modifiées depuis, partent. Une adresse déjà connue de Panora n'y est jamais dupliquée. Le NCC reste dans le Sheets : il n'est pas envoyé.
 
 ## Trier l'export
 
