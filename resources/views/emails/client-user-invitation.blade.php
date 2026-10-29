@@ -4,7 +4,7 @@
     $roleLabel = $user->role === 'owner'
         ? 'Propriétaire — gère l\'équipe et accepte les propositions'
         : 'Collaborateur — accès en lecture seule (campagnes, propositions, piges, factures)';
-    $preheader = "Vos identifiants pour accéder à votre espace client " . $client->name . " sur PANORA.";
+    $preheader = "Vos identifiants pour accéder à votre espace client " . $client->name . " chez {$operator}.";
 @endphp
 
 <x-mail.layout title="Accès à l'espace client" :preheader="$preheader">
@@ -15,8 +15,8 @@
 
     <p>
         Le propriétaire du compte <strong>{{ $client->name }}</strong> vient de vous
-        créer un accès à l'espace client PANORA, géré par la régie
-        <strong>{{ $operator }}</strong>.
+        créer un accès à l'espace client de la régie <strong>{{ $operator }}</strong>
+        (outil Panora).
     </p>
 
     <p>

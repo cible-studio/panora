@@ -4,12 +4,12 @@
         ? 'Propriétaire (gère l\'équipe, accepte les propositions)'
         : 'Collaborateur (lecture seule)';
 @endphp
-PANORA · {{ $operator }}
+{{ $operator }}
 
 Bonjour {{ $user->name }},
 
 Le propriétaire du compte « {{ $client->name }} » vient de vous créer un
-accès à l'espace client PANORA géré par la régie {{ $operator }}.
+accès à l'espace client Panora géré par la régie {{ $operator }}.
 
 Vos identifiants de connexion :
 - URL          : {{ $loginUrl }}
@@ -26,4 +26,4 @@ le propriétaire du compte {{ $client->name }}.
 —
 Email automatique — pour toute question, contactez le propriétaire du
 compte ou la régie {{ $operator }}.
-© {{ date('Y') }} Panora · {{ $operator }}. Tous droits réservés.
+© {{ date('Y') }} {{ $operator }}. Tous droits réservés.
