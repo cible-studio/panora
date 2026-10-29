@@ -106,8 +106,9 @@ class ClientStatutCommercialTest extends TestCase
 
     public function test_premiere_campagne_le_prospect_et_ses_interlocuteurs_passent_clients(): void
     {
+        $fatou = ClientContact::where('email', 'fatou@mtn.ci')->value('id');
         $id = DB::table('campaigns')->insertGetId([
-            'name' => 'Lancement', 'client_id' => 20, 'status' => 'planifie',
+            'name' => 'Lancement', 'client_id' => 20, 'client_contact_id' => $fatou, 'status' => 'planifie',
             'start_date' => '2026-12-01', 'end_date' => '2027-01-31',
         ]);
 
@@ -116,11 +117,22 @@ class ClientStatutCommercialTest extends TestCase
         $this->assertSame('client', Client::findOrFail(20)->statut_commercial);
         foreach (ClientContact::where('client_id', 20)->get() as $ct) {
             $this->assertSame('client', $ct->statut);
-            $this->assertTrue((bool) $ct->receives_notifications);
         }
+        // Seul l'interlocuteur de la campagne est coché « reçoit les mails » (2026-10-29).
+        $this->assertTrue((bool) ClientContact::find($fatou)->receives_notifications);
+        $this->assertFalse((bool) ClientContact::where('email', 'ali@mtn.ci')->value('receives_notifications'));
         // Les autres entreprises ne bougent pas.
         $this->assertSame('prospect', ClientContact::where('email', 'paul@orange.ci')->value('statut'));
         $this->assertSame(['ali@mtn.ci', 'fatou@mtn.ci'], array_column($this->client(20)->destinatairesDiffusion(), 'email')); // par nom
+    }
+
+    public function test_fiche_passee_cliente_a_la_main_aucune_case_cochee(): void
+    {
+        Client::findOrFail(20)->passerClient();
+
+        $this->assertSame('client', Client::findOrFail(20)->statut_commercial);
+        $this->assertSame(['client', 'client'], ClientContact::where('client_id', 20)->orderBy('id')->pluck('statut')->all());
+        $this->assertSame(0, ClientContact::where('client_id', 20)->where('receives_notifications', true)->count());
     }
 
     public function test_une_campagne_d_un_client_ne_change_rien(): void

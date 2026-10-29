@@ -369,8 +369,9 @@ class ClientController extends Controller
         $etaitProspect = $client->estProspect();
         $client->update($request->validated());
 
-        // Fiche passée de Prospect à Client à la main : même règle qu'à la
-        // première campagne, ses interlocuteurs passent clients (2026-10-28).
+        // Fiche passée de Prospect à Client à la main : ses interlocuteurs
+        // passent clients ; sans campagne, aucune case « reçoit les mails »
+        // n'est cochée (2026-10-29).
         if ($etaitProspect && !$client->estProspect()) {
             $client->passerClient();
         }
