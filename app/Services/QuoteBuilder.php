@@ -67,8 +67,10 @@ class QuoteBuilder
         // qui SONT stockés dans la table quotes (différence avec invoices).
         // On garde toutes les clés.
 
-        // Retirer les clés non-persistables sur la table quotes
-        unset($totals['services_impression'], $totals['services_pose_depose']);
+        // Retirer les clés non-persistables sur la table quotes. tsp_rate_override
+        // est propre aux factures (ajout 2026-08-03) : l'écrire faisait planter
+        // toute création de devis (« Unknown column », 2026-10-29).
+        unset($totals['services_impression'], $totals['services_pose_depose'], $totals['tsp_rate_override']);
 
         $quote->forceFill($totals)->save();
         return $quote->fresh(['lines', 'services']);
