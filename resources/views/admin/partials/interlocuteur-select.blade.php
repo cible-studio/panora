@@ -71,11 +71,13 @@
             etoile.hidden = true;
             if (!client.value) { option('', '— Choisir d\'abord le client —'); return; }
             option('', 'Chargement…');
-            fetch(bloc.dataset.url.replace('__ID__', encodeURIComponent(client.value)), {
+            var demande = client.value;
+            fetch(bloc.dataset.url.replace('__ID__', encodeURIComponent(demande)), {
                 headers: { 'Accept': 'application/json' }, credentials: 'same-origin',
             })
                 .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
                 .then(function (d) {
+                    if (client.value !== demande) return; // réponse d'un client déjà quitté
                     liste.innerHTML = '';
                     if (!d.contacts.length) { option('', 'Aucun interlocuteur enregistré pour ce client'); return; }
                     option('', '— Choisir l\'interlocuteur —');
@@ -85,11 +87,13 @@
                 .catch(function () { liste.innerHTML = ''; option('', 'Liste indisponible : rechargez la page'); });
         }
 
-        if (window.jQuery) {
-            window.jQuery(client).on('change.select2', charger); // reçoit aussi les changements natifs
-        } else {
-            client.addEventListener('change', charger);
-        }
+        // Le client peut changer par la liste native, Alpine, Select2 (chargé
+        // parfois après ce script) ou du code : on écoute le natif et on
+        // vérifie la valeur 3 fois par seconde. charger() ignore une valeur
+        // inchangée : aucun appel en trop.
+        client.addEventListener('change', charger);
+        client.addEventListener('input', charger);
+        setInterval(charger, 300);
     }
 
     function demarrer() { document.querySelectorAll('[data-interlocuteur]').forEach(brancher); }
