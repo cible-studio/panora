@@ -1,7 +1,12 @@
 <x-admin-layout title="Rapport — Motifs d'annulation">
     <x-slot:topbarLeft>
-        <a href="{{ route('admin.rapports.index') }}" class="btn btn-ghost btn-sm">← Retour aux rapports</a>
-    </x-slot:topbarLeft>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.rapports.index'),
+        'label' => 'Rapports',
+    ]])
+</x-slot:topbarLeft>
 
     {{-- Filtres : année + mois/trimestre/perso + motif --}}
     <form method="GET" action="{{ route('admin.rapports.annulations') }}"

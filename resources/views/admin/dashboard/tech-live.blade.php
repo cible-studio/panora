@@ -62,7 +62,7 @@
             {{-- Hotfix 2026-06-19 : PoseController index accepte technicien_id
                  (pas assigned_user_id). status=planifiee pour ne montrer que
                  les poses RESTANTES (non terminées, non annulées). --}}
-            <a href="{{ route('admin.pose-tasks.index', ['technicien_id' => $tech->id, 'status' => 'planifiee']) }}"
+            <a href="{{ route('admin.pose-tasks.index', ['back' => 'pilotage', 'technicien_id' => $tech->id, 'status' => 'planifiee']) }}"
                class="tech-live-kpi"
                title="Voir les poses planifiées de {{ $tech->name }}">
                 <div class="tech-live-kpi-value" data-kpi="remaining">—</div>

@@ -1,12 +1,12 @@
 <x-admin-layout title="Calendrier hebdomadaire des poses">
 
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.pose-tasks.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-        </svg>
-        Retour
-    </a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.pose-tasks.index'),
+        'label' => 'Tâches de pose',
+    ]])
 </x-slot:topbarLeft>
 
 <x-slot:topbarActions>

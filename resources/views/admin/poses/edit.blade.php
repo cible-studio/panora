@@ -1,7 +1,12 @@
 <x-admin-layout title="Modifier tâche — {{ $poseTask->panel?->reference }}">
 
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.pose-tasks.show', $poseTask) }}" class="btn btn-ghost btn-sm">← Retour</a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.pose-tasks.show', $poseTask),
+        'label' => 'La pose',
+    ]])
 </x-slot:topbarLeft>
 
 <x-slot:topbarActions>

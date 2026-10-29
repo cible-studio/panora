@@ -2,9 +2,12 @@
 <x-slot name="title">Logs d'Audit</x-slot>
 
 <x-slot name="topbarLeft">
-    <a href="{{ route('admin.users.index') }}" class="btn btn-ghost btn-sm">
-        ← Retour utilisateurs
-    </a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.users.index'),
+        'label' => 'Utilisateurs',
+    ]])
 </x-slot>
 
 <div class="card">

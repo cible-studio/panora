@@ -1,7 +1,12 @@
 <x-admin-layout title="Devis {{ $quote->reference }}">
     <x-slot:topbarLeft>
-        <a href="{{ route('admin.quotes.index') }}" class="btn btn-ghost btn-sm">← Retour aux devis</a>
-    </x-slot:topbarLeft>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.quotes.index'),
+        'label' => 'Devis',
+    ]])
+</x-slot:topbarLeft>
     <x-slot:topbarActions>
         <a href="{{ route('admin.quotes.pdf', $quote) }}" class="btn btn-ghost btn-sm" title="Télécharger le PDF du devis">📄 <span class="btn-label">Télécharger PDF</span></a>
         @can('update', $quote)

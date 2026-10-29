@@ -2,7 +2,12 @@
 <x-slot name="title">Saisie GPS — panneaux sans coordonnées</x-slot>
 
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.map') }}" class="btn btn-ghost btn-sm">← Carte des panneaux</a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.map'),
+        'label' => 'Carte des panneaux',
+    ]])
 </x-slot>
 
 <div style="max-width:1280px;margin:0 auto">

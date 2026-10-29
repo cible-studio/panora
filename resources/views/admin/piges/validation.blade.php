@@ -1,12 +1,12 @@
 <x-admin-layout title="Validation rapide des piges">
 
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.piges.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-        </svg>
-        Retour
-    </a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la liste des piges. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.piges.index'),
+        'label' => 'Piges photos',
+    ]])
     @if(($suspectCount ?? 0) > 0)
         @if(request()->boolean('suspect_first'))
             <a href="{{ route('admin.piges.validation') }}" class="btn btn-ghost btn-sm" style="margin-left:8px">

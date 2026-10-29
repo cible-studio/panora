@@ -2,39 +2,25 @@
 <x-slot name="title">Nouvelle équipe</x-slot>
 
 @php
-    // ── Bouton retour intelligent (2026-06-18, feedback patronne) ──────
-    //   Résout l'origine via ?back=<key> avec whitelist stricte (pas
-    //   d'open-redirect). Fallback : teams.index.
-    //   Le champ hidden `back` est aussi posté au form pour que le store
-    //   redirige vers la bonne page après création.
-    // Whitelist alignée avec resources/views/admin/partials/_smart_back.blade.php
-    // ET PoseTeamController::redirectBack (single source of truth).
-    $backMap = [
-        'finance'                => ['route' => 'admin.finance.index',                'label' => 'Tableau de bord financier'],
-        'finance.relances'       => ['route' => 'admin.finance.relances',             'label' => 'Historique des relances'],
-        'rapports'               => ['route' => 'admin.rapports.index',               'label' => 'Rapports & Analyses'],
-        'performance.commercial' => ['route' => 'admin.performance.commercial.index', 'label' => 'Performance commerciale'],
-        'performance.tech'       => ['route' => 'admin.performance.tech.index',       'label' => 'Performance techniciens'],
-        'performance.team'       => ['route' => 'admin.performance.team.index',       'label' => 'Performance équipes'],
-        'teams'                  => ['route' => 'admin.teams.index',                  'label' => 'Gérer équipes'],
-        'posetasks'              => ['route' => 'admin.pose-tasks.index',             'label' => 'Tâches de pose'],
-        'posetasks.techniciens'  => ['route' => 'admin.pose-tasks.techniciens.index', 'label' => 'Techniciens'],
-        'clients'                => ['route' => 'admin.clients.index',                'label' => 'Clients'],
-        'campaigns'              => ['route' => 'admin.campaigns.index',              'label' => 'Campagnes'],
-        'invoices'               => ['route' => 'admin.invoices.index',               'label' => 'Factures'],
-        'panels'                 => ['route' => 'admin.panels.index',                 'label' => 'Panneaux'],
-    ];
+    // Provenance (?back=<clé>) — liste blanche dans config/navigation.php,
+    // SOURCE UNIQUE depuis le 2026-10-29 (cette vue en gardait sa propre
+    // copie, qui avait déjà divergé : 13 clés au lieu de 25).
+    // Elle sert ici à deux choses : le champ caché posté au formulaire,
+    // pour que l'enregistrement reparte au bon endroit (cf.
+    // PoseTeamController::redirectBack), et le bouton retour ci-dessous.
     $backKey = (string) request()->query('back', '');
-    $backCfg = $backMap[$backKey] ?? null;
-    $backUrl   = $backCfg ? route($backCfg['route']) : route('admin.teams.index');
-    $backLabel = $backCfg ? $backCfg['label']         : 'Équipes';
+    $backCfg = config('navigation.retours')[$backKey] ?? null;
+    // « Annuler » ramène là d'où l'on vient, à défaut à la liste.
+    $backUrl = $backCfg ? route($backCfg['route'], $backCfg['params'] ?? []) : route('admin.teams.index');
 @endphp
 
 <x-slot:topbarLeft>
-    <a href="{{ $backUrl }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        {{ $backLabel }}
-    </a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la liste des équipes. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.teams.index'),
+        'label' => 'Équipes',
+    ]])
 </x-slot:topbarLeft>
 
 <div style="max-width:680px;margin:0 auto">

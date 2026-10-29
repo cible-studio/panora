@@ -2,8 +2,13 @@
     <x-slot name="title">Taxes — Détail par panneau</x-slot>
 
     <x-slot:topbarLeft>
-        <a href="{{ route('admin.taxes.index') }}" class="btn btn-ghost btn-sm">← Retour aux taxes</a>
-    </x-slot:topbarLeft>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.taxes.index'),
+        'label' => 'Taxes communales',
+    ]])
+</x-slot:topbarLeft>
 
     <x-slot name="topbarActions">
         <span class="badge badge-blue">{{ $lines->count() }} ligne(s)</span>

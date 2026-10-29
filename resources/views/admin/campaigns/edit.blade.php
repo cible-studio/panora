@@ -1,7 +1,12 @@
 <x-admin-layout title="Modifier — {{ $campaign->name }}">
 
 <x-slot:topbarLeft>
-  <a href="{{ route('admin.campaigns.show', $campaign) }}" class="btn btn-ghost">← Retour</a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.campaigns.show', $campaign),
+        'label' => 'La campagne',
+    ]])
 </x-slot:topbarLeft>
 
 <div style="max-width:720px;margin:0 auto;">

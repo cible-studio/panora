@@ -396,8 +396,19 @@
                     </svg>
                 </button>
 
+                {{-- Retour intelligent (2026-10-29). La vue garde la main si
+                     elle déclare son propre topbarLeft ; sinon le layout
+                     pose le retour lui-même, pour qu'aucun écran ne reste
+                     sans issue. Le partial ne rend rien quand il n'y a pas
+                     de provenance : la barre reste propre quand on arrive
+                     par le menu. --}}
                 @if(!empty($topbarLeft))
                 <div class="topbar-left">{{ $topbarLeft }}</div>
+                @else
+                    @php $retourAutomatique = trim(view('admin.partials._smart_back')->render()); @endphp
+                    @if($retourAutomatique !== '')
+                    <div class="topbar-left">{!! $retourAutomatique !!}</div>
+                    @endif
                 @endif
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
 

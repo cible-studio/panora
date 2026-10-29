@@ -36,10 +36,12 @@
 </x-slot:topbarActions>
 
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.pose-tasks.index') }}" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        Retour
-    </a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.pose-tasks.index'),
+        'label' => 'Tâches de pose',
+    ]])
 </x-slot:topbarLeft>
 
 @php

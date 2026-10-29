@@ -163,40 +163,24 @@ class PoseTeamController extends Controller
     }
 
     /**
-     * Redirection "smart back" — résout la destination depuis le champ
-     * caché `back` du form (whitelist stricte côté contrôleur — pas de
-     * open-redirect). Fallback : teams.index.
-     * Cf. resources/views/admin/teams/create.blade.php pour la liste des
-     * sources autorisées.
+     * Redirection « retour intelligent » — résout la destination depuis le
+     * champ caché `back` du formulaire. Liste blanche STRICTE : une clé
+     * inconnue retombe sur la liste des équipes, jamais sur une adresse
+     * fournie par l'appelant. Repli : teams.index.
+     *
+     * 2026-10-29 — La liste vient maintenant de config/navigation.php,
+     * partagée avec le bouton retour (_smart_back) et les vues
+     * teams/create|edit. Elle était auparavant recopiée ici, et avait
+     * divergé : 'sla' y pointait encore vers admin.sla.retards.index,
+     * alors que la page a été fusionnée dans Signalements le 2026-06-19.
      */
     protected function redirectBack(Request $request, string $flash)
     {
-        // ⚠ Whitelist alignée avec resources/views/admin/partials/_smart_back.blade.php
-        //   (single source of truth). Mettre à jour les 2 endroits ensemble.
-        $backMap = [
-            'finance'                => 'admin.finance.index',
-            'finance.relances'       => 'admin.finance.relances',
-            'rapports'               => 'admin.rapports.index',
-            'performance.commercial' => 'admin.performance.commercial.index',
-            'performance.tech'       => 'admin.performance.tech.index',
-            'performance.team'       => 'admin.performance.team.index',
-            'teams'                  => 'admin.teams.index',
-            'posetasks'              => 'admin.pose-tasks.index',
-            'posetasks.techniciens'  => 'admin.pose-tasks.techniciens.index',
-            'clients'                => 'admin.clients.index',
-            'campaigns'              => 'admin.campaigns.index',
-            'invoices'               => 'admin.invoices.index',
-            'panels'                 => 'admin.panels.index',
-            'propositions'           => 'admin.propositions.index',
-            'reservations'           => 'admin.reservations.index',
-            'maintenances'           => 'admin.maintenances.index',
-            'piges'                  => 'admin.piges.index',
-            'signalements'           => 'admin.signalements.index',
-            'sla'                    => 'admin.sla.retards.index',
-        ];
-        $key = (string) $request->input('back', '');
-        $route = $backMap[$key] ?? 'admin.teams.index';
-        return redirect()->route($route)->with('success', $flash);
+        $cible = config('navigation.retours')[(string) $request->input('back', '')] ?? null;
+
+        return redirect()
+            ->route($cible['route'] ?? 'admin.teams.index', $cible['params'] ?? [])
+            ->with('success', $flash);
     }
 
     /** Soft delete : détache les membres + softDelete équipe. */

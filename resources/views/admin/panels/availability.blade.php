@@ -1,13 +1,12 @@
 <x-admin-layout :title="'Disponibilité — ' . $panel->reference">
 
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.panels.show', $panel) }}" class="btn btn-ghost btn-sm">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-        </svg>
-        Retour au panneau
-    </a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.panels.show', $panel),
+        'label' => 'Le panneau',
+    ]])
 </x-slot:topbarLeft>
 
 <x-slot:topbarActions>
