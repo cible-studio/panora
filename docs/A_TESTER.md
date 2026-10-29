@@ -97,6 +97,22 @@ ligne ouvre le détail :
 - [ ] Changer un filtre sur une liste → pas de bouton « Retour » vers le
       même écran
 
+**Nom d'entreprise unique** (2026-10-29, `App\Support\NomEntreprise`) —
+testé sur SQLite et dans un navigateur avec un serveur simulé, jamais
+dans l'application :
+
+- [ ] Disponibilités → « Nouveau client » → taper `coris-bank` : encadré
+      rouge « existe déjà » ; **Utiliser cette fiche** sélectionne CORIS
+      BANK sans créer de fiche, l'interlocuteur saisi s'y ajoute
+- [ ] Même fenêtre, `MOOV AFRICA` : encadré orange avec MOOV ; sans cocher
+      « C'est une autre entreprise », la création est refusée
+- [ ] Nouvelle campagne → « Nouveau client » : mêmes deux essais
+- [ ] Clients → Nouveau, puis Modifier une fiche sans toucher au nom : pas
+      d'alerte, l'enregistrement passe (même pour un doublon existant
+      comme ADDOHA)
+- [ ] Nouvelle campagne depuis une réservation, en changeant le client :
+      refusé, « la campagne doit être sur le même client »
+
 ---
 
 ## 4. Migration en attente

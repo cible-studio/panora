@@ -2306,6 +2306,11 @@ class ReservationController extends Controller
         if ((int) $request->last_updated_at !== $reservation->updated_at->timestamp) {
             return back()->with('error', 'Cette réservation a été modifiée par un autre utilisateur. Rechargez la page.');
         }
+        // Réservation déjà liée à une campagne : même client que la campagne,
+        // sinon la même affaire se retrouve sur deux fiches (2026-10-29).
+        if ((int) $request->input('client_id') !== (int) $reservation->client_id && $reservation->campaign()->exists()) {
+            return back()->withInput()->withErrors(['client_id' => 'Cette réservation a déjà sa campagne : son client ne peut plus changer.']);
+        }
         $oldPanels = $reservation->panels->pluck('id')->toArray();
         try {
             $this->reservationService->updateReservation($reservation, $request->validated(), $oldPanels);

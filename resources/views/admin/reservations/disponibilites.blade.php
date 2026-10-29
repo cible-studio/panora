@@ -653,6 +653,7 @@
     </div>
 
     {{-- ══ MODAL CRÉATION RAPIDE CLIENT ══ --}}
+    @include('admin.clients.partials.verif-nom-js')
     <div id="modal-quick-client"
         class="fixed inset-0 z-[10001] bg-black/80 backdrop-blur-sm items-center justify-center p-4"
         style="display:none" onclick="if(event.target===this)DISPO.closeQuickClientModal()">
@@ -680,6 +681,8 @@
                     <label class="filter-label block mb-1">Nom / Raison sociale *</label>
                     <input type="text" id="qc-name" name="name" required placeholder="Ex : Brassivoire SA"
                         class="modal-input w-full" autocomplete="off">
+                    {{-- Nom déjà pris ou proche (2026-10-29) --}}
+                    <div id="qc-nom-alerte" style="display:none"></div>
                 </div>
                 <div>
                     <label class="filter-label block mb-1">NCC <span class="text-[var(--text3)] font-normal">(Numéro
@@ -1347,7 +1350,10 @@
                 function addClient(client) {
                     // Ajout local pour les "Nouveau client" créés à la volée.
                     window.__DISPO__.clients = window.__DISPO__.clients || [];
-                    window.__DISPO__.clients.unshift(client);
+                    // Fiche existante reprise (« Utiliser cette fiche ») : déjà dans la liste.
+                    if (!window.__DISPO__.clients.some(x => String(x.id) === String(client.id))) {
+                        window.__DISPO__.clients.unshift(client);
+                    }
                     select(client.id);
                 }
 
@@ -2208,6 +2214,9 @@
                         _el('quick-client-errors').classList.add('hidden');
                         _el('qc-submit-txt').textContent = 'Créer le client';
                         _el('qc-submit').disabled = false;
+                        // Nom déjà pris ou proche : alerte pendant la saisie (2026-10-29).
+                        PanoraNomClient.vider(_el('qc-nom-alerte'));
+                        PanoraNomClient.brancher(_el('qc-name'), _el('qc-nom-alerte'), { utiliser: f => this.utiliserFicheRapide(f) });
                         _show('modal-quick-client');
                         setTimeout(() => _el('qc-name')?.focus(), 100);
                     },
@@ -2246,31 +2255,23 @@
                                         email: _el('qc-email').value.trim() || null,
                                         phone: _el('qc-phone').value.trim() || null,
                                         contact_name: _el('qc-contact').value.trim() || null,
+                                        nom_proche_confirme: PanoraNomClient.confirme(_el('qc-nom-alerte')),
                                     }),
                                 });
                             const data = await res.json();
                             if (!res.ok) {
-                                const messages = data.errors ? Object.values(data.errors).flat() : [data.message ||
-                                    'Erreur.'
-                                ];
+                                // Nom déjà pris ou proche : la boîte sous le nom l'explique,
+                                // avec « Utiliser cette fiche » ; les autres erreurs restent ici.
+                                const etatNom = PanoraNomClient.afficher(_el('qc-nom-alerte'), data.nom, { utiliser: f => this.utiliserFicheRapide(f) });
+                                const messages = data.errors
+                                    ? Object.entries(data.errors).filter(([champ]) => champ !== 'name' || etatNom === 'libre').flatMap(([, m]) => m)
+                                    : [data.message || 'Erreur.'];
                                 errBox.innerHTML = messages.map(m =>
                                     `<div class="flex gap-2"><span>⚠️</span><span>${m}</span></div>`).join('');
-                                errBox.classList.remove('hidden');
+                                errBox.classList.toggle('hidden', !messages.length);
                                 return;
                             }
-                            addClientToSelect2(data.id, data.name, {
-                                ncc:   data.ncc   || null,
-                                email: data.email || null,
-                                phone: data.phone || null,
-                            });
-                            this.closeQuickClientModal();
-                            // Tâche 6.2 : utiliser le système Toast global de l'app pour cohérence visuelle
-                            if (window.Toast?.success) {
-                                window.Toast.success(
-                                    `Client <strong>${data.name}</strong> créé et sélectionné automatiquement.`);
-                            } else {
-                                this.showSuccessToast(`Client "${data.name}" créé ✅`);
-                            }
+                            this._clientRapideChoisi(data, false);
                         } catch (err) {
                             errBox.innerHTML =
                                 `<div class="flex gap-2"><span>⚠️</span><span>Erreur réseau : ${err.message}</span></div>`;
@@ -2279,6 +2280,60 @@
                             _el('qc-submit-icon').textContent = '🏢';
                             _el('qc-submit-txt').textContent = 'Créer le client';
                             btn.disabled = false;
+                        }
+                    },
+
+                    // Client créé, ou fiche existante reprise : sélectionné pour la réservation.
+                    _clientRapideChoisi(data, existant) {
+                        const c = data.client || data;
+                        addClientToSelect2(c.id, c.name, {
+                            ncc:   c.ncc   || null,
+                            email: c.email || null,
+                            phone: c.phone || null,
+                        });
+                        this.closeQuickClientModal();
+                        const texte = existant ? 'sélectionné (fiche existante)' : 'créé et sélectionné automatiquement';
+                        // Tâche 6.2 : utiliser le système Toast global de l'app pour cohérence visuelle
+                        if (window.Toast?.success) {
+                            window.Toast.success(`Client <strong>${c.name}</strong> ${texte}.`);
+                        } else {
+                            this.showSuccessToast(`Client "${c.name}" ${texte} ✅`);
+                        }
+                    },
+
+                    // « Utiliser cette fiche » (2026-10-29) : reprend la fiche existante, avec
+                    // l'interlocuteur saisi s'il y en a un, au lieu d'en créer une seconde.
+                    async utiliserFicheRapide(fiche) {
+                        const errBox = _el('quick-client-errors');
+                        try {
+                            const res = await fetch(
+                                '{{ secure_url(route('admin.clients.quick-store', [], false)) }}', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
+                                        'X-CSRF-TOKEN': D.csrf
+                                    },
+                                    body: JSON.stringify({
+                                        client_existant_id: fiche.id,
+                                        email: _el('qc-email').value.trim() || null,
+                                        phone: _el('qc-phone').value.trim() || null,
+                                        contact_name: _el('qc-contact').value.trim() || null,
+                                    }),
+                                });
+                            const data = await res.json();
+                            if (!res.ok || !data.client) {
+                                const messages = data.errors ? Object.values(data.errors).flat() : [data.message || 'Impossible de reprendre cette fiche.'];
+                                errBox.innerHTML = messages.map(m =>
+                                    `<div class="flex gap-2"><span>⚠️</span><span>${m}</span></div>`).join('');
+                                errBox.classList.remove('hidden');
+                                return;
+                            }
+                            this._clientRapideChoisi(data, true);
+                        } catch (err) {
+                            errBox.innerHTML =
+                                `<div class="flex gap-2"><span>⚠️</span><span>Erreur réseau : ${err.message}</span></div>`;
+                            errBox.classList.remove('hidden');
                         }
                     },
 

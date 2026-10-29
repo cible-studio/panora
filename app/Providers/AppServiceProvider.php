@@ -30,7 +30,8 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // Liste des noms de fiches lue une fois par requête / par job (2026-10-29).
+        $this->app->scoped(\App\Support\NomEntreprise::class);
     }
 
     public function boot(): void

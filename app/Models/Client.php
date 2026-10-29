@@ -298,6 +298,15 @@ class Client extends Authenticatable  // ← était "extends Model"
         'Autre',
     ];
 
+    // Liste des noms tenue à jour pour la règle « nom unique » (2026-10-29).
+    protected static function booted(): void
+    {
+        static::created(fn (self $c) => app(\App\Support\NomEntreprise::class)->ajouter($c->id, $c->name));
+        static::updated(fn (self $c) => $c->wasChanged('name') && app(\App\Support\NomEntreprise::class)->oublier());
+        static::deleted(fn () => app(\App\Support\NomEntreprise::class)->oublier());
+        static::restored(fn () => app(\App\Support\NomEntreprise::class)->oublier());
+    }
+
     // ── Normalisation automatique du nom ─────────────────────────
     public function setNameAttribute(string $value): void
     {

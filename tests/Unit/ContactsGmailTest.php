@@ -136,6 +136,22 @@ class ContactsGmailTest extends TestCase
         $this->assertSame(20, $r['client_id']);
     }
 
+    public function test_nom_ecrit_autrement_reconnu_sans_correspondance(): void
+    {
+        // « MTN-CI » = « MTN CI » (règle NomEntreprise, 2026-10-29) : pas de seconde fiche.
+        $r = $this->une(['email' => 'ali@mtn-group.com', 'nom' => 'Ali', 'entreprise' => 'MTN-CI']);
+
+        $this->assertSame([20, 'cree'], [$r['client_id'], $r['resultat']]);
+        $this->assertStringContainsString('nom dans le Sheets : MTN-CI', $r['message']);
+        $this->assertSame(2, Client::count());
+
+        // Fiche supprimée, nom écrit autrement : ne revient pas non plus.
+        Client::find(20)->delete();
+        $r = $this->une(['email' => 'zoe@mtn-group.com', 'entreprise' => 'mtn.ci']);
+        $this->assertSame('refuse', $r['resultat']);
+        $this->assertStringContainsString('supprimée dans Panora : MTN CI', $r['message']);
+    }
+
     public function test_entreprise_inconnue_creee_au_statut_du_contact_sans_ncc(): void
     {
         $r = $this->une(['email' => 'fatou@sucaf.ci', 'nom' => 'Fatou', 'entreprise' => 'Sucaf', 'secteur' => 'Agro-industrie', 'relation' => 'Prospect']);

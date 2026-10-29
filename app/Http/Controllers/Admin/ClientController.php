@@ -7,6 +7,8 @@ use App\Http\Requests\Client\StoreClientRequest;
 use App\Http\Requests\Client\UpdateClientRequest;
 use App\Imports\ClientsImport;
 use App\Models\Client;
+use App\Rules\NomEntrepriseLibre;
+use App\Support\NomEntreprise;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -581,9 +583,16 @@ class ClientController extends Controller
 
     public function storeQuick(Request $request)
     {
+        // « Utiliser cette fiche » (2026-10-29) : le nom existe déjà ou
+        // ressemble à une fiche ; on reprend celle-ci au lieu d'en créer une.
+        if ($request->filled('client_existant_id')) {
+            return $this->utiliserFicheExistante($request);
+        }
+
         try {
             $data = $request->validate([
-                'name'         => 'required|string|max:150',
+                // Nom unique, même écrit autrement ; alerte si proche (2026-10-29).
+                'name'         => ['required', 'string', 'max:150', new NomEntrepriseLibre(null, $request->boolean(NomEntrepriseLibre::CONFIRMATION))],
                 'email'        => 'nullable|email|unique:clients,email',
                 'phone'        => 'nullable|string|max:25',
                 'contact_name' => 'nullable|string|max:150',
@@ -596,6 +605,8 @@ class ClientController extends Controller
                 'success' => false,
                 'message' => $first,
                 'errors'  => $e->errors(),
+                // Fiche du même nom ou fiches proches, pour « Utiliser cette fiche ».
+                'nom'     => isset($e->errors()['name']) ? app(NomEntreprise::class)->verifier((string) $request->input('name')) : null,
             ], 422);
         }
 
@@ -607,8 +618,46 @@ class ClientController extends Controller
             ? $client->ajouterInterlocuteur($data['contact_name'] ?? null, $data['email'] ?? null, $data['phone'] ?? null)
             : null;
 
+        return response()->json($this->clientRapideJson($client, $interlocuteur));
+    }
+
+    /**
+     * Vérification du nom pendant la saisie (2026-10-29) : fiche du même nom
+     * et fiches qui ressemblent. Sert aux formulaires et aux fenêtres
+     * « Nouveau client » ; la règle reste côté serveur (NomEntreprise).
+     */
+    public function verifierNom(Request $request)
+    {
+        $data = $request->validate([
+            'nom'  => 'nullable|string|max:150',
+            'sauf' => 'nullable|integer',
+        ]);
+
+        return response()->json(app(NomEntreprise::class)->verifier($data['nom'] ?? '', isset($data['sauf']) ? (int) $data['sauf'] : null));
+    }
+
+    /** « Utiliser cette fiche » : reprend la fiche, avec l'interlocuteur saisi s'il y en a un. */
+    private function utiliserFicheExistante(Request $request)
+    {
+        $data = $request->validate([
+            'client_existant_id' => 'required|integer',
+            'email'              => 'nullable|email|max:150',
+            'phone'              => 'nullable|string|max:25',
+            'contact_name'       => 'nullable|string|max:150',
+        ]);
+        $client = Client::findOrFail($data['client_existant_id']);
+
+        $interlocuteur = (filled($data['contact_name'] ?? null) || filled($data['email'] ?? null))
+            ? $client->ajouterInterlocuteur($data['contact_name'] ?? null, $data['email'] ?? null, $data['phone'] ?? null)
+            : null;
+
+        return response()->json($this->clientRapideJson($client, $interlocuteur) + ['existant' => true]);
+    }
+
+    private function clientRapideJson(Client $client, ?\App\Models\ClientContact $interlocuteur): array
+    {
         // Structure attendue par le JS du modal campagne : { success, client: {...} }
-        return response()->json([
+        return [
             'success' => true,
             'client'  => [
                 'id'           => $client->id,
@@ -625,7 +674,7 @@ class ClientController extends Controller
             'name' => $client->name,
             'text' => $client->name,
             'ncc'  => $client->ncc,
-        ]);
+        ];
     }
 
     // ══════════════════════════════════════════════════════════════

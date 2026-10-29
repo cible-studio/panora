@@ -660,7 +660,9 @@ function campaignCreate() {
         <div style="display:flex;flex-direction:column;gap:12px">
             <div>
                 <label class="cc-field-label">Nom <span class="req">*</span></label>
-                <input id="qc-name" type="text" required class="cc-input">
+                <input id="qc-name" type="text" required class="cc-input" autocomplete="off">
+                {{-- Nom déjà pris ou proche (2026-10-29) --}}
+                <div id="qc-nom-alerte" style="display:none"></div>
             </div>
             <div class="cc-row-2">
                 <div>
@@ -692,9 +694,14 @@ function campaignCreate() {
     </div>
 </div>
 
+@include('admin.clients.partials.verif-nom-js')
 <script>
 function openQuickClient() {
     document.getElementById('quick-client-errors').style.display = 'none';
+    // Nom déjà pris ou proche : alerte pendant la saisie (2026-10-29).
+    const alerteNom = document.getElementById('qc-nom-alerte');
+    PanoraNomClient.vider(alerteNom);
+    PanoraNomClient.brancher(document.getElementById('qc-name'), alerteNom, { utiliser: utiliserFicheRapide });
     ['qc-name','qc-ncc','qc-phone','qc-email','qc-contact'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -735,12 +742,19 @@ async function submitQuickClient() {
                 phone: document.getElementById('qc-phone').value.trim() || null,
                 email: document.getElementById('qc-email').value.trim() || null,
                 contact_name: document.getElementById('qc-contact').value.trim() || null,
+                nom_proche_confirme: PanoraNomClient.confirme(document.getElementById('qc-nom-alerte')),
             }),
         });
         const data = await r.json();
         if (!r.ok || data.success === false) {
-            errBox.textContent = '⚠️ ' + (data.message || 'Erreur lors de la création.');
-            errBox.style.display = 'block';
+            // Nom déjà pris ou proche : la boîte sous le nom l'explique, avec « Utiliser cette fiche ».
+            const etatNom = PanoraNomClient.afficher(document.getElementById('qc-nom-alerte'), data.nom, { utiliser: utiliserFicheRapide });
+            // Les autres erreurs (e-mail, NCC…) restent dans le bandeau rouge.
+            const autres = data.errors
+                ? Object.entries(data.errors).filter(([champ]) => champ !== 'name' || etatNom === 'libre').flatMap(([, m]) => m)
+                : [data.message || 'Erreur lors de la création.'];
+            errBox.textContent = autres.length ? '⚠️ ' + autres.join(' ') : '';
+            errBox.style.display = autres.length ? 'block' : 'none';
             btn.disabled = false;
             document.getElementById('qc-submit-icon').textContent = '+';
             document.getElementById('qc-submit-txt').textContent = 'Créer le client';
@@ -755,18 +769,55 @@ async function submitQuickClient() {
             document.getElementById('qc-submit-txt').textContent = 'Créer le client';
             return;
         }
-        const sel = document.getElementById('campaign-client-select');
-        const opt = new Option(created.name, created.id, true, true);
-        sel.add(opt);
-        sel.dispatchEvent(new Event('change', { bubbles: true }));
-        if (window.jQuery) jQuery(sel).trigger('change.select2');
-        closeQuickClient();
+        selectionnerClientRapide(created);
     } catch (e) {
         errBox.textContent = '⚠️ Erreur réseau : ' + e.message;
         errBox.style.display = 'block';
         btn.disabled = false;
         document.getElementById('qc-submit-icon').textContent = '+';
         document.getElementById('qc-submit-txt').textContent = 'Créer le client';
+    }
+}
+// Sélectionne le client (créé, ou fiche existante reprise) dans la liste.
+function selectionnerClientRapide(client) {
+    const sel = document.getElementById('campaign-client-select');
+    if (![...sel.options].some(o => String(o.value) === String(client.id))) {
+        sel.add(new Option(client.name, client.id, true, true));
+    }
+    sel.value = String(client.id);
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (window.jQuery) jQuery(sel).trigger('change.select2');
+    closeQuickClient();
+}
+// « Utiliser cette fiche » (2026-10-29) : reprend la fiche existante, avec
+// l'interlocuteur saisi s'il y en a un, au lieu d'en créer une seconde.
+async function utiliserFicheRapide(fiche) {
+    const errBox = document.getElementById('quick-client-errors');
+    try {
+        const r = await fetch('{{ route('admin.clients.quick-store') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+            },
+            body: JSON.stringify({
+                client_existant_id: fiche.id,
+                phone: document.getElementById('qc-phone').value.trim() || null,
+                email: document.getElementById('qc-email').value.trim() || null,
+                contact_name: document.getElementById('qc-contact').value.trim() || null,
+            }),
+        });
+        const data = await r.json();
+        if (!r.ok || !data.client) {
+            errBox.textContent = '⚠️ ' + (data.message || 'Impossible de reprendre cette fiche.');
+            errBox.style.display = 'block';
+            return;
+        }
+        selectionnerClientRapide(data.client);
+    } catch (e) {
+        errBox.textContent = '⚠️ Erreur réseau : ' + e.message;
+        errBox.style.display = 'block';
     }
 }
 </script>

@@ -5,6 +5,7 @@ namespace App\Services\Contacts;
 use App\Models\Client;
 use App\Models\ClientContact;
 use App\Models\EnvoiContactsGmail;
+use App\Support\NomEntreprise;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -17,7 +18,8 @@ use Illuminate\Support\Facades\Log;
  *   · adresse ou entreprise supprimée dans Panora : refusée, elle ne
  *     revient pas ;
  *   · nouvelle adresse : entreprise trouvée par le domaine, sinon par le nom
- *     exact, sinon créée (statut et secteur du Sheets, sans NCC ni adresse
+ *     (même écrit autrement : « Coris-Bank » = « CORIS BANK », règle
+ *     NomEntreprise, 2026-10-29), sinon créée (statut et secteur du Sheets, sans NCC ni adresse
  *     de fiche) ; une messagerie personnelle se rattache par le nom
  *     seulement, sans nom elle est refusée ;
  *   · domaine présent dans plusieurs entreprises : refusé, sauf si le nom
@@ -52,6 +54,8 @@ class ContactsGmailService
                     // Point de reprise par ligne : une erreur n'annule pas les autres.
                     $r = DB::transaction(fn () => $this->traiterLigne($ligne, $simulation));
                 } catch (\Throwable $e) {
+                    // Une fiche créée par cette ligne vient d'être annulée : liste des noms relue.
+                    app(NomEntreprise::class)->oublier();
                     Log::warning('contacts_gmail.ligne_echec', ['email' => $ligne['email'] ?? null, 'erreur' => $e->getMessage()]);
                     $r = self::refus('Erreur Panora : ' . mb_substr($e->getMessage(), 0, 200));
                 }
@@ -183,7 +187,7 @@ class ContactsGmailService
             if ($parDomaine->count() === 1) {
                 $client = $parDomaine->first();
             } elseif ($parDomaine->count() > 1) {
-                $client = $entreprise !== '' ? $parDomaine->first(fn ($c) => mb_strtoupper(trim($c->name)) === $entreprise) : null;
+                $client = $entreprise !== '' ? $parDomaine->first(fn ($c) => NomEntreprise::cle($c->name) === NomEntreprise::cle($entreprise)) : null;
                 if (!$client) {
                     return self::refus('Domaine partagé par plusieurs entreprises : ' . $parDomaine->pluck('name')->implode(', ') . '. À rattacher à la main.');
                 }
@@ -191,16 +195,23 @@ class ContactsGmailService
         }
 
         if (!$client && $entreprise !== '') {
-            $client = Client::where('name', $entreprise)->orderBy('id')->first();
+            // Même nom, même écrit autrement ; la plus ancienne fiche s'il y en a deux.
+            $id = app(NomEntreprise::class)->identique($entreprise);
+            $client = $id !== null ? Client::find($id) : null;
         }
 
         if (!$client) {
-            // Une entreprise supprimée dans Panora ne revient pas.
-            $supprimee = ($entreprise !== '' || !$personnelle) ? Client::onlyTrashed()
-                ->where(fn ($q) => $q->when($entreprise !== '', fn ($q) => $q->orWhere('name', $entreprise))
-                    ->when(!$personnelle, fn ($q) => $q->orWhereRaw('LOWER(TRIM(email)) LIKE ?', ['%@' . $domaine])
-                        ->orWhereHas('contacts', fn ($c) => $c->whereRaw('LOWER(TRIM(email)) LIKE ?', ['%@' . $domaine]))))
-                ->first() : null;
+            // Une entreprise supprimée dans Panora ne revient pas (nom comparé
+            // comme pour une fiche active).
+            $supprimee = $entreprise !== ''
+                ? Client::onlyTrashed()->orderBy('id')->get(['id', 'name'])->first(fn ($c) => NomEntreprise::cle($c->name) === NomEntreprise::cle($entreprise))
+                : null;
+            if (!$supprimee && !$personnelle) {
+                $supprimee = Client::onlyTrashed()
+                    ->where(fn ($q) => $q->whereRaw('LOWER(TRIM(email)) LIKE ?', ['%@' . $domaine])
+                        ->orWhereHas('contacts', fn ($c) => $c->whereRaw('LOWER(TRIM(email)) LIKE ?', ['%@' . $domaine])))
+                    ->first();
+            }
             if ($supprimee) {
                 return self::refus('Entreprise supprimée dans Panora : ' . $supprimee->name . '.');
             }
