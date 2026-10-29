@@ -2,6 +2,7 @@
 namespace App\Http\Requests\Client;
 
 use App\Models\Client;
+use App\Rules\NomEntrepriseLibre;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,9 +22,9 @@ class UpdateClientRequest extends FormRequest
                 'required',
                 'string',
                 'max:150',
-                Rule::unique('clients', 'name')
-                    ->ignore($clientId)
-                    ->whereNull('deleted_at'),
+                // Nom unique, même écrit autrement ; alerte si proche. Vérifié
+                // seulement si le nom change (2026-10-29).
+                new NomEntrepriseLibre($clientId, $this->boolean(NomEntrepriseLibre::CONFIRMATION), $this->route('client')->name),
             ],
             'ncc' => [
                 'nullable',
@@ -64,7 +65,6 @@ class UpdateClientRequest extends FormRequest
     {
         return [
             'name.required' => 'Le nom de l\'entreprise est obligatoire.',
-            'name.unique'   => 'Un client avec ce nom existe déjà.',
             'ncc.unique'    => 'Ce numéro de compte client est déjà utilisé.',
             'ncc.max'       => 'Le NCC ne doit pas dépasser 50 caractères.',
             'sector.in'     => 'Le secteur sélectionné n\'est pas valide.',

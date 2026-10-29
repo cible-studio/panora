@@ -47,7 +47,7 @@
                                   letter-spacing:.5px;display:block;margin-bottom:6px;">
                             NOM DE L'ENTREPRISE *
                         </label>
-                        <input type="text" name="name" value="{{ old('name') }}"
+                        <input type="text" name="name" id="client-nom" value="{{ old('name') }}" autocomplete="off"
                             placeholder="Ex : ORANGE CÔTE D'IVOIRE"
                             style="width:100%;background:var(--surface2);
                                   border:1px solid {{ $errors->has('name') ? 'var(--red)' : 'var(--border2)' }};
@@ -57,6 +57,8 @@
                         @error('name')
                             <p style="font-size:11px;color:var(--red);margin-top:4px;">{{ $message }}</p>
                         @enderror
+                        {{-- Nom déjà pris ou proche (2026-10-29) --}}
+                        <div id="client-nom-alerte" style="display:none"></div>
                     </div>
 
                     {{-- Secteur --}}
@@ -226,6 +228,10 @@
                     <button type="submit" class="btn btn-primary">Créer le client</button>
                 </div>
             </form>
+            @include('admin.clients.partials.verif-nom-js')
+            <script>
+            PanoraNomClient.brancher(document.getElementById('client-nom'), document.getElementById('client-nom-alerte'));
+            </script>
             <script>
             // Lignes « Autres interlocuteurs » : chaque ligne est un interlocuteur créé avec le client.
             var compteurInterlocuteurs = {{ count(old('interlocuteurs', [])) }};

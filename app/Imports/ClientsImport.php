@@ -2,6 +2,7 @@
 namespace App\Imports;
 
 use App\Models\Client;
+use App\Support\NomEntreprise;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\Importable;
 use Maatwebsite\Excel\Concerns\SkipsErrors;
@@ -20,7 +21,8 @@ use Throwable;
  *
  * Comportement :
  *   - Ligne ignorée si "nom" vide
- *   - Doublons ignorés silencieusement (même email OU même ncc déjà présents)
+ *   - Doublons ignorés silencieusement (même email OU même ncc déjà présents,
+ *     OU même nom d'entreprise, même écrit autrement — 2026-10-29)
  *     → comptés dans $this->skipped
  *   - Erreurs de validation accumulées via SkipsOnError + SkipsErrors
  *
@@ -32,6 +34,9 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
 
     public int $imported = 0;
     public int $skipped  = 0;
+
+    /** @var array<string, true> clés des noms déjà importés par ce fichier */
+    private array $nomsVus = [];
 
     /** Numéro de la ligne d'entête détectée (1 par défaut). */
     protected int $headingRow = 1;
@@ -97,6 +102,17 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
             return null;
         }
 
+        // Nom d'entreprise déjà pris, même écrit autrement (2026-10-29) :
+        // ligne ignorée, comme un e-mail ou un NCC déjà connu. Vaut aussi
+        // entre deux lignes du même fichier. Règle : NomEntreprise.
+        $finalName = $company !== '' ? $company : $name;
+        $cle = NomEntreprise::cle($finalName);
+        if (isset($this->nomsVus[$cle]) || app(NomEntreprise::class)->identique($finalName) !== null) {
+            $this->skipped++;
+            return null;
+        }
+        $this->nomsVus[$cle] = true;
+
         // Auto-NCC si vide (aligné avec StoreClientRequest) — jamais pour un
         // prospect : la direction ne veut pas de NCC sans affaire conclue.
         if ($ncc === '' && $statut === Client::STATUT_CLIENT) {
@@ -112,8 +128,7 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
         // est déjà remplie — auquel cas celle-ci prime.
         //
         // Sans "entreprise", on garde l'ancien comportement : `name` = nom
-        // de la ligne, `contact_name` = colonne contact.
-        $finalName    = $company !== '' ? $company : $name;
+        // de la ligne, `contact_name` = colonne contact. ($finalName : plus haut)
         $finalContact = $contact;
         if (
             $finalContact === ''

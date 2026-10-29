@@ -905,6 +905,10 @@ Route::prefix('admin')
         Route::post('clients/quick-store', [ClientController::class, 'storeQuick'])
             ->middleware('role:admin,commercial,mediaplanner,comptable')
             ->name('clients.quick-store');
+        // Nom déjà pris ou proche, pendant la saisie (2026-10-29).
+        Route::get('clients/verifier-nom', [ClientController::class, 'verifierNom'])
+            ->middleware('role:admin,commercial,mediaplanner,comptable')
+            ->name('clients.verifier-nom');
         // Suppression groupée (sélection multiple) — admin uniquement
         Route::post('clients/bulk-destroy', [ClientController::class, 'bulkDestroy'])
             ->middleware('role:admin')

@@ -7,6 +7,7 @@ use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Panel;
 use App\Services\CampaignPdfImporter;
+use App\Support\NomEntreprise;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -43,11 +44,12 @@ class CampaignImportController extends Controller
             return back()->withErrors(['pdf' => $e->getMessage()]);
         }
 
-        // Résolution client — match insensible à la casse.
+        // Résolution client — même nom, même écrit autrement ; s'il ressemble
+        // seulement à des fiches, l'utilisateur choisit (NomEntreprise, 2026-10-29).
         $clientName = mb_strtoupper(trim($data['client']));
-        $existingClient = Client::whereRaw('UPPER(name) = ?', [$clientName])
-            ->whereNull('deleted_at')
-            ->first();
+        $verifNom = app(NomEntreprise::class)->verifier($clientName);
+        $existingClient = $verifNom['identique'] ? Client::find($verifNom['identique']['id']) : null;
+        $prochesClient = $existingClient ? [] : $verifNom['proches'];
 
         // Résolution panneaux — recherche par reference, casse insensible.
         $codesUpper = array_map(fn($c) => mb_strtoupper($c), $data['codes']);
@@ -75,6 +77,7 @@ class CampaignImportController extends Controller
                 'start_date' => $data['start_date']->format('Y-m-d'),
                 'end_date'   => $data['end_date']->format('Y-m-d'),
                 'codes'      => $codesUpper,
+                'proches_ids' => array_column($prochesClient, 'id'),
                 'expires_at' => now()->addMinutes(15)->timestamp,
             ],
         ]);
@@ -82,6 +85,7 @@ class CampaignImportController extends Controller
         return view('admin.campaigns.import-pdf.preview', [
             'data'             => $data,
             'existingClient'   => $existingClient,
+            'prochesClient'    => $prochesClient,
             'foundPanels'      => $foundPanels,
             'missingCodes'     => $missingCodes,
             'existingCampaign' => $existingCampaign,
@@ -114,13 +118,22 @@ class CampaignImportController extends Controller
             ]);
         }
 
+        // Nom proche de fiches existantes : choix obligatoire (fiche ou nouvelle).
+        $proches = $session['proches_ids'] ?? [];
+        $choix = (string) $request->input('client_choix', '');
+        if ($proches && $choix !== 'nouveau' && !in_array((int) $choix, $proches, true)) {
+            return back()->withErrors(['pdf' => 'Choisissez la fiche du client : une fiche existante ou « Nouvelle fiche ».']);
+        }
+
         try {
-            $campaign = DB::transaction(function () use ($session, $foundPanels) {
-                // 1. Client : trouve ou crée
+            $campaign = DB::transaction(function () use ($session, $foundPanels, $proches, $choix) {
+                // 1. Client : fiche choisie, sinon même nom (même écrit
+                //    autrement), sinon créée.
                 $clientName = mb_strtoupper(trim($session['client']));
-                $client = Client::whereRaw('UPPER(name) = ?', [$clientName])
-                    ->whereNull('deleted_at')
-                    ->first();
+                $client = in_array((int) $choix, $proches, true) ? Client::find((int) $choix) : null;
+                if (!$client && ($id = app(NomEntreprise::class)->identique($clientName)) !== null) {
+                    $client = Client::find($id);
+                }
 
                 if (!$client) {
                     $client = Client::create([

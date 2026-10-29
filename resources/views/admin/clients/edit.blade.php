@@ -52,7 +52,7 @@
                                   letter-spacing:.5px;display:block;margin-bottom:6px;">
                         NOM DE L'ENTREPRISE *
                     </label>
-                    <input type="text" name="name"
+                    <input type="text" name="name" id="client-nom" autocomplete="off"
                            value="{{ old('name', $client->name) }}"
                            style="width:100%;background:var(--surface2);
                                   border:1px solid {{ $errors->has('name') ? 'var(--red)' : 'var(--border2)' }};
@@ -62,6 +62,8 @@
                     @error('name')
                     <p style="font-size:11px;color:var(--red);margin-top:4px;">{{ $message }}</p>
                     @enderror
+                    {{-- Nouveau nom déjà pris ou proche (2026-10-29) --}}
+                    <div id="client-nom-alerte" style="display:none"></div>
                 </div>
 
                 {{-- Secteur --}}
@@ -189,6 +191,11 @@
                 </button>
             </div>
         </form>
+        @include('admin.clients.partials.verif-nom-js')
+        <script>
+        PanoraNomClient.brancher(document.getElementById('client-nom'), document.getElementById('client-nom-alerte'),
+            { sauf: {{ $client->id }}, initial: @json($client->name) });
+        </script>
     </div>
 </div>
 

@@ -31,7 +31,21 @@
                     {{ $data['client'] }}
                 </div>
                 @if($existingClient)
-                    <div style="font-size:11px;color:#22c55e;margin-top:3px">✓ Trouvé en base <span style="color:var(--text3)">(#{{ $existingClient->id }})</span></div>
+                    <div style="font-size:11px;color:#22c55e;margin-top:3px">✓ Trouvé en base : {{ $existingClient->name }} <span style="color:var(--text3)">(#{{ $existingClient->id }})</span></div>
+                @elseif(!empty($prochesClient))
+                    {{-- Nom proche d'une fiche (2026-10-29) : choix obligatoire --}}
+                    <div style="font-size:11px;color:#f59e0b;margin-top:3px;font-weight:700">⚠️ Ressemble à une fiche existante :</div>
+                    @foreach($prochesClient as $p)
+                        <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-top:4px;cursor:pointer">
+                            <input type="radio" name="client_choix" value="{{ $p['id'] }}" form="form-import-apply" required>
+                            Utiliser <strong>{{ $p['name'] }}</strong>
+                            <span style="color:var(--text3)">{{ $p['campagnes'] ? $p['campagnes'] . ' campagne' . ($p['campagnes'] > 1 ? 's' : '') : 'aucune campagne' }}</span>
+                        </label>
+                    @endforeach
+                    <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-top:4px;cursor:pointer">
+                        <input type="radio" name="client_choix" value="nouveau" form="form-import-apply" required>
+                        Nouvelle fiche « {{ $data['client'] }} » (c'est une autre entreprise)
+                    </label>
                 @else
                     <div style="font-size:11px;color:#3b82f6;margin-top:3px">✨ Sera créé automatiquement</div>
                 @endif
@@ -143,7 +157,7 @@
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding:18px 22px;background:var(--surface);border:1px solid var(--border);border-radius:14px">
         <a href="{{ route('admin.campaigns.import-pdf.form') }}" class="btn btn-ghost">Annuler</a>
         @if($canImport)
-            <form method="POST" action="{{ route('admin.campaigns.import-pdf.apply') }}"
+            <form method="POST" action="{{ route('admin.campaigns.import-pdf.apply') }}" id="form-import-apply"
                   onsubmit="return confirm('Créer la campagne {{ $data['campaign'] }} avec {{ $foundPanels->count() }} panneau(x) ?');"
                   style="display:inline">
                 @csrf

@@ -981,6 +981,17 @@ class CampaignController extends Controller
         }
     }
 
+    /** Message d'erreur si la réservation n'est pas au nom de ce client, sinon null. */
+    private function clientDifferentDeLaReservation(int $reservationId, int $clientId): ?string
+    {
+        $resa = Reservation::with(['client' => fn ($q) => $q->withTrashed()])->find($reservationId);
+        if (!$resa || (int) $resa->client_id === $clientId) {
+            return null;
+        }
+
+        return "La réservation {$resa->reference} est au nom de « {$resa->client?->name} » : la campagne doit être sur le même client.";
+    }
+
     public function store(Request $request)
     {
         $this->authorize('create', Campaign::class);
@@ -1017,6 +1028,13 @@ class CampaignController extends Controller
         if ($client->trashed()) {
             return back()->withInput()->with('error',
                 'Impossible de créer une campagne pour un client supprimé.');
+        }
+
+        // Campagne créée depuis une réservation : même client que la
+        // réservation, sinon la même affaire se retrouve sur deux fiches (2026-10-29).
+        if (!empty($data['reservation_id'])
+            && ($erreur = $this->clientDifferentDeLaReservation((int) $data['reservation_id'], (int) $data['client_id']))) {
+            return back()->withInput()->withErrors(['client_id' => $erreur]);
         }
 
         try {
@@ -1317,6 +1335,13 @@ class CampaignController extends Controller
         $rules['start_date'] = 'required|date';
 
         $data = $request->validate($rules, InterlocuteurDuClient::MESSAGES);
+
+        // Changement de client d'une campagne liée à une réservation : il doit
+        // rester celui de la réservation (2026-10-29).
+        if ($campaign->reservation_id && (int) $data['client_id'] !== (int) $campaign->client_id
+            && ($erreur = $this->clientDifferentDeLaReservation((int) $campaign->reservation_id, (int) $data['client_id']))) {
+            return back()->withInput()->withErrors(['client_id' => $erreur]);
+        }
 
         $today    = now()->startOfDay();
         $newStart = \Carbon\Carbon::parse($data['start_date'])->startOfDay();
