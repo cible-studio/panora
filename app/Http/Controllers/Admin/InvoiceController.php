@@ -1374,7 +1374,8 @@ class InvoiceController extends Controller
     protected function notifyClientInvoiceIssued(Invoice $invoice, bool $isReminder = false, ?int $reminderNumber = null): void
     {
         $client = $invoice->client;
-        if (!$client?->email) {
+        $adresses = $invoice->adressesClient(); // fiche + interlocuteur de la campagne (2026-10-29)
+        if (!$adresses) {
             \Illuminate\Support\Facades\Log::info('invoice.notify.skipped', [
                 'invoice_id' => $invoice->id, 'reason' => 'no_client_email',
             ]);
@@ -1390,7 +1391,7 @@ class InvoiceController extends Controller
 
             $mailer = app(\App\Services\NotificationMailer::class);
             $mailer->sendSilently(
-                $client->email,
+                $adresses,
                 new \App\Mail\InvoiceIssuedMail(
                     invoice: $invoice->loadMissing('client', 'campaign'),
                     link:    $link,

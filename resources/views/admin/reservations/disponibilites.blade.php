@@ -531,6 +531,12 @@
                         <div id="modal-client-err" class="hidden mt-1 text-xs text-red-500">Veuillez sélectionner un client.</div>
                     </div>
 
+                    {{-- ── Interlocuteur du client (2026-10-29) ── --}}
+                    @include('admin.partials.interlocuteur-select', [
+                        'clientId' => old('client_id'), 'selection' => null,
+                        'classeLabel' => 'filter-label block mb-1', 'classeSelect' => 'modal-input w-full', 'classeErreur' => 'mt-1 text-xs',
+                    ])
+
                     {{-- ── Commercial assigné ──
                          Cible la notification email + alerte interne. Défaut =
                          user connecté. Le commercial verra "Mes propositions
@@ -1292,6 +1298,7 @@
                     state.query = '';
 
                     $('modal-client-select').value = id;
+                    $('modal-client-select').dispatchEvent(new Event('change')); // liste des interlocuteurs (2026-10-29)
                     $('client-picker-combo').classList.add('hidden');
                     $('client-picker-card').classList.remove('hidden');
                     $('client-card-avatar').textContent = initials(c.name);
@@ -1305,6 +1312,7 @@
                     state.selectedId = null;
                     state.query = '';
                     $('modal-client-select').value = '';
+                    $('modal-client-select').dispatchEvent(new Event('change'));
                     $('client-picker-card').classList.add('hidden');
                     $('client-picker-combo').classList.remove('hidden');
                     const search = $('client-picker-search');
@@ -2109,6 +2117,14 @@
                             _el('modal-client-err').classList.remove('hidden');
                         } else {
                             _el('modal-client-err').classList.add('hidden');
+                        }
+
+                        // Interlocuteur : obligatoire si le client en a (étoile affichée
+                        // d'après Panora) ; le serveur le revérifie (2026-10-29).
+                        const interloc = document.querySelector('#form-confirm select[name="client_contact_id"]');
+                        const etoileInterloc = interloc?.closest('[data-interlocuteur]')?.querySelector('[data-etoile]');
+                        if (client && interloc && etoileInterloc && !etoileInterloc.hidden && !interloc.value) {
+                            errors.push("Choisissez l'interlocuteur du client qui suit ce dossier.");
                         }
 
                         // Validation dates

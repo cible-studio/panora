@@ -13,7 +13,7 @@ class Campaign extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'name', 'client_id', 'reservation_id',
+        'name', 'client_id', 'client_contact_id', 'reservation_id',
         'user_id', 'commercial_user_id', 'updated_by',
         'start_date', 'end_date', 'status',
         'total_panels', 'total_amount', 'notes',
@@ -49,6 +49,15 @@ class Campaign extends Model
     public function client()
     {
         return $this->belongsTo(Client::class)->withTrashed();
+    }
+
+    /**
+     * Interlocuteur du client qui suit ce dossier (2026-10-29). Null, ou
+     * supprimé depuis : la règle par défaut s'applique (Client::destinatairesSuivi).
+     */
+    public function interlocuteur()
+    {
+        return $this->belongsTo(ClientContact::class, 'client_contact_id');
     }
 
     public function user()

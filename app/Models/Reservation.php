@@ -16,6 +16,7 @@ class Reservation extends Model
     protected $fillable = [
         'reference',
         'client_id',
+        'client_contact_id',      // interlocuteur du client (2026-10-29)
         'user_id',
         'commercial_user_id',
         'start_date',
@@ -280,6 +281,27 @@ class Reservation extends Model
     public function client()
     {
         return $this->belongsTo(Client::class)->withTrashed();
+    }
+
+
+    /**
+     * Adresses où envoyer un document de ce dossier : l'adresse de la fiche
+     * client et l'interlocuteur de la réservation (Client::destinatairesDocuments,
+     * 2026-10-29). Vide si ni l'un ni l'autre.
+     *
+     * @return list<string>
+     */
+    public function adressesClient(): array
+    {
+        return $this->client ? array_column($this->client->destinatairesDocuments($this->interlocuteur), 'email') : [];
+    }
+    /**
+     * Interlocuteur du client qui suit ce dossier (2026-10-29). Null, ou
+     * supprimé depuis : la règle par défaut s'applique (Client::destinatairesSuivi).
+     */
+    public function interlocuteur()
+    {
+        return $this->belongsTo(ClientContact::class, 'client_contact_id');
     }
 
     public function user()

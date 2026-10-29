@@ -34,7 +34,7 @@ class SendCampaignEndedMail implements ShouldQueue
 
     public function handle(): void
     {
-        $campaign = Campaign::with('client')->find($this->campaignId);
+        $campaign = Campaign::with(['client.contacts', 'interlocuteur'])->find($this->campaignId);
 
         if (!$campaign) {
             Log::info('campaign_ended.skipped.not_found', ['campaign_id' => $this->campaignId]);
@@ -49,7 +49,9 @@ class SendCampaignEndedMail implements ShouldQueue
             return;
         }
 
-        if (!$campaign->client || empty($campaign->client->email)) {
+        // L'interlocuteur de la campagne, sinon les contacts cochés (2026-10-29).
+        $destinataires = $campaign->client ? array_column($campaign->client->destinatairesSuivi($campaign->interlocuteur), 'email') : [];
+        if (!$destinataires) {
             Log::info('campaign_ended.skipped.no_client_email', ['campaign_id' => $campaign->id]);
             return;
         }
@@ -65,7 +67,7 @@ class SendCampaignEndedMail implements ShouldQueue
         );
 
         $result = app(NotificationMailer::class)->sendNow(
-            $campaign->client->email,
+            $destinataires,
             new CampaignEndedMail($campaign, $survey),
             context: [
                 'action'      => 'campaign_ended.sent',

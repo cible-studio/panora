@@ -109,12 +109,14 @@ class MaintenanceNotifier
         $campaigns = \App\Models\Campaign::query()
             ->whereIn('status', ['planifie', 'actif', 'pause'])
             ->whereHas('panels', fn($q) => $q->where('panels.id', $m->panel_id))
-            ->with(['client:id,name,email', 'panels:id,reference,name'])
+            ->with(['client.contacts', 'interlocuteur', 'panels:id,reference,name'])
             ->get();
 
         foreach ($campaigns as $campaign) {
             $client = $campaign->client;
-            if (!$client?->email) {
+            // L'interlocuteur de la campagne, sinon les contacts cochés (2026-10-29).
+            $destinataires = $client ? array_column($client->destinatairesSuivi($campaign->interlocuteur), 'email') : [];
+            if (!$destinataires) {
                 Log::info('maintenance.notify.client.skip.no_email', [
                     'maintenance_id' => $m->id,
                     'campaign_id'    => $campaign->id,
@@ -142,7 +144,7 @@ class MaintenanceNotifier
                 ->get();
 
             $this->mailer->sendSilently(
-                $client->email,
+                $destinataires,
                 new ClientPanelMaintenanceMail($campaign, $maintenancesActives, 'down'),
                 context: [
                     'event'             => 'client.maintenance.down',
@@ -166,12 +168,13 @@ class MaintenanceNotifier
         $campaigns = \App\Models\Campaign::query()
             ->whereIn('status', ['planifie', 'actif', 'pause'])
             ->whereHas('panels', fn($q) => $q->where('panels.id', $m->panel_id))
-            ->with(['client:id,name,email', 'panels:id,reference,name'])
+            ->with(['client.contacts', 'interlocuteur', 'panels:id,reference,name'])
             ->get();
 
         foreach ($campaigns as $campaign) {
             $client = $campaign->client;
-            if (!$client?->email) continue;
+            $destinataires = $client ? array_column($client->destinatairesSuivi($campaign->interlocuteur), 'email') : [];
+            if (!$destinataires) continue;
 
             $dedupKey = "client-maintenance-back-{$campaign->id}";
             if (Cache::has($dedupKey)) continue;
@@ -184,7 +187,7 @@ class MaintenanceNotifier
                 ->get();
 
             $this->mailer->sendSilently(
-                $client->email,
+                $destinataires,
                 new ClientPanelMaintenanceMail($campaign, $maintenancesActives, 'back', $m),
                 context: [
                     'event'                 => 'client.maintenance.back',

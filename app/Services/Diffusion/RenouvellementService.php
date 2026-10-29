@@ -92,7 +92,7 @@ class RenouvellementService
             ->where('status', CampaignStatus::ACTIF->value)
             ->whereDate('end_date', '>', today()->toDateString())
             ->whereDate('end_date', '<=', today()->addDays(max(self::ETAPES))->toDateString())
-            ->with(['client.contacts', 'commercial', 'user'])
+            ->with(['client.contacts', 'interlocuteur', 'commercial', 'user'])
             ->orderBy('end_date')
             ->get()
             ->filter(fn(Campaign $c) => $c->estAnnuelle())
@@ -239,7 +239,7 @@ class RenouvellementService
 
     private function apresReponse(Renouvellement $dossier, string $choix, ?string $message, bool $essai): void
     {
-        $campagne = Campaign::withTrashed()->with(['client.contacts', 'commercial', 'user'])->find($dossier->campaign_id);
+        $campagne = Campaign::withTrashed()->with(['client.contacts', 'interlocuteur', 'commercial', 'user'])->find($dossier->campaign_id);
         if (!$campagne || !$campagne->end_date) {
             return;
         }
@@ -467,7 +467,7 @@ class RenouvellementService
             ->whereIn('status', [CampaignStatus::ACTIF->value, CampaignStatus::TERMINE->value])
             ->whereDate('end_date', '>=', today()->subDays(30)->toDateString())
             ->whereDate('end_date', '<=', today()->addDays($horizon)->toDateString())
-            ->with(['client.contacts', 'commercial:id,name,email', 'user:id,name,email', 'reservation'])
+            ->with(['client.contacts', 'interlocuteur', 'commercial:id,name,email', 'user:id,name,email', 'reservation'])
             ->withCount('panels')
             ->orderBy('end_date');
 
@@ -517,8 +517,8 @@ class RenouvellementService
                 'montant'         => (int) round($c->computedAmountHt()),
                 'panneaux'        => (int) ($c->total_panels ?: $c->panels_count),
                 'commercial'      => $c->resolveCommercialContact(),
-                // Ceux qui recevront les mails (2026-10-28 : tous les cochés).
-                'contact'         => self::contactsAffiches($c->client?->destinatairesCampagne() ?? []),
+                // Ceux qui recevront les mails : l'interlocuteur, sinon les cochés (2026-10-29).
+                'contact'         => self::contactsAffiches($c->client?->destinatairesSuivi($c->interlocuteur) ?? []),
                 'telephone'       => self::telephone($c->client),
                 'dernier_mail'    => $envoyes->sortBy(fn($l) => self::ETAPES[$l->etape] ?? 0)->first(),
                 'prochain_mail'   => $statut === Renouvellement::EN_ATTENTE ? self::prochainMail($c, $jours, $envoyes->keys()->all()) : null,

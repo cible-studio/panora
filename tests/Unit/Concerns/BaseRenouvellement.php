@@ -62,6 +62,7 @@ trait BaseRenouvellement
         (require base_path('database/migrations/2026_10_22_100000_create_renouvellements_tables.php'))->up();
         (require base_path('database/migrations/2026_10_23_100000_add_rappel_le_to_renouvellements.php'))->up();
         (require base_path('database/migrations/2026_10_28_120000_add_statut_commercial_to_clients.php'))->up();
+        (require base_path('database/migrations/2026_10_29_100000_add_interlocuteur_to_campaigns_reservations_quotes.php'))->up();
 
         Carbon::setTestNow('2026-11-01 10:00:00'); // J-60 de la campagne de référence
 

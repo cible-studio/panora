@@ -32,14 +32,16 @@ class SendSatisfactionSurvey implements ShouldQueue
 
     public function handle(): void
     {
-        $campaign = Campaign::with('client')->find($this->campaignId);
+        $campaign = Campaign::with(['client.contacts', 'interlocuteur'])->find($this->campaignId);
 
         if (!$campaign) {
             Log::info('satisfaction.reminder.skipped.not_found', ['campaign_id' => $this->campaignId]);
             return;
         }
 
-        if (!$campaign->client || empty($campaign->client->email)) {
+        // L'interlocuteur de la campagne, sinon les contacts cochés (2026-10-29).
+        $destinataires = $campaign->client ? array_column($campaign->client->destinatairesSuivi($campaign->interlocuteur), 'email') : [];
+        if (!$destinataires) {
             Log::info('satisfaction.reminder.skipped.no_email', ['campaign_id' => $campaign->id]);
             return;
         }
@@ -66,7 +68,7 @@ class SendSatisfactionSurvey implements ShouldQueue
         }
 
         $result = app(NotificationMailer::class)->sendNow(
-            $campaign->client->email,
+            $destinataires,
             new SatisfactionSurveyMail($survey),
             context: [
                 'action'      => 'satisfaction.reminder.sent',

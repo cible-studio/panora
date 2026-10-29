@@ -173,8 +173,8 @@ class PropositionController extends Controller
         if (!$reservation->client) {
             return $respond('error', 'Pas de client associé.');
         }
-        if (empty($reservation->client->email)) {
-            return $respond('error', "Ce client n'a pas d'email — un commercial ne pourra pas envoyer.");
+        if (!$reservation->adressesClient()) { // fiche + interlocuteur (2026-10-29)
+            return $respond('error', "Aucune adresse : ni sur la fiche du client, ni d'interlocuteur pour cette réservation — un commercial ne pourra pas envoyer.");
         }
         if ($reservation->panels()->count() === 0 && $reservation->externalPanels()->count() === 0) {
             return $respond('error', 'Ajoutez au moins un panneau avant de soumettre au commercial.');
@@ -286,8 +286,8 @@ class PropositionController extends Controller
             return $respond('error', 'Pas de client associé.');
         if ($reservation->client->trashed())
             return $respond('error', 'Client supprimé — envoi impossible.');
-        if (empty($reservation->client->email))
-            return $respond('error', "Ce client n'a pas d'email.");
+        if (!$reservation->adressesClient()) // fiche + interlocuteur (2026-10-29)
+            return $respond('error', "Aucune adresse : ni sur la fiche du client, ni d'interlocuteur pour cette réservation.");
         if (!in_array($reservation->status->value, ['en_attente', 'confirme']))
             return $respond('error', "Impossible d'envoyer pour une réservation {$reservation->status->value}.");
 
@@ -312,7 +312,7 @@ class PropositionController extends Controller
         // immédiatement si le mail est parti, pas un faux positif "queued".
         $mailer = app(\App\Services\NotificationMailer::class);
         $result = $mailer->sendNow(
-            $reservation->client->email,
+            $reservation->adressesClient(),
             new \App\Mail\PropositionMail($reservation),
             context: [
                 'action'         => 'proposition.sent',
@@ -323,7 +323,7 @@ class PropositionController extends Controller
         );
 
         if ($result->ok) {
-            return $respond('success', "✅ Proposition envoyée à {$reservation->client->email}.");
+            return $respond('success', '✅ Proposition envoyée à ' . implode(', ', $reservation->adressesClient()) . '.');
         }
 
         // Échec → on donne à l'admin le lien public à partager manuellement
@@ -427,9 +427,13 @@ class PropositionController extends Controller
         // ── Email de confirmation au CLIENT (campagne lancée) ───────
         // Récap + CTA suivre la campagne (espace client) ou invitation
         // à demander un compte si pas encore créé.
-        if ($reservation->client?->email) {
+        // Mail de suivi : l'interlocuteur de la campagne, sinon les contacts cochés (2026-10-29).
+        $adressesSuivi = $reservation->client
+            ? array_column($reservation->client->destinatairesSuivi($campaign?->interlocuteur ?? $reservation->interlocuteur), 'email')
+            : [];
+        if ($adressesSuivi) {
             try {
-                \Illuminate\Support\Facades\Mail::to($reservation->client->email)
+                \Illuminate\Support\Facades\Mail::to($adressesSuivi)
                     ->send(new \App\Mail\ClientCampaignStartedMail($reservation, $campaign));
             } catch (\Throwable $e) {
                 Log::warning('client.campaign_started.mail_failed', [

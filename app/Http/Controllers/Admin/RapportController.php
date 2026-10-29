@@ -1401,8 +1401,10 @@ class RapportController extends Controller
 
         if ($total === 0 || $decapped < $total) return; // pas encore 100 %
 
-        $campaign = \App\Models\Campaign::with('client', 'panels.commune')->find($campaignId);
-        if (!$campaign || !$campaign->client?->email) return;
+        $campaign = \App\Models\Campaign::with('client.contacts', 'interlocuteur', 'panels.commune')->find($campaignId);
+        // L'interlocuteur de la campagne, sinon les contacts cochés (2026-10-29).
+        $destinataires = $campaign?->client ? array_column($campaign->client->destinatairesSuivi($campaign->interlocuteur), 'email') : [];
+        if (!$destinataires) return;
 
         // Idempotence : si on a déjà notifié, on ne renotifie pas
         $already = \App\Models\PublicLink::where('type', 'decap')
@@ -1420,7 +1422,7 @@ class RapportController extends Controller
             );
 
             app(\App\Services\NotificationMailer::class)->sendSilently(
-                $campaign->client->email,
+                $destinataires,
                 new \App\Mail\CampaignDecappedMail($campaign, $link, $decapped),
                 cc: null,
                 context: ['campaign_id' => $campaignId, 'client_id' => $campaign->client_id],

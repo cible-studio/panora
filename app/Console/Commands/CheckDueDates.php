@@ -170,7 +170,8 @@ class CheckDueDates extends Command
     protected function sendClientReminderMail(Invoice $invoice, InvoiceSchedule $sch, int $palierJours): bool
     {
         $client = $invoice->client;
-        if (!$client?->email) return false;
+        $adresses = $invoice->adressesClient(); // fiche + interlocuteur de la campagne (2026-10-29)
+        if (!$adresses) return false;
 
         // Marqueur d'idempotence dans PublicLink::metadata.
         $alreadySent = \App\Models\PublicLink::where('type', 'invoice')
@@ -191,7 +192,7 @@ class CheckDueDates extends Command
                 metadata:  ['schedule_reminder_j' . $palierJours => $sch->id],
             );
 
-            \Illuminate\Support\Facades\Mail::to($client->email)
+            \Illuminate\Support\Facades\Mail::to($adresses)
                 ->send(new \App\Mail\InvoiceScheduleReminderMail(
                     invoice:       $invoice,
                     schedule:      $sch,

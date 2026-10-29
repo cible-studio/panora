@@ -120,6 +120,48 @@ class Client extends Authenticatable  // ← était "extends Model"
     }
 
     /**
+     * Mails de suivi d'un dossier (démarrage, rappel J-7, renouvellement,
+     * fin de campagne, satisfaction, maintenance) : l'interlocuteur du
+     * dossier, à lui seul (règle de la direction, 2026-10-29). Sans
+     * interlocuteur utilisable (aucun, supprimé, d'un autre client, sans
+     * adresse) : destinatairesCampagne(). Source unique de cette règle.
+     *
+     * @return list<array{email: string, contact: ?string}>
+     */
+    public function destinatairesSuivi(?ClientContact $interlocuteur): array
+    {
+        return $this->adresseInterlocuteur($interlocuteur) ?: $this->destinatairesCampagne();
+    }
+
+    /**
+     * Documents (factures et leurs relances, devis, propositions, piges,
+     * mails de réservation) : l'adresse de la fiche ET l'interlocuteur du
+     * dossier, sans doublon (2026-10-29). Vide si ni l'un ni l'autre.
+     * Source unique de cette règle.
+     *
+     * @return list<array{email: string, contact: ?string}>
+     */
+    public function destinatairesDocuments(?ClientContact $interlocuteur): array
+    {
+        $liste = [];
+        foreach (array_merge($this->adresseFiche(), $this->adresseInterlocuteur($interlocuteur)) as $d) {
+            $liste[$d['email']] ??= $d;
+        }
+
+        return array_values($liste);
+    }
+
+    /** @return list<array{email: string, contact: ?string}> l'interlocuteur s'il est bien de ce client */
+    private function adresseInterlocuteur(?ClientContact $interlocuteur): array
+    {
+        if (!$interlocuteur || $interlocuteur->trashed() || (int) $interlocuteur->client_id !== (int) $this->id) {
+            return [];
+        }
+
+        return $this->adressesDe([$interlocuteur]);
+    }
+
+    /**
      * Diffusion des disponibilités : chaque interlocuteur au statut client,
      * avec une adresse valide. Un prospect ne la reçoit pas (pas de
      * consentement : il passera par une liste Brevo séparée). À défaut

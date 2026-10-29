@@ -61,6 +61,7 @@ class ReservationService
             $reservation = Reservation::create([
                 'reference'    => $this->generateReference(),
                 'client_id'    => $data['client_id'],
+                'client_contact_id' => $data['client_contact_id'] ?? null, // interlocuteur (2026-10-29)
                 'user_id'      => auth()->id(),
                 'start_date'   => $data['start_date'],
                 'end_date'     => $data['end_date'],
@@ -134,6 +135,7 @@ class ReservationService
 
             $reservation->update([
                 'client_id'    => $data['client_id'],
+                'client_contact_id' => $data['client_contact_id'] ?? null, // interlocuteur (2026-10-29)
                 'start_date'   => $data['start_date'],
                 'end_date'     => $data['end_date'],
                 'notes'        => $data['notes'] ?? null,
@@ -296,6 +298,7 @@ class ReservationService
         $campaign = Campaign::create([
             'name'           => $campaignName,
             'client_id'      => $reservation->client_id,
+            'client_contact_id' => $reservation->client_contact_id, // interlocuteur (2026-10-29)
             'reservation_id' => $reservation->id,
             'user_id'        => auth()->id(),
             'start_date'     => $reservation->start_date,

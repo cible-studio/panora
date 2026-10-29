@@ -123,7 +123,7 @@ class ContactsGmailTest extends TestCase
         $this->assertSame(10, $ct->client_id);
         $this->assertSame('07 01 02 03 04', $ct->phone);
         $this->assertSame('client', $ct->statut);
-        $this->assertTrue($ct->receives_notifications);
+        $this->assertFalse($ct->receives_notifications); // décoché (2026-10-29) : reçoit comme interlocuteur d'une campagne
         $this->assertSame('gmail', $ct->source);
         $this->assertFalse($ct->is_primary);
     }
@@ -276,14 +276,14 @@ class ContactsGmailTest extends TestCase
         $this->assertSame('prospect', ClientContact::where('email', 'neuf@orange.ci')->value('statut'));
     }
 
-    public function test_un_contact_prospect_devenu_client_dans_le_sheets_recoit_les_mails(): void
+    public function test_un_contact_prospect_devenu_client_dans_le_sheets_garde_sa_case_mails(): void
     {
         DB::table('client_contacts')->insert(['client_id' => 10, 'name' => 'Paul', 'email' => 'paul@orange.ci', 'statut' => 'prospect', 'receives_notifications' => false]);
 
         $this->assertSame('complete', $this->une(['email' => 'paul@orange.ci', 'relation' => 'Client'])['resultat']);
         $ct = ClientContact::where('email', 'paul@orange.ci')->firstOrFail();
         $this->assertSame('client', $ct->statut);
-        $this->assertTrue($ct->receives_notifications);
+        $this->assertFalse($ct->receives_notifications); // la case ne bouge pas (2026-10-29)
     }
 
     // ── Vérification et journal ───────────────────────────────────

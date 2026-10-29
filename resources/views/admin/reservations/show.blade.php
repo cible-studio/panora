@@ -231,6 +231,10 @@
                         {{ $reservation->client?->name ?? '—' }}
                     </a>
                 @endif
+                @include('admin.partials.interlocuteur-affiche', [
+                    'dossier' => $reservation,
+                    'lienModifier' => route('admin.reservations.edit', $reservation),
+                ])
             </div>
             <div>
                 <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">Période</div>

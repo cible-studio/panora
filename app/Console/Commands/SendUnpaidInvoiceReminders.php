@@ -55,7 +55,7 @@ class SendUnpaidInvoiceReminders extends Command
         $skipped = 0;
 
         foreach ($base->cursor() as $invoice) {
-            if (!$invoice->client?->email) {
+            if (!$invoice->adressesClient()) { // fiche + interlocuteur de la campagne (2026-10-29)
                 $skipped++;
                 continue;
             }
@@ -86,7 +86,7 @@ class SendUnpaidInvoiceReminders extends Command
             }
 
             if ($dryRun) {
-                $this->info("[DRY] #{$invoice->id} {$invoice->reference} → relance {$reminderNum} ({$daysOverdue}j retard) → {$invoice->client->email}");
+                $this->info("[DRY] #{$invoice->id} {$invoice->reference} → relance {$reminderNum} ({$daysOverdue}j retard) → " . implode(', ', $invoice->adressesClient()));
                 continue;
             }
 
@@ -100,13 +100,13 @@ class SendUnpaidInvoiceReminders extends Command
                 );
 
                 app(NotificationMailer::class)->sendSilently(
-                    $invoice->client->email,
+                    $invoice->adressesClient(),
                     new InvoiceIssuedMail($invoice, $link, isReminder: true, reminderNumber: $reminderNum),
                     cc: null,
                     context: ['invoice_id' => $invoice->id, 'reminder' => $reminderNum],
                 );
                 $sent++;
-                $this->info("✓ #{$invoice->id} {$invoice->reference} → relance {$reminderNum} envoyée à {$invoice->client->email}");
+                $this->info("✓ #{$invoice->id} {$invoice->reference} → relance {$reminderNum} envoyée à " . implode(', ', $invoice->adressesClient()));
             } catch (\Throwable $e) {
                 Log::error('invoice.reminder.failed', [
                     'invoice_id' => $invoice->id,

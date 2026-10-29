@@ -368,6 +368,10 @@
                                 {{ $campaign->client?->name ?? '—' }}
                             </a>
                         @endif
+                        @include('admin.partials.interlocuteur-affiche', [
+                            'dossier' => $campaign,
+                            'lienModifier' => in_array($campaign->status->value, ['termine', 'annule']) ? null : route('admin.campaigns.edit', $campaign),
+                        ])
                     </div>
 
                     {{-- Période --}}

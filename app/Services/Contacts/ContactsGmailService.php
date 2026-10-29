@@ -22,8 +22,8 @@ use Illuminate\Support\Facades\Log;
  *     seulement, sans nom elle est refusée ;
  *   · domaine présent dans plusieurs entreprises : refusé, sauf si le nom
  *     désigne l'une d'elles ;
- *   · statut du contact = celui du Sheets ; client coché « reçoit les
- *     mails », prospect décoché ;
+ *   · statut du contact = celui du Sheets ; « reçoit les mails » décoché
+ *     (2026-10-29 : il les reçoit comme interlocuteur d'une campagne) ;
  *   · un contact Client fait passer cliente une entreprise prospect (elle
  *     seule, pas ses autres interlocuteurs), jamais l'inverse ;
  *   · secteur complété seulement s'il est vide.
@@ -138,7 +138,7 @@ class ContactsGmailService
                 $notes[] = 'poste ajouté';
             }
             if ($statut === Client::STATUT_CLIENT && ($contact->statut ?? Client::STATUT_CLIENT) === Client::STATUT_PROSPECT) {
-                $maj += ['statut' => Client::STATUT_CLIENT, 'receives_notifications' => true];
+                $maj['statut'] = Client::STATUT_CLIENT; // la case « reçoit les mails » ne bouge pas (2026-10-29)
                 $notes[] = 'passé client';
             }
             if ($maj) {
@@ -229,7 +229,9 @@ class ContactsGmailService
             'role'                   => 'autre',
             'position'               => $poste !== '' ? $poste : null,
             'is_primary'             => false,
-            'receives_notifications' => $statut === Client::STATUT_CLIENT,
+            // Décoché (direction, 2026-10-29) : il reçoit les mails de campagne
+            // quand il devient interlocuteur d'une campagne, ou si on le coche.
+            'receives_notifications' => false,
             'statut'                 => $statut,
             'source'                 => self::SOURCE,
         ]);
