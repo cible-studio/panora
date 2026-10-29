@@ -238,6 +238,11 @@
     </div>
 </div>
 
+{{-- Toute la ligne ouvre la fiche commune (2026-10-29). Posé une fois
+     pour l'écran : l'écouteur est délégué au document, donc il couvre
+     les lignes construites en JS après le calcul des taxes. --}}
+@include('admin.partials.ligne-cliquable')
+
 {{-- ════ MODAL ENREGISTRER PAIEMENT ════ --}}
 <div id="payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;padding:16px;"
      onclick="if(event.target===this)TaxModule.closePaymentModal()">
@@ -694,9 +699,14 @@ window.TaxModule = (function () {
                      plutôt que de se fier au champ city qui n'est pas fiable
                      selon l'import (ex : Bingerville pouvait être city='Bingerville'
                      au lieu de city='Abidjan'). --}}
-                <tr data-commune-id="${c.commune_id}" data-abidjan="${c.is_abidjan ? '1' : '0'}" data-search="${(c.commune || '').toLowerCase()}">
+                {{-- data-ligne-url : toute la ligne ouvre la fiche commune,
+                     sauf les boutons (payer, fiche, historique) qui gardent
+                     leur rôle. Mécanisme : admin/partials/ligne-cliquable. --}}
+                <tr data-commune-id="${c.commune_id}" data-abidjan="${c.is_abidjan ? '1' : '0'}" data-search="${(c.commune || '').toLowerCase()}"
+                    data-ligne-url="/admin/taxes/commune/${c.commune_id}">
                     <td>
-                        <strong>${c.commune}</strong>
+                        <a href="/admin/taxes/commune/${c.commune_id}" data-ligne-principal
+                           style="color:inherit" title="Ouvrir la fiche de ${c.commune}"><strong>${c.commune}</strong></a>
                         <div style="font-size:10px;color:var(--text3);margin-top:2px;" title="${lignesTooltip}">
                             ${(c.lignes || []).length} format(s) · ${lignesTooltip.length > 60 ? lignesTooltip.substr(0,60) + '…' : lignesTooltip}
                         </div>

@@ -123,10 +123,21 @@
                             $st  = $quote->status->uiConfig();
                             $exp = $quote->daysUntilExpiry();
                         @endphp
-                        <tr style="border-top:1px solid var(--border)">
+                        {{-- Toute la ligne ouvre le devis, sauf les zones déjà
+                             interactives — admin/partials/ligne-cliquable.
+                             En corbeille, rien n'est cliquable : la fiche d'un
+                             devis mis à la corbeille répond 404 (le binding de
+                             route écarte les supprimés). C'est aussi pourquoi
+                             la colonne d'actions n'y propose que « Restaurer ». --}}
+                        <tr style="border-top:1px solid var(--border)"
+                            @unless($corbeille) data-ligne-url="{{ route('admin.quotes.show', $quote) }}" @endunless>
                             <td style="padding:10px;font-family:monospace;font-weight:700;color:var(--accent)">{{ $quote->reference }}</td>
                             <td style="padding:10px">
-                                <a href="{{ route('admin.quotes.show', $quote) }}" style="color:var(--text);font-weight:600;text-decoration:none">{{ $quote->title }}</a>
+                                @if($corbeille)
+                                    <span style="color:var(--text);font-weight:600">{{ $quote->title }}</span>
+                                @else
+                                    <a href="{{ route('admin.quotes.show', $quote) }}" data-ligne-principal style="color:var(--text);font-weight:600;text-decoration:none">{{ $quote->title }}</a>
+                                @endif
                                 <div style="font-size:11.5px;color:var(--text3);margin-top:2px">🏢 {{ \Illuminate\Support\Str::limit($quote->client?->name ?? '—', 30) }}</div>
                             </td>
                             <td style="padding:10px;font-size:12px;color:var(--text2)">
@@ -194,6 +205,10 @@
                     @endforelse
                 </tbody>
             </table>
+
+    {{-- Toute la ligne ouvre le devis (2026-10-29). Posé une fois
+         pour l'écran, hors du <table>. --}}
+    @include('admin.partials.ligne-cliquable')
         </div>
         @include('admin.quotes.partials._corbeille')
         <div style="padding:12px 16px">

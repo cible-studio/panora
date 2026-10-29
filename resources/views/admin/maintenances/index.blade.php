@@ -135,11 +135,14 @@
             </thead>
             <tbody>
                 @forelse($maintenances as $maintenance)
-                <tr>
+                {{-- Toute la ligne ouvre la maintenance — admin/partials/ligne-cliquable. --}}
+                <tr data-ligne-url="{{ route('admin.maintenances.show', $maintenance) }}">
                     <td>
-                        <div style="font-weight:600; color:var(--accent); font-family:monospace;">
+                        <a href="{{ route('admin.maintenances.show', $maintenance) }}" data-ligne-principal
+                           style="font-weight:600; color:var(--accent); font-family:monospace; display:block;"
+                           title="Ouvrir la maintenance">
                             {{ $maintenance->panel->reference }}
-                        </div>
+                        </a>
                         <div style="font-size:11px; color:var(--text3);">
                             {{ $maintenance->panel->commune->name }}
                         </div>
@@ -207,6 +210,10 @@
                 @endforelse
             </tbody>
         </table>
+
+    {{-- Toute la ligne ouvre la maintenance (2026-10-29). Posé une fois
+         pour l'écran, hors du <table>. --}}
+    @include('admin.partials.ligne-cliquable')
     </div>
     <div style="padding:16px;">
         {{ $maintenances->links() }}

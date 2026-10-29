@@ -103,11 +103,14 @@
             </thead>
             <tbody>
                 @forelse($propositions as $proposition)
-                <tr>
+                {{-- Toute la ligne ouvre la proposition — admin/partials/ligne-cliquable. --}}
+                <tr data-ligne-url="{{ route('admin.propositions.show', $proposition) }}">
                     <td>
-                        <span style="font-family:monospace; color:var(--accent); font-weight:700;">
+                        <a href="{{ route('admin.propositions.show', $proposition) }}" data-ligne-principal
+                           style="font-family:monospace; color:var(--accent); font-weight:700;"
+                           title="Ouvrir la proposition">
                             {{ $proposition->numero }}
-                        </span>
+                        </a>
                     </td>
                     <td><strong>{{ $proposition->client->name }}</strong></td>
                     <td style="text-align:center;">{{ $proposition->nb_panneaux }}</td>
@@ -162,6 +165,10 @@
                 @endforelse
             </tbody>
         </table>
+
+    {{-- Toute la ligne ouvre la proposition (2026-10-29). Posé une fois
+         pour l'écran, hors du <table>. --}}
+    @include('admin.partials.ligne-cliquable')
     </div>
     <div style="padding:16px;">
         {{ $propositions->links() }}

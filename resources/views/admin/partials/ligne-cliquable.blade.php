@@ -29,17 +29,34 @@
 --}}
 @once
 <style>
-    tr[data-ligne-url] { cursor: pointer; }
+    [data-ligne-url] { cursor: pointer; }
 
     /* Le survol du tableau est volontairement très discret (app.css,
        section TABLEAU) et invisible en thème clair. Une ligne cliquable
        doit se voir : teinte de surface, lisible dans les deux thèmes. */
     tr[data-ligne-url]:hover td { background: var(--surface2); }
 
-    /* Le lien principal de la ligne (la référence) : un vrai lien, pour
+    /* Listes en cartes (piges, messages) : la carte porte déjà son fond, et
+       parfois sa propre animation de survol (.pige-card se soulève). On se
+       contente d'accentuer la bordure — ni transform ni ombre, pour ne rien
+       écraser : les deux effets se cumulent proprement. */
+    [data-ligne-url]:not(tr) { transition: border-color .12s; }
+    [data-ligne-url]:not(tr):hover { border-color: var(--accent); }
+
+    /* La colonne de sélection multiple reste neutre : on y vise une case
+       à cocher, jamais le détail. */
+    [data-ligne-url] [data-ligne-ignore] { cursor: default; }
+
+    /* Le lien principal de la ligne (référence, nom) : un vrai lien, pour
        le clavier et le clic droit, mais sans soulignement imposé. */
-    tr[data-ligne-url] a[data-ligne-principal] { text-decoration: none; }
-    tr[data-ligne-url] a[data-ligne-principal]:hover { text-decoration: underline; }
+    [data-ligne-url] a[data-ligne-principal] { text-decoration: none; }
+    [data-ligne-url] a[data-ligne-principal]:hover { text-decoration: underline; }
+
+    /* Confort : pas d'animation pour qui en demande moins (app.css,
+       section ACCESSIBILITÉ). */
+    @media (prefers-reduced-motion: reduce) {
+        [data-ligne-url]:not(tr) { transition: none; }
+    }
 </style>
 <script>
 (function () {
@@ -50,7 +67,8 @@
         + ' summary, details, [role="button"], [onclick], [data-ligne-ignore]';
 
     function adresseDeLaLigne(evenement) {
-        var ligne = evenement.target.closest('tr[data-ligne-url]');
+        // Ligne de tableau ou carte : tout élément qui porte l'adresse.
+        var ligne = evenement.target.closest('[data-ligne-url]');
         if (!ligne) return null;
         if (evenement.target.closest(ZONES_INTERACTIVES)) return null;
         return ligne.getAttribute('data-ligne-url') || null;

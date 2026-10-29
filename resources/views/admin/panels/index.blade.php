@@ -269,6 +269,13 @@
         </div>
     </div>
 
+    {{-- Toute la ligne ouvre le panneau (2026-10-29). Posé une fois pour
+         l'écran, hors du <table> : l'écouteur est délégué au document,
+         donc il couvre les lignes rechargées en AJAX.
+         Les panneaux de régies externes n'ont pas de fiche propre : leurs
+         lignes restent non cliquables. --}}
+    @include('admin.partials.ligne-cliquable')
+
     @push('scripts')
         <script>
             // Menu « Export PDF » (2026-10-28) : la barre d'actions du haut coupe ce

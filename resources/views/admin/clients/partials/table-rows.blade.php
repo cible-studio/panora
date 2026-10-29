@@ -6,9 +6,12 @@
     $colors     = ['#e8a020','#22c55e','#3b82f6','#ec4899','#8b5cf6','#06b6d4','#f97316'];
     $color      = $colors[crc32($client->name) % count($colors)];
 @endphp
-<tr data-client-id="{{ $client->id }}">
-    {{-- Sélection multiple --}}
-    <td style="width:36px;text-align:center;padding:0 6px">
+{{-- data-ligne-url : toute la ligne ouvre la fiche client, sauf les zones
+     déjà interactives. Mécanisme dans admin/partials/ligne-cliquable. --}}
+<tr data-client-id="{{ $client->id }}"
+    data-ligne-url="{{ route('admin.clients.show', $client) }}">
+    {{-- Sélection multiple : on y vise une case, jamais le détail. --}}
+    <td style="width:36px;text-align:center;padding:0 6px" data-ligne-ignore>
         <input type="checkbox" class="ci-row-check" value="{{ $client->id }}" data-name="{{ $client->name }}"
                onclick="event.stopPropagation()"
                style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">
@@ -20,7 +23,7 @@
                 {{ $initials }}
             </div>
             <div style="min-width:0">
-                <a href="{{ route('admin.clients.show', $client) }}"
+                <a href="{{ route('admin.clients.show', $client) }}" data-ligne-principal
                    style="font-weight:600;font-size:13px;color:var(--text);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px"
                    title="{{ $client->name }}">
                     {{ $client->name }}
