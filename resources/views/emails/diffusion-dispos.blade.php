@@ -94,12 +94,12 @@
 </td></tr>
 
 {{-- Bandeau de statut --}}
-<tr><td style="background-color:#111111;border-left:6px solid {{ $couleur }};">
+<tr><td style="background-color:#FFFFFF;border-left:6px solid {{ $couleur }};border-bottom:1px solid #E6E6E6;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-        <td class="px" style="padding:26px 32px 26px 26px;">
+        <td class="px" style="padding:24px 32px 22px 26px;">
             <div style="{{ $petit }}color:{{ $couleur }};">{{ $surtitre }}</div>
-            <div style="{{ $titres }}font-size:22px;line-height:28px;font-weight:800;color:#FFFFFF;margin-top:8px;">{{ $titre }}</div>
-            <div style="{{ $texte }}font-size:15px;line-height:21px;color:#E6E6E6;margin-top:6px;">Disponibilités <strong style="color:#FFFFFF;">{{ $periode }}</strong></div>
+            <div style="{{ $titres }}font-size:22px;line-height:28px;font-weight:800;color:#111111;margin-top:8px;">{{ $titre }}</div>
+            <div style="{{ $texte }}font-size:15px;line-height:21px;color:#535353;margin-top:6px;">Disponibilités <strong style="color:#111111;">{{ $periode }}</strong></div>
         </td>
     </tr></table>
 </td></tr>
@@ -190,11 +190,11 @@
 </td></tr>
 
 {{-- Pied de page --}}
-<tr><td class="px" style="background-color:#111111;padding:24px 32px;">
+<tr><td class="px" style="background-color:#F4F4F4;padding:20px 32px;border-top:1px solid #E6E6E6;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-        <td valign="middle"><img src="{{ $logoSombre }}" width="90" alt="CIBLE" border="0" style="display:block;width:90px;height:auto;border:0;{{ $titres }}font-size:16px;font-weight:800;color:#FFFFFF;"></td>
-        <td valign="middle" align="right" style="{{ $texte }}font-size:12px;line-height:18px;color:#E6E6E6;">
-            <strong style="{{ $titres }}color:#FFFFFF;">Vous visez juste.</strong><br>
+        <td valign="middle"><img src="{{ $logoClair }}" width="72" alt="CIBLE" border="0" style="display:block;width:72px;height:auto;border:0;{{ $titres }}font-size:16px;font-weight:800;color:#111111;"></td>
+        <td valign="middle" align="right" style="{{ $texte }}font-size:12px;line-height:18px;color:#888888;">
+            <strong style="{{ $titres }}color:#111111;">Vous visez juste.</strong><br>
             Mail interne envoyé par Panora
         </td>
     </tr></table>
