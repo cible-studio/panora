@@ -119,7 +119,9 @@ dans l'application :
 
 - [ ] `php artisan migrate` — `2026_10_29_110000_add_catalogues_par_zone_to_diffusion_envois`
       (deux catalogues de disponibilités par envoi, Abidjan et intérieur).
-      Vérifiée **up et down** sur SQLite, jamais jouée sur MySQL.
+      Vérifiée **up et down** sur SQLite. Partie en production le
+      2026-10-29 : le déploiement la joue tout seul (`migrate --force`).
+      Vérifier dans Coolify que le démarrage n'a pas échoué.
 
 ---
 
@@ -130,11 +132,8 @@ dans l'application :
       montre **qu'un seul** lien au lieu des deux (Abidjan / intérieur).
       `params.LIEN_PDF` reste fourni exprès pour que le bouton actuel ne
       devienne pas mort entre-temps. Cf. `docs/TECHNICAL_DEBT.md`.
-      Le modèle peut être collé **avant** la mise en production des deux
-      catalogues : sans lien par zone, il affiche le catalogue complet.
-- [ ] Après collage : un envoi en mode test depuis dev montre **deux**
-      liens (Abidjan, intérieur), et un envoi depuis la prod en montre
-      **un** (« Voir les disponibilités — PDF »), qui s'ouvre.
+- [ ] Après collage : un envoi en mode test montre **deux** liens
+      (Abidjan, intérieur), et chacun ouvre son PDF.
 
 ---
 

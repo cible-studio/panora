@@ -27,11 +27,6 @@
   par Panora : le bloc correspondant disparaît du mail grâce au test
   « si le lien existe ». Aucun lien mort, aucun PDF vide.
 
-  Repli (2026-10-29) : si Panora n'envoie AUCUN des deux liens par zone
-  (version de Panora antérieure aux deux catalogues, encore en production
-  ce jour-là), le mail affiche le lien unique du catalogue complet. Le
-  modèle peut donc être collé dans Brevo avant la mise en production.
-
   À coller dans Brevo → Modèles → Code HTML personnalisé, puis mettre son
   numéro dans BREVO_TEMPLATE_DISPOS. Le modèle illustré
   (modele-brevo-disponibilites.html) reste disponible.
@@ -72,9 +67,6 @@
     {% if params.LIEN_INTERIEUR %}
     <a href="{{ params.LIEN_INTERIEUR }}" style="color:#E20613; font-weight:bold; text-decoration:underline;">Disponibilités à l'intérieur du pays ({{ params.NB_INTERIEUR }}) &mdash; PDF</a><br>
     {% endif %}
-    {% if params.LIEN_ABIDJAN %}{% else %}{% if params.LIEN_INTERIEUR %}{% else %}
-    <a href="{{ params.LIEN_PDF }}" style="color:#E20613; font-weight:bold; text-decoration:underline;">Voir les disponibilités &mdash; PDF</a><br>
-    {% endif %}{% endif %}
     <span style="font-size:13px; color:#555555;">Pour chaque emplacement : photo, format, localisation et date de disponibilité.</span>
   </td></tr>
   </table>
