@@ -38,6 +38,10 @@ Lecture seule, elle ne modifie rien. Six sections :
 - [ ] Les écrans concordent après correction : la liste des factures et
       `/admin/finance` annoncent le **même** restant dû.
 
+⚠ **Lire la section 6 avant de modifier un de ces calculs** : elle liste
+les quatre pièges rencontrés pendant l'audit, dont deux qui ne lèvent
+aucune erreur et donnent silencieusement un total à zéro.
+
 ---
 
 ## 2. Règle métier à trancher — statuts « Générée » et « Validée »
@@ -110,3 +114,48 @@ ligne ouvre le détail :
       montre **qu'un seul** lien au lieu des deux (Abidjan / intérieur).
       `params.LIEN_PDF` reste fourni exprès pour que le bouton actuel ne
       devienne pas mort entre-temps. Cf. `docs/TECHNICAL_DEBT.md`.
+
+---
+
+## 6. Pour qui reprend le contrôle financier — pièges déjà rencontrés
+
+> Contexte : l'audit du 2026-10-29 a été fait depuis un poste **sans
+> données** (base locale vide). Les trois écarts corrigés l'ont été en
+> comparant des *formules*, jamais des *chiffres*. D'où la section 1 :
+> c'est elle qui dira si ces cas existent vraiment en base.
+
+**Ce qu'il reste à faire, dans l'ordre :**
+
+1. Lancer `php artisan finance:verifier` et coller le résumé en section 1.
+2. Ouvrir `/admin/invoices` et `/admin/finance` côte à côte : le restant
+   dû doit être **le même nombre** des deux côtés. C'est le contrôle qui
+   prouve que la correction a pris.
+3. Si la section 1 montre des montants en « Générée » / « Validée »,
+   poser la question de la section 2 à la direction.
+
+**Quatre pièges à connaître avant de toucher à ces calculs :**
+
+- **Aucun écran n'est faux tout seul.** L'incohérence n'apparaît qu'en
+  comparant deux endroits. Le cas trouvé le 2026-10-29 : la liste des
+  factures affichait 3 638 576 sur la ligne et 6 660 000 dans son propre
+  KPI, en haut de la même page. Toujours lire le partial de ligne **et**
+  le contrôleur ensemble.
+
+- **`COALESCE` ne suffit pas pour `total_a_payer`.** La colonne est
+  `NOT NULL DEFAULT 0` : `COALESCE(total_a_payer, amount_ttc)` ne voit que
+  `NULL` et laisse passer le **0**, qui est justement le cas à traiter.
+  Utiliser `Invoice::SQL_MONTANT_TOTAL` (SQL) ou `Invoice::montantTotal()`
+  (PHP), jamais une expression maison.
+
+- **Changer une somme peut casser le chargement.** Passer de
+  `sum('total_a_payer')` à `sum(fn ($i) => $i->montantTotal())` ne marche
+  que si `amount_ttc` est dans le `select` de la relation ; sinon le total
+  tombe à **zéro** sans erreur. Idem pour `remainingAmount()`, qui a besoin
+  de `payments` et `schedules` sous peine d'une requête par facture.
+  Vérifier le `with()` du service, pas seulement le diff de la vue.
+
+- **Les DEVIS ne suivent pas la même règle, et c'est voulu.** `Quote` a
+  les deux mêmes colonnes avec le même défaut à 0, mais **aucun** écran
+  n'y applique de repli. Y ajouter `montantTotal()` par symétrie
+  changerait tous les montants de devis d'un coup. Cf.
+  `docs/TECHNICAL_DEBT.md`.
