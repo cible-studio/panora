@@ -247,6 +247,11 @@
     </div>
 </div>
 
+{{-- Toute la ligne ouvre la facture (2026-10-29). Posé une fois pour
+     l'écran, hors du <table> : l'écouteur est délégué au document, donc
+     il couvre aussi les lignes rechargées en AJAX par les filtres. --}}
+@include('admin.partials.ligne-cliquable')
+
 <style>
 
 .reset-btn {

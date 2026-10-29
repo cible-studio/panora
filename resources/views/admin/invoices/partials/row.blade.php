@@ -13,9 +13,16 @@
         default     => ['bg' => 'rgba(239,68,68,.08)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'label' => 'Non soldée',  'icon' => '❌'],
     };
 @endphp
-<tr data-invoice-row="{{ $invoice->id }}" data-status="{{ $invoice->status }}">
+{{-- data-ligne-url : toute la ligne ouvre la facture, sauf les zones déjà
+     interactives (client, campagne, boutons d'action, bouton des
+     relances). Mécanisme dans admin/partials/ligne-cliquable.blade.php. --}}
+<tr data-invoice-row="{{ $invoice->id }}" data-status="{{ $invoice->status }}"
+    data-ligne-url="{{ route('admin.invoices.show', $invoice) }}">
     <td>
-        <span style=" color:var(--accent); font-weight:700;">{{ $invoice->reference }}</span>
+        {{-- Vrai lien : accessible au clavier, ouvrable dans un nouvel
+             onglet et copiable au clic droit. --}}
+        <a href="{{ route('admin.invoices.show', $invoice) }}" data-ligne-principal
+           style="color:var(--accent);font-weight:700" title="Ouvrir la facture">{{ $invoice->reference }}</a>
         <div style="font-size:10px;color:var(--text3);margin-top:2px">{{ $invoice->issued_at->format('d/m/Y') }}</div>
     </td>
     <td>
@@ -34,9 +41,12 @@
             </div>
         @endif
     </td>
-    <td style="text-align:right;font-weight:700;color:var(--accent)">{{ number_format($total, 0, ',', ' ') }}</td>
-    <td style="text-align:right;color:#16a34a">{{ number_format($paid, 0, ',', ' ') }}</td>
-    <td style="text-align:right;color:{{ $remaining > 0 ? '#b91c1c' : 'var(--text3)' }};font-weight:700">{{ number_format($remaining, 0, ',', ' ') }}</td>
+    {{-- white-space:nowrap : l'espace des milliers de number_format est un
+         espace ordinaire, sur lequel le navigateur coupait la ligne
+         (« 3 021 » puis « 424 » en dessous). Un montant reste d'un bloc. --}}
+    <td style="text-align:right;font-weight:700;color:var(--accent);white-space:nowrap">{{ number_format($total, 0, ',', ' ') }}</td>
+    <td style="text-align:right;color:#16a34a;white-space:nowrap">{{ number_format($paid, 0, ',', ' ') }}</td>
+    <td style="text-align:right;color:{{ $remaining > 0 ? '#b91c1c' : 'var(--text3)' }};font-weight:700;white-space:nowrap">{{ number_format($remaining, 0, ',', ' ') }}</td>
     <td style="min-width:130px">
         <span style="display:inline-flex;align-items:center;gap:4px;background:{{ $payCfg['bg'] }};color:{{ $payCfg['color'] }};padding:3px 8px;border-radius:999px;font-size:10.5px;font-weight:800;white-space:nowrap">
             {{ $payCfg['icon'] }} {{ $payCfg['label'] }}
