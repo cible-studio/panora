@@ -1,52 +1,71 @@
 {{--
-    Une entrée d'interlocuteur sur la fiche client. Réutilisée :
-    - au rendu initial (foreach contacts)
-    - en réponse AJAX à la création (le JS injecte ce HTML dans la liste)
+    Une ligne d'interlocuteur sur la fiche client (refonte compacte 2026-10-29).
+    Rendue au chargement de la fiche (foreach contacts) ; après un ajout,
+    une modification ou « principal », la fiche se recharge.
 
-    Toutes les actions sont des boutons inline qui parlent à
-    ClientContacts.* (cf. show.blade.php).
+    Toutes les valeurs du formulaire sont portées par les data-* : la
+    modale de modification (ClientContacts.openEdit, show.blade.php) les
+    lit telles quelles, sans dépendre de la mise en page. data-recherche et
+    data-source servent à la recherche et aux filtres de la liste.
 --}}
-<div class="contact-item" data-contact-id="{{ $contact->id }}"
+@php
+    $estProspect = ($contact->statut ?? 'client') === 'prospect';
+    $duSheet     = $contact->source === \App\Services\Contacts\ContactsGmailService::SOURCE;
+    $initiales   = collect(preg_split('/\s+/', trim((string) $contact->name)))->filter()->take(2)
+        ->map(fn ($m) => mb_strtoupper(mb_substr($m, 0, 1)))->implode('');
+    $fonction    = $contact->position ?: $contact->role_label;
+    $recherche   = \Illuminate\Support\Str::ascii(mb_strtolower(implode(' ', array_filter([
+        $contact->name, $contact->email, $contact->phone, $contact->position, $contact->role_label,
+    ]))));
+    $badge = 'font-size:9px;font-weight:700;padding:1px 6px;border-radius:9px;letter-spacing:.3px;white-space:nowrap;';
+@endphp
+<div class="contact-item ci-ligne" data-contact-id="{{ $contact->id }}"
+     data-name="{{ $contact->name }}" data-email="{{ $contact->email }}" data-phone="{{ $contact->phone }}"
+     data-notes="{{ $contact->notes }}" data-primary="{{ $contact->is_primary ? 1 : 0 }}"
      data-statut="{{ $contact->statut ?? 'client' }}" data-notif="{{ $contact->receives_notifications ? 1 : 0 }}"
      data-role="{{ $contact->role }}" data-position="{{ $contact->position }}"
-     style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;{{ $contact->is_primary ? 'border-left:3px solid var(--accent);' : '' }}">
+     data-source="{{ $duSheet ? 'gmail' : '' }}" data-recherche="{{ $recherche }}">
 
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">
-            <span style="font-weight:700;font-size:13px;color:var(--text);">{{ $contact->name }}</span>
+    <div class="ci-avatar" style="{{ $contact->is_primary ? 'background:rgba(232,160,32,.15);color:var(--accent);' : ($estProspect ? 'background:rgba(59,130,246,.12);color:#3b82f6;' : '') }}"
+         aria-hidden="true">{{ $initiales ?: '?' }}</div>
+
+    <div class="ci-corps">
+        <div class="ci-l1">
+            <span class="ci-nom">{{ $contact->name }}</span>
             @if($contact->is_primary)
-                <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;background:rgba(232,160,32,.15);color:var(--accent);letter-spacing:.4px;">PRINCIPAL</span>
+                <span style="{{ $badge }}background:rgba(232,160,32,.15);color:var(--accent);" title="Contact principal">PRINCIPAL</span>
             @endif
             {{-- Statut propre à chaque adresse (2026-10-28) --}}
-            @if(($contact->statut ?? 'client') === 'prospect')
-                <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;background:rgba(59,130,246,.12);color:#3b82f6;letter-spacing:.4px;">PROSPECT</span>
+            @if($estProspect)
+                <span style="{{ $badge }}background:rgba(59,130,246,.12);color:#3b82f6;">PROSPECT</span>
             @endif
-            @if($contact->source === \App\Services\Contacts\ContactsGmailService::SOURCE)
-                <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;background:rgba(234,67,53,.12);color:#ea4335;letter-spacing:.4px;cursor:help;"
+            @if($duSheet)
+                <span style="{{ $badge }}background:rgba(234,67,53,.12);color:#ea4335;cursor:help;"
                       title="Arrivé du Google Sheets le {{ $contact->created_at?->format('d/m/Y') }}">GMAIL</span>
             @endif
             @if(!$contact->receives_notifications)
-                <span style="font-size:9px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--surface3);color:var(--text3);" title="Ne reçoit pas les mails de campagne (renouvellement, fin de campagne)">sans mails de campagne</span>
+                <span style="{{ $badge }}font-weight:600;background:var(--surface3);color:var(--text3);cursor:help;"
+                      title="Ne reçoit pas les mails de campagne (renouvellement, fin de campagne)">sans mails de campagne</span>
             @endif
         </div>
-        <div style="display:flex;gap:2px;flex-shrink:0;">
+        <div class="ci-l2" title="{{ implode(' · ', array_filter([$contact->email, $contact->phone, $contact->position, $contact->role_label])) }}">
+            @if($contact->email)<a href="mailto:{{ $contact->email }}">{{ $contact->email }}</a>@endif
+            @if($contact->phone)<span>{{ $contact->phone }}</span>@endif
+            @if($fonction)<span>{{ $fonction }}</span>@endif
+            @if(!$fonction && !$contact->email && !$contact->phone)<span style="font-style:italic;">Aucune coordonnée</span>@endif
+        </div>
+    </div>
+
+    <div class="ci-actions">
+        <button type="button" class="ci-menu-btn" data-ci-menu aria-haspopup="menu" aria-expanded="false"
+                aria-label="Actions pour {{ $contact->name }}" title="Actions">⋯</button>
+        <div class="ci-menu" role="menu" hidden>
+            <button type="button" role="menuitem" onclick="ClientContacts.openEdit({{ $contact->id }})">✏️ Modifier</button>
             @if(!$contact->is_primary)
-                <button type="button" onclick="ClientContacts.setPrimary({{ $contact->id }})" class="btn-icon" title="Définir comme contact principal" style="padding:3px 6px;font-size:12px;color:var(--text3);background:none;border:none;cursor:pointer;">⭐</button>
+                <button type="button" role="menuitem" onclick="ClientContacts.setPrimary({{ $contact->id }})">⭐ Définir comme principal</button>
             @endif
-            <button type="button" onclick="ClientContacts.openEdit({{ $contact->id }})" class="btn-icon" title="Modifier" style="padding:3px 6px;font-size:12px;color:var(--text3);background:none;border:none;cursor:pointer;">✏️</button>
-            <button type="button" onclick="ClientContacts.remove({{ $contact->id }}, '{{ addslashes($contact->name) }}')" class="btn-icon" title="Supprimer" style="padding:3px 6px;font-size:12px;color:#ef4444;background:none;border:none;cursor:pointer;">🗑</button>
+            <button type="button" role="menuitem" class="ci-menu-danger"
+                    onclick="ClientContacts.remove({{ $contact->id }}, {{ \Illuminate\Support\Js::from($contact->name) }})">🗑 Supprimer</button>
         </div>
     </div>
-
-    <div style="font-size:11px;color:var(--text3);display:flex;flex-wrap:wrap;gap:8px;">
-        <span>{{ $contact->role_label }}</span>
-        @if($contact->position) · <span>{{ $contact->position }}</span> @endif
-    </div>
-
-    @if($contact->email || $contact->phone)
-    <div style="font-size:11px;color:var(--text2);display:flex;flex-wrap:wrap;gap:10px;margin-top:2px;">
-        @if($contact->email) <span>📧 <a href="mailto:{{ $contact->email }}" style="color:var(--text2);text-decoration:none;">{{ $contact->email }}</a></span> @endif
-        @if($contact->phone) <span>📞 {{ $contact->phone }}</span> @endif
-    </div>
-    @endif
 </div>

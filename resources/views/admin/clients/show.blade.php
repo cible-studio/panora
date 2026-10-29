@@ -118,29 +118,66 @@
              les interlocuteurs sont des contacts MÉTIER (nom + email +
              téléphone) que NOUS ajoutons côté régie pour savoir qui appeler
              chez le client. PAS de compte d'accès, PAS de connexion possible.
-             Reçoivent éventuellement les notifications transactionnelles
-             (factures, propositions) si `receives_notifications=true`.
+             Refonte compacte 2026-10-29 : une ligne par interlocuteur,
+             recherche, filtres, 10 premiers puis « Voir les N autres »
+             (lisible au-delà de 50 interlocuteurs), actions dans un menu ⋯.
              ────────────────────────────────────────────────── --}}
-        <div style="padding:14px 20px;border-top:1px solid var(--border);">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);">
-                    Interlocuteurs ({{ $client->contacts->count() }})
-                </span>
-                <button type="button" onclick="ClientContacts.openCreate()" class="btn btn-ghost btn-sm" title="Ajouter un interlocuteur" style="padding:3px 10px;font-size:11px;">
+        @php
+            $nbContacts = $client->contacts->count();
+            $ciFiltres = [
+                'tous'     => ['Tous', $nbContacts],
+                'client'   => ['Clients', $client->contacts->filter(fn ($c) => ($c->statut ?? 'client') === 'client')->count()],
+                'prospect' => ['Prospects', $client->contacts->where('statut', 'prospect')->count()],
+                'mails'    => ['Reçoivent les mails', $client->contacts->where('receives_notifications', true)->count()],
+                'sheet'    => ['Venus du Sheet', $client->contacts->where('source', \App\Services\Contacts\ContactsGmailService::SOURCE)->count()],
+            ];
+        @endphp
+        <div id="ci-section" style="padding:14px 16px;border-top:1px solid var(--border);">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">
+                <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);">Interlocuteurs</span>
+                    <span id="ci-compteur" style="font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:9px;background:var(--surface3);color:var(--text2);">{{ $nbContacts }}</span>
+                    <x-aide titre="Interlocuteurs">
+                        Carnet d'adresses des personnes à contacter chez le client (téléphone, e-mail).
+                        Ils n'ont pas de compte d'accès au portail. Chaque campagne, réservation ou devis
+                        précise lequel suit le dossier ; « sans mails de campagne » : le contact ne reçoit
+                        pas les mails de suivi s'il n'est pas l'interlocuteur du dossier.
+                    </x-aide>
+                </div>
+                <button type="button" onclick="ClientContacts.openCreate()" class="btn btn-ghost btn-sm" title="Ajouter un interlocuteur" style="padding:3px 10px;font-size:11px;flex-shrink:0;">
                     + Ajouter
                 </button>
             </div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.4;">
-                📒 Carnet d'adresses — personnes à <strong>contacter</strong> chez le client (téléphone, email). Pas de compte d'accès portail.
-            </div>
-            <div id="contacts-list" style="display:flex;flex-direction:column;gap:6px;">
-                @forelse($client->contacts as $contact)
+
+            @if($nbContacts > 3)
+                <input type="search" id="ci-recherche" class="filter-input" autocomplete="off"
+                       placeholder="🔍 Nom, e-mail, fonction, téléphone…" aria-label="Rechercher un interlocuteur"
+                       style="width:100%;font-size:12px;padding:6px 10px;margin-bottom:8px;">
+                <div id="ci-filtres" role="group" aria-label="Filtrer les interlocuteurs" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">
+                    @foreach($ciFiltres as $code => [$libelle, $nb])
+                        <button type="button" class="ci-puce" data-filtre="{{ $code }}" aria-pressed="{{ $code === 'tous' ? 'true' : 'false' }}"
+                                @if($code !== 'tous' && $nb === 0) hidden @endif>
+                            {{ $libelle }} <span data-nb>{{ $nb }}</span>
+                        </button>
+                    @endforeach
+                </div>
+            @endif
+
+            <div id="contacts-list" class="ci-liste" @if($nbContacts === 0) hidden @endif>
+                @foreach($client->contacts as $contact)
                     @include('admin.clients.partials.contact-item', ['contact' => $contact, 'client' => $client])
-                @empty
-                    <div id="contacts-empty" style="font-size:12px;color:var(--text3);font-style:italic;padding:8px 0;">
-                        Aucun interlocuteur enregistré.
-                    </div>
-                @endforelse
+                @endforeach
+            </div>
+            <div id="ci-aucun-resultat" hidden style="font-size:12px;color:var(--text3);padding:10px 2px;">
+                Aucun interlocuteur ne correspond.
+            </div>
+            <button type="button" id="ci-voir-plus" class="ci-voir-plus" hidden></button>
+
+            <div id="contacts-empty" @if($nbContacts > 0) hidden @endif
+                 style="text-align:center;padding:16px 8px;border:1px dashed var(--border);border-radius:10px;">
+                <div style="font-size:12.5px;color:var(--text2);font-weight:600;">Aucun interlocuteur</div>
+                <div style="font-size:11.5px;color:var(--text3);margin-top:2px;">Ajoutez les personnes à contacter chez ce client.</div>
+                <button type="button" onclick="ClientContacts.openCreate()" class="btn btn-ghost btn-sm" style="margin-top:8px;font-size:11px;padding:3px 10px;">+ Ajouter le premier</button>
             </div>
         </div>
 
@@ -150,58 +187,93 @@
              connectent réellement à l'espace client Panora pour
              consulter campagnes, propositions, etc.
              Read-only côté admin : la gestion reste l'apanage de
-             l'owner client (RBAC interne owner/member). ───────── --}}
-        <div style="padding:14px 20px;border-top:1px solid var(--border);">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);">
-                    Équipe espace client ({{ $client->users->count() }})
-                </span>
-                <span style="font-size:10px;color:var(--text3);" title="Géré uniquement côté client (par l'owner)">🔒 Read-only</span>
-            </div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.4;">
-                🔑 Comptes d'<strong>accès au portail</strong> — se connectent avec email + mot de passe pour consulter campagnes / propositions / piges.
-            </div>
-            @if($client->users->isEmpty())
-                <div style="font-size:12px;color:var(--text3);font-style:italic;padding:8px 0;line-height:1.45;">
-                    Aucun utilisateur côté client. Le client n'a pas encore créé de compte d'accès au portail.
-                </div>
-            @else
-                <div style="display:flex;flex-direction:column;gap:6px;">
-                    @foreach($client->users as $u)
-                        @php
-                            $roleCfg = $u->role === 'owner'
-                                ? ['c'=>'#e20613', 'label'=>'Owner',  'title'=>'Gère l\'équipe + accepte les propositions']
-                                : ['c'=>'#6b7280', 'label'=>'Member', 'title'=>'Lecture seule (campagnes, poses, piges, propositions)'];
-                        @endphp
-                        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;{{ !$u->is_active ? 'opacity:.55;' : '' }}">
-                            <div style="width:30px;height:30px;border-radius:50%;background:{{ $roleCfg['c'] }}1a;color:{{ $roleCfg['c'] }};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">{{ mb_substr($u->name, 0, 1) }}</div>
-                            <div style="flex:1;min-width:0;">
-                                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                    <span style="font-size:12px;font-weight:600;color:var(--text);">{{ $u->name }}</span>
-                                    <span title="{{ $roleCfg['title'] }}"
-                                          style="padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;background:{{ $roleCfg['c'] }}1a;color:{{ $roleCfg['c'] }};text-transform:uppercase;letter-spacing:.3px;">{{ $roleCfg['label'] }}</span>
-                                    @if(!$u->is_active)
-                                        <span style="padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;background:rgba(107,114,128,.15);color:#6b7280;">Désactivé</span>
-                                    @endif
-                                </div>
-                                <div style="font-size:10px;color:var(--text3);font-family:monospace;">{{ $u->email }}</div>
-                                <div style="font-size:10px;color:var(--text3);margin-top:2px;">
-                                    @if($u->last_login_at)
-                                        Dernière connexion : {{ $u->last_login_at->diffForHumans() }}
-                                    @else
-                                        Jamais connecté
-                                    @endif
+             l'owner client (RBAC interne owner/member).
+             Repliée par défaut (2026-10-29) : titre, compteur, aide ⓘ. ── --}}
+        <details class="ci-equipe" style="border-top:1px solid var(--border);">
+            <summary style="padding:12px 16px;display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none;">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);">Équipe espace client</span>
+                <span style="font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:9px;background:var(--surface3);color:var(--text2);">{{ $client->users->count() }}</span>
+                <x-aide titre="Équipe espace client">
+                    Comptes d'accès au portail : ils se connectent avec e-mail et mot de passe pour consulter
+                    campagnes, propositions et piges. Le client gère lui-même son équipe depuis son espace
+                    (page « Mon équipe ») : ici, lecture seule, l'admin ne peut ni ajouter ni modifier ces comptes.
+                </x-aide>
+                <span style="margin-left:auto;font-size:10px;color:var(--text3);" title="Géré uniquement côté client">🔒</span>
+                <span class="ci-chevron" aria-hidden="true">▾</span>
+            </summary>
+            <div style="padding:0 16px 12px;">
+                @if($client->users->isEmpty())
+                    <div style="font-size:12px;color:var(--text3);padding:2px 0 4px;">Aucun compte : le client n'a pas encore ouvert son espace.</div>
+                @else
+                    <div class="ci-liste">
+                        @foreach($client->users as $u)
+                            @php
+                                $roleCfg = $u->role === 'owner'
+                                    ? ['c'=>'#e20613', 'label'=>'Owner',  'title'=>'Gère l\'équipe + accepte les propositions']
+                                    : ['c'=>'#6b7280', 'label'=>'Member', 'title'=>'Lecture seule (campagnes, poses, piges, propositions)'];
+                            @endphp
+                            <div class="ci-ligne" style="{{ !$u->is_active ? 'opacity:.55;' : '' }}">
+                                <div class="ci-avatar" style="background:{{ $roleCfg['c'] }}1a;color:{{ $roleCfg['c'] }};" aria-hidden="true">{{ mb_strtoupper(mb_substr($u->name, 0, 1)) }}</div>
+                                <div class="ci-corps">
+                                    <div class="ci-l1">
+                                        <span class="ci-nom">{{ $u->name }}</span>
+                                        <span title="{{ $roleCfg['title'] }}"
+                                              style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:9px;background:{{ $roleCfg['c'] }}1a;color:{{ $roleCfg['c'] }};text-transform:uppercase;letter-spacing:.3px;">{{ $roleCfg['label'] }}</span>
+                                        @if(!$u->is_active)
+                                            <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:9px;background:rgba(107,114,128,.15);color:#6b7280;">Désactivé</span>
+                                        @endif
+                                    </div>
+                                    <div class="ci-l2">
+                                        <span>{{ $u->email }}</span>
+                                        <span>{{ $u->last_login_at ? 'Connecté ' . $u->last_login_at->diffForHumans() : 'Jamais connecté' }}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    @endforeach
-                </div>
-            @endif
-            <div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.45;">
-                💡 Le client gère lui-même son équipe depuis son espace (page « Mon équipe »). L'admin ne peut ni ajouter ni modifier ces comptes.
+                        @endforeach
+                    </div>
+                @endif
             </div>
-        </div>
+        </details>
 
+        <style>
+            .ci-liste { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
+            .ci-ligne { display: flex; align-items: center; gap: 9px; padding: 7px 8px 7px 10px; border-top: 1px solid var(--border); }
+            .ci-liste > .ci-ligne:first-child, .ci-liste > .ci-ligne.ci-premier { border-top: 0; }
+            .ci-ligne:hover { background: var(--surface2); }
+            .ci-ligne[hidden] { display: none; }
+            .ci-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+                         font-size: 10.5px; font-weight: 700; background: var(--surface3); color: var(--text2); }
+            .ci-corps { flex: 1; min-width: 0; }
+            .ci-l1 { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; line-height: 1.35; }
+            .ci-nom { font-size: 12.5px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+            .ci-l2 { font-size: 11px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.45; }
+            .ci-l2 > * + *::before { content: '·'; margin: 0 5px; color: var(--text3); }
+            .ci-l2 a { color: var(--text2); text-decoration: none; }
+            .ci-l2 a:hover { color: var(--accent); text-decoration: underline; }
+            .ci-actions { flex-shrink: 0; }
+            .ci-menu-btn { width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; color: var(--text3); font-size: 16px; line-height: 1; cursor: pointer; }
+            .ci-menu-btn:hover, .ci-menu-btn[aria-expanded="true"] { background: var(--surface3); color: var(--text); }
+            .ci-menu { position: fixed; z-index: 10000; min-width: 190px; padding: 4px; border-radius: 10px;
+                       background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+            .ci-menu[hidden] { display: none; }
+            .ci-menu button { display: block; width: 100%; text-align: left; padding: 7px 10px; border: 0; border-radius: 6px;
+                              background: none; color: var(--text2); font-size: 12.5px; cursor: pointer; }
+            .ci-menu button:hover, .ci-menu button:focus-visible { background: var(--surface2); color: var(--text); outline: none; }
+            .ci-menu .ci-menu-danger { color: #ef4444; }
+            .ci-puce { font-size: 11px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); cursor: pointer; }
+            .ci-puce [data-nb] { color: var(--text3); font-weight: 700; margin-left: 2px; }
+            .ci-puce[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+            .ci-puce[aria-pressed="true"] [data-nb] { color: rgba(255,255,255,.85); }
+            .ci-puce[hidden] { display: none; }
+            .ci-voir-plus { display: block; width: 100%; margin-top: 6px; padding: 6px; border: 1px dashed var(--border); border-radius: 8px;
+                            background: none; color: var(--text2); font-size: 11.5px; font-weight: 600; cursor: pointer; }
+            .ci-voir-plus:hover { color: var(--accent); border-color: var(--accent); }
+            .ci-voir-plus[hidden] { display: none; }
+            .ci-equipe > summary::-webkit-details-marker { display: none; }
+            .ci-equipe .ci-chevron { font-size: 11px; color: var(--text3); transition: transform .15s; }
+            .ci-equipe[open] .ci-chevron { transform: rotate(180deg); }
+            .ci-equipe > summary:hover { background: var(--surface2); }
+        </style>
         {{-- Lien nouvelle réservation --}}
         <div style="padding:16px 20px;border-top:1px solid var(--border);">
             <a href="{{ route('admin.reservations.disponibilites') }}"
@@ -914,14 +986,21 @@ window.ClientContacts = (function () {
         document.getElementById('contact-statut').value = statutEntreprise;
     }
 
+    // Valeurs réelles portées par les data-* de la ligne (partial
+    // contact-item) : indépendant de la mise en page. Les notes sont
+    // reprises aussi — avant, modifier un contact les effaçait (2026-10-29).
     function fillForm(row) {
-        document.getElementById('contact_id').value = row.dataset.contactId;
-        const card = row;
-        // On lit depuis le DOM rendu pour ne pas avoir à conserver un cache JS
-        document.getElementById('contact-name-input').value = card.querySelector('span[style*="font-weight:700"]')?.textContent.trim() || '';
-        // Pour l'édition complète on charge les champs depuis l'API ? Non, on
-        // recharge plus tard. Pour cette première version, on demande à l'admin
-        // de re-saisir les champs via l'edit (suffisant pour MVP).
+        const d = row.dataset;
+        document.getElementById('contact_id').value = d.contactId;
+        document.getElementById('contact-name-input').value = d.name || '';
+        document.getElementById('contact-email').value = d.email || '';
+        document.getElementById('contact-phone').value = d.phone || '';
+        document.getElementById('contact-notes').value = d.notes || '';
+        document.getElementById('contact-primary').checked = d.primary === '1';
+        document.getElementById('contact-statut').value = d.statut || 'client';
+        document.getElementById('contact-notif').checked = d.notif === '1';
+        if (d.role) document.getElementById('contact-role').value = d.role;
+        document.getElementById('contact-position').value = d.position || '';
     }
 
     return {
@@ -936,22 +1015,7 @@ window.ClientContacts = (function () {
             const row = list.querySelector(`[data-contact-id="${contactId}"]`);
             if (!row) return;
             resetForm();
-            document.getElementById('contact_id').value = contactId;
-            // Pré-remplir depuis le DOM
-            const name = row.querySelector('span[style*="font-weight:700"]')?.textContent.trim() || '';
-            document.getElementById('contact-name-input').value = name;
-            const emailLink = row.querySelector('a[href^="mailto:"]');
-            if (emailLink) document.getElementById('contact-email').value = emailLink.getAttribute('href').replace('mailto:', '');
-            // Phone : extrait du span après "📞"
-            const phoneSpan = Array.from(row.querySelectorAll('span')).find(s => s.textContent.includes('📞'));
-            if (phoneSpan) document.getElementById('contact-phone').value = phoneSpan.textContent.replace('📞', '').trim();
-            // Primary actuel
-            document.getElementById('contact-primary').checked = !!row.querySelector('span[style*="rgba(232,160,32"]');
-            // Statut, mails de campagne, rôle, fonction : valeurs réelles (data-*), pas les défauts.
-            document.getElementById('contact-statut').value = row.dataset.statut || 'client';
-            document.getElementById('contact-notif').checked = row.dataset.notif === '1';
-            if (row.dataset.role) document.getElementById('contact-role').value = row.dataset.role;
-            document.getElementById('contact-position').value = row.dataset.position || '';
+            fillForm(row);
 
             document.getElementById('contact-modal-title').textContent = 'Modifier l\'interlocuteur';
             modal.style.display = 'flex';
@@ -1053,12 +1117,113 @@ window.ClientContacts = (function () {
                     return;
                 }
                 document.querySelector(`.contact-item[data-contact-id="${contactId}"]`)?.remove();
+                window.ContactsListe?.rafraichir();
                 showToast(data.message);
             } catch (e) {
                 showToast('Erreur réseau.', 'error');
             }
         },
     };
+})();
+
+// ══════════════════════════════
+// LISTE DES INTERLOCUTEURS (2026-10-29) : recherche, filtres, 10 premiers
+// puis « Voir les N autres », menu ⋯ (positionné sur la fenêtre : la
+// carte de la colonne coupe ce qui déborde).
+// ══════════════════════════════
+window.ContactsListe = (function () {
+    const LIMITE = 10;
+    const liste = document.getElementById('contacts-list');
+    if (!liste) return null;
+    const recherche = document.getElementById('ci-recherche');
+    const puces = Array.from(document.querySelectorAll('#ci-filtres .ci-puce'));
+    const voirPlus = document.getElementById('ci-voir-plus');
+    const aucun = document.getElementById('ci-aucun-resultat');
+    const vide = document.getElementById('contacts-empty');
+    const compteur = document.getElementById('ci-compteur');
+    let filtre = 'tous';
+    let toutVoir = false;
+
+    const lignes = () => Array.from(liste.querySelectorAll('.contact-item'));
+    const sansAccents = (t) => (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const TESTS = {
+        tous:     () => true,
+        client:   (d) => (d.statut || 'client') === 'client',
+        prospect: (d) => d.statut === 'prospect',
+        mails:    (d) => d.notif === '1',
+        sheet:    (d) => d.source === 'gmail',
+    };
+
+    function rafraichir() {
+        const toutes = lignes();
+        const q = sansAccents(recherche?.value.trim());
+        const visibles = toutes.filter(l => TESTS[filtre](l.dataset) && (!q || (l.dataset.recherche || '').includes(q)));
+
+        toutes.forEach(l => { l.hidden = true; l.classList.remove('ci-premier'); });
+        const montrees = toutVoir ? visibles : visibles.slice(0, LIMITE);
+        montrees.forEach(l => { l.hidden = false; });
+        if (montrees[0]) montrees[0].classList.add('ci-premier');
+
+        const reste = visibles.length - montrees.length;
+        voirPlus.hidden = !(reste > 0 || (toutVoir && visibles.length > LIMITE));
+        voirPlus.textContent = reste > 0 ? `Voir les ${reste} autre${reste > 1 ? 's' : ''}` : 'Réduire la liste';
+
+        liste.hidden = montrees.length === 0;
+        aucun.hidden = !(toutes.length > 0 && visibles.length === 0);
+        vide.hidden = toutes.length > 0;
+        if (compteur) compteur.textContent = toutes.length;
+        puces.forEach(p => {
+            const nb = toutes.filter(l => TESTS[p.dataset.filtre](l.dataset)).length;
+            p.querySelector('[data-nb]').textContent = nb;
+            p.hidden = p.dataset.filtre !== 'tous' && nb === 0 && p.dataset.filtre !== filtre;
+        });
+    }
+
+    recherche?.addEventListener('input', () => { toutVoir = false; rafraichir(); });
+    puces.forEach(p => p.addEventListener('click', () => {
+        filtre = p.dataset.filtre;
+        puces.forEach(x => x.setAttribute('aria-pressed', x === p ? 'true' : 'false'));
+        toutVoir = false;
+        rafraichir();
+    }));
+    voirPlus.addEventListener('click', () => { toutVoir = !toutVoir; rafraichir(); });
+
+    // Menu ⋯ : un seul ouvert, fermé au clic ailleurs, Échap, défilement.
+    let menuOuvert = null;
+    function fermerMenu() {
+        if (!menuOuvert) return;
+        menuOuvert.menu.hidden = true;
+        menuOuvert.bouton.setAttribute('aria-expanded', 'false');
+        menuOuvert = null;
+    }
+    document.addEventListener('click', (e) => {
+        const bouton = e.target.closest('[data-ci-menu]');
+        if (bouton) {
+            const memeMenu = menuOuvert && menuOuvert.bouton === bouton;
+            fermerMenu();
+            if (memeMenu) return;
+            const menu = bouton.nextElementSibling;
+            menu.hidden = false;
+            const r = bouton.getBoundingClientRect();
+            const haut = r.bottom + 4 + menu.offsetHeight > window.innerHeight - 8 ? r.top - menu.offsetHeight - 4 : r.bottom + 4;
+            menu.style.top = Math.max(8, haut) + 'px';
+            menu.style.left = Math.max(8, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+            bouton.setAttribute('aria-expanded', 'true');
+            menuOuvert = { bouton, menu };
+            menu.querySelector('button')?.focus();
+            return;
+        }
+        if (menuOuvert && menuOuvert.menu.contains(e.target)) { fermerMenu(); return; } // action choisie
+        fermerMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && menuOuvert) { const b = menuOuvert.bouton; fermerMenu(); b.focus(); }
+    });
+    window.addEventListener('scroll', fermerMenu, true);
+    window.addEventListener('resize', fermerMenu);
+
+    rafraichir();
+    return { rafraichir };
 })();
 </script>
 @endpush
