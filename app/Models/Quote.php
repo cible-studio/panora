@@ -177,8 +177,35 @@ class Quote extends Model implements Auditable
     public static function generateReference(): string
     {
         $year = now()->year;
-        $count = self::whereYear('created_at', $year)->count() + 1;
-        return sprintf('DEV-%s-%03d', $year, $count);
+        $prefixe = "DEV-{$year}-";
+        // Plus grand numéro de l'année, corbeille comprise : un numéro n'est
+        // jamais réattribué (2026-10-29 ; avant : comptage des devis, qui
+        // redonnait un numéro déjà pris après une suppression).
+        $dernier = self::withTrashed()
+            ->where('reference', 'like', $prefixe . '%')
+            ->pluck('reference')
+            ->map(fn ($r) => (int) substr($r, strlen($prefixe)))
+            ->max() ?? 0;
+        return sprintf('DEV-%s-%03d', $year, $dernier + 1);
+    }
+
+    /**
+     * Accepté par le client, ou devenu réservation : un tel devis ne se
+     * supprime jamais (règle de la direction, 2026-10-29). Un devis archivé
+     * après acceptation se reconnaît à son historique de modifications.
+     */
+    public function aEteAccepte(): bool
+    {
+        if (in_array($this->status, [QuoteStatus::ACCEPTE, QuoteStatus::ACCEPTE_AVEC_CONFLIT], true)
+            || $this->converted_reservation_id !== null
+            || Reservation::withTrashed()->where('quote_id', $this->id)->exists()) { // même supprimée depuis
+            return true;
+        }
+        try {
+            return $this->audits()->where('new_values', 'like', '%"status":"accepte%')->exists();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return false; // historique indisponible : les autres preuves suffisent
+        }
     }
 
     /** Génère un token public 64 hex chars (256 bits). */

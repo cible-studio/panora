@@ -82,6 +82,7 @@
         <input type="date" name="date_from" value="{{ $currentFrom }}" class="qf-input" title="Créé à partir du">
         <input type="date" name="date_to"   value="{{ $currentTo }}"   class="qf-input" title="Créé jusqu'au">
 
+        @if($corbeille)<input type="hidden" name="corbeille" value="1">@endif
         <div id="reset-wrap" style="display:{{ $hasFilters ? 'flex' : 'none' }};align-items:center">
             <a href="{{ route('admin.quotes.index') }}" class="qf-btn-reset">↻ Réinitialiser</a>
         </div>
@@ -90,7 +91,17 @@
     {{-- ═══════════════════ TABLE ═══════════════════ --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
         <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-            <div style="font-weight:700">📋 Liste des devis <span style="color:var(--text3);font-weight:500">({{ $quotes->total() }})</span></div>
+            @if($corbeille)
+                <div style="font-weight:700">🗑 Corbeille <span style="color:var(--text3);font-weight:500">({{ $quotes->total() }})</span>
+                    <span title="Devis retirés des listes. « Restaurer » les remet à leur place, avec leur numéro." style="cursor:help;color:var(--text3);font-weight:400;margin-left:4px">ⓘ</span>
+                </div>
+                <a href="{{ route('admin.quotes.index') }}" class="btn btn-ghost btn-sm">← Retour aux devis</a>
+            @else
+                <div style="font-weight:700">📋 Liste des devis <span style="color:var(--text3);font-weight:500">({{ $quotes->total() }})</span></div>
+                @if($nbCorbeille > 0)
+                    <a href="{{ route('admin.quotes.index', ['corbeille' => 1]) }}" class="btn btn-ghost btn-sm" title="Devis mis à la corbeille">🗑 Corbeille ({{ $nbCorbeille }})</a>
+                @endif
+            @endif
         </div>
         <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse">
@@ -151,15 +162,28 @@
                                 @endif
                             </td>
                             <td style="padding:10px;text-align:right;white-space:nowrap">
-                                <a href="{{ route('admin.quotes.show', $quote) }}" style="text-decoration:none;font-size:16px" title="Voir">👁</a>
-                                <a href="{{ route('admin.quotes.pdf', $quote) }}" style="text-decoration:none;font-size:16px;margin-left:8px" title="PDF">📄</a>
+                                @if($corbeille)
+                                    <form method="POST" action="{{ route('admin.quotes.restore', $quote->id) }}" style="display:inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-ghost btn-sm" title="Sortir ce devis de la corbeille">↩ Restaurer</button>
+                                    </form>
+                                @else
+                                    <a href="{{ route('admin.quotes.show', $quote) }}" style="text-decoration:none;font-size:16px" title="Voir">👁</a>
+                                    <a href="{{ route('admin.quotes.pdf', $quote) }}" style="text-decoration:none;font-size:16px;margin-left:8px" title="PDF">📄</a>
+                                    @can('delete', $quote)
+                                        <button type="button" onclick="ouvrirCorbeilleDevis(this)" title="Mettre à la corbeille"
+                                                data-url="{{ route('admin.quotes.destroy', $quote) }}" data-ref="{{ $quote->reference }}"
+                                                data-titre="{{ $quote->title }}" data-client="{{ $quote->client?->name }}"
+                                                style="background:none;border:0;padding:0;cursor:pointer;font-size:15px;margin-left:8px;opacity:.75">🗑</button>
+                                    @endcan
+                                @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
                             <td colspan="8" style="padding:60px;text-align:center;color:var(--text3)">
                                 <div style="font-size:48px;margin-bottom:12px">📋</div>
-                                <div>Aucun devis trouvé.</div>
+                                <div>{{ $corbeille ? 'La corbeille est vide.' : 'Aucun devis trouvé.' }}</div>
                                 @can('create', \App\Models\Quote::class)
                                     <div style="margin-top:12px">
                                         <a href="{{ route('admin.quotes.create') }}" style="color:var(--accent)">+ Créer votre premier devis</a>
@@ -171,6 +195,7 @@
                 </tbody>
             </table>
         </div>
+        @include('admin.quotes.partials._corbeille')
         <div style="padding:12px 16px">
             {{ $quotes->links() }}
         </div>

@@ -928,6 +928,10 @@ Route::prefix('admin')
                 Route::post('{quote}/extend',        [\App\Http\Controllers\Admin\QuoteController::class, 'extend'])->name('extend')->whereNumber('quote');
                 Route::post('{quote}/duplicate',     [\App\Http\Controllers\Admin\QuoteController::class, 'duplicate'])->name('duplicate')->whereNumber('quote');
                 Route::post('{quote}/archive',       [\App\Http\Controllers\Admin\QuoteController::class, 'archive'])->name('archive')->whereNumber('quote');
+                // Corbeille (2026-10-29) : droits fins dans QuotePolicy::delete / restore.
+                Route::delete('{quote}',             [\App\Http\Controllers\Admin\QuoteController::class, 'destroy'])->name('destroy')->whereNumber('quote');
+                Route::post('corbeille/{id}/restaurer', [\App\Http\Controllers\Admin\QuoteController::class, 'restore'])
+                    ->name('restore')->whereNumber('id')->middleware('role:admin');
             });
         });
 

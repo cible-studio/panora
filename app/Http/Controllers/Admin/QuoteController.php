@@ -33,40 +33,47 @@ class QuoteController extends Controller
         $this->authorize('viewAny', Quote::class);
         $user = auth()->user();
 
-        $query = Quote::with(['client', 'commercial'])
-            ->orderByDesc('created_at');
+        // Corbeille (2026-10-29) : réservée à l'admin.
+        $corbeille = $request->boolean('corbeille') && $user->role === UserRole::ADMIN;
 
-        // Commercial : ses devis uniquement (défense en profondeur — la
-        // policy view filtre déjà mais on économise une requête).
-        if ($user->role === UserRole::COMMERCIAL) {
-            $query->forCommercialUser((int) $user->id);
-        }
+        // Filtres, appliqués à la liste et aux compteurs.
+        $filtrer = function ($query) use ($request, $user) {
+            // Commercial : ses devis uniquement (défense en profondeur — la
+            // policy view filtre déjà mais on économise une requête).
+            if ($user->role === UserRole::COMMERCIAL) {
+                $query->forCommercialUser((int) $user->id);
+            }
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+            if ($request->filled('client_id')) {
+                $query->where('client_id', $request->client_id);
+            }
+            if ($request->filled('q')) {
+                $needle = '%' . $request->q . '%';
+                $query->where(function ($q) use ($needle) {
+                    $q->where('reference', 'like', $needle)
+                      ->orWhere('title', 'like', $needle);
+                });
+            }
+            if ($request->filled('date_from')) {
+                $query->whereDate('created_at', '>=', $request->date_from);
+            }
+            if ($request->filled('date_to')) {
+                $query->whereDate('created_at', '<=', $request->date_to);
+            }
+            return $query;
+        };
 
-        // Filtres
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->filled('client_id')) {
-            $query->where('client_id', $request->client_id);
-        }
-        if ($request->filled('q')) {
-            $needle = '%' . $request->q . '%';
-            $query->where(function ($q) use ($needle) {
-                $q->where('reference', 'like', $needle)
-                  ->orWhere('title', 'like', $needle);
-            });
-        }
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->date_to);
-        }
+        $query = $filtrer(($corbeille ? Quote::onlyTrashed() : Quote::query())
+            ->with(['client', 'commercial'])
+            ->orderByDesc($corbeille ? 'deleted_at' : 'created_at'));
 
         $quotes = $query->paginate(20)->withQueryString();
 
-        // KPI pour le header (base = filtre appliqué sauf pagination)
-        $baseKpi = clone $query;
+        // KPI pour le header (base = filtre appliqué sauf pagination). Toujours
+        // sur les devis en cours, même quand la liste montre la corbeille.
+        $baseKpi = $corbeille ? $filtrer(Quote::query()) : clone $query;
         $kpi = [
             'total'         => (clone $baseKpi)->count(),
             'brouillon'     => (clone $baseKpi)->where('status', 'brouillon')->count(),
@@ -81,7 +88,39 @@ class QuoteController extends Controller
 
         $clients = Client::orderBy('name')->get(['id', 'name']);
 
-        return view('admin.quotes.index', compact('quotes', 'kpi', 'clients'));
+        $nbCorbeille = $user->role === UserRole::ADMIN ? Quote::onlyTrashed()->count() : 0;
+
+        return view('admin.quotes.index', compact('quotes', 'kpi', 'clients', 'corbeille', 'nbCorbeille'));
+    }
+
+    // ─── CORBEILLE (2026-10-29) ────────────────────────────────────
+
+    /** Met le devis à la corbeille : il quitte les listes, l'admin peut le restaurer. */
+    public function destroy(Quote $quote)
+    {
+        if ($quote->aEteAccepte()) {
+            return back()->with('error', "Le devis {$quote->reference} a été accepté : il ne se supprime pas. Archivez-le pour le retirer de la liste.");
+        }
+        $this->authorize('delete', $quote);
+
+        $quote->delete();
+        Log::info('quote.trashed', ['quote_id' => $quote->id, 'reference' => $quote->reference, 'by' => auth()->id()]);
+
+        return redirect()->route('admin.quotes.index')
+            ->with('success', "Devis {$quote->reference} placé dans la corbeille.");
+    }
+
+    /** Sort un devis de la corbeille (admin). */
+    public function restore(int $id)
+    {
+        $quote = Quote::onlyTrashed()->findOrFail($id);
+        $this->authorize('restore', $quote);
+
+        $quote->restore();
+        Log::info('quote.restored', ['quote_id' => $quote->id, 'reference' => $quote->reference, 'by' => auth()->id()]);
+
+        return redirect()->route('admin.quotes.show', $quote)
+            ->with('success', "Devis {$quote->reference} restauré.");
     }
 
     // ─── CRÉATION ──────────────────────────────────────────────────

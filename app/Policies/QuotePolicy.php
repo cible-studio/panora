@@ -23,7 +23,8 @@ class QuotePolicy
 {
     public function before(User $user, string $ability): ?bool
     {
-        if ($user->role === UserRole::ADMIN) return true;
+        // La suppression suit sa propre règle, admin compris (jamais un devis accepté).
+        if ($user->role === UserRole::ADMIN && $ability !== 'delete') return true;
         return null;
     }
 
@@ -152,6 +153,21 @@ class QuotePolicy
         return false;
     }
 
-    /** Supprimer physiquement : Admin uniquement. */
-    public function delete(User $user, Quote $quote): bool { return false; }
+    /**
+     * Mettre à la corbeille (2026-10-29, direction) : jamais un devis accepté
+     * ou devenu réservation ; l'admin, tout le reste ; le commercial, ses
+     * brouillons.
+     */
+    public function delete(User $user, Quote $quote): bool
+    {
+        if ($quote->aEteAccepte()) return false;
+        if ($user->role === UserRole::ADMIN) return true;
+
+        return $user->role === UserRole::COMMERCIAL
+            && $quote->status === QuoteStatus::BROUILLON
+            && $quote->belongsToCommercialUser((int) $user->id);
+    }
+
+    /** Restaurer depuis la corbeille : admin uniquement (via before). */
+    public function restore(User $user, Quote $quote): bool { return false; }
 }

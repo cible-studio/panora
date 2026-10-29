@@ -30,7 +30,14 @@
                 <button type="submit" class="btn btn-ghost btn-sm" title="Dupliquer le devis">📋 <span class="btn-label">Dupliquer</span></button>
             </form>
         @endcan
+        @can('delete', $quote)
+            <button type="button" class="btn btn-ghost btn-sm" title="Mettre le devis à la corbeille" onclick="ouvrirCorbeilleDevis(this)"
+                    data-url="{{ route('admin.quotes.destroy', $quote) }}" data-ref="{{ $quote->reference }}"
+                    data-titre="{{ $quote->title }}" data-client="{{ $quote->client?->name }}">🗑 <span class="btn-label">Corbeille</span></button>
+        @endcan
     </x-slot:topbarActions>
+
+    @include('admin.quotes.partials._corbeille')
 
     @php $st = $quote->status->uiConfig(); @endphp
 
