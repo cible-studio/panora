@@ -4,7 +4,7 @@
     data-url (route admin.quotes.destroy), data-ref, data-titre, data-client.
 --}}
 <div id="devis-corbeille-modal" onclick="if (event.target === this) fermerCorbeilleDevis()"
-     style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:16px">
+     style="display:none;position:fixed;inset:0;z-index:10020;background:rgba(15,23,42,.45);backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:16px">
     <div role="dialog" aria-modal="true" aria-labelledby="devis-corbeille-titre"
          style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:440px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.25);overflow:hidden">
         <div style="padding:20px 22px 6px;display:flex;gap:12px;align-items:flex-start">
@@ -31,6 +31,8 @@
 <script>
 function ouvrirCorbeilleDevis(bouton) {
     var fenetre = document.getElementById('devis-corbeille-modal');
+    // Attachée à la page entière : aucun bloc parent ne peut la masquer ou la décaler.
+    if (fenetre.parentNode !== document.body) document.body.appendChild(fenetre);
     document.getElementById('devis-corbeille-form').action = bouton.dataset.url;
     fenetre.querySelector('[data-ref]').textContent = bouton.dataset.ref || '';
     fenetre.querySelector('[data-titre]').textContent = bouton.dataset.titre || '';
