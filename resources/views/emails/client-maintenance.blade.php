@@ -1,7 +1,7 @@
 @php
     $ch = config('charte.couleurs');
     $operator   = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
-    $clientName = $client?->name ?? 'Client';
+    $clientName = \App\Support\Salutation::suivi($client, $campaign?->interlocuteur); // interlocuteur + client (2026-10-29)
     $count      = $maintenances->count();
 
     if ($context === 'down') {

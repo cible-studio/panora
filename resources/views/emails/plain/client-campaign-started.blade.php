@@ -3,7 +3,7 @@
     $ref        = $reservation->reference;
     $period     = $reservation->start_date->format('d/m/Y') . ' → ' . $reservation->end_date->format('d/m/Y');
     $amount     = (float) ($reservation->total_amount ?? 0);
-    $clientName = $client?->name ?? 'Client';
+    $clientName = \App\Support\Salutation::suivi($client, $campaign?->interlocuteur ?? $reservation?->interlocuteur); // 2026-10-29
 @endphp
 PANORA · {{ $operator }} — Campagne confirmée
 

@@ -134,6 +134,19 @@ class InterlocuteurTest extends TestCase
             && !$m->hasTo('paul@orange.ci')); // décoché : plus de mail à tous les interlocuteurs
     }
 
+    // ── Salutation (2026-10-29) ───────────────────────────────────
+
+    public function test_salutation_interlocuteur_et_toujours_le_client(): void
+    {
+        $orange = $this->orange();
+        $this->assertSame('Paul Diallo (ORANGE CI)', \App\Support\Salutation::suivi($orange, $this->paul));
+        $this->assertSame('ORANGE CI', \App\Support\Salutation::suivi($orange, null));
+        $fatou = ClientContact::where('email', 'fatou@mtn.ci')->firstOrFail();
+        $this->assertSame('ORANGE CI', \App\Support\Salutation::suivi($orange, $fatou)); // d'un autre client
+        $this->assertSame('ORANGE CI', \App\Support\Salutation::nom($orange, 'orange ci')); // pas « ORANGE CI (ORANGE CI) »
+        $this->assertSame('Madame, Monsieur', \App\Support\Salutation::nom(null, null));
+    }
+
     // ── Choix de l'interlocuteur ──────────────────────────────────
 
     public function test_interlocuteur_obligatoire_si_le_client_en_a(): void

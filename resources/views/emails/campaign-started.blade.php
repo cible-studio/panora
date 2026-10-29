@@ -21,7 +21,7 @@
         <span class="pill pill-success">🚀 Campagne démarrée</span>
     @endif
 
-    <h1>Bonjour {{ $client?->name ?? '' }},</h1>
+    <h1>Bonjour {{ \App\Support\Salutation::suivi($client, $campaign?->interlocuteur) }},</h1>
 
     @if($isFuture)
         <p>Nous avons le plaisir de vous confirmer la planification de votre

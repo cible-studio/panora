@@ -1,7 +1,7 @@
 @php $ch = config('charte.couleurs'); @endphp
 <x-mail.layout title="Votre avis sur la campagne" preheader="Merci de prendre 1 minute pour nous donner votre retour sur la campagne qui vient de se terminer.">
 
-    <h1>Bonjour {{ $client?->name ?? 'Client' }},</h1>
+    <h1>Bonjour {{ \App\Support\Salutation::suivi($client, $campaign?->interlocuteur) }},</h1>
 
     <p>
         Votre campagne <strong>{{ $campaign?->name }}</strong> vient de se terminer.

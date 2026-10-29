@@ -158,14 +158,25 @@ class Client extends Authenticatable  // ← était "extends Model"
         return array_values($liste);
     }
 
-    /** @return list<array{email: string, contact: ?string}> l'interlocuteur s'il est bien de ce client */
-    private function adresseInterlocuteur(?ClientContact $interlocuteur): array
+    /**
+     * L'interlocuteur d'un dossier s'il est utilisable : de ce client, non
+     * supprimé, avec une adresse valide. Sinon null (règle par défaut).
+     */
+    public function interlocuteurRetenu(?ClientContact $interlocuteur): ?ClientContact
     {
         if (!$interlocuteur || $interlocuteur->trashed() || (int) $interlocuteur->client_id !== (int) $this->id) {
-            return [];
+            return null;
         }
 
-        return $this->adressesDe([$interlocuteur]);
+        return $this->adressesDe([$interlocuteur]) ? $interlocuteur : null;
+    }
+
+    /** @return list<array{email: string, contact: ?string}> l'interlocuteur s'il est retenu */
+    private function adresseInterlocuteur(?ClientContact $interlocuteur): array
+    {
+        $retenu = $this->interlocuteurRetenu($interlocuteur);
+
+        return $retenu ? $this->adressesDe([$retenu]) : [];
     }
 
     /**

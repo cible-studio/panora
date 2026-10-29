@@ -1,7 +1,7 @@
 @php $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')); @endphp
 PANORA · {{ $operator }} — Régie Publicitaire (Abidjan, Côte d'Ivoire)
 
-Bonjour {{ $client?->name ?? 'Client' }},
+Bonjour {{ \App\Support\Salutation::suivi($client, $campaign?->interlocuteur) }},
 
 Votre campagne "{{ $campaign?->name }}" vient de se terminer.
 

@@ -10,7 +10,7 @@
 
     <h1>Votre campagne est terminée</h1>
 
-    <p>Bonjour {{ $client?->name ?? '—' }},</p>
+    <p>Bonjour {{ \App\Support\Salutation::suivi($client, $campaign?->interlocuteur) }},</p>
 
     <p>
         Votre campagne <strong>« {{ $campaign->name }} »</strong> est officiellement
