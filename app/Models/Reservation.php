@@ -154,14 +154,9 @@ class Reservation extends Model
         $e = \Carbon\Carbon::parse($end);
         if ($e->lte($s)) return 0.0;
 
-        // Même convention que durationInDays() : 30 jours pile = 1 mois.
-        $days = (int) $s->copy()->startOfDay()->diffInDays($e->copy()->startOfDay());
-        $full = (int) floor($days / 30);
-        $rem  = $days % 30;
-        $frac = 0.0;
-        if ($rem >= 1 && $rem <= 15) $frac = 0.5;
-        elseif ($rem > 15)            $frac = 1.0;
-        $months = max($full + $frac, 0.5);
+        // Règle de facturation, source unique (2026-10-29 ; avant : jours ÷ 30
+        // arrondis au demi-mois, ex. 29/10→01/12 = 1,5 mois au lieu de 1,07).
+        $months = \App\Models\Campaign::computeBillableMonths($s, $e);
 
         $rows = \Illuminate\Support\Facades\DB::table('reservation_panels')
             ->where('reservation_id', $this->id)
