@@ -1210,6 +1210,7 @@
     </style>
 
     @push('scripts')
+        @include('admin.partials.duree-facturee-js')
         {{-- Collapse auto des groupes de filtres 2 & 3 (Géographie +
              Caractéristiques) sur mobile <640px pour libérer l'écran.
              Le 1er groupe (Période & Source) reste ouvert car c'est
@@ -1513,57 +1514,9 @@
                     if (el) el.classList.add('hidden');
                 }
 
-                // ══ RÈGLE FACTURATION CIBLE CI ════════════════════════════
-                // RÈGLE PATRONNE v2 2026-06-25 — identique à Campaign::billableMonths().
-                // Reproduit le moteur unique (mois civils + grâce -1j + tolérance +1j).
-                function _addMonthsNoOverflow_local(date, months) {
-                    const d = new Date(date);
-                    const targetMonthIdx = d.getMonth() + months;
-                    const targetYear  = d.getFullYear() + Math.floor(targetMonthIdx / 12);
-                    const actualMonth = ((targetMonthIdx % 12) + 12) % 12;
-                    const day = d.getDate();
-                    const lastDay = new Date(targetYear, actualMonth + 1, 0).getDate();
-                    return new Date(targetYear, actualMonth, Math.min(day, lastDay));
-                }
-                // Hotfix 2026-06-22 : transforme un nombre de mois fractionnel
-                // (ex: 1.9666666666666668) en libellé humain ("1 mois 29 jours",
-                // "2 mois", "29 jours"). Approximation 1 mois = 30 jours,
-                // suffisante pour l'aperçu UI — le calcul exact reste dans
-                // _months() qui pilote le total FCFA.
-                function _humanMonths(months) {
-                    if (!isFinite(months) || months <= 0) return '';
-                    // Très proche d'un entier (< 1.5 jour d'écart) → arrondi entier.
-                    if (Math.abs(months - Math.round(months)) * 30 < 1.5) {
-                        const n = Math.round(months);
-                        return n + (n > 1 ? ' mois' : ' mois');
-                    }
-                    const moisEntier = Math.floor(months);
-                    let jours = Math.round((months - moisEntier) * 30);
-                    let mois = moisEntier;
-                    if (jours >= 30) { mois += 1; jours = 0; }
-                    if (mois === 0) return jours + ' jour' + (jours > 1 ? 's' : '');
-                    if (jours === 0) return mois + ' mois';
-                    return mois + ' mois ' + jours + ' jour' + (jours > 1 ? 's' : '');
-                }
-
-                function _months(startStr, endStr) {
-                    const start = new Date(startStr + 'T00:00:00');
-                    const end   = new Date(endStr   + 'T00:00:00');
-                    if (isNaN(start) || isNaN(end) || end < start) return 0.5;
-                    let mois = 0;
-                    while (true) {
-                        const seuil = _addMonthsNoOverflow_local(start, mois + 1);
-                        seuil.setDate(seuil.getDate() - 1);
-                        if (end >= seuil) mois++; else break;
-                    }
-                    if (mois === 0) {
-                        const days = Math.round((end - start) / 86400000) + 1;
-                        return days < 15 ? 0.5 : 0.5 + (days - 15) / 30;
-                    }
-                    const anniv = _addMonthsNoOverflow_local(start, mois);
-                    const residuel = Math.round((end - anniv) / 86400000);
-                    return residuel <= 1 ? mois : mois + residuel / 30;
-                }
+                // Durée facturée : demandée à Panora (Campaign::dureeFacturee, via
+                // window.PanoraDuree), jamais recalculée ici (2026-10-29).
+                const _dureeDemande = window.PanoraDuree.differe();
 
                 // ══ OBJET PRINCIPAL DISPO ════════════════════════════════
                 window.DISPO = {
@@ -2042,26 +1995,34 @@
                             return;
                         }
 
-                        const months = _months(du, au);
-                        // ✅ Utiliser S directement (même closure)
-                        const total = S.sel.ids.reduce((s, id) => s + (S.sel.rates[id] || 0) * months, 0);
-                        this._originalEstimate = total;
-
-                        // Si montant personnalisé actif → garder (0 est une valeur valide)
+                        // Montant personnalisé actif → affiché tel quel (0 est une valeur valide)
                         if (this._customAmount !== null) {
                             totalEl.textContent = this._customAmount === 0 ? '0 (sans prix)' : Math.round(this._customAmount).toLocaleString('fr-FR');
                             monthsEl.textContent = '(montant personnalisé)';
-                        } else {
-                            totalEl.textContent = Math.round(total).toLocaleString('fr-FR');
-                            // Hotfix 2026-06-22 : format humain ("1 mois 29 jours")
-                            // au lieu de "(1.9666666666666668 mois)".
-                            monthsEl.textContent = `(${_humanMonths(months)})`;
                         }
 
-                        const amountInput = document.getElementById('modal-amount');
-                        if (amountInput && !amountInput.value) {
-                            amountInput.placeholder = Math.round(total).toLocaleString('fr-FR') + ' FCFA';
-                        }
+                        // Mois facturés demandés au serveur ; total = tarifs × mois.
+                        if (this._customAmount === null) { totalEl.textContent = '…'; monthsEl.textContent = ''; }
+                        _dureeDemande(du, au).then((d) => {
+                            if (_el('modal-du').value !== du || _el('modal-au').value !== au) return; // dates changées depuis
+                            if (!d) {
+                                if (this._customAmount === null) { totalEl.textContent = '—'; monthsEl.textContent = ''; }
+                                return;
+                            }
+                            // ✅ Utiliser S directement (même closure)
+                            const total = S.sel.ids.reduce((s, id) => s + (S.sel.rates[id] || 0) * d.mois, 0);
+                            this._originalEstimate = total;
+
+                            if (this._customAmount === null) {
+                                totalEl.textContent = Math.round(total).toLocaleString('fr-FR');
+                                monthsEl.textContent = '(facturé ' + d.facture + ')';
+                            }
+
+                            const amountInput = document.getElementById('modal-amount');
+                            if (amountInput && !amountInput.value) {
+                                amountInput.placeholder = Math.round(total).toLocaleString('fr-FR') + ' FCFA';
+                            }
+                        });
                     },
 
                     // ── MONTANT PERSONNALISÉ ──────────────────────────────

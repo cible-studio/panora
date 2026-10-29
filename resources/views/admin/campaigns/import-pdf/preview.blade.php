@@ -54,14 +54,14 @@
                     // diffInDays renvoie un float quand start=00:00 et end=23:59:59
                     // → on arrondit pour afficher proprement.
                     $days = (int) round($data['start_date']->copy()->startOfDay()->diffInDays($data['end_date']->copy()->startOfDay()));
-                    // RÈGLE PATRONNE v2 2026-06-25 — délègue à Campaign::computeBillableMonths
-                    // (SOURCE UNIQUE : mois civils + tolérance +1j).
-                    $billableMonths = \App\Models\Campaign::computeBillableMonths(
+                    // RÈGLE PATRONNE v2 2026-06-25 — délègue à Campaign (SOURCE UNIQUE) ;
+                    // facturé écrit en mots, sans décimales (2026-10-29).
+                    $dureeFacturee = \App\Models\Campaign::dureeFacturee(
                         $data['start_date'],
                         $data['end_date']
                     );
                 @endphp
-                <div style="font-size:11px;color:var(--text3);margin-top:3px">{{ $days }} jour(s) — {{ rtrim(rtrim(number_format($billableMonths, 1, ',', ''), '0'), ',') }} mois</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:3px">{{ $days }} jour(s) — facturé {{ $dureeFacturee['facture'] }}</div>
             </div>
             <div>
                 <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Panneaux détectés</div>

@@ -347,10 +347,10 @@
 
                 {{-- Badge durée calculé en live --}}
                 <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap" x-show="startDate && endDate" x-cloak>
-                    <span class="cc-duration-badge" :class="{ 'cc-duration-warn': durationDays < 0 }">
-                        <span x-show="durationDays >= 0">⏱ <span x-text="durationDays"></span> jours
-                            (~<span x-text="durationMonths"></span> mois facturables)</span>
-                        <span x-show="durationDays < 0">⚠ Date fin avant date début</span>
+                    <span class="cc-duration-badge" :class="{ 'cc-duration-warn': datesInvalides }">
+                        {{-- Durée et montant facturé calculés par Panora (2026-10-29), en mots --}}
+                        <span x-show="!datesInvalides" x-text="duree ? '⏱ ' + duree.jours + ' jours · facturé ' + duree.facture : '⏱ Calcul de la durée…'"></span>
+                        <span x-show="datesInvalides">⚠ Date fin avant date début</span>
                     </span>
                 </div>
             </div>
@@ -414,25 +414,25 @@
                 <div class="cc-preview-row">
                     <span class="cc-preview-key">Période</span>
                     <span class="cc-preview-val">
-                        <span x-show="startDate && endDate && durationDays >= 0">
+                        <span x-show="startDate && endDate && !datesInvalides">
                             <span x-text="formatDate(startDate)"></span> → <span x-text="formatDate(endDate)"></span>
                         </span>
                         <span x-show="!startDate || !endDate">—</span>
-                        <span x-show="startDate && endDate && durationDays < 0" style="color:#b91c1c">⚠ invalide</span>
+                        <span x-show="startDate && endDate && datesInvalides" style="color:#b91c1c">⚠ invalide</span>
                     </span>
                 </div>
                 <div class="cc-preview-row">
                     <span class="cc-preview-key">Durée</span>
                     <span class="cc-preview-val">
-                        <span x-show="durationDays > 0"><span x-text="durationDays"></span> jours</span>
-                        <span x-show="durationDays <= 0" style="color:var(--text3);font-weight:400">—</span>
+                        <span x-show="duree" x-text="duree ? duree.jours + ' jours' : ''"></span>
+                        <span x-show="!duree" style="color:var(--text3);font-weight:400">—</span>
                     </span>
                 </div>
                 <div class="cc-preview-row">
-                    <span class="cc-preview-key">Mois facturables</span>
+                    <span class="cc-preview-key">Facturé</span>
                     <span class="cc-preview-val">
-                        <span x-show="durationMonths > 0"><span x-text="durationMonths"></span></span>
-                        <span x-show="durationMonths <= 0" style="color:var(--text3);font-weight:400">—</span>
+                        <span x-show="duree" x-text="duree ? duree.facture : ''"></span>
+                        <span x-show="!duree" style="color:var(--text3);font-weight:400">—</span>
                     </span>
                 </div>
 
@@ -530,64 +530,8 @@
 </style>
 
 @push('scripts')
+@include('admin.partials.duree-facturee-js')
 <script>
-// ════════════════════════════════════════════════════════════════════
-// RÈGLE PATRONNE v2 (2026-06-25) — Helper JS partagé.
-// Reproduit fidèlement Campaign::resolvePeriodBetween + computeBillableMonths.
-//   - Mois civils (addMonthsNoOverflow JS-style)
-//   - Grâce -1j pour absorber les fins de mois courts
-//   - Tolérance +1j au-delà de l'anniversaire mensuel
-//   - < 1 mois : 15j seuil (forfait ½ mois ou ½ mois + prorata)
-// L'équation `montant = billableMonths × tarif` est préservée pour tous les
-// call sites — pas besoin de toucher aux multiplications existantes.
-// ════════════════════════════════════════════════════════════════════
-function _addMonthsNoOverflow(date, months) {
-    const d = new Date(date);
-    const targetMonthIdx = d.getMonth() + months;
-    const targetYear  = d.getFullYear() + Math.floor(targetMonthIdx / 12);
-    const actualMonth = ((targetMonthIdx % 12) + 12) % 12;
-    const day = d.getDate();
-    // Dernier jour du mois cible (pour éviter le 31/01 + 1 mois → 03/03)
-    const lastDay = new Date(targetYear, actualMonth + 1, 0).getDate();
-    return new Date(targetYear, actualMonth, Math.min(day, lastDay));
-}
-function _resolvePeriod(startStr, endStr, tolPlus = 1) {
-    const start = new Date(startStr + 'T00:00:00');
-    const end   = new Date(endStr   + 'T00:00:00');
-    if (isNaN(start) || isNaN(end) || end < start) {
-        return { mois: 0, jours: 0, propre: true };
-    }
-    // 1) Compter mois atteints (grâce -1j)
-    let mois = 0;
-    while (true) {
-        const seuil = _addMonthsNoOverflow(start, mois + 1);
-        seuil.setDate(seuil.getDate() - 1); // -1j de grâce
-        if (end >= seuil) mois++; else break;
-    }
-    // 2) Moins d'un mois → jours réels inclusifs
-    if (mois === 0) {
-        const days = Math.round((end - start) / 86400000) + 1;
-        return { mois: 0, jours: days, propre: true };
-    }
-    // 3) Résiduel signé au dernier anniversaire
-    const anniv = _addMonthsNoOverflow(start, mois);
-    const residuel = Math.round((end - anniv) / 86400000);
-    const propre = residuel <= tolPlus;
-    return { mois, jours: propre ? 0 : residuel, propre };
-}
-function _campaignBillableMonths(startStr, endStr) {
-    const r = _resolvePeriod(startStr, endStr);
-    if (r.mois === 0) {
-        return r.jours < 15 ? 0.5 : 0.5 + (r.jours - 15) / 30;
-    }
-    return r.propre ? r.mois : r.mois + r.jours / 30;
-}
-function _campaignDurationLabel(startStr, endStr) {
-    const r = _resolvePeriod(startStr, endStr);
-    if (r.mois === 0) return r.jours + ' jour' + (r.jours > 1 ? 's' : '');
-    if (r.propre) return r.mois + ' mois';
-    return r.mois + ' mois + ' + r.jours + ' j';
-}
 
 function campaignCreate() {
     return {
@@ -596,18 +540,20 @@ function campaignCreate() {
         startDate: '{{ old('start_date', $preselectedReservation?->start_date->format('Y-m-d') ?? '') }}',
         endDate:   '{{ old('end_date',   $preselectedReservation?->end_date->format('Y-m-d')   ?? '') }}',
 
-        get durationDays() {
-            if (!this.startDate || !this.endDate) return 0;
-            const s = new Date(this.startDate);
-            const e = new Date(this.endDate);
-            if (isNaN(s) || isNaN(e)) return 0;
-            return Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
+        // Durée facturée : demandée à Panora (Campaign::dureeFacturee), jamais
+        // recalculée ici (2026-10-29). {jours, duree, mois, facture} ou null.
+        duree: null,
+        _demandeDuree: null,
+        get datesInvalides() {
+            return !!(this.startDate && this.endDate && this.endDate < this.startDate);
         },
-        get durationMonths() {
-            // RÈGLE PATRONNE v2 2026-06-25 — IDENTIQUE à Campaign::billableMonths().
-            // Mois civils + tolérance +1j + 2 cas <1 mois (forfait ½ mois si <15j,
-            // sinon ½ mois + prorata journalier). Utilise les chaînes ISO des dates.
-            return _campaignBillableMonths(this.startDate, this.endDate);
+        majDuree() {
+            const debut = this.startDate, fin = this.endDate;
+            this.duree = null;
+            if (!debut || !fin || fin < debut) return;
+            this._demandeDuree(debut, fin).then(d => {
+                if (this.startDate === debut && this.endDate === fin) this.duree = d;
+            });
         },
 
         formatDate(iso) {
@@ -623,6 +569,11 @@ function campaignCreate() {
         },
 
         init() {
+            this._demandeDuree = window.PanoraDuree.differe();
+            this.$watch('startDate', () => this.majDuree());
+            this.$watch('endDate', () => this.majDuree());
+            this.majDuree();
+
             // Si réservation pré-sélectionnée au chargement, déclencher le remplissage
             const select = this.$el.querySelector('select[name="reservation_id"]');
             if (select && select.value) {

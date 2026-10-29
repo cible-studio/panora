@@ -228,6 +228,13 @@ Route::prefix('proposition')->name('proposition.')->middleware(\App\Http\Middlew
         ->name('demander-changement-dates')
         ->middleware('throttle:5,1');
 
+    // Durée facturée des dates que le client envisage (2026-10-29) : son
+    // estimation en direct, calculée par le serveur (aucune copie de la règle
+    // en JavaScript). Limitée à sa proposition (reference + slug).
+    Route::get('/{reference}/{slug}/duree-facturee', [PropositionController::class, 'dureeFacturee'])
+        ->name('duree-facturee')
+        ->middleware('throttle:60,1');
+
     // Annulation de la demande client (retour aux dates initiales).
     // Indispensable pour ne pas piéger le client qui change d'avis :
     // sans ça, il restait bloqué tant que CIBLE n'avait pas répondu.
@@ -682,6 +689,10 @@ Route::prefix('admin')
                     Route::delete('/exclusions/{exclusion}', 'reintegrer')->name('exclusions.destroy');
                 });
 
+            // ── Journal des mails (2026-10-29) : qui a reçu quoi, quand ──
+            Route::get('journal-mails', [\App\Http\Controllers\Admin\JournalMailsController::class, 'index'])
+                ->name('journal-mails.index');
+
             // ── Mail « Votre campagne se termine » J-7 (2026-10-21) ──
             // Aperçu et envoi de TEST uniquement (jamais au client).
             Route::prefix('diffusion-dispos/fin-campagne')->name('diffusion-dispos.fin-campagne.')
@@ -980,6 +991,12 @@ Route::prefix('admin')
         // devis (2026-10-29) — lecture, tous les staff (comme la fiche client).
         Route::get('clients/{client}/contacts', [\App\Http\Controllers\Admin\ClientContactController::class, 'index'])
             ->name('clients.contacts.index');
+
+        // Durée facturée d'une période (2026-10-29) — calculée par le serveur
+        // pour les écrans en direct (aucune copie de la règle en JavaScript).
+        Route::get('outils/duree-facturee', \App\Http\Controllers\Admin\DureeFactureeController::class)
+            ->middleware('throttle:120,1')
+            ->name('outils.duree-facturee');
 
         // Multi-interlocuteurs (T4) — édition = admin + commercial + MP
         // (cohérent avec édition client : qui peut éditer la fiche peut
