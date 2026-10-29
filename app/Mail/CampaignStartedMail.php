@@ -45,8 +45,8 @@ class CampaignStartedMail extends Mailable
             && $this->campaign->start_date->isFuture();
         $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
         $subject  = $isFuture
-            ? "Votre campagne {$this->campaign->name} est planifiée — PANORA · {$operator}"
-            : "Démarrage de votre campagne {$this->campaign->name} — PANORA · {$operator}";
+            ? "Votre campagne {$this->campaign->name} est planifiée — {$operator}"
+            : "Démarrage de votre campagne {$this->campaign->name} — {$operator}";
 
         return new Envelope(
             subject:  $subject,

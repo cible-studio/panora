@@ -25,11 +25,11 @@
 
     @if($isFuture)
         <p>Nous avons le plaisir de vous confirmer la planification de votre
-           campagne d'affichage avec <strong>PANORA · {{ $operator }}</strong>. Elle
+           campagne d'affichage avec <strong>{{ $operator }}</strong>. Elle
            démarrera le <strong>{{ $start }}</strong>.</p>
     @else
         <p>Nous avons le plaisir de vous confirmer le démarrage de votre
-           campagne d'affichage avec <strong>PANORA · {{ $operator }}</strong>.</p>
+           campagne d'affichage avec <strong>{{ $operator }}</strong>.</p>
     @endif
 
     <div class="info">
@@ -66,9 +66,9 @@
         </div>
     @else
         <p style="margin-top:18px;color:{{ $ch['noir'] }};">
-            PANORA met à votre disposition un <strong>espace client gratuit</strong>
-            pour suivre l'avancement de votre campagne en temps réel (poses,
-            photos d'affichage validées, factures).
+            <strong>{{ $operator }}</strong> met à votre disposition <strong>Panora</strong>, son outil de suivi :
+            un <strong>espace client gratuit</strong> pour suivre l'avancement de votre campagne
+            en temps réel (poses, photos d'affichage validées, factures).
         </p>
         <p style="color:{{ $ch['noir'] }};font-size:13px;">
             Pour activer votre espace, contactez votre interlocuteur commercial

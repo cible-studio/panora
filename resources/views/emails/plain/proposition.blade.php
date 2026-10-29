@@ -12,7 +12,7 @@
 
 @endphp
 @php $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')); @endphp
-PANORA · {{ $operator }} — Régie Publicitaire (Abidjan, Côte d'Ivoire)
+{{ $operator }} — Régie Publicitaire (Abidjan, Côte d'Ivoire)
 
 Bonjour {{ $clientName }},
 
@@ -51,4 +51,4 @@ Votre interlocuteur commercial :
 Pour toute question, contactez votre interlocuteur commercial dont les coordonnées figurent ci-dessus.
 
 —
-© {{ date('Y') }} PANORA · {{ $operator }}. Tous droits réservés.
+© {{ date('Y') }} {{ $operator }}. Tous droits réservés.

@@ -5,7 +5,7 @@
     $amount     = (float) ($reservation->total_amount ?? 0);
     $clientName = \App\Support\Salutation::suivi($client, $campaign?->interlocuteur ?? $reservation?->interlocuteur); // 2026-10-29
 @endphp
-PANORA · {{ $operator }} — Campagne confirmée
+{{ $operator }} — Campagne confirmée
 
 Merci {{ $clientName }} !
 
@@ -27,7 +27,7 @@ Suivez votre campagne en temps réel sur votre espace client :
 @else
 Pour suivre votre campagne en temps réel (poses, piges, factures),
 contactez votre interlocuteur commercial pour obtenir votre accès
-à l'espace client PANORA — c'est gratuit.
+à l'espace client Panora — c'est gratuit.
 @endif
 
 @if($contact)
@@ -40,4 +40,4 @@ Votre interlocuteur commercial :
 @endif
 
 —
-© {{ date('Y') }} PANORA · {{ $operator }}. Tous droits réservés.
+© {{ date('Y') }} {{ $operator }}. Tous droits réservés.

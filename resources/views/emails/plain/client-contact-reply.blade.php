@@ -1,4 +1,4 @@
-PANORA · {{ $operator }} — Réponse à votre message
+{{ $operator }} — Réponse à votre message
 
 Bonjour {{ $cm->from_name }},
 
@@ -20,4 +20,4 @@ vers nous via votre espace client (« Contacter la régie »).
 —
 Email envoyé par l'équipe {{ $operator }}.
 Référence de votre message : #{{ $cm->id }}.
-© {{ date('Y') }} Panora · {{ $operator }}. Tous droits réservés.
+© {{ date('Y') }} {{ $operator }}. Tous droits réservés.

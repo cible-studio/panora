@@ -39,7 +39,7 @@ class ClientUserInvitationMail extends Mailable
     {
         $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
         return new Envelope(
-            subject:  "Vos accès à l'espace client PANORA · {$operator}",
+            subject:  "Vos accès à l'espace client {$operator}",
             tags:     ['client-user', 'invitation'],
             metadata: ['client_user_id' => (string) $this->user->id, 'client_id' => (string) $this->client->id],
         );

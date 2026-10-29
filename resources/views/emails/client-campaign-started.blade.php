@@ -51,7 +51,7 @@
         {{-- Cas 1 : compte client existant → CTA direct vers le suivi --}}
         <h2 style="font-size:15px;margin-top:24px;">📊 Suivez votre campagne en temps réel</h2>
         <p>
-            Connectez-vous à votre espace client PANORA pour suivre l'avancement
+            Connectez-vous à votre espace client Panora pour suivre l'avancement
             de votre campagne : poses, photos d'affichage (piges), factures.
         </p>
         <div class="cta-wrap">
@@ -65,8 +65,8 @@
         {{-- Cas 2 : pas de compte → invitation à en demander un --}}
         <h2 style="font-size:15px;margin-top:24px;">✨ Suivez votre campagne en temps réel</h2>
         <p>
-            PANORA met à votre disposition un <strong>espace client gratuit</strong>
-            pour suivre l'avancement de votre campagne, voir les photos
+            <strong>{{ $operator }}</strong> met à votre disposition <strong>Panora</strong>, son outil de suivi :
+            un <strong>espace client gratuit</strong> pour suivre l'avancement de votre campagne, voir les photos
             d'affichage en direct (piges) dès qu'elles sont validées, et
             télécharger vos factures.
         </p>

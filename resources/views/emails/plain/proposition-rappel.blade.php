@@ -1,5 +1,5 @@
 @php $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')); @endphp
-PANORA · {{ $operator }} — Notification commerciale
+{{ $operator }} — Notification commerciale
 
 Rappel — Proposition en attente de validation
 
@@ -17,4 +17,4 @@ Consulter et répondre : {{ $lien }}
 Si vous avez déjà répondu à cette proposition, ignorez ce message.
 
 —
-Notification automatique — © {{ date('Y') }} PANORA · {{ $operator }}. Tous droits réservés.
+Notification automatique — © {{ date('Y') }} {{ $operator }}. Tous droits réservés.
