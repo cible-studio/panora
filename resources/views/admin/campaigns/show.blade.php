@@ -41,7 +41,11 @@
             @else
                 <form method="POST" action="{{ route('admin.campaigns.activate', $campaign) }}"
                       style="display:inline;"
-                      onsubmit="return confirm({{ json_encode($confirmMsg) }});">
+                      @if($isFirstStart && $panelsCount > 0)
+                          onsubmit="return ApercuEnvoi.formulaire(event, this, {{ json_encode(route('admin.apercu-envoi', ['campagne', $campaign->id])) }}, '▶ Démarrer la campagne', 'Démarrer et envoyer', 'La campagne passe active et ce mail part au client.');"
+                      @else
+                          onsubmit="return confirm({{ json_encode($confirmMsg) }});"
+                      @endif>
                     @csrf
                     <button type="submit" class="btn btn-primary btn-sm keep-label" title="{{ $label }}">{{ $label }}</button>
                 </form>
@@ -794,12 +798,12 @@
                         && in_array($campaign->status->value, ['planifie', 'actif', 'pause'])
                         && ($campaign->panels->count() + $campaign->externalPanels->count()) > 0)
                     @php
-                        $clientHasEmail = !empty($campaign->client?->email);
+                        $clientHasEmail = (bool) $campaign->client?->destinatairesSuivi($campaign->interlocuteur);
                     @endphp
                     <div class="mt-5 pt-5 border-t" style="border-color:var(--border)">
                         @if($clientHasEmail)
                             <form method="POST" action="{{ route('admin.campaigns.notify-client', $campaign) }}"
-                                  onsubmit="return confirm('Envoyer un mail récap au client avec les panneaux et le montant actuels ?');">
+                                  onsubmit="return ApercuEnvoi.formulaire(event, this, {{ json_encode(route('admin.apercu-envoi', ['campagne', $campaign->id])) }}, '📧 Notifier le client', 'Envoyer');">
                                 @csrf
                                 <button type="submit"
                                         class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
@@ -2657,4 +2661,5 @@
         });
     </script>
     @endif
+@include('admin.partials.apercu-envoi')
 </x-admin-layout>

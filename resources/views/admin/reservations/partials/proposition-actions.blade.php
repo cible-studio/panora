@@ -1,3 +1,4 @@
+@include('admin.partials.apercu-envoi')
 {{--
   COMPOSANT PROFESSIONNEL : Proposition commerciale
   Usage : @include('admin.reservations.partials.proposition-actions', ['reservation' => $reservation])
@@ -186,7 +187,7 @@
             </button>
         @endcan
 
-        @if(!empty($reservation->client?->email))
+        @if($reservation->adressesClient()) {{-- fiche + interlocuteur (2026-10-29) --}}
             @can('proposition.send', $reservation)
                 @if($reservation->proposition_sent_at)
                     <button type="button"
@@ -569,16 +570,16 @@ window.PropositionActions = {
         return document.querySelector('.client-email')?.textContent?.replace(/^→\s*/, '').trim() || '';
     },
 
+    // Aperçu avant envoi (2026-10-29) : adresses exactes + mail tel qu'il partira.
+    _urlApercu: @json(route('admin.apercu-envoi', ['proposition', $reservation->id])),
+
     confirmSend(reservationId) {
-        this._showModal({
-            title: 'Envoyer la proposition',
-            message: 'Un email sera envoyé au client avec un lien sécurisé pour consulter et valider la proposition.',
-            details: 'Le lien sera valable 7 jours (capé à la fin de la réservation). Des rappels automatiques seront envoyés au client à J+2 et J+5 si la proposition n\'est pas traitée.',
-            recipient: this._currentRecipient(),
-            type: 'confirm',
-            confirmText: 'Envoyer',
-            confirmClass: 'btn-primary',
-            onConfirm: () => this._sendProposition(reservationId, 'send')
+        ApercuEnvoi.ouvrir({
+            url: this._urlApercu,
+            titre: '📧 Envoyer la proposition',
+            bouton: 'Envoyer',
+            note: 'Lien sécurisé valable 7 jours (au plus jusqu\'à la fin de la réservation) ; rappels automatiques à J+2 et J+5 si le client ne répond pas.',
+            onConfirm: () => { ApercuEnvoi.fermer(); this._sendProposition(reservationId, 'send'); },
         });
     },
 
@@ -687,15 +688,12 @@ window.PropositionActions = {
     },
 
     confirmResend(reservationId) {
-        this._showModal({
-            title: 'Renvoyer la proposition',
-            message: 'Une nouvelle proposition sera envoyée au client.',
-            details: '⚠️ Le lien actuel sera révoqué et un nouveau sera généré.',
-            recipient: this._currentRecipient(),
-            type: 'warning',
-            confirmText: 'Renvoyer',
-            confirmClass: 'btn-warning',
-            onConfirm: () => this._sendProposition(reservationId, 'resend')
+        ApercuEnvoi.ouvrir({
+            url: this._urlApercu,
+            titre: '📧 Renvoyer la proposition',
+            bouton: 'Renvoyer',
+            note: '⚠️ Le lien actuel sera révoqué et un nouveau sera généré.',
+            onConfirm: () => { ApercuEnvoi.fermer(); this._sendProposition(reservationId, 'resend'); },
         });
     },
 

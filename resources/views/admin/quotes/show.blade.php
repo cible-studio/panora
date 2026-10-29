@@ -19,7 +19,8 @@
             @endcannot
         @endcan
         @can('send', $quote)
-            <form method="POST" action="{{ route('admin.quotes.send', $quote) }}" style="display:inline" onsubmit="return confirm('Envoyer ce devis au client ?')">
+            <form method="POST" action="{{ route('admin.quotes.send', $quote) }}" style="display:inline"
+                  onsubmit="return ApercuEnvoi.formulaire(event, this, {{ json_encode(route('admin.apercu-envoi', ['devis', $quote->id])) }}, '📤 Envoyer le devis', 'Envoyer', 'Le PDF du devis est joint au mail.');">
                 @csrf
                 <button type="submit" class="btn btn-primary btn-sm keep-label" title="Envoyer le devis au client">📤 <span class="btn-label">Envoyer au client</span></button>
             </form>
@@ -38,6 +39,7 @@
     </x-slot:topbarActions>
 
     @include('admin.quotes.partials._corbeille')
+    @include('admin.partials.apercu-envoi')
 
     @php $st = $quote->status->uiConfig(); @endphp
 

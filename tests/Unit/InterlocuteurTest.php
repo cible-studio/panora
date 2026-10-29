@@ -147,6 +147,22 @@ class InterlocuteurTest extends TestCase
         $this->assertSame('Madame, Monsieur', \App\Support\Salutation::nom(null, null));
     }
 
+    // ── Aperçu avant envoi (2026-10-29) ───────────────────────────
+
+    public function test_apercu_avant_envoi_memes_destinataires_et_mail_rendu(): void
+    {
+        \Illuminate\Support\Facades\Schema::create('external_panels', function (\Illuminate\Database\Schema\Blueprint $t) { $t->id(); $t->softDeletes(); $t->timestamps(); });
+        $c = $this->campagne(['client_contact_id' => $this->paul->id]);
+        $this->actingAs(\App\Models\User::findOrFail(1));
+
+        $d = app(\App\Http\Controllers\Admin\ApercuEnvoiController::class)->show('campagne', $c->id)->getData(true);
+
+        $this->assertSame(['paul@orange.ci'], $d['destinataires']); // l'interlocuteur seul, comme l'envoi
+        $this->assertNotEmpty($d['sujet']);
+        $this->assertStringContainsString('Bonjour Paul Diallo (ORANGE CI),', html_entity_decode($d['html']));
+        Mail::assertNothingSent(); // un aperçu n'envoie rien
+    }
+
     // ── Choix de l'interlocuteur ──────────────────────────────────
 
     public function test_interlocuteur_obligatoire_si_le_client_en_a(): void

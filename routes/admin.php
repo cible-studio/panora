@@ -1052,6 +1052,10 @@ Route::prefix('admin')
         Route::get('outils/duree-facturee', \App\Http\Controllers\Admin\DureeFactureeController::class)
             ->middleware('throttle:120,1')
             ->name('outils.duree-facturee');
+        // Aperçu avant envoi au client (2026-10-29) : adresses + mail rendu, rien n'est envoyé.
+        Route::get('apercu-envoi/{type}/{id}', [\App\Http\Controllers\Admin\ApercuEnvoiController::class, 'show'])
+            ->whereIn('type', ['campagne', 'devis', 'proposition'])->whereNumber('id')
+            ->middleware('throttle:60,1')->name('apercu-envoi');
 
         // Multi-interlocuteurs (T4) — édition = admin + commercial + MP
         // (cohérent avec édition client : qui peut éditer la fiche peut
