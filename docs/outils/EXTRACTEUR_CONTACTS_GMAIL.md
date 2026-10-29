@@ -98,6 +98,7 @@ Un second script, `panora-contacts.gs`, range chaque matin les adresses de « Co
 | À valider | Les nouvelles adresses. Colonne **Décision** : Garder (avec un statut), Écarter, Écarter le domaine |
 | Écartés | Ce qui a été retiré, adresse ou domaine entier. Rien n'en revient. **Remettre** pour annuler |
 | Ignorés | Écartés par le script (adresses personnelles). **À valider** pour en reprendre une |
+| Correspondances | Noms d'entreprise à aligner sur Panora (« Moov-africa » → « MOOV »). **Oui** puis menu **Appliquer les correspondances** : toutes les lignes concernées sont corrigées d'un coup, pour éviter une fiche en double dans Panora |
 
 Les décisions s'appliquent au tri du matin, ou tout de suite avec **Ranger maintenant**. Une ligne **supprimée** à la main est rangée dans « Écartés » : elle ne revient pas.
 
