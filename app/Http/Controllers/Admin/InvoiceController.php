@@ -101,9 +101,14 @@ class InvoiceController extends Controller
         // partielles → un client qui avait versé 53 000 sur 398 700
         // n'apparaissait nulle part dans le CA encaissé. Aligné sur
         // FAC-2026-010 et la mission BUG_ECHEANCIER.
+        // 2026-10-29 — Exclusions alignées sur le tableau de bord financier
+        // (FinancialDashboardService) : brouillons ET avoirs en plus des
+        // annulées. Un avoir est une écriture négative : compté ici, il
+        // faisait diverger ce KPI de celui de la page Finance.
         $montantTotal = (int) \DB::table('invoice_payments')
             ->join('invoices', 'invoices.id', '=', 'invoice_payments.invoice_id')
-            ->whereNotIn('invoices.status', ['annulee'])
+            ->whereNotIn('invoices.status', ['brouillon', 'annulee'])
+            ->whereNull('invoices.credit_note_for_id')
             ->when($isCommercial, fn($q) => $q->whereExists(function ($sub) use ($uid) {
                 $sub->select(\DB::raw(1))
                     ->from('invoices as i2')
@@ -114,11 +119,22 @@ class InvoiceController extends Controller
             }))
             ->sum('invoice_payments.montant');
 
-        // Restant dû global (Envoyée + Partielle + En retard) — utile pour le
-        // KPI "à encaisser" et la page Finance.
-        $montantRestantDu = (clone $kpiQuery())
-            ->whereIn('status', ['envoyee', 'partiellement_payee', 'en_retard'])
-            ->sum('total_a_payer');
+        // Restant dû global (Envoyée + Partielle + En retard).
+        //
+        // 2026-10-29 — CORRECTION : on sommait `total_a_payer`, c'est-à-dire
+        // le montant FACTURÉ, sans déduire les versements déjà reçus. Une
+        // facture de 6 660 000 réglée à moitié comptait pour 6 660 000 dans
+        // le « Restant », alors que sa ligne affichait 3 638 576 et que la
+        // page Finance en comptait autant. On passe par remainingAmount(),
+        // la même méthode que le reste de l'application.
+        $montantRestantDu = (int) round(
+            (clone $kpiQuery())
+                ->whereIn('status', ['envoyee', 'partiellement_payee', 'en_retard'])
+                ->whereNull('credit_note_for_id')
+                ->with(['payments:id,invoice_id,montant', 'schedules:id,invoice_id,due_date,paid_at'])
+                ->get()
+                ->sum(fn (Invoice $facture) => $facture->remainingAmount())
+        );
         
         // ✅ AJAX response
         if ($request->ajax() || $request->input('ajax')) {

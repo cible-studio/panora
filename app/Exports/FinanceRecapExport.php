@@ -205,7 +205,7 @@ class FinanceRecapCreancesSheet extends FinanceRecapBaseSheet
                 $inv->client?->name ?? '—',
                 $inv->issued_at?->format('d/m/Y') ?? '—',
                 $inv->due_date?->format('d/m/Y') ?? '—',
-                (int) ($inv->total_a_payer ?? 0),
+                (int) $inv->montantTotal(),
                 (int) round($inv->remainingAmount()),
                 $statusLabels[$inv->paymentStatus()] ?? $inv->paymentStatus(),
             ];

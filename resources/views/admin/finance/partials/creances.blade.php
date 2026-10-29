@@ -156,7 +156,7 @@
                                 <td style="color:{{ $next && $next->due_date->isPast() ? '#ef4444' : 'var(--text2)' }}">
                                     {{ $next ? $next->due_date->format('d/m/Y') : '—' }}
                                 </td>
-                                <td class="num">{{ $fmt($inv->total_a_payer) }}</td>
+                                <td class="num">{{ $fmt($inv->montantTotal()) }}</td>
                                 <td class="num" style="color:#22c55e">{{ $fmt($inv->paidAmount()) }}</td>
                                 <td class="num strong">{{ $fmt($inv->remainingAmount()) }}</td>
                                 <td>

@@ -7,6 +7,34 @@ en crée ou clôt une.
 
 ## Ouvertes
 
+### Sommes `total_a_payer` sans repli hors du module Finance (2026-10-29)
+
+`Invoice::montantTotal()` et `Invoice::SQL_MONTANT_TOTAL` portent la règle :
+`total_a_payer` sauf s'il vaut 0, auquel cas `amount_ttc`. La colonne étant
+`NOT NULL DEFAULT 0`, une facture créée hors `InvoiceCalculator` y porte 0.
+
+Le module Finance, la liste des factures et le modèle ont été alignés. **Il
+reste deux écrans qui somment sans le repli** :
+
+- `DashboardController` lignes 259, 264 (`sum`/`avg('total_a_payer')`) et
+  289, 292, 317 (`COALESCE(total_a_payer, amount_ttc)` — ne couvre que NULL,
+  pas le 0) ;
+- `resources/views/admin/performance/commerciaux/show.blade.php:190`
+  (`$c->invoices->sum('total_a_payer')`).
+
+Non corrigés : hors du périmètre validé le 2026-10-29 (« les 3 écarts +
+l'outil »). `php artisan finance:verifier` dit si des factures sont
+réellement concernées.
+
+### Statuts « Générée » et « Validée » comptés comme facturés (2026-10-29)
+
+`FinancialDashboardService` n'écarte que `brouillon` et `annulee`. Une
+facture générée ou validée — donc pas encore envoyée au client — entre dans
+« Facturé sur la période » et dans le « Dû ».
+
+Règle **non tranchée** : elle doit l'être par la direction (règle N°5). La
+section 1 de `php artisan finance:verifier` chiffre ce que cela représente.
+
 ### Diffusion : le modèle Brevo en ligne doit être remplacé (2026-10-29)
 
 Panora envoie désormais `LIEN_ABIDJAN` / `NB_ABIDJAN` et `LIEN_INTERIEUR` /

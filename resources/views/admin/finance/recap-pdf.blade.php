@@ -117,7 +117,7 @@
                 <td class="ref">{{ $inv->reference ?? '—' }}</td>
                 <td>{{ \Illuminate\Support\Str::limit($inv->client?->name ?? '—', 38) }}</td>
                 <td>{{ $inv->due_date?->format('d/m/Y') ?? '—' }}</td>
-                <td class="r">{{ $fmt($inv->total_a_payer ?? 0) }}</td>
+                <td class="r">{{ $fmt($inv->montantTotal()) }}</td>
                 <td class="r b" style="color:{{ $isOverdue ? $charte['rouge'] : $charte['noir'] }}">{{ $fmt($inv->remainingAmount()) }}</td>
                 <td>
                     @if($isOverdue)

@@ -62,8 +62,17 @@ class FinancialDashboardService
             ->filter(fn($inv) => $inv->isOverdue())
             ->sum(fn($inv) => $inv->remainingAmount());
 
-        // Facturé sur la période = total_a_payer (TTC) des factures émises (issued_at) sur la période
-        $facturePeriode = (float) $this->invoicesQueryForPeriod($from, $to, $commercialUserId)->sum('total_a_payer');
+        // Facturé sur la période = montant total à payer (TTC) des factures
+        // émises (issued_at) sur la période.
+        //
+        // 2026-10-29 — On passait par sum('total_a_payer'), sans le repli
+        // sur amount_ttc appliqué partout ailleurs (Invoice::montantTotal).
+        // La colonne étant NOT NULL DEFAULT 0, une facture créée hors
+        // InvoiceCalculator comptait pour zéro ici et pour son vrai montant
+        // sur sa propre ligne.
+        $facturePeriode = Invoice::sommeMontantTotal(
+            $this->invoicesQueryForPeriod($from, $to, $commercialUserId)
+        );
 
         // 2026-06-18 (Bloc 4 — CA réel) : on expose AUSSI le HT facturé pour
         // permettre au CaRealService de partager la même définition métier
