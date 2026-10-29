@@ -163,6 +163,48 @@ class InterlocuteurTest extends TestCase
         Mail::assertNothingSent(); // un aperçu n'envoie rien
     }
 
+    // ── Ajout rapide (2026-10-29) ─────────────────────────────────
+
+    public function test_ajout_rapide_regles_par_defaut_et_pas_de_doublon(): void
+    {
+        $nouveau = $this->orange()->ajouterInterlocuteur('Mariam Coulibaly', ' MARIAM@orange.ci ', '07 00 00 00 00', 'Acheteuse');
+        $this->assertSame(['client', true, 'mariam@orange.ci', 'Acheteuse'], [$nouveau->statut, (bool) $nouveau->receives_notifications, $nouveau->email, $nouveau->position]);
+        $this->assertSame($nouveau->id, $this->orange()->ajouterInterlocuteur('Autre nom', 'mariam@orange.ci')->id); // même adresse : pas de doublon
+
+        DB::table('clients')->insert(['id' => 40, 'name' => 'PROSPECT SA', 'statut_commercial' => 'prospect']);
+        $p = Client::findOrFail(40)->ajouterInterlocuteur('', 'directeur@prospect.ci');
+        $this->assertSame(['prospect', false, 'directeur', true], [$p->statut, (bool) $p->receives_notifications, $p->name, (bool) $p->fresh()->is_primary]);
+    }
+
+    public function test_ajout_rapide_depuis_un_dossier_et_droits(): void
+    {
+        $this->withoutMiddleware(\App\Http\Middleware\SyncReactiveState::class);
+        $this->actingAs(\App\Models\User::findOrFail(2)); // commercial
+
+        $r = $this->postJson('/admin/clients/10/contacts/rapide', ['name' => 'Koffi Yao', 'email' => 'koffi@orange.ci', 'position' => 'DG'])->assertOk();
+        $this->assertSame('Koffi Yao', $r->json('contact.name'));
+        $this->assertSame(10, ClientContact::findOrFail($r->json('contact.id'))->client_id);
+        $this->postJson('/admin/clients/10/contacts/rapide', ['email' => 'x@orange.ci'])->assertStatus(422); // nom obligatoire
+        $this->assertTrue($this->getJson('/admin/clients/10/contacts')->assertOk()->json('peut_ajouter'));
+    }
+
+    public function test_creation_rapide_d_un_client_avec_son_premier_interlocuteur(): void
+    {
+        $this->withoutMiddleware(\App\Http\Middleware\SyncReactiveState::class);
+        $this->actingAs(\App\Models\User::findOrFail(1));
+        foreach (['ncc', 'sector', 'address', 'user_id'] as $col) {
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('clients', $col)) {
+                \Illuminate\Support\Facades\Schema::table('clients', fn ($t) => $t->string($col)->nullable());
+            }
+        }
+
+        $r = $this->postJson('/admin/clients/quick-store', ['name' => 'NOUVEAU CLIENT', 'email' => 'awa@nouveau.ci', 'contact_name' => 'Awa N.', 'phone' => '0700000000'])->assertOk();
+
+        $this->assertSame('Awa N.', $r->json('interlocuteur.name'));
+        $ct = ClientContact::findOrFail($r->json('interlocuteur.id'));
+        $this->assertSame(['awa@nouveau.ci', true], [$ct->email, (bool) $ct->is_primary]);
+    }
+
     // ── Choix de l'interlocuteur ──────────────────────────────────
 
     public function test_interlocuteur_obligatoire_si_le_client_en_a(): void

@@ -695,7 +695,7 @@
                     </div>
                 </div>
                 <div>
-                    <label class="filter-label block mb-1">Nom du contact</label>
+                    <label class="filter-label block mb-1">Interlocuteur <span title="Devient le premier interlocuteur du client, choisi d'office pour cette réservation." style="cursor:help;color:var(--text3)">ⓘ</span></label>
                     <input type="text" id="qc-contact" name="contact_name" placeholder="Ex : Jean Kouassi"
                         class="modal-input w-full" autocomplete="off">
                 </div>

@@ -26,12 +26,40 @@ class ClientContactController extends Controller
     {
         return response()->json([
             'obligatoire' => $client->contacts->isNotEmpty(),
+            // Lien « + Nouvel interlocuteur » : mêmes rôles que l'édition des interlocuteurs.
+            'peut_ajouter' => in_array(auth()->user()?->role?->value, ['admin', 'commercial', 'mediaplanner'], true),
             'contacts'    => $client->contacts->map(fn (ClientContact $c) => [
                 'id'       => $c->id,
                 'libelle'  => $c->name . ($c->position ? ' — ' . $c->position : '') . ($c->email ? ' (' . $c->email . ')' : ' (sans adresse)'),
                 'email'    => $c->email,
                 'prospect' => ($c->statut ?? Client::STATUT_CLIENT) === Client::STATUT_PROSPECT,
             ])->values(),
+        ]);
+    }
+
+    /**
+     * Ajout rapide depuis le champ « Interlocuteur » d'un dossier (réservation,
+     * campagne, devis — 2026-10-29). Règles par défaut : Client::ajouterInterlocuteur.
+     */
+    public function storeRapide(Request $request, Client $client)
+    {
+        $data = $request->validate([
+            'name'     => 'required|string|max:120',
+            'email'    => 'nullable|email|max:150',
+            'phone'    => 'nullable|string|max:30',
+            'position' => 'nullable|string|max:100',
+        ], [
+            'name.required' => "Le nom de l'interlocuteur est obligatoire.",
+            'email.email'   => "L'adresse e-mail n'est pas valide.",
+        ]);
+
+        $contact = $client->ajouterInterlocuteur($data['name'], $data['email'] ?? null, $data['phone'] ?? null, $data['position'] ?? null);
+
+        Log::info('client.contact.created', ['client_id' => $client->id, 'contact_id' => $contact->id, 'by' => auth()->id(), 'rapide' => true]);
+
+        return response()->json([
+            'ok'      => true,
+            'contact' => ['id' => $contact->id, 'name' => $contact->name, 'email' => $contact->email],
         ]);
     }
 

@@ -251,6 +251,17 @@ class ClientController extends Controller
     {
         $client = Client::create($request->validated());
 
+        // Le contact saisi devient le premier interlocuteur, puis les autres
+        // lignes « Interlocuteurs » du formulaire (2026-10-29).
+        if (filled($request->input('contact_name')) || filled($request->input('email'))) {
+            $client->ajouterInterlocuteur($request->input('contact_name'), $request->input('email'), $request->input('phone'), $request->input('contact_position'));
+        }
+        foreach ((array) $request->validated('interlocuteurs', []) as $i) {
+            if (filled($i['name'] ?? null) || filled($i['email'] ?? null)) {
+                $client->ajouterInterlocuteur($i['name'] ?? null, $i['email'] ?? null, $i['phone'] ?? null, $i['position'] ?? null);
+            }
+        }
+
         Log::info('client.created', [
             'client_id' => $client->id,
             'ncc' => $client->ncc,
@@ -591,6 +602,11 @@ class ClientController extends Controller
         // NCC laissé null si non fourni — plus d'auto-génération forcée.
         $client = Client::create($data);
 
+        // Le contact saisi devient le premier interlocuteur (2026-10-29).
+        $interlocuteur = (filled($data['contact_name'] ?? null) || filled($data['email'] ?? null))
+            ? $client->ajouterInterlocuteur($data['contact_name'] ?? null, $data['email'] ?? null, $data['phone'] ?? null)
+            : null;
+
         // Structure attendue par le JS du modal campagne : { success, client: {...} }
         return response()->json([
             'success' => true,
@@ -603,6 +619,7 @@ class ClientController extends Controller
                 'email'        => $client->email,
                 'contact_name' => $client->contact_name,
             ],
+            'interlocuteur' => $interlocuteur ? ['id' => $interlocuteur->id, 'name' => $interlocuteur->name] : null,
             // Champs racine conservés pour rétro-compat avec d'autres appelants
             'id'   => $client->id,
             'name' => $client->name,
