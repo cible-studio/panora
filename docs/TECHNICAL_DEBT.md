@@ -7,24 +7,23 @@ en crée ou clôt une.
 
 ## Ouvertes
 
-### Sommes `total_a_payer` sans repli hors du module Finance (2026-10-29)
+### Les DEVIS n'ont pas de repli de montant (constaté 2026-10-29)
 
-`Invoice::montantTotal()` et `Invoice::SQL_MONTANT_TOTAL` portent la règle :
-`total_a_payer` sauf s'il vaut 0, auquel cas `amount_ttc`. La colonne étant
-`NOT NULL DEFAULT 0`, une facture créée hors `InvoiceCalculator` y porte 0.
+Sur les **factures**, `Invoice::montantTotal()` et `Invoice::SQL_MONTANT_TOTAL`
+appliquent le repli `total_a_payer` → `amount_ttc`, parce que la colonne est
+`NOT NULL DEFAULT 0` et qu'une facture créée hors `InvoiceCalculator` y porte
+0. Tous les écrans factures ont été alignés le 2026-10-29 (page Finance,
+liste, accueil, performance commerciale, exports, PDF).
 
-Le module Finance, la liste des factures et le modèle ont été alignés. **Il
-reste deux écrans qui somment sans le repli** :
+`Quote` a les mêmes deux colonnes, avec le même défaut à 0, mais **aucun
+repli nulle part** : `quotes/index`, `pdf/quote`, le mail d'envoi de devis,
+et `DashboardController` lignes 259 et 264 (panier moyen et pipeline) lisent
+`total_a_payer` brut.
 
-- `DashboardController` lignes 259, 264 (`sum`/`avg('total_a_payer')`) et
-  289, 292, 317 (`COALESCE(total_a_payer, amount_ttc)` — ne couvre que NULL,
-  pas le 0) ;
-- `resources/views/admin/performance/commerciaux/show.blade.php:190`
-  (`$c->invoices->sum('total_a_payer')`).
-
-Non corrigés : hors du périmètre validé le 2026-10-29 (« les 3 écarts +
-l'outil »). `php artisan finance:verifier` dit si des factures sont
-réellement concernées.
+Ce n'est donc PAS une incohérence entre écrans — la règle y est uniforme.
+Laissé tel quel volontairement : ajouter un repli changerait les montants
+des devis partout d'un coup, ce qui demande une validation métier à part.
+À traiter si un devis à 0 est constaté.
 
 ### Statuts « Générée » et « Validée » comptés comme facturés (2026-10-29)
 

@@ -125,6 +125,9 @@ class CoherenceFinanceTest extends TestCase
             'app/Exports/FinanceRecapExport.php',
             'resources/views/admin/finance/partials/creances.blade.php',
             'resources/views/admin/finance/recap-pdf.blade.php',
+            // Écrans voisins alignés le 2026-10-29 : ils affichaient les
+            // mêmes notions avec une autre formule.
+            'resources/views/admin/performance/commerciaux/show.blade.php',
         ] as $fichier) {
             $source = $this->source($fichier);
 
@@ -139,6 +142,26 @@ class CoherenceFinanceTest extends TestCase
                 "{$fichier} : affichage de total_a_payer sans repli."
             );
         }
+    }
+
+    public function test_le_tableau_de_bord_d_accueil_utilise_la_meme_regle(): void
+    {
+        $source = $this->source('app/Http/Controllers/Admin/DashboardController.php');
+
+        // COALESCE ne couvre que NULL : la colonne vaut 0 par défaut.
+        $this->assertStringNotContainsString('COALESCE(total_a_payer, amount_ttc)', $source);
+        $this->assertStringContainsString('Invoice::SQL_MONTANT_TOTAL', $source);
+    }
+
+    public function test_la_fiche_commerciale_charge_ce_qu_elle_calcule(): void
+    {
+        // montantTotal() a besoin de amount_ttc, remainingAmount() des
+        // versements : sans eux le total tombait à zéro et chaque facture
+        // déclenchait sa propre requête.
+        $source = $this->source('app/Services/CommercialPerformanceService.php');
+
+        $this->assertStringContainsString('total_a_payer,amount_ttc', $source);
+        $this->assertStringContainsString('invoices.payments:id,invoice_id,montant', $source);
     }
 
     // ── L'outil de contrôle ────────────────────────────────────────

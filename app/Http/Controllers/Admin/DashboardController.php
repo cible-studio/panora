@@ -283,13 +283,17 @@ class DashboardController extends Controller
             ->whereNotIn('status', ['annulee'])
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
 
+        // 2026-10-29 : COALESCE ne couvrait que NULL. La colonne
+        // total_a_payer est NOT NULL DEFAULT 0, donc une facture créée hors
+        // InvoiceCalculator comptait pour zéro ici. Invoice::SQL_MONTANT_TOTAL
+        // porte le même repli que Invoice::montantTotal(), partout.
         $caMonthFne   = (int) (clone $finScope)
             ->whereYear('issued_at', $now->year)
             ->whereMonth('issued_at', $now->month)
-            ->sum(\DB::raw('COALESCE(total_a_payer, amount_ttc)'));
+            ->sum(\DB::raw(\App\Models\Invoice::SQL_MONTANT_TOTAL));
         $caYearFne    = (int) (clone $finScope)
             ->whereYear('issued_at', $now->year)
-            ->sum(\DB::raw('COALESCE(total_a_payer, amount_ttc)'));
+            ->sum(\DB::raw(\App\Models\Invoice::SQL_MONTANT_TOTAL));
         $encaissMonth = (int) \App\Models\InvoicePayment::query()
             ->whereYear('paid_at', $now->year)
             ->whereMonth('paid_at', $now->month)
@@ -314,7 +318,8 @@ class DashboardController extends Controller
             ->sum('amount');
 
         $topClients = \App\Models\Invoice::query()
-            ->selectRaw('client_id, SUM(COALESCE(total_a_payer, amount_ttc)) AS ca_total, COUNT(*) AS nb_factures')
+            // Repli commun à toute l'application (Invoice::montantTotal).
+            ->selectRaw('client_id, SUM(' . \App\Models\Invoice::SQL_MONTANT_TOTAL . ') AS ca_total, COUNT(*) AS nb_factures')
             ->whereNotIn('status', ['annulee'])
             ->whereYear('issued_at', $now->year)
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
