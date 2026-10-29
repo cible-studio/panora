@@ -130,6 +130,11 @@ dans l'application :
       montre **qu'un seul** lien au lieu des deux (Abidjan / intérieur).
       `params.LIEN_PDF` reste fourni exprès pour que le bouton actuel ne
       devienne pas mort entre-temps. Cf. `docs/TECHNICAL_DEBT.md`.
+      Le modèle peut être collé **avant** la mise en production des deux
+      catalogues : sans lien par zone, il affiche le catalogue complet.
+- [ ] Après collage : un envoi en mode test depuis dev montre **deux**
+      liens (Abidjan, intérieur), et un envoi depuis la prod en montre
+      **un** (« Voir les disponibilités — PDF »), qui s'ouvre.
 
 ---
 
