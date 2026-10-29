@@ -99,6 +99,7 @@ class NotificationMailer
                 'diagnostic' => $diagnostic,
                 'mode'       => 'async',
             ]));
+            JournalMails::echec($recipients, $mailable, $diagnostic); // journal des mails (2026-10-29)
             return MailResult::failure($diagnostic, $this->errorCode($e));
         }
     }
@@ -158,6 +159,7 @@ class NotificationMailer
                 'diagnostic' => $diagnostic,
                 'mode'       => 'sync',
             ]));
+            JournalMails::echec($recipients, $mailable, $diagnostic); // journal des mails (2026-10-29)
 
             return MailResult::failure($diagnostic, $this->errorCode($e));
         }
