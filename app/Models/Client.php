@@ -90,16 +90,23 @@ class Client extends Authenticatable  // ← était "extends Model"
 
     /**
      * L'entreprise devient cliente : elle et tous ses interlocuteurs passent
-     * « client » et reçoivent les mails de campagne. Première campagne
+     * « client » (ils reçoivent donc les disponibilités). Première campagne
      * (CampaignObserver) ou fiche passée en Client à la main (2026-10-28).
+     *
+     * « Reçoit les mails de campagne » : seul l'interlocuteur de la campagne
+     * est coché, les autres cases ne bougent pas (direction, 2026-10-29 :
+     * on ne traite pas avec tous les contacts — anciens employés, siège,
+     * autres pays…). Passage à la main : aucun interlocuteur, rien de coché.
      */
-    public function passerClient(): void
+    public function passerClient(?ClientContact $interlocuteur = null): void
     {
-        DB::transaction(function () {
+        DB::transaction(function () use ($interlocuteur) {
             $this->update(['statut_commercial' => self::STATUT_CLIENT]);
             // Requête simple : la relation contacts() est triée (UPDATE … ORDER BY refusé par SQLite).
-            ClientContact::where('client_id', $this->id)
-                ->update(['statut' => self::STATUT_CLIENT, 'receives_notifications' => true]);
+            ClientContact::where('client_id', $this->id)->update(['statut' => self::STATUT_CLIENT]);
+            if ($interlocuteur && (int) $interlocuteur->client_id === (int) $this->id) {
+                ClientContact::where('id', $interlocuteur->id)->update(['receives_notifications' => true]);
+            }
         });
     }
 

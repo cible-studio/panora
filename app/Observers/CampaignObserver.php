@@ -45,8 +45,9 @@ class CampaignObserver
 
     /**
      * Première campagne d'un prospect (2026-10-28) : l'entreprise et tous ses
-     * interlocuteurs passent client. Couvre tous les chemins de création
-     * (formulaire, renouvellement, réservation confirmée, proposition
+     * interlocuteurs passent client ; seul l'interlocuteur de la campagne est
+     * coché « reçoit les mails » (2026-10-29). Couvre tous les chemins de
+     * création (formulaire, renouvellement, réservation confirmée, proposition
      * acceptée, import PDF). Ne lève jamais : la campagne prime.
      */
     public static function convertirProspect(Campaign $campaign): void
@@ -56,7 +57,7 @@ class CampaignObserver
             if (!$client || !$client->estProspect()) {
                 return;
             }
-            $client->passerClient();
+            $client->passerClient($campaign->interlocuteur);
             Log::info('client.prospect_converti', ['client_id' => $client->id, 'campaign_id' => $campaign->id]);
         } catch (\Throwable $e) {
             Log::warning('client.prospect_conversion_echec', ['campaign_id' => $campaign->id, 'erreur' => $e->getMessage()]);
