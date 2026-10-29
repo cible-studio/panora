@@ -443,7 +443,16 @@ class RelanceFinCampagneService
      */
     public function envoyerParBrevo(MailClientCampagne $mail, string $to): ?string
     {
-        return $this->brevo->envoyerEmail(self::payloadBrevo($mail, $to));
+        // Journal des mails (2026-10-29) : envoi et refus notés, adresse par adresse.
+        try {
+            $id = $this->brevo->envoyerEmail(self::payloadBrevo($mail, $to));
+        } catch (\Throwable $e) {
+            \App\Services\JournalMails::brevo($mail->tagBrevo(), $mail->sujet(), $to, $mail->copie, $mail->campaign, $e->getMessage());
+            throw $e;
+        }
+        \App\Services\JournalMails::brevo($mail->tagBrevo(), $mail->sujet(), $to, $mail->copie, $mail->campaign);
+
+        return $id;
     }
 
     /** Requête de l'API transactionnelle Brevo pour ce mail. */

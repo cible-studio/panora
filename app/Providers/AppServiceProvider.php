@@ -86,6 +86,12 @@ class AppServiceProvider extends ServiceProvider
             ]);
         });
 
+        // ─── Journal des mails (2026-10-29) : chaque mail parti ─────────
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Mail\Events\MessageSent::class,
+            [\App\Services\JournalMails::class, 'surEnvoi']
+        );
+
         // ─── Inliner CSS pour tous les emails ──────────────────────────
         // Sans ça, Gmail/Outlook strippent le <style> au forward et le
         // mail transféré perd son design. tijsverkoyen/css-to-inline-styles
