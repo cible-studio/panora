@@ -126,7 +126,8 @@ class MailClientCampagne extends Mailable
         $n      = $this->nombrePanneaux();
 
         return $this->memo['valeurs'] = [
-            '[Nom du client]'      => $this->contact ?: ($client?->name ?: 'Madame, Monsieur'),
+            // Interlocuteur + client, toujours (2026-10-29) : « Awa Koné (ORANGE CI) ».
+            '[Nom du client]'      => \App\Support\Salutation::nom($client, $this->contact),
             '[Société]'            => (string) ($client?->name ?? ''),
             '[Nom de la campagne]' => (string) $c->name,
             "[Date d'échéance]"    => self::dateEnLettres($c->end_date),

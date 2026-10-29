@@ -3,7 +3,7 @@
     title="Fin de campagne"
     preheader="Votre campagne {{ $campaign->name }} vient de se terminer. Merci de votre confiance — partagez votre avis en 1 minute.">
 
-    <h1>Bonjour {{ $client?->name ?? 'Client' }},</h1>
+    <h1>Bonjour {{ \App\Support\Salutation::suivi($client, $campaign?->interlocuteur) }},</h1>
 
     <p>
         Votre campagne <strong>{{ $campaign->name }}</strong> s'est achevée aujourd'hui.
