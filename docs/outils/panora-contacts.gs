@@ -29,6 +29,7 @@ var PNR = {
   ECARTES: 'Écartés',
   IGNORES: 'Ignorés',
   MEMOIRE: 'Mémoire',
+  CORRESPONDANCES: 'Correspondances', // noms d'entreprise à aligner sur Panora (2026-10-29)
   CONTACTS: 'Contacts',            // feuille de l'extracteur
   HEURE_TRI: 7,                    // après la récupération des boîtes (6 h)
   URL_DEFAUT: 'https://panora-cible.com',
@@ -45,6 +46,7 @@ var PNR_ENTETES = {
     'Premier échange', 'Dernier échange', 'Échanges', 'Boîtes CIBLE', 'Objets récents'],
   'Écartés': ['Décision', 'E-mail ou domaine', 'Portée', 'Raison', 'Le', 'Nom', 'Entreprise'],
   'Mémoire': ['E-mail', 'Vu le'],
+  'Correspondances': ['Appliquer', 'Entreprise dans le Sheet', 'Nom à utiliser', 'Contacts', 'Pourquoi', 'Résultat'],
 };
 
 var PNR_LISTES = {
@@ -75,6 +77,8 @@ function menuPanora_() {
     .addItem('Ranger maintenant (applique aussi les décisions)', 'rangerMaintenant')
     .addItem('Activer le tri chaque matin', 'activerTriQuotidien')
     .addItem('Arrêter le tri chaque matin', 'arreterTriQuotidien')
+    .addSeparator()
+    .addItem('Appliquer les correspondances (noms d\'entreprise)', 'appliquerCorrespondances')
     .addSeparator()
     .addItem('Connecter à Panora', 'connecterPanora')
     .addToUi();
@@ -279,6 +283,30 @@ function rangerOnglets(t, contacts, o) {
   t.mem = Object.keys(memoire).sort().map(function (e) { return memoire[e]; });
 
   return b;
+}
+
+/**
+ * Aligne le nom d'entreprise des lignes sur la table « Correspondances »
+ * (lignes « Appliquer = Oui ») : « Moov-africa » → « MOOV », pour que
+ * Panora reconnaisse la fiche existante au lieu d'en créer une seconde.
+ * Comparaison sans casse, sans espaces superflus, tirets typographiques
+ * ramenés au tiret simple. Modifie les lignes.
+ *
+ * @return {Object} par nom d'origine (clé) : { vers, index (ligne de la table), n (lignes corrigées) }
+ */
+function appliquerTable(lignes, table) {
+  var cle = function (v) { return texte_(v).replace(/[‐-―−]/g, '-').toLowerCase(); };
+  var actives = {};
+  table.forEach(function (c, i) {
+    if (texte_(c['Appliquer']).toLowerCase() !== 'oui') return;
+    var de = cle(c['Entreprise dans le Sheet']), vers = texte_(c['Nom à utiliser']);
+    if (de && vers) actives[de] = { vers: vers, index: i, n: 0 };
+  });
+  lignes.forEach(function (x) {
+    var a = actives[cle(x['Entreprise'])];
+    if (a && texte_(x['Entreprise']) !== a.vers) { x['Entreprise'] = a.vers; a.n++; }
+  });
+  return actives;
 }
 
 function texteBilan(b) {
@@ -543,6 +571,7 @@ function appliquerListes_() {
     if (secteurs.length) poser(n, 'Secteur', liste(secteurs, true)); // hors liste : signalé, pas bloqué
   });
   Object.keys(PNR_LISTES.DECISIONS).forEach(function (n) { poser(n, 'Décision', liste(PNR_LISTES.DECISIONS[n])); });
+  poser(PNR.CORRESPONDANCES, 'Appliquer', liste(['Oui', 'Non'], true)); // « Fait » après application
 }
 
 /** @return {{feuille: Sheet, entetes: string[], objets: Object[]}} */
@@ -641,8 +670,42 @@ function ecarte_(valeur, portee, raison, le, x) {
   return { 'Décision': '', 'E-mail ou domaine': valeur, 'Portée': portee, 'Raison': raison, 'Le': le, 'Nom': (x && x['Nom']) || '', 'Entreprise': (x && x['Entreprise']) || '' };
 }
 
+/** Menu : applique la table « Correspondances » à la Référence et à « À valider ». */
+function appliquerCorrespondances() {
+  var verrou = LockService.getScriptLock();
+  verrou.waitLock(60000);
+  try {
+    preparerOngletsPanora_();
+    var corr = lireOnglet_(PNR.CORRESPONDANCES);
+    var ref = lireOnglet_(PNR.REFERENCE);
+    var aval = lireOnglet_(PNR.A_VALIDER);
+    var actives = appliquerTable(ref.objets.concat(aval.objets), corr.objets);
+    var cles = Object.keys(actives);
+    if (!cles.length) { alerte_('Aucune correspondance à appliquer : mettez « Oui » dans la colonne Appliquer.'); return; }
+
+    ecrireOnglet_(ref, ref.objets);
+    ecrireOnglet_(aval, aval.objets);
+    var le = new Date(), total = 0;
+    var date = ('0' + le.getDate()).slice(-2) + '/' + ('0' + (le.getMonth() + 1)).slice(-2);
+    cles.forEach(function (k) {
+      var a = actives[k], ligne = corr.objets[a.index];
+      ligne['Appliquer'] = 'Fait';
+      ligne['Résultat'] = a.n + ' ligne' + (a.n > 1 ? 's' : '') + ' corrigée' + (a.n > 1 ? 's' : '') + ' le ' + date;
+      total += a.n;
+    });
+    ecrireOnglet_(corr, corr.objets);
+
+    var texte = 'Correspondances appliquées : ' + cles.length + ' nom' + (cles.length > 1 ? 's' : '') + ', ' + total
+      + ' ligne' + (total > 1 ? 's' : '') + ' corrigée' + (total > 1 ? 's' : '') + '. Lancez « Vérifier » pour contrôler avant l\'envoi.';
+    journal_('Panora · correspondances', texte);
+    alerte_(texte);
+  } finally {
+    verrou.releaseLock();
+  }
+}
+
 // Pour les tests hors Google (Node) — ignoré par Apps Script.
 if (typeof module !== 'undefined') {
   module.exports = { rangerOnglets: rangerOnglets, texteBilan: texteBilan, empreinte: empreinte, lignesAEnvoyer: lignesAEnvoyer,
-    versPanora: versPanora, texteVerdict: texteVerdict, PNR_ENTETES: PNR_ENTETES };
+    versPanora: versPanora, texteVerdict: texteVerdict, appliquerTable: appliquerTable, PNR_ENTETES: PNR_ENTETES };
 }
