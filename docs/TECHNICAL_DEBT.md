@@ -7,6 +7,26 @@ en crée ou clôt une.
 
 ## Ouvertes
 
+### Diffusion : le modèle Brevo en ligne doit être remplacé (2026-10-29)
+
+Panora envoie désormais `LIEN_ABIDJAN` / `NB_ABIDJAN` et `LIEN_INTERIEUR` /
+`NB_INTERIEUR` à chaque campagne de disponibilités. Le modèle n° 14
+actuellement en ligne dans Brevo utilise encore le lien unique
+`params.LIEN_PDF` : les clients ne verront **pas** les deux liens tant
+qu'il n'est pas remplacé par `docs/diffusion/modele-brevo-disponibilites-leger.html`.
+
+`LIEN_PDF` (catalogue complet, tout le parc) continue d'être fourni
+exactement pour cette raison : sans lui, le bouton du modèle encore en
+ligne partirait vers une adresse vide. **À retirer de `contenuCampagne()`
+une fois le modèle remplacé et un envoi réel vérifié** — ce qui permettra
+aussi de ne plus générer le troisième PDF.
+
+### `DiffusionDisponibilitesService::renduCatalogue()` sans appelant (2026-10-29)
+
+Remplacée par `renduCatalogues()` (un seul passage sur les photos, trois
+documents). Gardée au titre de la règle N°3 et toujours exacte — elle rend
+le catalogue complet d'une période. À retirer si rien ne la réclame.
+
 ### `Client::destinataireCommercial()` conservée sans appelant (2026-10-28)
 
 Remplacée par `destinatairesCampagne()` (mails de campagne : contacts cochés

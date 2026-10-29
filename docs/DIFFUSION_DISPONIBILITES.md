@@ -8,14 +8,15 @@
 ## 1. Ce que fait la fonctionnalité
 
 Deux fois par mois, Panora envoie à tous les clients un mail présentant les
-emplacements disponibles, avec un lien vers le catalogue PDF (une page par
-panneau, avec photo).
+emplacements disponibles, avec **deux liens** vers deux catalogues PDF (une
+page par panneau, avec photo) : un pour Abidjan, un pour l'intérieur du pays.
 
 | Sujet | Règle |
 |---|---|
 | **Calendrier** | Le 1er et le 15 à 10h. Samedi, dimanche ou jour férié → premier jour ouvrable suivant, 10h |
 | **Période** | Envoi du 1er : tout le mois. Envoi du 15 : du 15 à la fin du mois. La période suit le créneau, pas le jour d'envoi |
 | **Panneaux** | Parc CIBLE uniquement : libres sur toute la période + ceux qui se libèrent en cours de période (avec leur date). Exclus : maintenance, options, occupés jusqu'à la fin |
+| **Catalogues** *(2026-10-29)* | **Deux** : Abidjan et intérieur du pays, chacun avec son propre lien. Le partage suit `Commune::ABIDJAN_COMMUNES`, la liste blanche déjà utilisée par les rapports et les taxes. Une zone sans aucun emplacement n'a pas de lien dans le mail. Un troisième document, le catalogue complet, reste produit pour le mail interne et l'historique |
 | **Prix** | Aucun |
 | **Expéditeur** | `commercial@cible-ci.com` |
 | **Destinataires** | Tous les clients d'office (contact principal, à défaut l'adresse de la fiche client). Désinscription possible à chaque mail |
@@ -125,10 +126,45 @@ Placez dans le modèle :
 | `{{ contact.CONTACT \| default : "Madame, Monsieur" }}` | Nom du contact |
 | `{{ params.PERIODE }}` | « du 1er au 30 novembre 2026 » |
 | `{{ params.MOIS }}` | « novembre 2026 » |
-| `{{ params.NB_PANNEAUX }}` | Nombre d'emplacements présentés |
-| `{{ params.LIEN_PDF }}` | Lien du catalogue PDF — à mettre sur le bouton |
+| `{{ params.NB_PANNEAUX }}` | Nombre total d'emplacements présentés |
+| `{{ params.LIEN_ABIDJAN }}` | Lien du catalogue **Abidjan** — à mettre sur le 1er bouton |
+| `{{ params.NB_ABIDJAN }}` | Nombre d'emplacements à Abidjan |
+| `{{ params.LIEN_INTERIEUR }}` | Lien du catalogue **intérieur du pays** — 2e bouton |
+| `{{ params.NB_INTERIEUR }}` | Nombre d'emplacements à l'intérieur |
+| `{{ params.LIEN_PDF }}` | Lien du catalogue complet — conservé pour compatibilité, plus affiché |
 | `{{ unsubscribe }}` | Lien de désinscription — **obligatoire** |
 | `{{ mirror }}` | Lien « Consulter la version en ligne » |
+
+#### Deux catalogues au lieu d'un *(règle validée le 2026-10-29)*
+
+Le mail ne porte plus un lien unique mais **deux** : les disponibilités
+d'Abidjan et celles de l'intérieur du pays. Chacun a son propre jeton, donc
+Brevo compte les clics séparément — on sait laquelle des deux zones
+intéresse les clients.
+
+« Abidjan » est la liste blanche officielle déjà utilisée par les rapports,
+les taxes et les KPI (`Commune::ABIDJAN_COMMUNES`) : les 10 communes du
+District, plus Anyama, Bingerville, Songon et l'autoroute du Nord.
+« Intérieur » est tout le reste. Les chiffres du mail concordent donc avec
+le filtre *Abidjan / Intérieur* des rapports.
+
+**Une zone sans aucun emplacement disponible n'est pas envoyée du tout** :
+ni son lien, ni son nombre. Le modèle doit donc envelopper chaque bloc dans
+un test, sans quoi un bouton partirait vers une adresse vide :
+
+```
+{% if params.LIEN_ABIDJAN %}
+  <a href="{{ params.LIEN_ABIDJAN }}">Disponibilités à Abidjan ({{ params.NB_ABIDJAN }})</a>
+{% endif %}
+{% if params.LIEN_INTERIEUR %}
+  <a href="{{ params.LIEN_INTERIEUR }}">Disponibilités à l'intérieur ({{ params.NB_INTERIEUR }})</a>
+{% endif %}
+```
+
+⚠ **Tant que le modèle en ligne dans Brevo n'est pas remplacé**, il continue
+d'utiliser `params.LIEN_PDF`. Panora le fournit toujours (il pointe sur le
+catalogue complet, tout le parc) : l'envoi reste donc valide, mais il ne
+montre qu'un seul lien. Remplacez le modèle pour voir les deux.
 
 Notez l'identifiant du modèle, et **activez-le** : Brevo ne copie dans
 une campagne que le contenu d'un modèle au statut « Actif ».

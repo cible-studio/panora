@@ -8,7 +8,8 @@
   blocs de couleur, nombreux liens. Ce modèle ressemble à un mail écrit par
   un commercial :
     · aucune image (pas de logo image, pas de photo) ;
-    · un seul lien utile, en texte : le catalogue PDF ;
+    · deux liens utiles, en texte : le catalogue d'Abidjan et celui de
+      l'intérieur du pays (2026-10-29) ;
     · texte court, mise en forme sobre, police système ;
     · invitation à RÉPONDRE au mail (les réponses améliorent le classement
       des envois suivants) ;
@@ -16,9 +17,15 @@
   Le lien de désinscription reste obligatoire (pied de page).
 
   Valeurs remplies par Panora : params.PERIODE, params.MOIS,
-  params.NB_PANNEAUX, params.LIEN_PDF. Par Brevo : contact.CONTACT et
+  params.NB_PANNEAUX (total), params.NB_ABIDJAN, params.LIEN_ABIDJAN,
+  params.NB_INTERIEUR, params.LIEN_INTERIEUR, params.LIEN_PDF (catalogue
+  complet, conservé pour compatibilité). Par Brevo : contact.CONTACT et
   unsubscribe. (Écrites ici sans accolades pour que Brevo ne les interprète
   pas dans ce commentaire.)
+
+  Une zone sans aucun emplacement disponible ce mois-là n'est PAS envoyée
+  par Panora : le bloc correspondant disparaît du mail grâce au test
+  « si le lien existe ». Aucun lien mort, aucun PDF vide.
 
   À coller dans Brevo → Modèles → Code HTML personnalisé, puis mettre son
   numéro dans BREVO_TEMPLATE_DISPOS. Le modèle illustré
@@ -47,12 +54,19 @@
   Voici nos emplacements disponibles <strong>{{ params.PERIODE }}</strong>, à Abidjan et dans le reste du pays.
 </td></tr>
 
-<!-- L'essentiel : un encadré sobre (filet rouge), un seul lien en texte. -->
+<!-- L'essentiel : un encadré sobre (filet rouge), deux liens en texte.
+     Chaque bloc ne s'affiche que si Panora a envoyé son lien, c'est-à-dire
+     si la zone a au moins un emplacement disponible. -->
 <tr><td style="padding:0 0 16px 0;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   <tr><td style="border-left:3px solid #E20613; padding:4px 0 4px 14px;">
     <strong>{{ params.NB_PANNEAUX }} emplacements disponibles</strong><br>
-    <a href="{{ params.LIEN_PDF }}" style="color:#E20613; font-weight:bold; text-decoration:underline;">Ouvrir le catalogue des disponibilités (PDF)</a><br>
+    {% if params.LIEN_ABIDJAN %}
+    <a href="{{ params.LIEN_ABIDJAN }}" style="color:#E20613; font-weight:bold; text-decoration:underline;">Disponibilités à Abidjan ({{ params.NB_ABIDJAN }}) &mdash; PDF</a><br>
+    {% endif %}
+    {% if params.LIEN_INTERIEUR %}
+    <a href="{{ params.LIEN_INTERIEUR }}" style="color:#E20613; font-weight:bold; text-decoration:underline;">Disponibilités à l'intérieur du pays ({{ params.NB_INTERIEUR }}) &mdash; PDF</a><br>
+    {% endif %}
     <span style="font-size:13px; color:#555555;">Pour chaque emplacement : photo, format, localisation et date de disponibilité.</span>
   </td></tr>
   </table>

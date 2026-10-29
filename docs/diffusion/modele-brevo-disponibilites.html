@@ -12,7 +12,11 @@
     Poppins (titres) · Nunito (texte) — Arial si la messagerie les refuse.
 
   Valeurs remplies par Panora : params.PERIODE, params.MOIS,
-  params.NB_PANNEAUX, params.LIEN_PDF. Par Brevo : contact.CONTACT,
+  params.NB_PANNEAUX (total), params.NB_ABIDJAN, params.LIEN_ABIDJAN,
+  params.NB_INTERIEUR, params.LIEN_INTERIEUR, params.LIEN_PDF (catalogue
+  complet, conservé pour compatibilité mais plus affiché depuis le
+  2026-10-29). Une zone sans emplacement disponible n'est pas envoyée :
+  son bloc disparaît du mail. Par Brevo : contact.CONTACT,
   mirror (version en ligne), unsubscribe (désinscription).
   (Écrites ici sans accolades pour que Brevo ne les interprète pas.)
 
@@ -90,9 +94,11 @@
 <!--[if mso]></td></tr></table><![endif]-->
 </td></tr>
 
-<!-- Visuel -->
+<!-- Visuel. Depuis le 2026-10-29 il n'est plus cliquable : le mail ne porte
+     plus qu'un seul lien par zone, et une image qui mènerait au catalogue
+     complet en ferait un troisième, forcément ambigu. -->
 <tr><td style="font-size:0; line-height:0;">
-  <a href="{{ params.LIEN_PDF }}" style="display:block; text-decoration:none;"><img src="https://img.mailinblue.com/10364584/images/content_library/original/6abd2323ffbd22c19db648ad.jpg" width="600" alt="Panneau publicitaire CIBLE au Plateau, Abidjan" border="0" style="display:block; width:100%; max-width:600px; height:auto; border:0; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#111111;"></a>
+  <img src="https://img.mailinblue.com/10364584/images/content_library/original/6abd2323ffbd22c19db648ad.jpg" width="600" alt="Panneau publicitaire CIBLE au Plateau, Abidjan" border="0" style="display:block; width:100%; max-width:600px; height:auto; border:0; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#111111;">
 </td></tr>
 
 <!-- Titre et introduction -->
@@ -119,19 +125,30 @@
     <td valign="middle" style="padding:22px 16px 22px 12px; border-left:2px solid #FFFFFF;">
       <div style="font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:11px; line-height:15px; letter-spacing:1px; text-transform:uppercase; color:#E20613;">Période</div>
       <div style="padding-top:6px; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700; color:#111111;">{{ params.PERIODE }}</div>
-      <div style="padding-top:14px; font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:11px; line-height:15px; letter-spacing:1px; text-transform:uppercase; color:#E20613;">Catalogue</div>
-      <div style="padding-top:6px; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700; color:#111111;">1 page par emplacement</div>
+      <div style="padding-top:14px; font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:11px; line-height:15px; letter-spacing:1px; text-transform:uppercase; color:#E20613;">Catalogues</div>
+      <div style="padding-top:6px; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700; color:#111111;">{% if params.LIEN_ABIDJAN %}Abidjan&nbsp;: {{ params.NB_ABIDJAN }}{% endif %}{% if params.LIEN_ABIDJAN and params.LIEN_INTERIEUR %}<br>{% endif %}{% if params.LIEN_INTERIEUR %}Intérieur&nbsp;: {{ params.NB_INTERIEUR }}{% endif %}</div>
     </td>
   </tr>
   </table>
 </td></tr>
 
-<!-- Boutons : côte à côte sur ordinateur, l'un sous l'autre sur téléphone -->
+<!-- Boutons : côte à côte sur ordinateur, l'un sous l'autre sur téléphone.
+     Un bouton par zone depuis le 2026-10-29. Chacun n'apparaît que si
+     Panora a envoyé son lien, c'est-à-dire si la zone a au moins un
+     emplacement disponible sur la période. -->
 <tr><td class="px" style="padding:32px 32px 0 32px; font-size:0; line-height:0;">
+  {% if params.LIEN_ABIDJAN %}
   <div style="display:inline-block; vertical-align:middle; margin:0 24px 16px 0;">
-    <!--[if mso]><v:rect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ params.LIEN_PDF }}" style="height:52px;v-text-anchor:middle;width:300px;" stroke="f" fillcolor="#E20613"><w:anchorlock/><center style="color:#FFFFFF;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">Télécharger le catalogue (PDF)</center></v:rect><![endif]-->
-    <!--[if !mso]><!--><a class="cta" href="{{ params.LIEN_PDF }}" style="display:inline-block; background-color:#E20613; color:#FFFFFF; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:20px; font-weight:700; text-decoration:none; padding:16px 28px; mso-hide:all;">Télécharger le catalogue (PDF)&nbsp;&nbsp;&rarr;</a><!--<![endif]-->
+    <!--[if mso]><v:rect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ params.LIEN_ABIDJAN }}" style="height:52px;v-text-anchor:middle;width:300px;" stroke="f" fillcolor="#E20613"><w:anchorlock/><center style="color:#FFFFFF;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">Disponibilités à Abidjan</center></v:rect><![endif]-->
+    <!--[if !mso]><!--><a class="cta" href="{{ params.LIEN_ABIDJAN }}" style="display:inline-block; background-color:#E20613; color:#FFFFFF; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:20px; font-weight:700; text-decoration:none; padding:16px 28px; mso-hide:all;">Disponibilités à Abidjan ({{ params.NB_ABIDJAN }})&nbsp;&nbsp;&rarr;</a><!--<![endif]-->
   </div>
+  {% endif %}
+  {% if params.LIEN_INTERIEUR %}
+  <div style="display:inline-block; vertical-align:middle; margin:0 24px 16px 0;">
+    <!--[if mso]><v:rect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ params.LIEN_INTERIEUR }}" style="height:52px;v-text-anchor:middle;width:300px;" stroke="f" fillcolor="#111111"><w:anchorlock/><center style="color:#FFFFFF;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">Disponibilités à l'intérieur</center></v:rect><![endif]-->
+    <!--[if !mso]><!--><a class="cta" href="{{ params.LIEN_INTERIEUR }}" style="display:inline-block; background-color:#111111; color:#FFFFFF; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:20px; font-weight:700; text-decoration:none; padding:16px 28px; mso-hide:all;">Disponibilités à l'intérieur ({{ params.NB_INTERIEUR }})&nbsp;&nbsp;&rarr;</a><!--<![endif]-->
+  </div>
+  {% endif %}
   <div style="display:inline-block; vertical-align:middle; margin:0 0 16px 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:20px;">
     <a href="mailto:commercial@cible-ci.com?subject=R%C3%A9servation%20d%27emplacement" style="color:#111111; font-weight:700; text-decoration:underline;">Réserver un emplacement</a>
   </div>
@@ -150,14 +167,14 @@
 <tr><td class="px" style="padding:0 32px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
     <td class="col" width="50%" valign="top" style="width:50%; padding:0 8px 0 0;">
-      <a href="{{ params.LIEN_PDF }}" style="display:block; text-decoration:none;"><img src="https://img.mailinblue.com/10364584/images/content_library/original/6abcff69cab53bfa07ef8ad4.jpg" width="258" alt="Portique grand format CIBLE à Abidjan" border="0" style="display:block; width:100%; max-width:258px; height:auto; border:0; background-color:#E6E6E6; font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#111111;"></a>
+      <img src="https://img.mailinblue.com/10364584/images/content_library/original/6abcff69cab53bfa07ef8ad4.jpg" width="258" alt="Portique grand format CIBLE à Abidjan" border="0" style="display:block; width:100%; max-width:258px; height:auto; border:0; background-color:#E6E6E6; font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#111111;">
       <p style="margin:12px 0 0 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:11px; line-height:14px; letter-spacing:1.5px; text-transform:uppercase; font-weight:700; color:#E20613;">Format</p>
-      <p style="margin:4px 0 0 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700;"><a href="{{ params.LIEN_PDF }}" style="color:#111111; text-decoration:underline;">Grands formats</a></p>
+      <p style="margin:4px 0 0 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700; color:#111111;">Grands formats</p>
     </td>
     <td class="col" width="50%" valign="top" style="width:50%; padding:0 0 0 8px;">
-      <a href="{{ params.LIEN_PDF }}" style="display:block; text-decoration:none;"><img src="https://img.mailinblue.com/10364584/images/content_library/original/6abcfef4f56090a551aa991b.jpg" width="258" alt="Panneau CIBLE sur un axe stratégique d'Abidjan" border="0" style="display:block; width:100%; max-width:258px; height:auto; border:0; background-color:#E6E6E6; font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#111111;"></a>
+      <img src="https://img.mailinblue.com/10364584/images/content_library/original/6abcfef4f56090a551aa991b.jpg" width="258" alt="Panneau CIBLE sur un axe stratégique d'Abidjan" border="0" style="display:block; width:100%; max-width:258px; height:auto; border:0; background-color:#E6E6E6; font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#111111;">
       <p style="margin:12px 0 0 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:11px; line-height:14px; letter-spacing:1.5px; text-transform:uppercase; font-weight:700; color:#E20613;">Localisation</p>
-      <p style="margin:4px 0 0 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700;"><a href="{{ params.LIEN_PDF }}" style="color:#111111; text-decoration:underline;">Axes stratégiques</a></p>
+      <p style="margin:4px 0 0 0; font-family:'Poppins', Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:700; color:#111111;">Axes stratégiques</p>
     </td>
   </tr></table>
 </td></tr>

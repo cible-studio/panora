@@ -20,6 +20,14 @@
     $accent = '#e8a020';
     $sombre = '#0d1117';
     $logo   = url('images/logob.png');
+
+    // Deux catalogues depuis le 2026-10-29 : Abidjan et l'intérieur du
+    // pays. Une zone sans emplacement disponible n'a pas de lien dans
+    // $valeurs — son bloc ne s'affiche donc pas du tout.
+    $zones = array_values(array_filter([
+        ['libelle' => 'Abidjan',           'lien' => $valeurs['LIEN_ABIDJAN']   ?? null, 'nb' => $valeurs['NB_ABIDJAN']   ?? 0],
+        ['libelle' => 'Intérieur du pays', 'lien' => $valeurs['LIEN_INTERIEUR'] ?? null, 'nb' => $valeurs['NB_INTERIEUR'] ?? 0],
+    ], fn ($z) => $z['lien'] !== null));
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
@@ -109,22 +117,31 @@
                         </td>
                     </tr>
 
-                    {{-- Bouton --}}
+                    {{-- Boutons : un catalogue par zone (2026-10-29).
+                         Aucune zone disponible → pas de bloc du tout,
+                         plutôt qu'une légende sans bouton. --}}
+                    @if($zones)
                     <tr>
                         <td align="center" style="padding:28px 32px 10px;">
                             <table role="presentation" cellpadding="0" cellspacing="0">
-                                <tr>
-                                    <td align="center" style="background:{{ $accent }};border-radius:8px;">
-                                        <a href="{{ $valeurs['LIEN_PDF'] }}"
-                                           style="display:inline-block;padding:16px 34px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;">
-                                            📄 Télécharger les disponibilités
-                                        </a>
-                                    </td>
-                                </tr>
+                                @foreach($zones as $z)
+                                    <tr>
+                                        <td align="center" style="background:{{ $loop->first ? $accent : $sombre }};border-radius:8px;">
+                                            <a href="{{ $z['lien'] }}"
+                                               style="display:inline-block;padding:16px 34px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;">
+                                                📄 Disponibilités — {{ $z['libelle'] }} ({{ $z['nb'] }})
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    @unless($loop->last)
+                                        <tr><td height="10" style="height:10px;font-size:0;line-height:0;">&nbsp;</td></tr>
+                                    @endunless
+                                @endforeach
                             </table>
                             <p style="margin:12px 0 0;font-size:12px;color:#6b7280;">Catalogue PDF — une page par emplacement, avec photo.</p>
                         </td>
                     </tr>
+                    @endif
 
                     {{-- Appel à l'échange --}}
                     <tr>

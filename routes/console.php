@@ -148,8 +148,11 @@ Schedule::command('invoices:alerts')
 //     Le 1er et le 15 à 10h, décalés au premier jour ouvrable suivant
 //     (week-end, jours fériés). La commande tourne chaque jour et décide
 //     elle-même : c'est DiffusionCalendrier qui porte la règle.
-//     9h : préparation du PDF (tout le parc avec photos : plusieurs
+//     9h : préparation des PDF (tout le parc avec photos : plusieurs
 //     minutes — ~7 min mesurées en dev), pour que 10h parte à l'heure.
+//     Depuis le 2026-10-29, trois documents sont produits (complet,
+//     Abidjan, intérieur du pays) à partir d'UN SEUL passage sur les
+//     photos : c'est ce passage qui coûte les minutes, pas le rendu.
 //     Chaque minute : envois manuels demandés depuis l'écran admin (le
 //     PDF est trop long à générer pendant une requête web).
 //     Inactif tant que DIFFUSION_AUTO=false ; en DIFFUSION_MODE=test,

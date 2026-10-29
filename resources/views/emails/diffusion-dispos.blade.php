@@ -156,6 +156,17 @@
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;border-top:2px solid #111111;">
         <tr><td style="{{ $lbl }}">Période</td><td style="{{ $val }}">{{ $periode }}</td></tr>
         <tr><td style="{{ $lbl }}">Type d'envoi</td><td style="{{ $val }}">{{ $type }}</td></tr>
+        {{-- Les deux catalogues reçus par les clients (2026-10-29) : une
+             zone sans aucun emplacement disponible n'apparaît pas. --}}
+        @foreach($zones as $z)
+            <tr>
+                <td style="{{ $lbl }}">{{ $z['libelle'] }}</td>
+                <td style="{{ $val }}">
+                    {{ $z['nb'] }} emplacement{{ $z['nb'] > 1 ? 's' : '' }} —
+                    <a href="{{ $z['lien'] }}" style="color:#111111;text-decoration:underline;">voir le catalogue</a>
+                </td>
+            </tr>
+        @endforeach
         @if($succes)
             <tr><td style="{{ $lbl }}">Envoyé le</td><td style="{{ $val }}">{{ $envoi->envoye_at?->format('d/m/Y à H\hi') ?? '—' }}</td></tr>
         @endif
@@ -174,7 +185,7 @@
                 <a href="{{ $lienEcran }}" class="bouton" style="{{ $bouton }}background-color:#E20613;color:#FFFFFF;">Ouvrir l'écran de diffusion</a>
             @endunless
             @if($lienPdf)
-                <a href="{{ $lienPdf }}" class="bouton" style="{{ $bouton }}background-color:#FFFFFF;color:#111111;border:2px solid #111111;padding:12px 22px;">{{ $succes ? 'Voir le catalogue envoyé' : 'Voir le catalogue préparé' }}</a>
+                <a href="{{ $lienPdf }}" class="bouton" style="{{ $bouton }}background-color:#FFFFFF;color:#111111;border:2px solid #111111;padding:12px 22px;">{{ $succes ? 'Voir le catalogue complet' : 'Voir le catalogue préparé' }}</a>
             @endif
         </td></tr>
         @if($succes)

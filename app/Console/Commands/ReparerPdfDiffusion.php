@@ -7,7 +7,9 @@ use Illuminate\Console\Command;
 
 /**
  * Refait les catalogues de disponibilités envoyés dont le PDF a disparu
- * (2026-10-28) : même fichier, même lien, statut inchangé.
+ * (2026-10-28) : même fichier, même lien, statut inchangé. Depuis le
+ * 2026-10-29, un envoi porte jusqu'à trois catalogues (complet, Abidjan,
+ * intérieur) : seuls les fichiers réellement manquants sont refaits.
  *
  * Planifiée chaque minute (cf. routes/console.php) : sans rien à refaire,
  * elle ne fait qu'une requête. Après une mise en ligne qui a effacé les
