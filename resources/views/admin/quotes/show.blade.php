@@ -134,6 +134,10 @@
             <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">
                 <div style="font-weight:700;margin-bottom:10px;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Client</div>
                 <div style="font-size:15px;font-weight:700">{{ $quote->client?->name ?? '—' }}</div>
+                @include('admin.partials.interlocuteur-affiche', [
+                    'dossier' => $quote,
+                    'lienModifier' => route('admin.quotes.edit', $quote),
+                ])
                 @if($quote->client?->email)
                     <div style="font-size:12.5px;color:var(--text3);margin-top:4px">📧 {{ $quote->client->email }}</div>
                 @endif

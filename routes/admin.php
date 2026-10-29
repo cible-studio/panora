@@ -1027,6 +1027,11 @@ Route::prefix('admin')
             Route::delete('clients/{client}/account', [ClientController::class, 'revokeAccount'])->name('clients.account.revoke');
         });
 
+        // Interlocuteurs d'un client, pour les formulaires campagne / réservation /
+        // devis (2026-10-29) — lecture, tous les staff (comme la fiche client).
+        Route::get('clients/{client}/contacts', [\App\Http\Controllers\Admin\ClientContactController::class, 'index'])
+            ->name('clients.contacts.index');
+
         // Multi-interlocuteurs (T4) — édition = admin + commercial + MP
         // (cohérent avec édition client : qui peut éditer la fiche peut
         // éditer les interlocuteurs).

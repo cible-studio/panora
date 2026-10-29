@@ -393,7 +393,9 @@ class PigeController extends Controller
     protected function notifyClientPigeValidated(\App\Models\Pige $pige): void
     {
         $client = $pige->campaign?->client;
-        if (!$client?->email) {
+        // Fiche + interlocuteur de la campagne (Client::destinatairesDocuments, 2026-10-29).
+        $adresses = $client ? array_column($client->destinatairesDocuments($pige->campaign?->interlocuteur), 'email') : [];
+        if (!$adresses) {
             \Illuminate\Support\Facades\Log::info('pige.notify.skipped', [
                 'pige_id' => $pige->id, 'reason' => 'no_client_email',
             ]);
@@ -411,7 +413,7 @@ class PigeController extends Controller
 
             $mailer = app(\App\Services\NotificationMailer::class);
             $mailer->sendSilently(
-                $client->email,
+                $adresses,
                 new \App\Mail\PigeValidatedMail($pige->loadMissing('panel.commune','campaign.client'), $link),
                 cc: null,
                 context: ['pige_id' => $pige->id, 'client_id' => $client->id],

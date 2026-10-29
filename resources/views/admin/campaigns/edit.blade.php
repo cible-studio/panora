@@ -136,6 +136,13 @@
                         @enderror
                     </div>
 
+                    {{-- Interlocuteur du client (2026-10-29) --}}
+                    @include('admin.partials.interlocuteur-select', [
+                        'clientId' => old('client_id', $campaign->client_id),
+                        'selection' => $campaign->client_contact_id,
+                        'classeBloc' => 'form-group', 'classeLabel' => 'form-label', 'classeSelect' => 'form-select', 'classeErreur' => 'form-error',
+                    ])
+
                     {{-- Commercial assigné (modifiable) --}}
                     <div class="form-group">
                         <label class="form-label">COMMERCIAL ASSIGNÉ</label>

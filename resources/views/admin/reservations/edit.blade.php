@@ -67,6 +67,13 @@
                         </select>
                     </div>
 
+                    {{-- Interlocuteur du client (2026-10-29) --}}
+                    @include('admin.partials.interlocuteur-select', [
+                        'clientId' => old('client_id', $reservation->client_id),
+                        'selection' => $reservation->client_contact_id,
+                        'classeBloc' => 'form-group', 'classeLabel' => 'form-label', 'classeSelect' => 'form-select', 'classeErreur' => 'form-error',
+                    ])
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="form-group">
                             <label class="form-label">Date de début</label>

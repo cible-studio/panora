@@ -3,6 +3,7 @@ namespace App\Http\Requests\Reservation;
 
 use App\Enums\PanelStatus;
 use App\Models\Panel;
+use App\Rules\InterlocuteurDuClient;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -14,6 +15,7 @@ class UpdateReservationRequest extends FormRequest
     {
         return [
             'client_id'   => 'required|exists:clients,id',
+            'client_contact_id' => InterlocuteurDuClient::regles($this->integer('client_id') ?: null), // 2026-10-29
     
             // En modification : start_date peut rester dans le passé
             // (réservation déjà commencée) — on enlève after_or_equal:today
@@ -69,6 +71,7 @@ class UpdateReservationRequest extends FormRequest
     {
         return [
             'client_id.required'  => 'Le client est obligatoire.',
+            ...InterlocuteurDuClient::MESSAGES,
             'start_date.required' => 'La date de début est obligatoire.',
             'end_date.required'   => 'La date de fin est obligatoire.',
             'end_date.after'      => 'La date de fin doit être strictement après la date de début.',

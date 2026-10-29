@@ -91,6 +91,14 @@
                 </select>
             </div>
         </div>
+        {{-- Interlocuteur du client (2026-10-29) --}}
+        <div style="margin-top:12px">
+            @include('admin.partials.interlocuteur-select', [
+                'clientId' => old('client_id', $isEdit ? $quote->client_id : ($preselect['client_id'] ?? null)),
+                'selection' => $isEdit ? $quote->client_contact_id : null,
+                'classeLabel' => 'qf-label', 'classeSelect' => 'qf-input',
+            ])
+        </div>
         <div style="margin-top:12px">
             <label class="qf-label">Titre du devis *</label>
             <input type="text" name="title" required maxlength="200" value="{{ old('title', $isEdit ? $quote->title : '') }}" placeholder="ex. Campagne lancement Duster - Q2 2026" class="qf-input">

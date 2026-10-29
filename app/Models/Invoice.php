@@ -187,6 +187,18 @@ class Invoice extends Model implements Auditable
         return $this->belongsTo(Campaign::class);
     }
 
+    /**
+     * Adresses où envoyer la facture et ses relances : l'adresse de la fiche
+     * client et l'interlocuteur de la campagne facturée
+     * (Client::destinatairesDocuments, 2026-10-29). Vide si ni l'un ni l'autre.
+     *
+     * @return list<string>
+     */
+    public function adressesClient(): array
+    {
+        return $this->client ? array_column($this->client->destinatairesDocuments($this->campaign?->interlocuteur), 'email') : [];
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');

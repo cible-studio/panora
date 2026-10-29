@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\QuoteStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
+use App\Rules\InterlocuteurDuClient;
 use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Commune;
@@ -140,6 +141,7 @@ class QuoteController extends Controller
             $quote = Quote::create([
                 'reference'          => Quote::generateReference(),
                 'client_id'          => $data['client_id'],
+                'client_contact_id'  => $data['client_contact_id'] ?? null,
                 'campaign_id'        => $data['campaign_id'] ?? null,
                 'commercial_user_id' => $user->id,
                 'created_by'         => $user->id,
@@ -297,6 +299,7 @@ class QuoteController extends Controller
 
             $quote->update([
                 'client_id'      => $data['client_id'],
+                'client_contact_id' => $data['client_contact_id'] ?? null,
                 'campaign_id'    => $data['campaign_id'] ?? null,
                 'title'          => $data['title'],
                 'period_start'   => $data['period_start'] ?? null,
@@ -340,16 +343,17 @@ class QuoteController extends Controller
         // reste envoyé côté app, le commercial peut renvoyer manuellement.
         $mailSent = false;
         $mailError = null;
-        if (!empty($quote->client?->email)) {
+        $adresses = $quote->adressesClient(); // fiche + interlocuteur du devis (2026-10-29)
+        if ($adresses) {
             try {
-                \Illuminate\Support\Facades\Mail::to($quote->client->email)
+                \Illuminate\Support\Facades\Mail::to($adresses)
                     ->send(new \App\Mail\QuoteSentMail($quote));
                 $mailSent = true;
             } catch (\Throwable $e) {
                 $mailError = $e->getMessage();
                 \Illuminate\Support\Facades\Log::error('quote.send.mail_failed', [
                     'quote_id' => $quote->id,
-                    'client_email' => $quote->client->email,
+                    'client_email' => implode(', ', $adresses),
                     'error' => $mailError,
                 ]);
             }
@@ -371,7 +375,7 @@ class QuoteController extends Controller
                  . $quote->fresh()->expires_at->format('d/m/Y') . '.';
 
         if ($mailSent) {
-            return back()->with('success', $baseMsg . " 📧 Un email avec le PDF a été envoyé à {$quote->client->email}.");
+            return back()->with('success', $baseMsg . " 📧 Un email avec le PDF a été envoyé à " . implode(', ', $adresses) . '.');
         }
         if ($mailError) {
             return back()->with('warning', $baseMsg . " ⚠️ Erreur envoi mail : {$mailError}. Télécharge le PDF et envoie manuellement.");
@@ -459,6 +463,7 @@ class QuoteController extends Controller
     {
         $data = $request->validate([
             'client_id'                    => 'required|exists:clients,id',
+            'client_contact_id'            => InterlocuteurDuClient::regles($request->integer('client_id') ?: null), // 2026-10-29
             'campaign_id'                  => 'nullable|exists:campaigns,id',
             'title'                        => 'required|string|max:200',
             'period_start'                 => 'nullable|date',
@@ -483,6 +488,7 @@ class QuoteController extends Controller
             'services.*.prix_ht'           => 'required_with:services|numeric|min:0',
         ], [
             'lines.required' => 'Au moins une ligne (panneau) est requise dans un devis.',
+            ...InterlocuteurDuClient::MESSAGES,
         ]);
 
         // Défense en profondeur : refuse deux lignes qui pointent sur le même

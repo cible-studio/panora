@@ -16,6 +16,7 @@ use App\Models\Zone;
 use App\Services\AlertService;
 use App\Services\AvailabilityService;
 use App\Services\ReservationService;
+use App\Rules\InterlocuteurDuClient;
 use App\Enums\CampaignStatus;
 use App\Models\Campaign;
 use App\Enums\PanelStatus;
@@ -1299,6 +1300,7 @@ class ReservationController extends Controller
         // 3) Validation des autres champs (sans toucher panel_ids — on l'a déjà parsé)
         $request->validate([
             'client_id' => 'required|exists:clients,id',
+            'client_contact_id' => InterlocuteurDuClient::regles($request->integer('client_id') ?: null),
             // Commercial assigné : doit être admin ou commercial actif.
             'commercial_user_id' => [
                 'required',
@@ -1323,7 +1325,7 @@ class ReservationController extends Controller
             'campaign_name' => 'nullable|string|max:150',
             // Tâche 6.1 — montant personnalisé optionnel (override du calcul auto)
             'amount' => 'nullable|numeric|min:0|max:9999999999',
-        ]);
+        ], InterlocuteurDuClient::MESSAGES);
 
         // Limite de 50 internes + 50 externes RETIRÉE (feedback user :
         // grosse campagne de 200+ panneaux bloquée à la création).
@@ -1669,6 +1671,7 @@ class ReservationController extends Controller
                 $reservation = Reservation::create([
                     'reference' => $reference,
                     'client_id' => $request->client_id,
+                    'client_contact_id' => $request->input('client_contact_id') ?: null, // interlocuteur (2026-10-29)
                     'user_id' => auth()->id(),
                     'commercial_user_id'  => $assignedCommercialId,
                     'proposition_status'  => $propositionStatus,
@@ -1778,6 +1781,7 @@ class ReservationController extends Controller
                     $campaign = Campaign::create([
                         'name'           => $request->campaign_name,
                         'client_id'      => $request->client_id,
+                        'client_contact_id' => $reservation->client_contact_id, // interlocuteur (2026-10-29)
                         'reservation_id' => $reservation->id,
                         'user_id'        => auth()->id(),
                         'start_date'     => $request->start_date,
@@ -2391,7 +2395,8 @@ class ReservationController extends Controller
     protected function notifyClientReservationConfirmed(Reservation $reservation): void
     {
         $client = $reservation->client;
-        if (!$client?->email) {
+        $adresses = $reservation->adressesClient(); // fiche + interlocuteur (2026-10-29)
+        if (!$adresses) {
             \Illuminate\Support\Facades\Log::info('reservation.notify.skipped', [
                 'reservation_id' => $reservation->id, 'reason' => 'no_client_email',
             ]);
@@ -2407,7 +2412,7 @@ class ReservationController extends Controller
             );
 
             app(\App\Services\NotificationMailer::class)->sendSilently(
-                $client->email,
+                $adresses,
                 new \App\Mail\ReservationConfirmedMail($reservation, $link),
                 cc: null,
                 context: ['reservation_id' => $reservation->id, 'client_id' => $client->id],
@@ -2469,9 +2474,9 @@ class ReservationController extends Controller
             'by_user_id'      => auth()->id(),
         ]);
 
-        if ($reservation->client?->email && $reservation->proposition_slug) {
+        if ($reservation->adressesClient() && $reservation->proposition_slug) { // fiche + interlocuteur (2026-10-29)
             try {
-                \Illuminate\Support\Facades\Mail::to($reservation->client->email)
+                \Illuminate\Support\Facades\Mail::to($reservation->adressesClient())
                     ->send(new \App\Mail\PropositionDateChangeMail(
                         reservation: $reservation->fresh(['client']),
                         context: \App\Mail\PropositionDateChangeMail::CONTEXT_ACCEPTED,
@@ -2532,10 +2537,10 @@ class ReservationController extends Controller
             'reason'         => $request->input('reason'),
         ]);
 
-        if ($reservation->client?->email && $reservation->proposition_slug) {
+        if ($reservation->adressesClient() && $reservation->proposition_slug) { // fiche + interlocuteur (2026-10-29)
             $reason = trim((string) $request->input('reason'));
             try {
-                \Illuminate\Support\Facades\Mail::to($reservation->client->email)
+                \Illuminate\Support\Facades\Mail::to($reservation->adressesClient())
                     ->send(new \App\Mail\PropositionDateChangeMail(
                         reservation: $reservation->fresh(['client']),
                         context: \App\Mail\PropositionDateChangeMail::CONTEXT_REFUSED,
@@ -2621,10 +2626,10 @@ class ReservationController extends Controller
             'by_user_id'      => auth()->id(),
         ]);
 
-        if ($reservation->client?->email && $reservation->proposition_slug) {
+        if ($reservation->adressesClient() && $reservation->proposition_slug) { // fiche + interlocuteur (2026-10-29)
             $message = trim((string) $request->input('message'));
             try {
-                \Illuminate\Support\Facades\Mail::to($reservation->client->email)
+                \Illuminate\Support\Facades\Mail::to($reservation->adressesClient())
                     ->send(new \App\Mail\PropositionDateChangeMail(
                         reservation: $reservation->fresh(['client']),
                         context: \App\Mail\PropositionDateChangeMail::CONTEXT_COUNTER,

@@ -16,6 +16,7 @@ use App\Models\Invoice;
 use App\Models\Panel;
 use App\Models\PanelFormat;
 use App\Models\Reservation;
+use App\Rules\InterlocuteurDuClient;
 use App\Models\Zone;
 
 use App\Enums\CampaignStatus;
@@ -428,9 +429,9 @@ class CampaignController extends Controller
                 'Ajoutez au moins un panneau avant de notifier le client.');
         }
 
-        if (!$campaign->client?->email && $campaign->client?->contacts()->whereNotNull('email')->doesntExist()) {
+        if (!$campaign->client || !$campaign->client->destinatairesSuivi($campaign->interlocuteur)) {
             return back()->with('error',
-                'Aucune adresse email connue pour ce client (ni client.email ni interlocuteurs).');
+                'Aucune adresse email pour ce client : ni interlocuteur, ni contact coché « reçoit les mails », ni adresse sur la fiche.');
         }
 
         try {
@@ -918,6 +919,7 @@ class CampaignController extends Controller
                 $newCampaign = Campaign::create([
                     'name'               => $name,
                     'client_id'          => $source->client_id,
+                    'client_contact_id'  => $source->client_contact_id, // même interlocuteur (2026-10-29)
                     'commercial_user_id' => $source->commercial_user_id,
                     'user_id'            => auth()->id(),
                     'start_date'         => $newStart->format('Y-m-d'),
@@ -983,6 +985,15 @@ class CampaignController extends Controller
     {
         $this->authorize('create', Campaign::class);
 
+        // Interlocuteur (2026-10-29) : une campagne créée depuis une
+        // réservation reprend l'interlocuteur de celle-ci s'il n'est pas choisi.
+        if (!$request->filled('client_contact_id') && $request->filled('reservation_id')) {
+            $resaSource = Reservation::find($request->reservation_id);
+            if ($resaSource && (int) $resaSource->client_id === (int) $request->client_id) {
+                $request->merge(['client_contact_id' => $resaSource->client_contact_id]);
+            }
+        }
+
         $data = $request->validate([
             'name' => [
                 'required', 'string', 'max:150',
@@ -994,12 +1005,13 @@ class CampaignController extends Controller
                     ->whereNull('deleted_at'),
             ],
             'client_id'          => 'required|exists:clients,id',
+            'client_contact_id'  => InterlocuteurDuClient::regles($request->integer('client_id') ?: null),
             'reservation_id'     => 'nullable|exists:reservations,id',
             'commercial_user_id' => 'nullable|exists:users,id',
             'start_date'         => 'required|date',
             'end_date'           => 'required|date|after:start_date',
             'notes'              => 'nullable|string|max:2000',
-        ]);
+        ], InterlocuteurDuClient::MESSAGES);
 
         $client = Client::withTrashed()->findOrFail($data['client_id']);
         if ($client->trashed()) {
@@ -1168,7 +1180,7 @@ class CampaignController extends Controller
                 $msg .= ' Ajoutez les panneaux et le prix négocié, puis cliquez sur « ▶ Démarrer la campagne » pour la lancer.';
             } elseif ($mailSent) {
                 $msg .= ' Email envoyé au client.';
-            } elseif ($campaign->client?->email) {
+            } elseif ($campaign->client?->destinatairesSuivi($campaign->interlocuteur)) {
                 $msg .= ' (envoi email au client échoué — vérifie les logs)';
             }
 
@@ -1293,6 +1305,7 @@ class CampaignController extends Controller
                     ->ignore($campaign->id),
             ],
             'client_id'          => 'required|exists:clients,id',
+            'client_contact_id'  => InterlocuteurDuClient::regles($request->integer('client_id') ?: null),
             'commercial_user_id' => 'nullable|exists:users,id',
             'end_date'           => 'required|date|after:start_date',
             'notes'              => 'nullable|string|max:2000',
@@ -1303,7 +1316,7 @@ class CampaignController extends Controller
         // cochée côté formulaire (défense en profondeur avec le JS).
         $rules['start_date'] = 'required|date';
 
-        $data = $request->validate($rules);
+        $data = $request->validate($rules, InterlocuteurDuClient::MESSAGES);
 
         $today    = now()->startOfDay();
         $newStart = \Carbon\Carbon::parse($data['start_date'])->startOfDay();

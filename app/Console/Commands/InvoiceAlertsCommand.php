@@ -207,7 +207,7 @@ class InvoiceAlertsCommand extends Command
         }
 
         if ($alert->channel === 'email') {
-            $email = $invoice->client?->email;
+            $email = $invoice->adressesClient(); // fiche + interlocuteur de la campagne (2026-10-29)
             if (!$email) {
                 throw new \DomainException("Client #{$invoice->client_id} sans email — alerte impossible.");
             }

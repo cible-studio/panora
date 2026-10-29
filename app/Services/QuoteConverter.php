@@ -110,6 +110,7 @@ class QuoteConverter
             $reservation = Reservation::create([
                 'reference'          => $ref,
                 'client_id'          => $quote->client_id,
+                'client_contact_id'  => $quote->client_contact_id, // interlocuteur (2026-10-29)
                 'commercial_user_id' => $quote->commercial_user_id,
                 'user_id'            => $quote->commercial_user_id,
                 'quote_id'           => $quote->id,

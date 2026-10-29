@@ -194,6 +194,7 @@ class PropositionService
                 $campaign = Campaign::create([
                     'name'           => "Campagne {$reservation->reference}",
                     'client_id'      => $reservation->client_id,
+                    'client_contact_id' => $reservation->client_contact_id, // interlocuteur (2026-10-29)
                     'reservation_id' => $reservation->id,
                     'start_date'     => $reservation->start_date,
                     'end_date'       => $reservation->end_date,

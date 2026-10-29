@@ -286,6 +286,13 @@
                         @error('client_id')<p class="cc-error">{{ $message }}</p>@enderror
                     </div>
 
+                    {{-- Interlocuteur du client (2026-10-29) --}}
+                    @include('admin.partials.interlocuteur-select', [
+                        'clientId' => old('client_id', $preselectedReservation?->client_id),
+                        'selection' => $preselectedReservation?->client_contact_id,
+                        'classeLabel' => 'cc-field-label', 'classeSelect' => 'cc-select', 'classeErreur' => 'cc-error',
+                    ])
+
                     {{-- Réservation --}}
                     <div>
                         <label class="cc-field-label">Réservation confirmée <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">(optionnel)</span></label>

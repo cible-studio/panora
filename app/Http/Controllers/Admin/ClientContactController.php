@@ -18,6 +18,23 @@ use Illuminate\Support\Facades\Log;
  */
 class ClientContactController extends Controller
 {
+    /**
+     * Interlocuteurs du client, pour la liste « Interlocuteur » des
+     * formulaires campagne, réservation et devis (2026-10-29).
+     */
+    public function index(Client $client)
+    {
+        return response()->json([
+            'obligatoire' => $client->contacts->isNotEmpty(),
+            'contacts'    => $client->contacts->map(fn (ClientContact $c) => [
+                'id'       => $c->id,
+                'libelle'  => $c->name . ($c->position ? ' — ' . $c->position : '') . ($c->email ? ' (' . $c->email . ')' : ' (sans adresse)'),
+                'email'    => $c->email,
+                'prospect' => ($c->statut ?? Client::STATUT_CLIENT) === Client::STATUT_PROSPECT,
+            ])->values(),
+        ]);
+    }
+
     public function store(Request $request, Client $client)
     {
         $data = $this->validateData($request);

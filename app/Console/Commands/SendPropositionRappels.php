@@ -28,9 +28,9 @@ class SendPropositionRappels extends Command
                 ->get();
 
             foreach ($reservations as $reservation) {
-                $email = $reservation->client?->email ?? null;
+                $email = $reservation->adressesClient(); // fiche + interlocuteur (2026-10-29)
 
-                if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                if (!$email) {
                     $skipped++;
                     Log::warning('proposition.rappel.no_email', [
                         'reservation_id' => $reservation->id,

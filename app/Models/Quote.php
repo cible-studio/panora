@@ -28,7 +28,7 @@ class Quote extends Model implements Auditable
     protected $auditExclude = ['updated_at'];
 
     protected $fillable = [
-        'reference', 'client_id', 'campaign_id',
+        'reference', 'client_id', 'client_contact_id', 'campaign_id',
         'commercial_user_id', 'created_by',
         'title', 'status', 'version',
         'period_start', 'period_end',
@@ -69,6 +69,20 @@ class Quote extends Model implements Auditable
 
     // ─── Relations ─────────────────────────────────────────────────
     public function client(): BelongsTo             { return $this->belongsTo(Client::class); }
+
+    /**
+     * Adresses où envoyer un document de ce dossier : l'adresse de la fiche
+     * client et l'interlocuteur du devis (Client::destinatairesDocuments,
+     * 2026-10-29). Vide si ni l'un ni l'autre.
+     *
+     * @return list<string>
+     */
+    public function adressesClient(): array
+    {
+        return $this->client ? array_column($this->client->destinatairesDocuments($this->interlocuteur), 'email') : [];
+    }
+    /** Interlocuteur du client qui suit ce devis (2026-10-29). */
+    public function interlocuteur(): BelongsTo      { return $this->belongsTo(ClientContact::class, 'client_contact_id'); }
     public function campaign(): BelongsTo           { return $this->belongsTo(Campaign::class); }
     public function commercial(): BelongsTo         { return $this->belongsTo(User::class, 'commercial_user_id'); }
     public function creator(): BelongsTo            { return $this->belongsTo(User::class, 'created_by'); }

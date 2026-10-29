@@ -55,7 +55,7 @@ class SendPropositionReminders extends Command
                 $skipped++;
                 continue;
             }
-            if (empty($r->client->email) || !filter_var($r->client->email, FILTER_VALIDATE_EMAIL)) {
+            if (!$r->adressesClient()) { // fiche + interlocuteur (2026-10-29)
                 $this->_logSkip($r, 'no_valid_email');
                 $skipped++;
                 continue;
@@ -108,13 +108,13 @@ class SendPropositionReminders extends Command
         if ($dryRun) {
             $this->line(sprintf(
                 '  [DRY] Would send J+%d reminder to %s for reservation %s',
-                $step, $r->client->email, $r->reference
+                $step, implode(', ', $r->adressesClient()), $r->reference
             ));
             return;
         }
 
         $result = $mailer->sendNow(
-            $r->client->email,
+            $r->adressesClient(),
             new PropositionReminderMail($r, $step),
             context: [
                 'action'         => 'proposition.reminder',
@@ -134,15 +134,15 @@ class SendPropositionReminders extends Command
                 'reservation_id' => $r->id,
                 'reference'      => $r->reference,
                 'step'           => $step,
-                'recipient'      => $r->client->email,
+                'recipient'      => implode(', ', $r->adressesClient()),
             ]);
-            $this->line("  ✓ J+{$step} envoyé : {$r->reference} → {$r->client->email}");
+            $this->line("  ✓ J+{$step} envoyé : {$r->reference} → " . implode(', ', $r->adressesClient()));
         } else {
             Log::warning('proposition.reminder.failed', [
                 'reservation_id' => $r->id,
                 'reference'      => $r->reference,
                 'step'           => $step,
-                'recipient'      => $r->client->email,
+                'recipient'      => implode(', ', $r->adressesClient()),
                 'error'          => $result->message ?? 'unknown',
             ]);
             $this->warn("  ✗ J+{$step} ÉCHEC : {$r->reference} ({$result->message})");

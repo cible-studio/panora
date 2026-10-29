@@ -247,6 +247,7 @@ class CampaignService
         $reservation = Reservation::create([
             'reference'    => $this->generateTechReference($campaign->id),
             'client_id'    => $campaign->client_id,
+                'client_contact_id' => $campaign->client_contact_id, // interlocuteur (2026-10-29)
             'user_id'      => auth()->id(),
             'start_date'   => $campaign->start_date->format('Y-m-d'),
             'end_date'     => $campaign->end_date->format('Y-m-d'),
@@ -577,8 +578,8 @@ class CampaignService
     }
 
     /**
-     * Envoie le mail "campagne démarre" / "campagne planifiée" à tous
-     * les destinataires utiles du client (email principal + interlocuteurs).
+     * Envoie le mail "campagne démarre" / "campagne planifiée" à
+     * l'interlocuteur de la campagne (Client::destinatairesSuivi).
      * Best-effort : un envoi qui rate ne casse pas le flow appelant.
      *
      * Public : invoqué aussi à la création directe d'une campagne
@@ -586,19 +587,16 @@ class CampaignService
      */
     public function sendStartedMailToClient(Campaign $campaign): bool
     {
-        $campaign->loadMissing(['client.contacts']);
+        $campaign->loadMissing(['client.contacts', 'interlocuteur']);
         $client = $campaign->client;
         if (!$client) {
             Log::warning('campaign.activate.mail.skip.no_client', ['campaign_id' => $campaign->id]);
             return false;
         }
 
-        $recipients = collect()
-            ->push($client->email)
-            ->merge($client->contacts->pluck('email'))
-            ->filter(fn($e) => $e && filter_var($e, FILTER_VALIDATE_EMAIL))
-            ->unique()
-            ->values();
+        // L'interlocuteur de la campagne, sinon les contacts cochés « reçoit
+        // les mails » (2026-10-29 ; avant : la fiche et TOUS les interlocuteurs).
+        $recipients = collect($client->destinatairesSuivi($campaign->interlocuteur))->pluck('email')->values();
 
         if ($recipients->isEmpty()) {
             Log::warning('campaign.activate.mail.skip.no_recipient', [
@@ -962,6 +960,7 @@ class CampaignService
             $reservation = Reservation::create([
                 'reference'    => $this->generateTechReference($campaign->id),
                 'client_id'    => $campaign->client_id,
+                'client_contact_id' => $campaign->client_contact_id, // interlocuteur (2026-10-29)
                 'user_id'      => auth()->id(),
                 'start_date'   => $campaign->start_date->format('Y-m-d'),
                 'end_date'     => $campaign->end_date->format('Y-m-d'),

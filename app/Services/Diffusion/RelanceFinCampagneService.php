@@ -30,9 +30,9 @@ use Illuminate\Support\Facades\Log;
  * Règles validées par le métier le 2026-10-21 :
  *   · 7 jours avant la fin d'une campagne active, UN seul mail par
  *     campagne (et par date de fin : une prolongation en redonne un) ;
- *   · destinataires : chaque interlocuteur coché « reçoit les mails », à
- *     défaut l'adresse de la fiche (Client::destinatairesCampagne, depuis
- *     le 2026-10-28 ; avant : l'interlocuteur principal seul) ;
+ *   · destinataires : l'interlocuteur de la campagne, sinon chaque contact
+ *     coché « reçoit les mails », sinon l'adresse de la fiche
+ *     (Client::destinatairesSuivi, 2026-10-29) ;
  *   · réponse au commercial de la campagne, copie commercial@ ;
  *   · pas de mail si le client a une autre campagne planifiée, ou active
  *     qui se termine après celle-ci (deux campagnes qui finissent le même
@@ -108,7 +108,7 @@ class RelanceFinCampagneService
             ->where(fn($q) => $q
                 ->whereDate('end_date', today()->addDays($jours)->toDateString())
                 ->orWhereIn('id', $aRetenter))
-            ->with(['client.contacts', 'commercial', 'user'])
+            ->with(['client.contacts', 'interlocuteur', 'commercial', 'user'])
             ->orderBy('end_date')
             ->get()
             ->reject(fn(Campaign $c) => $c->estAnnuelle())
@@ -116,9 +116,9 @@ class RelanceFinCampagneService
     }
 
     /**
-     * À qui écrire pour cette campagne : les interlocuteurs cochés « reçoit
-     * les mails » (Client::destinatairesCampagne, 2026-10-28 ; avant : une
-     * seule adresse), copie, adresse de réponse. `destinataire` les liste
+     * À qui écrire pour cette campagne : son interlocuteur, sinon les
+     * contacts cochés « reçoit les mails » (Client::destinatairesSuivi,
+     * 2026-10-29), copie, adresse de réponse. `destinataire` les liste
      * tous, séparés par des virgules (affichage, journal) ; `contact` est
      * le nom du premier.
      *
@@ -127,7 +127,7 @@ class RelanceFinCampagneService
     public function coordonnees(Campaign $campagne): array
     {
         $client     = $campagne->client;
-        $liste      = $client?->destinatairesCampagne() ?? [];
+        $liste      = $client?->destinatairesSuivi($campagne->interlocuteur) ?? [];
         $copie      = $this->copie();
         $commercial = mb_strtolower(trim((string) $campagne->resolveCommercialContact()?->email));
 
@@ -516,7 +516,7 @@ class RelanceFinCampagneService
             ->whereDate('end_date', '>', today()->toDateString())
             ->whereDate('end_date', '<=', today()->addDays($horizon)->toDateString())
             ->when($commercialId, fn($q) => $q->forCommercialUser($commercialId))
-            ->with(['client.contacts', 'commercial', 'user'])
+            ->with(['client.contacts', 'interlocuteur', 'commercial', 'user'])
             ->orderBy('end_date')
             ->get()
             ->reject(fn(Campaign $c) => $c->estAnnuelle())
