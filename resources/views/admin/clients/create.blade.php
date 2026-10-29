@@ -104,7 +104,9 @@
                         <label
                             style="font-size:11px;font-weight:700;color:var(--text3);
                                   letter-spacing:.5px;display:block;margin-bottom:6px;">
-                            NOM DU CONTACT
+                            INTERLOCUTEUR
+                            <span title="La personne que vous suivez chez ce client. Avec l'e-mail et le téléphone ci-dessous, elle devient son premier interlocuteur."
+                                  style="cursor:help;color:var(--text3);font-weight:400;letter-spacing:0">ⓘ</span>
                         </label>
                         <input type="text" name="contact_name" value="{{ old('contact_name') }}"
                             placeholder="Ex : Koné Ibrahim"
@@ -170,6 +172,37 @@
                         @enderror
                     </div>
 
+                    {{-- Fonction de l'interlocuteur (2026-10-29) --}}
+                    <div>
+                        <label style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.5px;display:block;margin-bottom:6px;">
+                            FONCTION DE L'INTERLOCUTEUR
+                        </label>
+                        <input type="text" name="contact_position" value="{{ old('contact_position') }}" maxlength="100"
+                            placeholder="Ex : Directrice marketing"
+                            style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;">
+                    </div>
+
+                    {{-- Autres interlocuteurs (2026-10-29) --}}
+                    <div style="grid-column:1/-1;" id="autres-interlocuteurs">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <label style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.5px;">
+                                AUTRES INTERLOCUTEURS
+                                <span title="Chez un même client, on traite souvent avec plusieurs personnes (siège, filiales, services). Chacune devient un interlocuteur de la fiche."
+                                      style="cursor:help;color:var(--text3);font-weight:400;letter-spacing:0">ⓘ</span>
+                            </label>
+                            <button type="button" onclick="ajouterLigneInterlocuteur()"
+                                    style="background:none;border:0;padding:0;cursor:pointer;font-size:12px;font-weight:700;color:var(--accent);">+ Ajouter un interlocuteur</button>
+                        </div>
+                        <div data-lignes style="display:flex;flex-direction:column;gap:8px;">
+                            @foreach(old('interlocuteurs', []) as $i => $l)
+                                @include('admin.clients.partials.ligne-interlocuteur', ['i' => $i, 'l' => $l])
+                            @endforeach
+                        </div>
+                        <template id="modele-ligne-interlocuteur">
+                            @include('admin.clients.partials.ligne-interlocuteur', ['i' => '__N__', 'l' => []])
+                        </template>
+                    </div>
+
                     {{-- Adresse --}}
                     <div style="grid-column:1/-1;">
                         <label
@@ -193,6 +226,16 @@
                     <button type="submit" class="btn btn-primary">Créer le client</button>
                 </div>
             </form>
+            <script>
+            // Lignes « Autres interlocuteurs » : chaque ligne est un interlocuteur créé avec le client.
+            var compteurInterlocuteurs = {{ count(old('interlocuteurs', [])) }};
+            function ajouterLigneInterlocuteur() {
+                var html = document.getElementById('modele-ligne-interlocuteur').innerHTML.replace(/__N__/g, compteurInterlocuteurs++);
+                var bloc = document.querySelector('#autres-interlocuteurs [data-lignes]');
+                bloc.insertAdjacentHTML('beforeend', html);
+                bloc.lastElementChild.querySelector('input').focus();
+            }
+            </script>
         </div>
     </div>
 

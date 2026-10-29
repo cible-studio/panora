@@ -51,6 +51,13 @@ class StoreClientRequest extends FormRequest
                 'regex:/^[\+\d\s\-\(\)\.]{6,20}$/',
             ],
             'address' => ['nullable', 'string', 'max:500'],
+            // Interlocuteurs saisis à la création (2026-10-29).
+            'contact_position'           => ['nullable', 'string', 'max:100'],
+            'interlocuteurs'             => ['nullable', 'array', 'max:20'],
+            'interlocuteurs.*.name'      => ['nullable', 'string', 'max:120'],
+            'interlocuteurs.*.email'     => ['nullable', 'email', 'max:150'],
+            'interlocuteurs.*.phone'     => ['nullable', 'string', 'max:30'],
+            'interlocuteurs.*.position'  => ['nullable', 'string', 'max:100'],
         ];
     }
 

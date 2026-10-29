@@ -111,6 +111,40 @@ class Client extends Authenticatable  // ← était "extends Model"
     }
 
     /**
+     * Ajout rapide d'un interlocuteur (2026-10-29) : création d'un client
+     * (formulaire complet ou rapide) et lien « + Nouvel interlocuteur » des
+     * dossiers. Statut de l'entreprise ; « reçoit les mails » coché pour un
+     * client, décoché pour un prospect (comme la fenêtre de la fiche
+     * client) ; principal s'il n'y en a pas encore. Une adresse déjà
+     * connue chez ce client renvoie l'interlocuteur existant (pas de doublon).
+     */
+    public function ajouterInterlocuteur(?string $nom, ?string $email = null, ?string $telephone = null, ?string $fonction = null): ClientContact
+    {
+        $email = trim((string) $email) !== '' ? mb_strtolower(trim($email)) : null;
+        if ($email && ($existant = ClientContact::where('client_id', $this->id)->whereRaw('LOWER(TRIM(email)) = ?', [$email])->first())) {
+            return $existant;
+        }
+
+        $nom = trim((string) $nom);
+        $contact = ClientContact::create([
+            'client_id'              => $this->id,
+            'name'                   => mb_substr($nom !== '' ? $nom : ($email ? strstr($email, '@', true) : 'Interlocuteur'), 0, 120),
+            'email'                  => $email,
+            'phone'                  => trim((string) $telephone) !== '' ? mb_substr(trim($telephone), 0, 30) : null,
+            'position'               => trim((string) $fonction) !== '' ? mb_substr(trim($fonction), 0, 100) : null,
+            'role'                   => 'autre',
+            'is_primary'             => false,
+            'statut'                 => $this->statut_commercial ?: self::STATUT_CLIENT,
+            'receives_notifications' => !$this->estProspect(),
+        ]);
+        if (!ClientContact::where('client_id', $this->id)->where('is_primary', true)->exists()) {
+            $contact->makePrimary();
+        }
+
+        return $contact;
+    }
+
+    /**
      * Mails liés à une campagne (renouvellement, fin de campagne, accusé de
      * réception) : chaque interlocuteur dont la case « reçoit les mails »
      * est cochée, avec une adresse valide. Plus de contact principal

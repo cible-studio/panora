@@ -34,6 +34,7 @@ trait BaseRenouvellement
         Schema::create('client_contacts', function (Blueprint $t) {
             $t->id(); $t->unsignedBigInteger('client_id'); $t->string('name'); $t->string('email')->nullable();
             $t->string('phone')->nullable(); $t->boolean('is_primary')->default(false);
+            $t->string('role')->default('autre'); $t->string('position')->nullable(); $t->text('notes')->nullable();
             $t->boolean('receives_notifications')->default(true); $t->softDeletes(); $t->timestamps();
         });
         Schema::create('reservations', function (Blueprint $t) {

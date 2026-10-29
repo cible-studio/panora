@@ -1062,6 +1062,8 @@ Route::prefix('admin')
         // éditer les interlocuteurs).
         Route::middleware('role:admin,commercial,mediaplanner')->group(function () {
             Route::post  ('clients/{client}/contacts',                [\App\Http\Controllers\Admin\ClientContactController::class, 'store'])     ->name('clients.contacts.store');
+            // Ajout rapide depuis un dossier (2026-10-29)
+            Route::post  ('clients/{client}/contacts/rapide',         [\App\Http\Controllers\Admin\ClientContactController::class, 'storeRapide'])->name('clients.contacts.rapide');
             Route::put   ('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'update'])    ->name('clients.contacts.update');
             Route::delete('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'destroy'])   ->name('clients.contacts.destroy');
             Route::patch ('clients/{client}/contacts/{contact}/primary', [\App\Http\Controllers\Admin\ClientContactController::class, 'setPrimary'])->name('clients.contacts.primary');
