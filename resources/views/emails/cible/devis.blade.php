@@ -65,11 +65,11 @@
 </td></tr>
 
 {{-- Bandeau --}}
-<tr><td style="background-color:{{ $ch['noir'] }};border-left:6px solid {{ $ch['rouge'] }};">
+<tr><td style="background-color:{{ $ch['blanc'] }};border-left:6px solid {{ $ch['rouge'] }};border-bottom:1px solid {{ $ch['gris'] }};">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-        <td class="px" style="padding:24px 32px 24px 26px;">
-            <div style="{{ $petit }}color:{{ $ch['jaune'] }};">CIBLE CI · Nouvelle demande de devis</div>
-            <div style="{{ $titres }}font-size:22px;line-height:28px;font-weight:800;color:{{ $ch['blanc'] }};margin-top:8px;">{{ $d['entreprise'] ?? '—' }}</div>
+        <td class="px" style="padding:24px 32px 22px 26px;">
+            <div style="{{ $petit }}color:{{ $ch['rouge'] }};">CIBLE CI · Nouvelle demande de devis</div>
+            <div style="{{ $titres }}font-size:22px;line-height:28px;font-weight:800;color:{{ $ch['noir'] }};margin-top:8px;">{{ $d['entreprise'] ?? '—' }}</div>
         </td>
     </tr></table>
 </td></tr>
@@ -77,7 +77,7 @@
 {{-- Corps --}}
 <tr><td class="px" style="background-color:{{ $ch['blanc'] }};padding:28px 32px 32px 32px;">
 
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid {{ $ch['noir'] }};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid {{ $ch['gris'] }};">
         <tr><td class="lbl-col" style="{{ $lbl }}">Nom</td><td style="{{ $val }}">{{ $d['nom'] ?? '—' }}</td></tr>
         <tr><td class="lbl-col" style="{{ $lbl }}">Poste</td><td style="{{ $valN }}">{{ $d['poste'] ?? '—' }}</td></tr>
         <tr><td class="lbl-col" style="{{ $lbl }}">Entreprise</td><td style="{{ $val }}">{{ $d['entreprise'] ?? '—' }}</td></tr>
@@ -109,11 +109,11 @@
 </td></tr>
 
 {{-- Pied de page --}}
-<tr><td class="px" style="background-color:{{ $ch['noir'] }};padding:24px 32px;">
+<tr><td class="px" style="background-color:#F4F4F4;padding:20px 32px;border-top:1px solid {{ $ch['gris'] }};">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-        <td valign="middle"><img src="{{ $logoSombre }}" width="90" alt="{{ $nomRegie }}" border="0" style="display:block;width:90px;height:auto;border:0;{{ $titres }}font-size:16px;font-weight:800;color:{{ $ch['blanc'] }};"></td>
-        <td valign="middle" align="right" style="{{ $texte }}font-size:12px;line-height:18px;color:{{ $ch['gris'] }};">
-            @if($slogan)<strong style="{{ $titres }}color:{{ $ch['blanc'] }};">{{ $slogan }}</strong><br>@endif
+        <td valign="middle"><img src="{{ $logoClair }}" width="72" alt="{{ $nomRegie }}" border="0" style="display:block;width:72px;height:auto;border:0;{{ $titres }}font-size:16px;font-weight:800;color:{{ $ch['noir'] }};"></td>
+        <td valign="middle" align="right" style="{{ $texte }}font-size:12px;line-height:18px;color:#888888;">
+            @if($slogan)<strong style="{{ $titres }}color:{{ $ch['noir'] }};">{{ $slogan }}</strong><br>@endif
             Mail interne envoyé par Panora
         </td>
     </tr></table>
