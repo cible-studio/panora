@@ -524,6 +524,23 @@ class PropositionController extends Controller
     // Le client propose une nouvelle période ; la réservation reste
     // EN_ATTENTE et l'admin reçoit alerte + mail pour arbitrer.
     // ══════════════════════════════════════════════════════════════
+    /**
+     * Durée facturée des dates que le client envisage (2026-10-29), pour
+     * l'estimation en direct de la fenêtre « changement de dates » : même
+     * calcul que l'équipe (DureeFactureeController → Campaign::dureeFacturee).
+     */
+    public function dureeFacturee(Request $request, string $reference, string $slug)
+    {
+        // Même contrôle que findBySlug(), sans charger les panneaux et photos.
+        $existe = Reservation::where('reference', $reference)
+            ->where('proposition_slug', $slug)
+            ->whereNotNull('proposition_token')
+            ->exists();
+        if (!$existe) abort(404);
+
+        return app(\App\Http\Controllers\Admin\DureeFactureeController::class)($request);
+    }
+
     public function demanderChangementDates(Request $request, string $reference, string $slug)
     {
         $reservation = $this->findBySlug($reference, $slug);

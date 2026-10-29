@@ -399,7 +399,36 @@ class Campaign extends Model
      */
     public function durationLabel(): string
     {
-        $r = $this->resolvePeriod();
+        return self::libelleDuree($this->resolvePeriod());
+    }
+
+    /**
+     * Durée d'une période telle que facturée, pour les écrans (2026-10-29) :
+     * le navigateur la demande au serveur (route admin.outils.duree-facturee)
+     * au lieu de recopier la règle en JavaScript.
+     *
+     * @return array{jours:int, duree:string, mois:float, facture:string}
+     *   jours   : jours calendaires, début et fin inclus (29/10 → 01/12 = 34),
+     *             comme le décompte de la règle sous un mois ;
+     *   duree   : libellé de durée (durationLabel) ;
+     *   mois    : mois facturés (computeBillableMonths) — montant = tarif × mois ;
+     *   facture : ce qui est facturé, en mots, sans décimales.
+     */
+    public static function dureeFacturee(Carbon $debut, Carbon $fin): array
+    {
+        $r = self::resolvePeriodBetween($debut, $fin);
+
+        return [
+            'jours'   => (int) $debut->copy()->startOfDay()->diffInDays($fin->copy()->startOfDay()) + 1,
+            'duree'   => self::libelleDuree($r),
+            'mois'    => self::computeBillableMonths($debut, $fin),
+            'facture' => self::libelleFacture($r),
+        ];
+    }
+
+    /** « X jours » / « X mois » / « X mois + Y j » d'une période résolue. */
+    private static function libelleDuree(array $r): string
+    {
         if ($r['mois'] === 0) {
             return $r['jours'] . ' jour' . ($r['jours'] > 1 ? 's' : '');
         }
@@ -407,6 +436,26 @@ class Campaign extends Model
             return $r['mois'] . ' mois';
         }
         return $r['mois'] . ' mois + ' . $r['jours'] . ' j';
+    }
+
+    /**
+     * Ce que computeBillableMonths facture, en mots (mêmes branches) :
+     *   < 15 j      → « ½ mois (minimum) »
+     *   15-29 j     → « ½ mois + N jours » (N = jours − 15 ; « ½ mois » si 0)
+     *   mois pile   → « N mois »
+     *   sinon       → « N mois + J jours » (prorata journalier)
+     */
+    private static function libelleFacture(array $r): string
+    {
+        $jours = fn (int $n) => $n . ' jour' . ($n > 1 ? 's' : '');
+        if ($r['mois'] === 0) {
+            if ($r['jours'] < 15) {
+                return '½ mois (minimum)';
+            }
+            $reste = $r['jours'] - 15;
+            return $reste > 0 ? '½ mois + ' . $jours($reste) : '½ mois';
+        }
+        return $r['propre'] ? $r['mois'] . ' mois' : $r['mois'] . ' mois + ' . $jours($r['jours']);
     }
 
     /** Alias pour compatibilité — toujours basé sur billableMonths() */

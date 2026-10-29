@@ -292,6 +292,7 @@
                         <span class="selection-count" x-text="selectedIds.length"></span>
                         <span class="text-sm" style="color:var(--text2)">panneau(x) sélectionné(s)</span>
                         <span class="total-price">Total : <strong x-text="formatTotal()"></strong> FCFA</span>
+                        <span class="text-sm" style="color:var(--text3)" x-show="duree" x-text="duree ? '(facturé ' + duree.facture + ')' : ''"></span>
                     </div>
                     <button type="button" class="btn-clear" @click="clearSelection">✕ Vider</button>
                 </div>
@@ -825,11 +826,14 @@
     </style>
 
     @push('scripts')
+    @include('admin.partials.duree-facturee-js')
     <script>
     document.addEventListener('alpine:init', () => {
         Alpine.data('reservationEdit', () => ({
             startDate: '{{ $reservation->start_date->format('Y-m-d') }}',
             endDate: '{{ $reservation->end_date->format('Y-m-d') }}',
+            duree: null,
+            _demandeDuree: null,
             allPanels: [],
             filteredPanels: [],
             selectedIds: @json(old('panel_ids', $selectedPanelIds)),
@@ -958,35 +962,15 @@
                 this.loadPanels();
             },
 
-            getMonths() {
-                // RÈGLE PATRONNE v2 2026-06-25 — IDENTIQUE à Campaign::billableMonths().
-                // Mois civils + tolérance +1j. Doit rester aligné serveur sinon
-                // divergence entre saisie et facture finale = litige client garanti.
-                if (!this.startDate || !this.endDate) return 0.5;
-                const addMonthsNoOverflow = (date, months) => {
-                    const d = new Date(date);
-                    const idx = d.getMonth() + months;
-                    const year = d.getFullYear() + Math.floor(idx / 12);
-                    const mo = ((idx % 12) + 12) % 12;
-                    const lastDay = new Date(year, mo + 1, 0).getDate();
-                    return new Date(year, mo, Math.min(d.getDate(), lastDay));
-                };
-                const start = new Date(this.startDate);
-                const end   = new Date(this.endDate);
-                if (isNaN(start) || isNaN(end) || end < start) return 0.5;
-                let mois = 0;
-                while (true) {
-                    const seuil = addMonthsNoOverflow(start, mois + 1);
-                    seuil.setDate(seuil.getDate() - 1);
-                    if (end >= seuil) mois++; else break;
-                }
-                if (mois === 0) {
-                    const days = Math.round((end - start) / 86400000) + 1;
-                    return days < 15 ? 0.5 : 0.5 + (days - 15) / 30;
-                }
-                const anniv = addMonthsNoOverflow(start, mois);
-                const residuel = Math.round((end - anniv) / 86400000);
-                return residuel <= 1 ? mois : mois + residuel / 30;
+            // Durée facturée : demandée à Panora (Campaign::dureeFacturee), jamais
+            // recalculée ici (2026-10-29). {jours, duree, mois, facture} ou null.
+            majDuree() {
+                const debut = this.startDate, fin = this.endDate;
+                this.duree = null;
+                if (!debut || !fin || fin < debut) return;
+                this._demandeDuree(debut, fin).then(d => {
+                    if (this.startDate === debut && this.endDate === fin) this.duree = d;
+                });
             },
 
             formatPrice(price) {
@@ -994,7 +978,8 @@
             },
 
             formatTotal() {
-                const m = this.getMonths();
+                if (!this.duree) return '—';
+                const m = this.duree.mois;
                 const total = this.selectedIds.reduce((sum, id) => {
                     const p = this.allPanels.find(x => x.id === id);
                     return sum + (p ? (parseFloat(p.monthly_rate) || 0) * m : 0);
@@ -1003,13 +988,17 @@
             },
 
             init() {
+                this._demandeDuree = window.PanoraDuree.differe();
+                this.majDuree();
                 this.loadPanels();
                 document.getElementById('start-date')?.addEventListener('change', e => {
                     this.startDate = e.target.value;
+                    this.majDuree();
                     this.loadPanels();
                 });
                 document.getElementById('end-date')?.addEventListener('change', e => {
                     this.endDate = e.target.value;
+                    this.majDuree();
                     this.loadPanels();
                 });
             }

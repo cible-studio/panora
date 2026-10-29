@@ -1115,6 +1115,9 @@
     @csrf
 </form>
 
+@isset($reference)
+    @include('admin.partials.duree-facturee-js', ['url' => route('proposition.duree-facturee', [$reference, $slug])])
+@endisset
 <script>
     function openConfirmModal() { document.getElementById('modal-confirm').classList.add('open'); }
     function closeConfirmModal(){ document.getElementById('modal-confirm').classList.remove('open'); }
@@ -1126,7 +1129,7 @@
     // Validation côté client : end > start + pas dans le passé + estimation live
     (function () {
         const form = document.getElementById('form-date-change');
-        if (!form) return;
+        if (!form || !window.PanoraDuree) return;
         const start = document.getElementById('dc-start');
         const end   = document.getElementById('dc-end');
         const err   = document.getElementById('dc-error');
@@ -1140,40 +1143,32 @@
         const CURRENT_MONTHS  = {{ (float) ($reservation->billableMonths() ?? 0.5) }};
         const MONTHLY_TOTAL   = CURRENT_MONTHS > 0 ? CURRENT_AMOUNT / CURRENT_MONTHS : 0;
 
-        function billableMonthsJS(startStr, endStr) {
-            if (!startStr || !endStr) return 0;
-            const s = new Date(startStr + 'T00:00:00');
-            const e = new Date(endStr + 'T00:00:00');
-            if (e <= s) return 0;
-            // Même convention que Reservation::durationInDays (PHP) :
-            // 05/06 → 05/07 = 30 jours = 1 mois pile (pas 1 mois + 1 jour).
-            const days = Math.round((e - s) / 86400000);
-            const full = Math.floor(days / 30);
-            const rem  = days % 30;
-            let frac = 0;
-            if (rem >= 1 && rem <= 15) frac = 0.5;
-            else if (rem > 15)         frac = 1;
-            return Math.max(full + frac, 0.5);
-        }
+        // Mois facturés des nouvelles dates : demandés à Panora (même règle que
+        // la facture, Campaign::dureeFacturee), jamais recalculés ici (2026-10-29).
+        const demandeDuree = window.PanoraDuree.differe();
         function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA'; }
 
         function updatePreview() {
-            const months = billableMonthsJS(start.value, end.value);
-            if (months <= 0 || MONTHLY_TOTAL <= 0) {
+            const sv = start.value, ev = end.value;
+            if (!sv || !ev || ev <= sv || MONTHLY_TOTAL <= 0) {
                 previewBox.style.display = 'none';
                 return;
             }
-            const estimated = MONTHLY_TOTAL * months;
-            const diff = estimated - CURRENT_AMOUNT;
-            newSpan.textContent = fmt(estimated);
-            if (Math.abs(diff) < 1) {
-                diffSpan.textContent = '';
-            } else {
-                const sign = diff > 0 ? '+' : '';
-                diffSpan.textContent = ` (${sign}${fmt(diff)})`;
-                diffSpan.style.color = diff > 0 ? '#92400e' : '#16a34a';
-            }
-            previewBox.style.display = 'block';
+            demandeDuree(sv, ev).then(function (d) {
+                if (start.value !== sv || end.value !== ev) return; // dates changées depuis
+                if (!d) { previewBox.style.display = 'none'; return; }
+                const estimated = MONTHLY_TOTAL * d.mois;
+                const diff = estimated - CURRENT_AMOUNT;
+                newSpan.textContent = fmt(estimated) + ' (facturé ' + d.facture + ')';
+                if (Math.abs(diff) < 1) {
+                    diffSpan.textContent = '';
+                } else {
+                    const sign = diff > 0 ? '+' : '';
+                    diffSpan.textContent = ` (${sign}${fmt(diff)})`;
+                    diffSpan.style.color = diff > 0 ? '#92400e' : '#16a34a';
+                }
+                previewBox.style.display = 'block';
+            });
         }
 
         function show(msg) { err.textContent = msg; err.style.display = 'block'; }
