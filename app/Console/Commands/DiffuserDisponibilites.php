@@ -54,11 +54,13 @@ class DiffuserDisponibilites extends Command
         }
 
         $this->line(sprintf(
-            'Envoi #%d — créneau %s — statut : %s — %d panneaux, %d destinataires%s',
+            'Envoi #%d — créneau %s — statut : %s — %d panneaux (%d Abidjan, %d intérieur), %d destinataires%s',
             $envoi->id,
             $envoi->creneau->toDateString(),
             $envoi->statut,
             $envoi->nb_panneaux,
+            $envoi->nb_panneaux_abidjan,
+            $envoi->nb_panneaux_interieur,
             $envoi->nb_destinataires,
             $envoi->erreur ? ' — ' . $envoi->erreur : ''
         ));

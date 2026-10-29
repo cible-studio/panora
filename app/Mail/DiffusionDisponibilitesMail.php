@@ -54,6 +54,18 @@ class DiffusionDisponibilitesMail extends Mailable
                 'succes'     => $this->envoi->statut === DiffusionEnvoi::STATUT_ENVOYE,
                 'periode'    => DiffusionCalendrier::libellePeriode($this->envoi->periode_debut, $this->envoi->periode_fin),
                 'lienPdf'    => $this->envoi->lienPdf(),
+                // Les deux catalogues par zone envoyés aux clients
+                // (2026-10-29). Null quand la zone n'avait aucun
+                // emplacement : le mail n'affiche alors pas son lien.
+                'zones'      => collect(DiffusionEnvoi::ZONES)
+                    ->map(fn (string $libelle, string $zone) => [
+                        'libelle' => $libelle,
+                        'lien'    => $this->envoi->lienPdfZone($zone),
+                        'nb'      => $this->envoi->nbPanneauxZone($zone),
+                    ])
+                    ->filter(fn (array $z) => $z['lien'] !== null)
+                    ->values()
+                    ->all(),
                 'lienApercu' => $this->lienApercu,
                 'lienEcran'  => route('admin.diffusion-dispos.index'),
                 'test'       => $this->envoi->mode === DiffusionEnvoi::MODE_TEST || config('diffusion.mode') !== 'production',

@@ -88,9 +88,10 @@
             <h2 style="{{ $h2 }}">🚀 Envoi manuel</h2>
             <p style="font-size:13px;color:var(--text2);line-height:1.6;margin:0 0 16px;">
                 À utiliser si l'envoi automatique n'est pas parti, ou pour un cas particulier.
-                <strong>N'annule pas</strong> l'envoi automatique suivant. Le catalogue PDF de tout
-                le parc prend quelques minutes à générer : l'envoi part dans les minutes qui suivent,
-                et la confirmation arrive par mail. Vous pouvez fermer la page.
+                <strong>N'annule pas</strong> l'envoi automatique suivant. Les catalogues PDF
+                (Abidjan et intérieur du pays) prennent quelques minutes à générer : l'envoi part
+                dans les minutes qui suivent, et la confirmation arrive par mail. Vous pouvez
+                fermer la page.
             </p>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
                 <button type="button" class="btn btn-primary" onclick="DIFFUSION.ouvrir(false)" @disabled(!$brevoConfigure)>
@@ -207,10 +208,28 @@
                                         @endif
                                     @endif
                                 </td>
-                                <td style="padding:9px 6px;text-align:right;">{{ $e->nb_panneaux }}</td>
+                                <td style="padding:9px 6px;text-align:right;">
+                                    {{ $e->nb_panneaux }}
+                                    {{-- Répartition par zone (2026-10-29). Absente des envois
+                                         antérieurs : leurs compteurs de zone valent 0. --}}
+                                    @if($e->nb_panneaux_abidjan || $e->nb_panneaux_interieur)
+                                        <div style="{{ $muted }}white-space:nowrap;">{{ $e->nb_panneaux_abidjan }} ABJ · {{ $e->nb_panneaux_interieur }} int.</div>
+                                    @endif
+                                </td>
                                 <td style="padding:9px 6px;text-align:right;">{{ $e->nb_destinataires }}</td>
-                                <td style="padding:9px 6px;">
-                                    @if($e->lienPdf())<a href="{{ $e->lienPdf() }}" target="_blank" rel="noopener" style="color:var(--accent);">Ouvrir</a>@else —@endif
+                                <td style="padding:9px 6px;white-space:nowrap;">
+                                    @php
+                                        $catalogues = array_values(array_filter([
+                                            ['Complet',  $e->lienPdf()],
+                                            ['Abidjan',  $e->lienPdfZone(\App\Models\DiffusionEnvoi::ZONE_ABIDJAN)],
+                                            ['Intérieur', $e->lienPdfZone(\App\Models\DiffusionEnvoi::ZONE_INTERIEUR)],
+                                        ], fn ($c) => $c[1] !== null));
+                                    @endphp
+                                    @forelse($catalogues as $c)
+                                        <a href="{{ $c[1] }}" target="_blank" rel="noopener" style="color:var(--accent);">{{ $c[0] }}</a>@unless($loop->last)<br>@endunless
+                                    @empty
+                                        —
+                                    @endforelse
                                 </td>
                             </tr>
                         @endforeach

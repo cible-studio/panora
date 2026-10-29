@@ -28,19 +28,38 @@ class DiffusionEnvoi extends Model
     public const STATUT_ENVOYE   = 'envoye';
     public const STATUT_ECHEC    = 'echec';
 
+    /**
+     * Zones du catalogue (2026-10-29) : le mail client porte un lien par
+     * zone. La règle « qu'est-ce qu'Abidjan » n'est PAS ici — elle vient de
+     * Commune::nameIsAbidjan(), la liste blanche déjà utilisée par les
+     * rapports, les taxes et les KPI.
+     */
+    public const ZONE_ABIDJAN   = 'abidjan';
+    public const ZONE_INTERIEUR = 'interieur';
+
+    public const ZONES = [
+        self::ZONE_ABIDJAN   => 'Abidjan',
+        self::ZONE_INTERIEUR => 'Intérieur du pays',
+    ];
+
     protected $fillable = [
         'creneau', 'periode_debut', 'periode_fin', 'mode', 'declenche_par',
         'statut', 'nb_destinataires', 'nb_panneaux', 'pdf_path', 'pdf_token',
+        'nb_panneaux_abidjan', 'nb_panneaux_interieur',
+        'pdf_path_abidjan', 'pdf_token_abidjan',
+        'pdf_path_interieur', 'pdf_token_interieur',
         'brevo_campaign_id', 'erreur', 'envoye_at',
     ];
 
     protected $casts = [
-        'creneau'          => 'date',
-        'periode_debut'    => 'date',
-        'periode_fin'      => 'date',
-        'envoye_at'        => 'datetime',
-        'nb_destinataires' => 'integer',
-        'nb_panneaux'      => 'integer',
+        'creneau'               => 'date',
+        'periode_debut'         => 'date',
+        'periode_fin'           => 'date',
+        'envoye_at'             => 'datetime',
+        'nb_destinataires'      => 'integer',
+        'nb_panneaux'           => 'integer',
+        'nb_panneaux_abidjan'   => 'integer',
+        'nb_panneaux_interieur' => 'integer',
     ];
 
     public function auteur(): BelongsTo
@@ -48,9 +67,50 @@ class DiffusionEnvoi extends Model
         return $this->belongsTo(User::class, 'declenche_par');
     }
 
+    /** Catalogue complet (tout le parc) — mail interne, journal, historique. */
     public function lienPdf(): ?string
     {
         return $this->pdf_token ? route('diffusion.pdf', $this->pdf_token) : null;
+    }
+
+    /**
+     * Catalogue d'une zone (2026-10-29). Renvoie null quand la zone n'avait
+     * aucun emplacement disponible : règle validée, le mail n'affiche alors
+     * pas le lien du tout plutôt qu'un PDF vide.
+     */
+    public function lienPdfZone(string $zone): ?string
+    {
+        $jeton = match ($zone) {
+            self::ZONE_ABIDJAN   => $this->pdf_token_abidjan,
+            self::ZONE_INTERIEUR => $this->pdf_token_interieur,
+            default              => null,
+        };
+
+        return $jeton ? route('diffusion.pdf', $jeton) : null;
+    }
+
+    public function nbPanneauxZone(string $zone): int
+    {
+        return match ($zone) {
+            self::ZONE_ABIDJAN   => (int) $this->nb_panneaux_abidjan,
+            self::ZONE_INTERIEUR => (int) $this->nb_panneaux_interieur,
+            default              => 0,
+        };
+    }
+
+    /**
+     * Chemins disque des catalogues de cet envoi, par zone (plus le
+     * complet sous la clé 'complet'). Les zones sans PDF sont absentes.
+     *
+     * @return array<string, string>
+     */
+    public function cheminsCatalogues(): array
+    {
+        return array_filter([
+            'complet'            => $this->pdf_path,
+            self::ZONE_ABIDJAN   => $this->pdf_path_abidjan,
+            self::ZONE_INTERIEUR => $this->pdf_path_interieur,
+        ]);
     }
 
     /** Filtres du journal des envois (2026-10-28). */

@@ -4,6 +4,7 @@ namespace App\Services\Diffusion;
 
 use App\Mail\DiffusionDisponibilitesMail;
 use App\Models\Client;
+use App\Models\Commune;
 use App\Models\DiffusionDesinscription;
 use App\Models\DiffusionEnvoi;
 use App\Models\Panel;
@@ -128,6 +129,33 @@ class DiffusionDisponibilitesService
     }
 
     /**
+     * Répartition du catalogue en deux zones — SOURCE UNIQUE de la règle
+     * « Abidjan ou intérieur du pays » pour la diffusion (2026-10-29).
+     *
+     * La règle elle-même n'est pas écrite ici : elle vient de
+     * Commune::nameIsAbidjan(), la liste blanche officielle du District
+     * Autonome d'Abidjan déjà utilisée par les rapports, les taxes et les
+     * KPI. Les chiffres du mail concordent donc avec le filtre
+     * « Abidjan / Intérieur » des rapports.
+     *
+     * Fonction pure, testée seule. Les lignes portent le NOM de la commune
+     * (cf. PdfExportService::enrichPanel), pas son identifiant.
+     *
+     * @return array{abidjan: Collection<int, array>, interieur: Collection<int, array>}
+     */
+    public static function repartirParZone(Collection $lignes): array
+    {
+        [$abidjan, $interieur] = $lignes->partition(
+            fn ($l) => Commune::nameIsAbidjan($l['commune'] ?? null)
+        );
+
+        return [
+            DiffusionEnvoi::ZONE_ABIDJAN   => $abidjan->values(),
+            DiffusionEnvoi::ZONE_INTERIEUR => $interieur->values(),
+        ];
+    }
+
+    /**
      * Destinataires : chaque interlocuteur au statut client des entreprises
      * clientes (2026-10-28 ; avant : une seule adresse par client), à
      * défaut l'adresse de la fiche. Aucun prospect. Exclus : adresses
@@ -177,7 +205,7 @@ class DiffusionDisponibilitesService
                 ->latest('id')
                 ->first();
 
-            if ($existant && $existant->pdf_path && Storage::disk('local')->exists($existant->pdf_path)) {
+            if ($existant && $this->cataloguesComplets($existant)) {
                 return $existant;
             }
         }
@@ -194,6 +222,35 @@ class DiffusionDisponibilitesService
         ]);
 
         return $this->genererPdf($envoi);
+    }
+
+    /**
+     * Un envoi a-t-il TOUS ses catalogues, fichiers présents sur le disque ?
+     *
+     * Sert à décider si l'envoi de 10h peut réutiliser la préparation de 9h.
+     * La somme des deux zones doit retomber sur le total : un envoi préparé
+     * par une version antérieure au 2026-10-29 n'a que le catalogue complet,
+     * ses compteurs de zone sont à 0, et il est donc régénéré.
+     */
+    private function cataloguesComplets(DiffusionEnvoi $envoi): bool
+    {
+        if (!$envoi->pdf_path) {
+            return false;
+        }
+
+        if ($envoi->nb_panneaux_abidjan + $envoi->nb_panneaux_interieur !== $envoi->nb_panneaux) {
+            return false;
+        }
+
+        $disque = Storage::disk('local');
+
+        foreach ($envoi->cheminsCatalogues() as $chemin) {
+            if (!$disque->exists($chemin)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -222,17 +279,52 @@ class DiffusionDisponibilitesService
 
             $envoi->update(['statut' => DiffusionEnvoi::STATUT_PREPARE, 'erreur' => null]);
 
-            [$nbPanneaux, $contenu] = $this->renduCatalogue($debut, $fin);
+            // Trois documents (2026-10-29) : le complet, Abidjan, l'intérieur.
+            // Une zone vide n'en produit aucun — ses colonnes restent nulles,
+            // donc le mail n'affichera pas son lien.
+            $champs = [
+                'complet'                      => ['nb_panneaux', 'pdf_path', 'pdf_token'],
+                DiffusionEnvoi::ZONE_ABIDJAN   => ['nb_panneaux_abidjan', 'pdf_path_abidjan', 'pdf_token_abidjan'],
+                DiffusionEnvoi::ZONE_INTERIEUR => ['nb_panneaux_interieur', 'pdf_path_interieur', 'pdf_token_interieur'],
+            ];
 
-            $token = Str::random(48);
-            $chemin = sprintf('diffusions/%s_%s_%s.pdf', $creneau->format('Y-m-d'), $mode, $token);
-            Storage::disk('local')->put($chemin, $contenu);
+            $catalogues = $this->renduCatalogues($debut, $fin);
 
-            $envoi->update([
-                'nb_panneaux' => $nbPanneaux,
-                'pdf_path'    => $chemin,
-                'pdf_token'   => $token,
-            ]);
+            // Colonnes de zone remises à zéro d'abord : si une zone s'est
+            // vidée depuis une préparation précédente, son ancien lien ne
+            // doit pas survivre et renvoyer les clients vers un catalogue
+            // périmé annoncé à « 0 emplacement ».
+            $valeurs = [
+                'nb_panneaux_abidjan'   => 0,
+                'nb_panneaux_interieur' => 0,
+                'pdf_path_abidjan'      => null,
+                'pdf_token_abidjan'     => null,
+                'pdf_path_interieur'    => null,
+                'pdf_token_interieur'   => null,
+            ];
+
+            foreach ($champs as $cle => [$champNb, $champChemin, $champJeton]) {
+                if (!isset($catalogues[$cle])) {
+                    continue;
+                }
+
+                [$nb, $contenu] = $catalogues[$cle];
+                $token = Str::random(48);
+                $chemin = sprintf(
+                    'diffusions/%s_%s_%s%s.pdf',
+                    $creneau->format('Y-m-d'),
+                    $mode,
+                    $cle === 'complet' ? '' : $cle . '_',
+                    $token
+                );
+                Storage::disk('local')->put($chemin, $contenu);
+
+                $valeurs[$champNb]     = $nb;
+                $valeurs[$champChemin] = $chemin;
+                $valeurs[$champJeton]  = $token;
+            }
+
+            $envoi->update($valeurs);
         } catch (\Throwable $e) {
             $envoi->update(['statut' => DiffusionEnvoi::STATUT_ECHEC, 'erreur' => $this->messageErreur($e)]);
             throw $e;
@@ -242,19 +334,58 @@ class DiffusionDisponibilitesService
     }
 
     /**
-     * Le catalogue d'une période, tel qu'il part aux clients.
+     * Le catalogue complet d'une période, tel qu'il part aux clients.
      *
      * @return array{0: int, 1: string}  nombre de panneaux, contenu du PDF
      */
     public function renduCatalogue(CarbonInterface $debut, CarbonInterface $fin): array
     {
         $panneaux = $this->panneauxDiffusables($debut, $fin);
-        $pdf = $this->pdfBuilder->rendre($panneaux, $debut->toDateString(), $fin->toDateString(), [
+
+        return [$panneaux->count(), $this->rendreCatalogue($panneaux, $debut, $fin)];
+    }
+
+    /**
+     * Les catalogues d'une période : le complet, celui d'Abidjan et celui
+     * de l'intérieur du pays (2026-10-29).
+     *
+     * UN SEUL passage sur les panneaux : c'est le traitement des photos
+     * (cf. PdfExportService::enrichPanel) qui coûte les minutes, pas le
+     * rendu. Les trois documents sont rendus à partir des mêmes lignes.
+     *
+     * Une zone sans aucun emplacement disponible ne produit PAS de PDF :
+     * règle validée le 2026-10-29, le mail n'affiche alors pas son lien.
+     *
+     * @return array<string, array{0: int, 1: string}>  clés : complet,
+     *         abidjan, interieur — les zones vides sont absentes
+     */
+    public function renduCatalogues(CarbonInterface $debut, CarbonInterface $fin): array
+    {
+        $panneaux = $this->panneauxDiffusables($debut, $fin);
+
+        $catalogues = ['complet' => [$panneaux->count(), $this->rendreCatalogue($panneaux, $debut, $fin)]];
+
+        foreach (self::repartirParZone($panneaux) as $zone => $lignes) {
+            if ($lignes->isEmpty()) {
+                continue;
+            }
+            $catalogues[$zone] = [$lignes->count(), $this->rendreCatalogue($lignes, $debut, $fin)];
+        }
+
+        return $catalogues;
+    }
+
+    /**
+     * Rend le PDF d'une sélection déjà calculée. Mêmes options pour le
+     * catalogue complet et pour chaque zone : une seule écriture de la
+     * règle d'affichage.
+     */
+    private function rendreCatalogue(Collection $lignes, CarbonInterface $debut, CarbonInterface $fin): string
+    {
+        return $this->pdfBuilder->rendre($lignes, $debut->toDateString(), $fin->toDateString(), [
             'hide_status'  => false,  // la disponibilité DOIT apparaître
             'show_pricing' => false,  // règle validée : pas de prix
-        ]);
-
-        return [$panneaux->count(), $pdf->output()];
+        ])->output();
     }
 
     /**
@@ -273,20 +404,42 @@ class DiffusionDisponibilitesService
     public function reparerPdfsManquants(): int
     {
         $disque = Storage::disk('local');
+
+        // Depuis le 2026-10-29 un envoi porte jusqu'à trois catalogues :
+        // le complet, Abidjan, l'intérieur. On ne retient que les envois
+        // dont au moins un fichier a disparu, et on ne refait que celui-là.
         $manquants = DiffusionEnvoi::where('statut', DiffusionEnvoi::STATUT_ENVOYE)
-            ->whereNotNull('pdf_path')
             ->whereDate('periode_fin', '>=', today()->toDateString())
             ->get()
-            ->reject(fn (DiffusionEnvoi $e) => $disque->exists($e->pdf_path));
+            ->map(fn (DiffusionEnvoi $e) => [$e, array_filter(
+                $e->cheminsCatalogues(),
+                fn (string $chemin) => !$disque->exists($chemin)
+            )])
+            ->filter(fn (array $paire) => $paire[1] !== []);
 
         $refaits = 0;
-        foreach ($manquants->groupBy(fn (DiffusionEnvoi $e) => $e->periode_debut->toDateString() . '_' . $e->periode_fin->toDateString()) as $envois) {
+        $parPeriode = $manquants->groupBy(
+            fn (array $paire) => $paire[0]->periode_debut->toDateString() . '_' . $paire[0]->periode_fin->toDateString()
+        );
+
+        foreach ($parPeriode as $groupe) {
             @ini_set('memory_limit', '1024M');
             @set_time_limit(0);
-            [, $contenu] = $this->renduCatalogue($envois->first()->periode_debut, $envois->first()->periode_fin);
-            foreach ($envois as $envoi) {
-                $disque->put($envoi->pdf_path, $contenu);
-                $refaits++;
+
+            $premier = $groupe->first()[0];
+            $catalogues = $this->renduCatalogues($premier->periode_debut, $premier->periode_fin);
+
+            foreach ($groupe as [$envoi, $aRefaire]) {
+                foreach ($aRefaire as $cle => $chemin) {
+                    // Zone devenue vide depuis l'envoi : impossible de
+                    // refaire ce catalogue. Le lien reste en 404 plutôt que
+                    // de servir au client un document sans aucune offre.
+                    if (!isset($catalogues[$cle])) {
+                        continue;
+                    }
+                    $disque->put($chemin, $catalogues[$cle][1]);
+                    $refaits++;
+                }
             }
         }
 
@@ -596,12 +749,29 @@ class DiffusionDisponibilitesService
     private function contenuCampagne(DiffusionEnvoi $envoi, int $listeId): array
     {
         $periode = DiffusionCalendrier::libellePeriode($envoi->periode_debut, $envoi->periode_fin);
+
+        // Règle validée le 2026-10-29 : le mail porte DEUX liens, un par
+        // zone. LIEN_PDF (catalogue complet) reste fourni — filet de
+        // sécurité pour tout modèle Brevo pas encore remplacé, sans quoi
+        // son bouton partirait vers une adresse vide.
         $valeurs = [
             'PERIODE'     => $periode,
             'MOIS'        => DiffusionCalendrier::libelleMois($envoi->periode_debut),
             'NB_PANNEAUX' => $envoi->nb_panneaux,
             'LIEN_PDF'    => $envoi->lienPdf(),
         ];
+
+        // Une zone sans aucun emplacement n'envoie NI lien NI nombre : le
+        // modèle Brevo teste la présence du lien et masque tout son bloc.
+        foreach ([
+            DiffusionEnvoi::ZONE_ABIDJAN   => ['LIEN_ABIDJAN', 'NB_ABIDJAN'],
+            DiffusionEnvoi::ZONE_INTERIEUR => ['LIEN_INTERIEUR', 'NB_INTERIEUR'],
+        ] as $zone => [$cleLien, $cleNombre]) {
+            if ($lien = $envoi->lienPdfZone($zone)) {
+                $valeurs[$cleLien]   = $lien;
+                $valeurs[$cleNombre] = $envoi->nbPanneauxZone($zone);
+            }
+        }
 
         $objet = str_replace('{periode}', $periode, (string) config('diffusion.objet'));
         if ($envoi->mode === DiffusionEnvoi::MODE_TEST || $this->estModeTest()) {

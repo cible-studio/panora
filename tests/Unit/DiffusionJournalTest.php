@@ -33,7 +33,11 @@ class DiffusionJournalTest extends TestCase
             $t->id(); $t->date('creneau'); $t->date('periode_debut'); $t->date('periode_fin'); $t->string('mode', 10);
             $t->unsignedBigInteger('declenche_par')->nullable(); $t->string('statut', 12)->default('prepare');
             $t->unsignedInteger('nb_destinataires')->default(0); $t->unsignedInteger('nb_panneaux')->default(0);
-            $t->string('pdf_path')->nullable(); $t->string('pdf_token')->nullable(); $t->string('brevo_campaign_id')->nullable();
+            $t->string('pdf_path')->nullable(); $t->string('pdf_token')->nullable(); 
+            $t->unsignedInteger("nb_panneaux_abidjan")->default(0); $t->unsignedInteger("nb_panneaux_interieur")->default(0);
+            $t->string("pdf_path_abidjan")->nullable(); $t->string("pdf_token_abidjan")->nullable();
+            $t->string("pdf_path_interieur")->nullable(); $t->string("pdf_token_interieur")->nullable();
+            $t->string('brevo_campaign_id')->nullable();
             $t->text('erreur')->nullable(); $t->timestamp('envoye_at')->nullable(); $t->timestamps();
         });
 
@@ -93,7 +97,13 @@ class DiffusionJournalTest extends TestCase
         $this->journalDeTest();
         $admin = User::findOrFail(1);
 
-        $lignes = fn($reponse) => substr_count($reponse->getContent(), 'text-align:right;">353<');
+        // Une ligne de journal par envoi. On compte l'ouverture de ligne du
+        // tableau, pas une valeur de cellule : depuis le 2026-10-29 la
+        // colonne « Panneaux » porte aussi la répartition par zone.
+        $lignes = fn($reponse) => substr_count(
+            $reponse->getContent(),
+            '<tr style="border-top:1px solid var(--border);vertical-align:top;">'
+        );
 
         // 16 envois : 10 en page 1, 6 en page 2 (le plus ancien, avec la longue erreur Brevo repliée).
         $page = $this->withoutVite()->actingAs($admin)->get('/admin/diffusion-dispos')->assertOk();
