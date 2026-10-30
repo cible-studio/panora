@@ -415,7 +415,8 @@ class InvoiceController extends Controller
     public function store(Request $request, \App\Services\InvoiceCalculator $calculator, \App\Services\PanelBillingChecker $billingChecker)
     {
         $data = $request->validate([
-            'client_id'                    => 'required|exists:clients,id',
+            // Client supprimé (soft delete) refusé à la création (2026-10-30).
+            'client_id'                    => ['required', \Illuminate\Validation\Rule::exists('clients', 'id')->whereNull('deleted_at')],
             'campaign_id'                  => 'nullable|exists:campaigns,id',
             'reference'                    => 'required|unique:invoices,reference',
             'issued_at'                    => 'required|date',
@@ -452,6 +453,7 @@ class InvoiceController extends Controller
             'lines.*.panel_id'             => 'nullable|exists:panels,id',
             'lines.*.external_panel_id'    => 'nullable|exists:external_panels,id',
         ], [
+            'client_id.exists'      => 'Ce client est introuvable ou a été supprimé.',
             'lines.required'        => 'Au moins une ligne de facturation est requise.',
             'lines.*.commune_id.required' => 'Chaque ligne doit avoir une commune (pour résoudre ODP).',
             'services.*.label.required_with'   => 'Chaque service annexe doit avoir un libellé.',

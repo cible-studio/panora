@@ -38,7 +38,7 @@ Lecture seule, elle ne modifie rien. Six sections :
 - [ ] Les écrans concordent après correction : la liste des factures et
       `/admin/finance` annoncent le **même** restant dû.
 
-⚠ **Lire la section 4 avant de modifier un de ces calculs** : elle liste
+⚠ **Lire la section 5 avant de modifier un de ces calculs** : elle liste
 les quatre pièges rencontrés pendant l'audit, dont deux qui ne lèvent
 aucune erreur et donnent silencieusement un total à zéro.
 
@@ -115,7 +115,48 @@ dans l'application :
 
 ---
 
-## 4. Pour qui reprend le contrôle financier — pièges déjà rencontrés
+## 4. Regroupement des fiches en double *(ajouté le 2026-10-30)*
+
+Bouton **🔀 Regrouper** de la fiche client (Direction seulement), règle dans
+`App\Services\Clients\RegroupementClients`. Testé sur SQLite **et** sur une
+copie MySQL du poste (`panora_essai`) avec un serveur réel : aperçu, refus
+sans « J'ai compris », regroupement, liaison, ancien lien, historique des
+factures, refus de confirmer un panneau pris. **Jamais sur les vraies
+données de production.**
+
+Deux migrations partent avec ce lot, jouées au démarrage (`migrate --force`) :
+`2026_10_30_090000_create_notifications_table` et
+`2026_10_30_100000_create_client_regroupements_table`.
+
+- [ ] Coolify : la production a redémarré sans erreur après la mise en ligne
+- [ ] Moteur des tables en production : `SHOW TABLE STATUS` → `Engine`
+      = InnoDB (cf. TECHNICAL_DEBT, MyISAM). Le regroupement vérifie tout
+      **avant** d'écrire, mais seul InnoDB annule un regroupement interrompu
+- [ ] Les 8 doublons, **quand personne ne travaille dans Panora** :
+      ouvrir la fiche à garder → 🔀 Regrouper → choisir l'autre → lire
+      l'aperçu → cocher « relier » seulement si Panora le propose
+- [ ] Après chaque regroupement : la campagne est toujours dans le même
+      statut, Disponibilités montre les mêmes panneaux occupés, l'ancien
+      lien de la fiche ouvre la fiche gardée
+- [ ] DENTSU (deux fiches avec campagnes et factures) : regarder les NCC
+      dans l'aperçu avant de valider
+- [ ] Sheet → « Envoyer à Panora » **après** les regroupements : aucun
+      « Entreprise supprimée » pour les fiches regroupées
+
+**Contrôles de disponibilité ajoutés le même jour** (règle validée : refus
+si un panneau est déjà pris par une réservation confirmée ou une campagne) :
+
+- [ ] Confirmer une réservation dont un panneau est tenu par une campagne :
+      message « Panneau déjà pris… » avec le panneau et le client
+- [ ] Import PDF d'une campagne sur des panneaux déjà pris : encadré rouge
+      dans l'aperçu, bouton bloqué
+- [ ] Nuit suivante : une campagne planifiée bloquée par un conflit donne
+      l'alerte « ⚡ … bloquée par un conflit de panneaux » (et non plus
+      « sans panneau »)
+
+---
+
+## 5. Pour qui reprend le contrôle financier — pièges déjà rencontrés
 
 > Contexte : l'audit du 2026-10-29 a été fait depuis un poste **sans
 > données** (base locale vide). Les trois écarts corrigés l'ont été en

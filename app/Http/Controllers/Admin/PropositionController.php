@@ -414,7 +414,7 @@ class PropositionController extends Controller
         } catch (\RuntimeException $e) {
             Log::warning('admin.propositions.conflict', ['reservation' => $reference, 'error' => $e->getMessage()]);
             return redirect()->route('proposition.show', [$reference, $slug])
-                ->with('error', 'Ce panneau a déjà été confirmé par une autre proposition. Veuillez contacter votre commercial pour trouver une alternative.');
+                ->with('error', "Un des panneaux n'est plus disponible sur cette période. Veuillez contacter votre commercial pour trouver une alternative.");
         } catch (\Exception $e) {
             Log::error('admin.propositions.error', ['error' => $e->getMessage()]);
             return redirect()->route('proposition.show', [$reference, $slug])

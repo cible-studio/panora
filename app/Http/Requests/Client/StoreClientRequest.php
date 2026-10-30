@@ -27,9 +27,10 @@ class StoreClientRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:50',
-                // Unicité ignorée pour les clients soft-deleted ET les valeurs NULL/vides
+                // Unicité ignorée pour les valeurs NULL/vides. Les fiches
+                // supprimées comptent (2026-10-30) : l'index clients_ncc_unique
+                // les couvre, la validation passait et l'INSERT finissait en 500.
                 Rule::unique('clients', 'ncc')
-                    ->whereNull('deleted_at')
                     ->whereNotNull('ncc'),
             ],
             'sector' => [
@@ -66,7 +67,7 @@ class StoreClientRequest extends FormRequest
     {
         return [
             'name.required' => 'Le nom de l\'entreprise est obligatoire.',
-            'ncc.unique' => 'Ce NCC est déjà utilisé par un autre client.',
+            'ncc.unique' => 'Ce NCC est déjà utilisé par une autre fiche (y compris une fiche supprimée).',
             'ncc.max' => 'Le NCC ne doit pas dépasser 50 caractères.',
             'sector.in' => 'Le secteur sélectionné n\'est pas valide.',
             'email.email' => 'L\'adresse email n\'est pas valide.',

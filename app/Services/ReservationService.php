@@ -194,6 +194,18 @@ class ReservationService
         $oldStatus = $reservation->status->value;
         $data      = ['status' => $newStatus];
 
+        // Confirmer = prendre les panneaux fermement : refus si un autre dossier
+        // les tient déjà sur la période (règle validée le 2026-10-30).
+        if ($newStatus === ReservationStatus::CONFIRME->value && $oldStatus !== ReservationStatus::CONFIRME->value) {
+            $this->availability->assertLibresFermement(
+                $reservation->panels->pluck('id')->all(),
+                \Carbon\Carbon::parse($reservation->start_date)->toDateString(),
+                \Carbon\Carbon::parse($reservation->end_date)->toDateString(),
+                $reservation->id,
+                $reservation->campaign()->value('id'),
+            );
+        }
+
         if ($newStatus === ReservationStatus::CONFIRME->value) {
             $data['confirmed_at'] = now();
             $data['type']         = 'ferme';

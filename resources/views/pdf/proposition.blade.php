@@ -107,30 +107,30 @@
 
     <div class="content">
 
-        {{-- CLIENT --}}
+        {{-- CLIENT — null-safe (2026-10-30) : fiche client absente ou supprimée → valeur vide, pas de plantage --}}
         <div class="section">
             <div class="section-title">🏢 Informations client</div>
             <div class="grid-2">
                 <div class="field">
                     <div class="field-label">Nom / Société</div>
-                    <div class="field-value">{{ $proposition->client->name }}</div>
+                    <div class="field-value">{{ $proposition->client?->name }}</div>
                 </div>
-                @if($proposition->client->contact_name)
+                @if($proposition->client?->contact_name)
                 <div class="field">
                     <div class="field-label">Contact</div>
-                    <div class="field-value">{{ $proposition->client->contact_name }}</div>
+                    <div class="field-value">{{ $proposition->client?->contact_name }}</div>
                 </div>
                 @endif
-                @if($proposition->client->email)
+                @if($proposition->client?->email)
                 <div class="field">
                     <div class="field-label">Email</div>
-                    <div class="field-value">{{ $proposition->client->email }}</div>
+                    <div class="field-value">{{ $proposition->client?->email }}</div>
                 </div>
                 @endif
-                @if($proposition->client->phone)
+                @if($proposition->client?->phone)
                 <div class="field">
                     <div class="field-label">Téléphone</div>
-                    <div class="field-value">{{ $proposition->client->phone }}</div>
+                    <div class="field-value">{{ $proposition->client?->phone }}</div>
                 </div>
                 @endif
             </div>
@@ -199,7 +199,7 @@
             <div>
                 <div class="sign-line">Signature Client</div>
                 <div style="font-size:10px; color:#64748b; margin-top:4px;">
-                    {{ $proposition->client->name }}
+                    {{ $proposition->client?->name }}
                 </div>
             </div>
         </div>

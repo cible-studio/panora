@@ -62,6 +62,15 @@ class CampaignImportController extends Controller
             ->toArray();
         $missingCodes = array_values(array_diff($codesUpper, $foundCodes));
 
+        // Panneaux déjà pris fermement sur la période (2026-10-30) : l'import
+        // est refusé tant qu'il en reste — sinon deux dossiers tiennent le
+        // même panneau (c'est ainsi que sont nés les doublons ADDOHA, AH…).
+        $conflits = app(\App\Services\AvailabilityService::class)->conflitsFermes(
+            $foundPanels->pluck('id')->all(),
+            $data['start_date']->format('Y-m-d'),
+            $data['end_date']->format('Y-m-d'),
+        );
+
         // Détection de campagne homonyme existante (pour avertir l'utilisateur)
         $existingCampaign = Campaign::where('name', $data['campaign'])
             ->where('start_date', $data['start_date']->format('Y-m-d'))
@@ -89,7 +98,8 @@ class CampaignImportController extends Controller
             'foundPanels'      => $foundPanels,
             'missingCodes'     => $missingCodes,
             'existingCampaign' => $existingCampaign,
-            'canImport'        => empty($missingCodes),
+            'conflits'         => $conflits,
+            'canImport'        => empty($missingCodes) && empty($conflits),
         ]);
     }
 
@@ -115,6 +125,16 @@ class CampaignImportController extends Controller
         if (!empty($missing)) {
             return back()->withErrors([
                 'pdf' => 'Import bloqué — codes panneaux introuvables : ' . implode(', ', $missing),
+            ]);
+        }
+
+        // Revérifié ici : un panneau a pu être pris depuis l'aperçu (2026-10-30).
+        $conflits = app(\App\Services\AvailabilityService::class)->conflitsFermes(
+            $foundPanels->pluck('id')->all(), $session['start_date'], $session['end_date'],
+        );
+        if ($conflits) {
+            return back()->withErrors([
+                'pdf' => 'Import bloqué — ' . \App\Services\AvailabilityService::messageConflitsFermes($conflits),
             ]);
         }
 

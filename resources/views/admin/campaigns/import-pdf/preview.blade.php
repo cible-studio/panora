@@ -112,6 +112,27 @@
     </div>
     @endif
 
+    {{-- Panneaux déjà pris sur la période (bloquant, 2026-10-30) --}}
+    @if(!empty($conflits))
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:12px;padding:18px 22px;margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="font-size:18px">❌</span>
+            <span style="font-size:14px;font-weight:700;color:#ef4444">Import bloqué — {{ count($conflits) }} panneau(x) déjà pris sur cette période</span>
+            <span title="Une réservation confirmée ou une campagne tient déjà ces panneaux. Si c'est la même affaire, créez la campagne depuis la réservation au lieu de l'importer ; sinon, changez les dates ou les panneaux."
+                  style="cursor:help;color:var(--text3);">ⓘ</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">
+            @foreach($conflits as $c)
+                <div>
+                    <span style="font-family:monospace;font-weight:700;color:#ef4444">{{ $c['reference'] ?? '#' . $c['panel_id'] }}</span>
+                    — {{ $c['blocking_source'] === 'campaign' ? 'campagne' : 'réservation' }} {{ $c['blocking_ref'] }}
+                    @if($c['next_free'])<span style="color:var(--text3)"> · libre à partir du {{ $c['next_free'] }}</span>@endif
+                </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     {{-- Tableau panneaux trouvés --}}
     <div class="card">
         <div class="card-header">
@@ -168,7 +189,7 @@
         @else
             <button type="button" class="btn btn-primary" disabled
                     style="opacity:.5;cursor:not-allowed"
-                    title="Ajoute d'abord les panneaux manquants au catalogue">
+                    title="{{ !empty($conflits) ? 'Des panneaux sont déjà pris sur cette période' : 'Ajoute d\'abord les panneaux manquants au catalogue' }}">
                 ❌ Import bloqué
             </button>
         @endif

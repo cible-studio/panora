@@ -74,27 +74,16 @@ class PropositionService
                 ? $reservation->end_date->toDateString()
                 : (string) $reservation->end_date;
 
-            // On bloque uniquement si une autre réservation est déjà CONFIRMÉE
-            // (pas EN_ATTENTE — plusieurs options peuvent coexister, la première
-            // confirmée gagne ; la lockForUpdate garantit l'atomicité).
-            // Overlap INCLUSIF (<= >=) : end_date est compté comme journée
-            // occupée. Cohérent avec AvailabilityService.
+            // On bloque si un autre dossier tient déjà le panneau FERMEMENT :
+            // réservation CONFIRMÉE, ou campagne planifiée / active / en pause
+            // (2026-10-30 : les campagnes n'étaient pas vérifiées — une campagne
+            // importée par PDF, sans réservation, laissait passer). Pas les
+            // options EN_ATTENTE : plusieurs peuvent coexister, la première
+            // confirmée gagne ; la lockForUpdate garantit l'atomicité.
+            // Overlap INCLUSIF (<= >=), cf. AvailabilityService::conflitsFermes().
             if (!empty($panelIds)) {
                 \App\Models\Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
-                $conflicts = DB::table('reservation_panels')
-                    ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-                    ->whereIn('reservation_panels.panel_id', $panelIds)
-                    ->where('reservations.status', ReservationStatus::CONFIRME->value)
-                    ->where('reservations.start_date', '<=', $end)
-                    ->where('reservations.end_date',   '>=', $start)
-                    ->where('reservations.id', '!=', $reservation->id)
-                    ->distinct()
-                    ->pluck('reservation_panels.panel_id')
-                    ->toArray();
-                if (!empty($conflicts)) {
-                    $refs = \App\Models\Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
-                    throw new \RuntimeException("Panneau(x) déjà confirmé(s) sur cette période : {$refs}.");
-                }
+                $availability->assertLibresFermement($panelIds, $start, $end, $reservation->id, $reservation->campaign()->value('id'));
             }
 
             if (!empty($extIds)) {

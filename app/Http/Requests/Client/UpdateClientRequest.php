@@ -30,10 +30,12 @@ class UpdateClientRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:50',
-                // Unicité ignorée pour les clients soft-deleted ET les valeurs NULL/vides
+                // Unicité ignorée pour la fiche elle-même et les valeurs
+                // NULL/vides. Les fiches supprimées comptent (2026-10-30) :
+                // l'index clients_ncc_unique les couvre, la validation
+                // passait et l'UPDATE finissait en 500.
                 Rule::unique('clients', 'ncc')
                     ->ignore($clientId)
-                    ->whereNull('deleted_at')
                     ->whereNotNull('ncc'),
             ],
             'sector' => [
@@ -65,7 +67,7 @@ class UpdateClientRequest extends FormRequest
     {
         return [
             'name.required' => 'Le nom de l\'entreprise est obligatoire.',
-            'ncc.unique'    => 'Ce numéro de compte client est déjà utilisé.',
+            'ncc.unique'    => 'Ce NCC est déjà utilisé par une autre fiche (y compris une fiche supprimée).',
             'ncc.max'       => 'Le NCC ne doit pas dépasser 50 caractères.',
             'sector.in'     => 'Le secteur sélectionné n\'est pas valide.',
             'email.email'   => 'L\'adresse email n\'est pas valide.',

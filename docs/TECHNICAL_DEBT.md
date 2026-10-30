@@ -7,6 +7,31 @@ en crée ou clôt une.
 
 ## Ouvertes
 
+### Les factures ne gardent pas l'identité du client (constaté 2026-10-30)
+
+`pdf/invoice.blade.php` et `pdf/quote.blade.php` relisent **la fiche client
+à chaque affichage** (nom, NCC, RCCM, régime). Une facture déjà émise, voire
+certifiée FNE, se réimprime donc avec les données **actuelles** de la fiche :
+renommer une fiche ou la regrouper avec une autre change le PDF d'anciennes
+factures. Le regroupement l'annonce et exige « J'ai compris », et refuse si
+les NCC diffèrent avec des factures émises — mais le fond reste ouvert :
+figer l'identité du client sur la facture à l'émission (comme les taux,
+`Commune::ratesAt()`). Décision métier à prendre (règle N°5).
+
+### `Client::$fillable` ne correspond pas à la table (constaté 2026-10-30)
+
+`ifu` et `rccm` existent en base mais pas dans `$fillable` (ignorés sans
+erreur par `fill()`/`update()`) ; `company`, `siret`, `city`, `notes` sont
+dans `$fillable` sans colonne. Sans effet aujourd'hui : aucun formulaire ne
+les envoie. Le regroupement écrit ces champs en direct (`DB::table`). Le NCC
+est validé jusqu'à 50 caractères alors que la colonne en compte 20.
+
+### Notifications « in app » enregistrées mais jamais affichées (2026-10-30)
+
+La table `notifications` manquait : `InvoiceScheduleAlertNotification`
+(canal `database`) échouait sans bruit. Elle est créée le 2026-10-30, mais
+aucun écran ne lit encore `unreadNotifications`.
+
 ### Les DEVIS n'ont pas de repli de montant (constaté 2026-10-29)
 
 Sur les **factures**, `Invoice::montantTotal()` et `Invoice::SQL_MONTANT_TOTAL`
