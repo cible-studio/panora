@@ -55,8 +55,10 @@ Le bouton ouvre une page personnelle, sans connexion : `/renouvellement/{jeton}/
   - le client reçoit l'accusé de réception ;
   - le commercial reçoit la réponse, avec commercial@ en copie ;
   - les relances s'arrêtent.
-- Le client peut changer d'avis : sa dernière réponse compte, sauf si le renouvellement est
-  déjà confirmé.
+- **Une seule réponse par lien** (règle du 2026-10-30) : une fois la réponse enregistrée,
+  le lien la rappelle et n'accepte plus d'autre réponse (même deux clics simultanés). Pour
+  changer d'avis, le client passe par son commercial. En essai, le blocage est simulé pour
+  le navigateur (`?refaire=1` pour recommencer).
 - Le lien reste valable jusqu'à 30 jours après la fin de la campagne.
 
 **Mails de test** : les boutons pointent vers des liens « essai » signés. Ils n'enregistrent

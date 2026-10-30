@@ -81,7 +81,16 @@
             <h1>Merci, votre réponse est bien enregistrée</h1>
             <div class="ok"><p><strong>{{ $choixListe[$choix] ?? '' }}</strong></p></div>
             <p>{{ $commercial ?: 'Votre commercial' }} revient vers vous très prochainement pour la suite. Vous allez également recevoir un accusé de réception par mail.</p>
-            <p class="petit">Vous avez changé d'avis ? Utilisez à nouveau un bouton du mail : votre dernière réponse sera prise en compte.</p>
+            <p class="petit">Vous avez changé d'avis ? Contactez {{ $commercial ?: 'votre commercial' }} : une seule réponse est possible par ce lien.</p>
+
+        {{-- Une seule réponse par lien (2026-10-30). --}}
+        @elseif($etat === 'repondu')
+            <h1>Votre réponse est déjà enregistrée</h1>
+            <div class="ok"><p>Le {{ $reponse['le']?->format('d/m/Y') }} : <strong>{{ $choixListe[$reponse['choix']] ?? '' }}</strong></p></div>
+            <p>Une seule réponse est possible par ce lien. Pour la modifier, contactez {{ $commercial ?: 'votre commercial' }} : coordonnées ci-dessous.</p>
+            @if($essai)
+                <p class="petit"><a href="?refaire=1">Recommencer l'essai</a></p>
+            @endif
 
         @else
             <h1>Votre campagne arrive à échéance</h1>
@@ -90,10 +99,6 @@
                 @if($campagne?->client)<div><span>Client</span><strong>{{ $campagne->client->name }}</strong></div>@endif
                 <div><span>Échéance</span><strong class="fin">{{ $fin }}</strong></div>
             </div>
-
-            @if($dossier->reponse_at && !$essai)
-                <p class="petit">Vous nous avez déjà répondu le {{ $dossier->reponse_at->format('d/m/Y') }} : « {{ $choixListe[$dossier->reponse_choix] ?? '' }} ». Vous pouvez modifier votre réponse ci-dessous.</p>
-            @endif
 
             <form method="POST" action="{{ $action }}">
                 @csrf
