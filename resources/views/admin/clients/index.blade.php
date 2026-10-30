@@ -20,9 +20,10 @@
                 title="Afficher tous les clients">
             <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
             <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-            <div class="kpi-card__value" style="color:var(--accent)">{{ $stats['total'] }}</div>
-            <div class="kpi-card__label">Total clients</div>
-            <div class="kpi-card__sub">{{ $stats['prospects'] ? '+ ' . number_format($stats['prospects'], 0, ',', ' ') . ' prospect' . ($stats['prospects'] > 1 ? 's' : '') : 'portefeuille complet' }}</div>
+            {{-- Suivent les filtres de la liste, mis à jour à chaque recherche (2026-10-30). --}}
+            <div class="kpi-card__value" id="kpi-total" style="color:var(--accent)">{{ $stats['total'] }}</div>
+            <div class="kpi-card__label" id="kpi-total-libelle">{{ $stats['libelle'] }}</div>
+            <div class="kpi-card__sub" id="kpi-total-sous-titre">{{ $stats['sous_titre'] }}</div>
             <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
         </button>
 
@@ -35,7 +36,7 @@
                 title="Filtrer sur clients ayant au moins une campagne active ou en pose">
             <div class="kpi-card__top-bar" style="background:#22c55e"></div>
             <div class="kpi-card__icon" style="color:#22c55e"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg></div>
-            <div class="kpi-card__value" style="color:#22c55e">{{ $stats['actifs'] }}</div>
+            <div class="kpi-card__value" id="kpi-actifs" style="color:#22c55e">{{ $stats['actifs'] }}</div>
             <div class="kpi-card__label">Avec campagne active</div>
             <div class="kpi-card__sub">portefeuille en activité</div>
             <div class="kpi-card__arrow" style="color:#22c55e">→</div>
@@ -109,7 +110,7 @@
     <div class="ci-card">
         <div class="ci-card-header">
             <span class="ci-card-title">Portefeuille clients</span>
-            <span id="total-count" class="ci-count-badge">{{ $clients->total() }} client(s)</span>
+            <span id="total-count" class="ci-count-badge">{{ $clients->total() }} {{ $stats['unite'] }}</span>
         </div>
 
         <div class="ci-table-wrap">
@@ -1225,7 +1226,13 @@
                         const data = await res.json();
                         document.getElementById('table-body').innerHTML = data.html;
                         document.getElementById('pagination-container').innerHTML = data.pagination;
-                        document.getElementById('total-count').textContent = data.total + ' client(s)';
+                        document.getElementById('total-count').textContent = data.total + ' ' + (data.stats?.unite || 'client(s)');
+                        if (data.stats) {
+                            document.getElementById('kpi-total').textContent = data.stats.total;
+                            document.getElementById('kpi-total-libelle').textContent = data.stats.libelle;
+                            document.getElementById('kpi-total-sous-titre').textContent = data.stats.sous_titre;
+                            document.getElementById('kpi-actifs').textContent = data.stats.actifs;
+                        }
                         window.history.replaceState({}, '', params.toString() ? `${baseUrl}?${params}` : baseUrl);
                     } catch {
                         CI.toast('Erreur lors du chargement', 'error');

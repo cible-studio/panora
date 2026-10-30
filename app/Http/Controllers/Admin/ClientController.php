@@ -26,14 +26,7 @@ class ClientController extends Controller
     public function index(Request $request)
     {
         $query = $this->buildClientsQuery($request);
-
-        $stats = [
-            // Clients seulement ; les prospects ont leur propre compteur (2026-10-28).
-            'total'     => Client::clients()->count(),
-            'prospects' => Client::prospects()->count(),
-            'actifs'   => Client::whereHas('campaigns', fn($q) => $q->where('status', 'actif'))->count(),
-            'ca_total' => \App\Models\Campaign::sum('total_amount'),
-        ];
+        $stats = $this->statsListe($request);
 
         $clients = $query->paginate(20)->withQueryString();
         $sectors = Client::SECTORS;
@@ -43,10 +36,37 @@ class ClientController extends Controller
                 'html'       => view('admin.clients.partials.table-rows', compact('clients'))->render(),
                 'pagination' => $clients->links()->render(),
                 'total'      => $clients->total(),
+                'stats'      => $stats,
             ]);
         }
 
         return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
+    }
+
+    /**
+     * Cartes du haut de la liste (2026-10-30) : elles suivent les mêmes
+     * filtres que le tableau — statut, secteur, recherche et droits du
+     * commercial — sauf « avec campagne active », que la carte verte bascule
+     * elle-même. Avant, elles comptaient toute la base, quel que soit le filtre.
+     *
+     * @return array{total: int, libelle: string, sous_titre: string, actifs: int, unite: string}
+     */
+    private function statsListe(Request $request): array
+    {
+        $statut = $request->input('statut', Client::STATUT_CLIENT);
+        $compter = fn (?string $statutForce = null) => $this->buildClientsQuery($request, false, $statutForce);
+        $nb = fn (int $n, string $mot) => number_format($n, 0, ',', ' ') . ' ' . $mot . ($n > 1 ? 's' : '');
+
+        $total = $compter()->count();
+        $actifs = $compter()->whereHas('campaigns', fn ($q) => $q->where('status', 'actif'))->count();
+
+        [$libelle, $sousTitre, $unite] = match ($statut) {
+            Client::STATUT_PROSPECT => ['Total prospects', '+ ' . $nb($compter(Client::STATUT_CLIENT)->count(), 'client'), 'prospect(s)'],
+            Client::STATUT_CLIENT   => ['Total clients', ($p = $compter(Client::STATUT_PROSPECT)->count()) ? '+ ' . $nb($p, 'prospect') : 'portefeuille complet', 'client(s)'],
+            default                 => ['Clients et prospects', 'dont ' . $nb($compter(Client::STATUT_PROSPECT)->count(), 'prospect'), 'fiche(s)'],
+        };
+
+        return ['total' => $total, 'libelle' => $libelle, 'sous_titre' => $sousTitre, 'actifs' => $actifs, 'unite' => $unite];
     }
 
     /**
@@ -62,7 +82,7 @@ class ClientController extends Controller
      *     campagne en statut actif|pose. C'est ce filtre qui résout le
      *     bug 5.1 où "Avec campagne active" ne produisait aucun delta.
      */
-    private function buildClientsQuery(Request $request): \Illuminate\Database\Eloquent\Builder
+    private function buildClientsQuery(Request $request, bool $avecActiveOnly = true, ?string $statutForce = null): \Illuminate\Database\Eloquent\Builder
     {
         $query = Client::withCount(['campaigns', 'reservations'])
             ->withCount([
@@ -107,13 +127,13 @@ class ClientController extends Controller
 
         // Client / prospect (2026-10-28) : les clients par défaut, pour que les
         // prospects importés de Gmail ne noient pas le portefeuille. « tous » = les deux.
-        $statut = $request->input('statut', Client::STATUT_CLIENT);
+        $statut = $statutForce ?? $request->input('statut', Client::STATUT_CLIENT);
         if (is_string($statut) && isset(Client::STATUTS[$statut])) {
             $query->where('statut_commercial', $statut);
         }
 
         // Bug 5.1 — filtre "Clients avec campagne active"
-        if ($request->boolean('active_only')) {
+        if ($avecActiveOnly && $request->boolean('active_only')) {
             $query->whereHas('campaigns', fn($q) => $q->where('status', 'actif'));
         }
 
