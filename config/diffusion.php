@@ -23,7 +23,8 @@ return [
     // staging configuré avec la vraie clé Brevo écrirait aux clients.
     'mode' => env('DIFFUSION_MODE', 'test'),
 
-    // Envoi automatique le 1er et le 15. false = seul le bouton manuel
+    // Envoi automatique des deux catalogues du mois (entre le 20 et le 25
+    // du mois précédent, et entre le 1er et le 5). false = seul le bouton manuel
     // de l'admin permet d'envoyer. À activer après le premier envoi réel
     // validé à la main.
     'auto' => (bool) env('DIFFUSION_AUTO', false),

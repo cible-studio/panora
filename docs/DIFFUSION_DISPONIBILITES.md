@@ -13,8 +13,8 @@ page par panneau, avec photo) : un pour Abidjan, un pour l'intérieur du pays.
 
 | Sujet | Règle |
 |---|---|
-| **Calendrier** | Le 1er et le 15 à 10h. Samedi, dimanche ou jour férié → premier jour ouvrable suivant, 10h |
-| **Période** | Envoi du 1er : tout le mois. Envoi du 15 : du 15 à la fin du mois. La période suit le créneau, pas le jour d'envoi |
+| **Calendrier** *(2026-10-30)* | Le catalogue part **avant** la période qu'il annonce : catalogue du 1er du mois M → envoyé **entre le 20 et le 25 de M-1** ; catalogue du 15 de M → envoyé **entre le 1er et le 5 de M**. Jour exact : le **premier jour ouvrable** de la fenêtre, à 10h |
+| **Période** | Catalogue du 1er : tout le mois. Catalogue du 15 : du 15 à la fin du mois. La période ne dépend pas du jour d'envoi |
 | **Panneaux** | Parc CIBLE uniquement : libres sur toute la période + ceux qui se libèrent en cours de période (avec leur date). Exclus : maintenance, options, occupés jusqu'à la fin |
 | **Catalogues** *(2026-10-29)* | **Deux** : Abidjan et intérieur du pays, chacun avec son propre lien. Le partage suit `Commune::ABIDJAN_COMMUNES`, la liste blanche déjà utilisée par les rapports et les taxes. Une zone sans aucun emplacement n'a pas de lien dans le mail. Un troisième document, le catalogue complet, reste produit pour le mail interne et l'historique |
 | **Prix** | Aucun |
@@ -23,14 +23,28 @@ page par panneau, avec photo) : un pour Abidjan, un pour l'intérieur du pays.
 | **Confirmation interne** | `commercial@cible-ci.com` + `studio@cible-ci.com` (admin) + tous les Media Planners actifs, après chaque envoi, et alerte en cas d'échec |
 | **Envoi manuel** | Admin seul. N'annule pas l'automatique. Rappelle le dernier envoi ; si le dernier date de moins de 24 h, il faut taper ENVOYER. Le bouton enregistre une demande, traitée par le planificateur dans la minute (le PDF est trop long à générer pendant une requête web) |
 
+**Pourquoi avant** : un client qui veut afficher au 1er du mois doit avoir
+les disponibilités en main pour décider, demander un devis et faire imprimer.
+Les recevoir le 1er au matin était trop tard. Règle validée le 2026-10-30 ;
+avant cette date, l'envoi avait lieu le jour même du créneau.
+
 Exemples :
 
-| Créneau | Jour | Envoi réel |
-|---|---|---|
-| 1er octobre 2026 | jeudi | jeudi 1er octobre, 10h |
-| 1er novembre 2026 | dimanche + Toussaint | lundi 2 novembre, 10h |
-| 15 novembre 2026 | dimanche + Journée de la paix | lundi 16 novembre, 10h (période : 15 → 30 nov.) |
-| 1er janvier 2027 | vendredi, férié | lundi 4 janvier, 10h |
+| Catalogue | Fenêtre d'envoi | Envoi réel | Pourquoi |
+|---|---|---|---|
+| novembre 2026 (1er → 30) | 20 au 25 octobre | **mardi 20 octobre**, 10h | le 20 est ouvrable |
+| 15 → 30 novembre 2026 | 1er au 5 novembre | **lundi 2 novembre**, 10h | le 1er est un dimanche férié (Toussaint) |
+| décembre 2026 (1er → 31) | 20 au 25 novembre | **vendredi 20 novembre**, 10h | le 20 est ouvrable |
+| janvier 2027 (1er → 31) | 20 au 25 décembre | **lundi 21 décembre**, 10h | le 20 est un dimanche |
+| 15 → 31 janvier 2027 | 1er au 5 janvier | **lundi 4 janvier**, 10h | 1er férié, 2 et 3 en week-end |
+
+Si toute la fenêtre était chômée — calendrier absurde — l'envoi part le
+dernier jour de la fenêtre : mieux vaut un envoi un jour férié que pas
+d'envoi du tout.
+
+⚠ **Pas de rattrapage automatique.** Si le planificateur n'a pas tourné
+pendant toute la fenêtre, le catalogue ne part pas. L'admin l'envoie alors
+à la main depuis l'écran *Diffusion dispos*.
 
 ---
 

@@ -145,7 +145,9 @@ Schedule::command('invoices:alerts')
     ->withoutOverlapping();
 
 // 14. Diffusion des disponibilités aux clients via Brevo (2026-09-29).
-//     Le 1er et le 15 à 10h, décalés au premier jour ouvrable suivant
+//     Deux catalogues par mois, envoyés AVANT leur période (2026-10-30) :
+//     celui du 1er entre le 20 et le 25 du mois précédent, celui du 15
+//     entre le 1er et le 5. Premier jour ouvrable de la fenêtre, 10h.
 //     (week-end, jours fériés). La commande tourne chaque jour et décide
 //     elle-même : c'est DiffusionCalendrier qui porte la règle.
 //     9h : préparation des PDF (tout le parc avec photos : plusieurs

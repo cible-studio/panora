@@ -194,7 +194,9 @@ technicien (application mobile de pose), client (espace client).
 - **Montants** : toujours en **FCFA entiers**, sans centimes.
 
 **Diffusion des disponibilités**, via Brevo :
-- **Quand** : le 1er et le 15 du mois à 10 h, ou le jour ouvré suivant
+- **Quand** : avant la période annoncée (2026-10-30) — le catalogue du
+  mois entre le 20 et le 25 du mois précédent, celui du 15 entre le 1er et
+  le 5. Premier jour ouvré de la fenêtre, à 10 h
   (week-ends et jours fériés exclus).
 - **Quoi** : un catalogue PDF du parc CIBLE disponible, sans prix.
 - **Expéditeur** : commercial@cible-ci.com.

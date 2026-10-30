@@ -157,3 +157,55 @@ dans l'application :
   n'y applique de repli. Y ajouter `montantTotal()` par symétrie
   changerait tous les montants de devis d'un coup. Cf.
   `docs/TECHNICAL_DEBT.md`.
+
+---
+
+## 5. Variables à poser sur le serveur *(ajouté le 2026-10-30)*
+
+Ces trois réglages ont un défaut dans le code, mais c'est le `.env` du
+serveur qui fait foi. **Tant qu'ils n'y sont pas, rien ne change en
+production.**
+
+```dotenv
+# Le C majuscule demandé par la direction
+BREVO_SENDER_NAME="CIBLE CI — Service Commercial"
+
+# Le numéro commercial dans le pied des mails, des PDF et des pages publiques
+CHARTE_TELEPHONES="+225 07 98 49 66 74 · +225 07 00 78 06 27 · +225 27 22 20 80 08"
+
+# Copie des mails commerciaux et de facturation envoyés au client
+MAIL_COPIE_COMMERCIALE=stephane.oponou@cible-ci.com
+```
+
+- [ ] Les trois posées sur le serveur, `php artisan config:clear` passé
+- [ ] Un devis envoyé en test : Stéphane est bien en copie, le pied de
+      page porte les trois numéros, l'expéditeur affiche « Service **C**ommercial »
+- [ ] Une facture envoyée : même vérification
+- [ ] Un mail de **suivi** (preuve d'affichage, maintenance) : Stéphane
+      n'est **pas** en copie — c'est voulu
+
+---
+
+## 6. Nouveau calendrier de diffusion *(ajouté le 2026-10-30)*
+
+Les catalogues partent désormais **avant** la période qu'ils annoncent :
+celui du 1er du mois entre le **20 et le 25 du mois précédent**, celui du
+15 entre le **1er et le 5**. Jour exact : le premier jour **ouvrable** de
+la fenêtre, à 10 h.
+
+```
+php artisan dispos:diffuser --simuler=2026-11-20   # → catalogue de décembre
+php artisan dispos:diffuser --simuler=2026-11-02   # → catalogue du 15 novembre
+php artisan dispos:diffuser --simuler=2026-11-10   # → rien ce jour-là
+```
+
+- [ ] Les trois simulations donnent le résultat attendu
+- [ ] Écran *Diffusion dispos* : la carte « Prochain envoi » annonce une
+      **fenêtre d'envoi** et une période cohérentes
+
+⚠ **Le catalogue de novembre 2026 ne partira jamais tout seul** : sa
+fenêtre (20-25 octobre) était passée au moment de la livraison, et il n'y
+a pas de rattrapage automatique — règle validée le 2026-10-30.
+
+- [ ] Envoyer le catalogue de novembre **à la main**, depuis *Diffusion
+      dispos → Envoi manuel*. Fait le : ______

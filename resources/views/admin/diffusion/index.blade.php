@@ -64,12 +64,15 @@
             <div style="font-size:22px;font-weight:800;color:var(--accent);">
                 {{ ucfirst($fmtJour($prochain['date_envoi'])) }} à {{ config('diffusion.heure_envoi') }}
             </div>
-            @unless($prochain['date_envoi']->isSameDay($prochain['creneau']))
+            @if($envoiDecale)
                 <div style="{{ $muted }}margin-top:4px;">
-                    Décalé : le {{ $prochain['creneau']->day === 1 ? '1er' : $prochain['creneau']->day }} tombe un week-end ou un jour férié.
+                    Décalé : le premier jour de la fenêtre tombe un week-end ou un jour férié.
                 </div>
-            @endunless
+            @endif
             <div style="margin-top:14px;font-size:14px;color:var(--text2);line-height:1.7;">
+                {{-- Le catalogue part AVANT sa période (2026-10-30), pour que
+                     le client ait ses disponibilités à temps. --}}
+                Fenêtre d'envoi : <strong>{{ $prochaineFenetre }}</strong><br>
                 Période présentée : <strong>{{ $prochainePeriode }}</strong><br>
                 Destinataires : <strong>{{ $modeTest ? 'liste « Tests internes »' : $nbDestinataires . ' client(s)' }}</strong>
                 @if($modeTest)<span style="{{ $muted }}"> ({{ $nbDestinataires }} client(s) en production)</span>@endif

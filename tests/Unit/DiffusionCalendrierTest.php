@@ -9,11 +9,18 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Calendrier de diffusion des disponibilités (2026-09-29).
+ * Calendrier de diffusion des disponibilités (2026-10-30).
  *
- * Règle validée : le 1er et le 15 à 10h ; samedi, dimanche ou férié →
- * premier jour ouvrable suivant. La période suit le créneau, pas le jour
- * d'envoi. Les cas testés sont ceux du tableau validé avec la patronne.
+ * Règle validée : les catalogues partent AVANT la période qu'ils
+ * annoncent, pour que le client ait ses disponibilités à temps pour
+ * lancer sa campagne du mois.
+ *
+ *   · catalogue du 1er du mois M → envoyé entre le 20 et le 25 de M-1 ;
+ *   · catalogue du 15 du mois M → envoyé entre le 1er et le 5 de M ;
+ *   · jour exact : le PREMIER JOUR OUVRABLE de la fenêtre.
+ *
+ * La période couverte ne change pas : le catalogue du 1er couvre tout le
+ * mois, celui du 15 va du 15 à la fin du mois.
  */
 class DiffusionCalendrierTest extends TestCase
 {
@@ -29,23 +36,24 @@ class DiffusionCalendrierTest extends TestCase
         return new DiffusionCalendrier($feries);
     }
 
-    // ── Le tableau validé ──────────────────────────────────────────
+    // ── Les dates d'envoi ──────────────────────────────────────────
 
-    public static function tableauValide(): array
+    public static function datesDEnvoi(): array
     {
         return [
-            // créneau        envoi réel     pourquoi
-            '1er oct. jeudi'            => ['2026-10-01', '2026-10-01'],
-            '15 oct. jeudi'             => ['2026-10-15', '2026-10-15'],
-            '1er nov. dimanche Toussaint' => ['2026-11-01', '2026-11-02'],
-            '15 nov. dimanche Paix'     => ['2026-11-15', '2026-11-16'],
-            '1er déc. mardi'            => ['2026-12-01', '2026-12-01'],
-            '1er janv. 2027 férié'      => ['2027-01-01', '2027-01-04'],
+            // catalogue        envoi réel      pourquoi
+            'nov. : 20 oct. mardi'        => ['2026-11-01', '2026-10-20'],
+            '15 nov. : 1er nov. férié'    => ['2026-11-15', '2026-11-02'],
+            'déc. : 20 nov. vendredi'     => ['2026-12-01', '2026-11-20'],
+            '15 déc. : 1er déc. mardi'    => ['2026-12-15', '2026-12-01'],
+            'janv. 2027 : 20 déc. dim.'   => ['2027-01-01', '2026-12-21'],
+            '15 janv. : 1er janv. férié'  => ['2027-01-15', '2027-01-04'],
+            'fév. 2027 : 20 janv. merc.'  => ['2027-02-01', '2027-01-20'],
         ];
     }
 
-    #[DataProvider('tableauValide')]
-    public function test_date_d_envoi_du_tableau_valide(string $creneau, string $envoiAttendu): void
+    #[DataProvider('datesDEnvoi')]
+    public function test_le_catalogue_part_avant_sa_periode(string $creneau, string $envoiAttendu): void
     {
         $this->assertSame(
             $envoiAttendu,
@@ -53,27 +61,93 @@ class DiffusionCalendrierTest extends TestCase
         );
     }
 
-    // ── Le planificateur, jour par jour ────────────────────────────
+    #[DataProvider('datesDEnvoi')]
+    public function test_l_envoi_tombe_toujours_dans_sa_fenetre(string $creneau, string $envoiAttendu): void
+    {
+        $cal = $this->calendrier();
+        [$debut, $fin] = $cal->fenetreEnvoi(Carbon::parse($creneau));
+        $envoi = $cal->dateEnvoi(Carbon::parse($creneau));
 
-    public function test_le_planificateur_reconnait_le_jour_d_envoi_decale(): void
+        $this->assertTrue(
+            $envoi->betweenIncluded($debut, $fin),
+            "Envoi du {$envoi->toDateString()} hors de la fenêtre "
+            . "{$debut->toDateString()} → {$fin->toDateString()}."
+        );
+    }
+
+    #[DataProvider('datesDEnvoi')]
+    public function test_l_envoi_precede_toujours_la_periode(string $creneau, string $envoiAttendu): void
+    {
+        // C'est la raison d'être du changement : le client doit avoir ses
+        // disponibilités avant le début de la période qu'elles couvrent.
+        $cal = $this->calendrier();
+        [$debutPeriode] = $cal->periode(Carbon::parse($creneau));
+
+        $this->assertTrue(
+            $cal->dateEnvoi(Carbon::parse($creneau))->lessThan($debutPeriode),
+            "Le catalogue du {$creneau} doit partir avant le {$debutPeriode->toDateString()}."
+        );
+    }
+
+    public function test_les_fenetres_sont_celles_validees(): void
     {
         $cal = $this->calendrier();
 
-        // Lundi 2 novembre : c'est le jour d'envoi du créneau du 1er.
-        $this->assertSame('2026-11-01', $cal->creneauDuJour(Carbon::parse('2026-11-02'))?->toDateString());
+        [$d, $f] = $cal->fenetreEnvoi(Carbon::parse('2026-12-01'));
+        $this->assertSame(['2026-11-20', '2026-11-25'], [$d->toDateString(), $f->toDateString()]);
 
-        // Lundi 16 novembre : créneau du 15.
-        $this->assertSame('2026-11-15', $cal->creneauDuJour(Carbon::parse('2026-11-16'))?->toDateString());
+        [$d, $f] = $cal->fenetreEnvoi(Carbon::parse('2026-12-15'));
+        $this->assertSame(['2026-12-01', '2026-12-05'], [$d->toDateString(), $f->toDateString()]);
+    }
 
-        // Lundi 4 janvier 2027 : créneau du 1er janvier.
-        $this->assertSame('2027-01-01', $cal->creneauDuJour(Carbon::parse('2027-01-04'))?->toDateString());
+    public function test_un_jour_ferie_saisi_par_l_admin_decale_l_envoi(): void
+    {
+        // Une fête musulmane qui tomberait le 20 (date fictive) : l'envoi
+        // passe au lendemain, toujours dans la fenêtre.
+        $cal = new DiffusionCalendrier(['2026-11-20']);
+
+        $this->assertSame('2026-11-23', $cal->dateEnvoi(Carbon::parse('2026-12-01'))->toDateString());
+    }
+
+    public function test_une_fenetre_entierement_chomee_envoie_quand_meme(): void
+    {
+        // Calendrier absurde : mieux vaut partir le dernier jour de la
+        // fenêtre que de ne rien envoyer du tout.
+        $cal = new DiffusionCalendrier([
+            '2026-11-20', '2026-11-21', '2026-11-22',
+            '2026-11-23', '2026-11-24', '2026-11-25',
+        ]);
+
+        $this->assertSame('2026-11-25', $cal->dateEnvoi(Carbon::parse('2026-12-01'))->toDateString());
+    }
+
+    // ── Le planificateur, jour par jour ────────────────────────────
+
+    public function test_le_planificateur_reconnait_le_jour_d_envoi(): void
+    {
+        $cal = $this->calendrier();
+
+        // 20 octobre : jour d'envoi du catalogue de novembre.
+        $this->assertSame('2026-11-01', $cal->creneauDuJour(Carbon::parse('2026-10-20'))?->toDateString());
+
+        // 2 novembre : jour d'envoi du catalogue du 15 novembre.
+        $this->assertSame('2026-11-15', $cal->creneauDuJour(Carbon::parse('2026-11-02'))?->toDateString());
+
+        // 21 décembre : catalogue de janvier (20 déc. étant un dimanche).
+        $this->assertSame('2027-01-01', $cal->creneauDuJour(Carbon::parse('2026-12-21'))?->toDateString());
     }
 
     public function test_aucun_envoi_les_autres_jours(): void
     {
         $cal = $this->calendrier();
 
-        foreach (['2026-11-01', '2026-11-03', '2026-11-15', '2026-11-17', '2026-10-14', '2027-01-01'] as $jour) {
+        foreach ([
+            '2026-11-01',  // début de période — ce n'est plus un jour d'envoi
+            '2026-11-10',  // entre les deux fenêtres
+            '2026-11-15',  // début de période
+            '2026-11-26',  // fenêtre refermée
+            '2026-12-22',  // le catalogue de janvier est parti la veille
+        ] as $jour) {
             $this->assertNull(
                 $cal->creneauDuJour(Carbon::parse($jour)),
                 "Aucun envoi ne doit partir le {$jour}."
@@ -81,16 +155,7 @@ class DiffusionCalendrierTest extends TestCase
         }
     }
 
-    public function test_un_jour_ferie_saisi_par_l_admin_decale_l_envoi(): void
-    {
-        // Une fête musulmane qui tomberait un 15 (date fictive) : l'envoi
-        // doit passer au lendemain ouvrable.
-        $cal = new DiffusionCalendrier(['2026-10-15']);
-
-        $this->assertSame('2026-10-16', $cal->dateEnvoi(Carbon::parse('2026-10-15'))->toDateString());
-    }
-
-    // ── Période couverte ───────────────────────────────────────────
+    // ── Période couverte (inchangée) ───────────────────────────────
 
     public function test_le_creneau_du_1er_couvre_tout_le_mois(): void
     {
@@ -110,12 +175,12 @@ class DiffusionCalendrierTest extends TestCase
 
     public function test_la_periode_suit_le_creneau_pas_le_jour_d_envoi(): void
     {
-        // Envoi le lundi 16 novembre, mais la période reste du 15 au 30.
+        // Envoi le 20 octobre, mais la période reste celle de novembre.
         $cal = $this->calendrier();
-        $creneau = $cal->creneauDuJour(Carbon::parse('2026-11-16'));
-        [$debut] = $cal->periode($creneau);
+        $creneau = $cal->creneauDuJour(Carbon::parse('2026-10-20'));
+        [$debut, $fin] = $cal->periode($creneau);
 
-        $this->assertSame('2026-11-15', $debut->toDateString());
+        $this->assertSame(['2026-11-01', '2026-11-30'], [$debut->toDateString(), $fin->toDateString()]);
     }
 
     public function test_fevrier_s_arrete_au_bon_jour(): void
@@ -127,20 +192,21 @@ class DiffusionCalendrierTest extends TestCase
 
     // ── Envoi manuel ───────────────────────────────────────────────
 
-    public function test_envoi_manuel_avant_le_15_couvre_tout_le_mois(): void
-    {
-        $this->assertSame(
-            '2026-11-01',
-            $this->calendrier()->creneauCourant(Carbon::parse('2026-11-12'))->toDateString()
-        );
-    }
-
-    public function test_envoi_manuel_a_partir_du_15_couvre_la_seconde_quinzaine(): void
+    public function test_envoi_manuel_avant_le_20_prepare_la_seconde_quinzaine(): void
     {
         $cal = $this->calendrier();
 
-        $this->assertSame('2026-11-15', $cal->creneauCourant(Carbon::parse('2026-11-15'))->toDateString());
-        $this->assertSame('2026-11-15', $cal->creneauCourant(Carbon::parse('2026-11-28'))->toDateString());
+        $this->assertSame('2026-11-15', $cal->creneauCourant(Carbon::parse('2026-11-03'))->toDateString());
+        $this->assertSame('2026-11-15', $cal->creneauCourant(Carbon::parse('2026-11-19'))->toDateString());
+    }
+
+    public function test_envoi_manuel_a_partir_du_20_prepare_le_mois_suivant(): void
+    {
+        // La bascule suit l'ouverture de la fenêtre, pas le milieu du mois.
+        $cal = $this->calendrier();
+
+        $this->assertSame('2026-12-01', $cal->creneauCourant(Carbon::parse('2026-11-20'))->toDateString());
+        $this->assertSame('2026-12-01', $cal->creneauCourant(Carbon::parse('2026-11-30'))->toDateString());
     }
 
     // ── Prochain envoi (affiché dans l'écran admin) ────────────────
@@ -149,13 +215,20 @@ class DiffusionCalendrierTest extends TestCase
     {
         $cal = $this->calendrier();
 
-        $p = $cal->prochainEnvoi(Carbon::parse('2026-10-20'));
+        // Le 10 octobre, le prochain départ est celui du catalogue de
+        // novembre, le 20 octobre.
+        $p = $cal->prochainEnvoi(Carbon::parse('2026-10-10'));
         $this->assertSame('2026-11-01', $p['creneau']->toDateString());
-        $this->assertSame('2026-11-02', $p['date_envoi']->toDateString());
+        $this->assertSame('2026-10-20', $p['date_envoi']->toDateString());
 
         // Le jour même d'un envoi, il est encore « à venir ».
-        $p = $cal->prochainEnvoi(Carbon::parse('2026-10-15'));
-        $this->assertSame('2026-10-15', $p['date_envoi']->toDateString());
+        $p = $cal->prochainEnvoi(Carbon::parse('2026-10-20'));
+        $this->assertSame('2026-10-20', $p['date_envoi']->toDateString());
+
+        // Juste après, c'est le catalogue du 15 novembre qui vient.
+        $p = $cal->prochainEnvoi(Carbon::parse('2026-10-21'));
+        $this->assertSame('2026-11-15', $p['creneau']->toDateString());
+        $this->assertSame('2026-11-02', $p['date_envoi']->toDateString());
     }
 
     // ── Jours fériés calculés ──────────────────────────────────────
