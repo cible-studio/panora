@@ -25,8 +25,11 @@
     data-cancellable="{{ $canAnnuler ? '1' : '0' }}"
     data-deletable="{{ $canDelete ? '1' : '0' }}"
     data-confirmable="{{ $canConfirm ? '1' : '0' }}"
-    data-refusable="{{ $canRefuse ? '1' : '0' }}">
-    <td class="bulk-cell">
+    data-refusable="{{ $canRefuse ? '1' : '0' }}"
+    {{-- Toute la ligne ouvre la réservation, sauf les zones déjà
+         interactives. Mécanisme : admin/partials/ligne-cliquable. --}}
+    data-ligne-url="{{ route('admin.reservations.show', $res) }}">
+    <td class="bulk-cell" data-ligne-ignore>
         @if($canEdit || $canAnnuler || $canDelete || $canConfirm || $canRefuse)
             <input type="checkbox" class="bulk-checkbox" value="{{ $res->id }}" aria-label="Sélectionner {{ $res->reference }}">
         @endif
@@ -37,7 +40,7 @@
         @endif
     </td>
     <td>
-        <a href="{{ route('admin.reservations.show', $res) }}" class="reference-link">
+        <a href="{{ route('admin.reservations.show', $res) }}" class="reference-link" data-ligne-principal>
             {{ $res->reference }}
         </a>
         <div class="date-humans">{{ $res->created_at->diffForHumans() }}</div>

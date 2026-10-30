@@ -1,7 +1,12 @@
 <x-admin-layout title="Nouvelle tâche de pose">
 
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.pose-tasks.index') }}" class="btn btn-ghost btn-sm">← Retour</a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.pose-tasks.index'),
+        'label' => 'Tâches de pose',
+    ]])
 </x-slot:topbarLeft>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">

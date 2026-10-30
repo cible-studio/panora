@@ -32,6 +32,24 @@ La table `notifications` manquait : `InvoiceScheduleAlertNotification`
 (canal `database`) échouait sans bruit. Elle est créée le 2026-10-30, mais
 aucun écran ne lit encore `unreadNotifications`.
 
+### Les DEVIS n'ont pas de repli de montant (constaté 2026-10-29)
+
+Sur les **factures**, `Invoice::montantTotal()` et `Invoice::SQL_MONTANT_TOTAL`
+appliquent le repli `total_a_payer` → `amount_ttc`, parce que la colonne est
+`NOT NULL DEFAULT 0` et qu'une facture créée hors `InvoiceCalculator` y porte
+0. Tous les écrans factures ont été alignés le 2026-10-29 (page Finance,
+liste, accueil, performance commerciale, exports, PDF).
+
+`Quote` a les mêmes deux colonnes, avec le même défaut à 0, mais **aucun
+repli nulle part** : `quotes/index`, `pdf/quote`, le mail d'envoi de devis,
+et `DashboardController` lignes 259 et 264 (panier moyen et pipeline) lisent
+`total_a_payer` brut.
+
+Ce n'est donc PAS une incohérence entre écrans — la règle y est uniforme.
+Laissé tel quel volontairement : ajouter un repli changerait les montants
+des devis partout d'un coup, ce qui demande une validation métier à part.
+À traiter si un devis à 0 est constaté.
+
 ### Diffusion : le modèle Brevo en ligne doit être remplacé (2026-10-29)
 
 Panora envoie désormais `LIEN_ABIDJAN` / `NB_ABIDJAN` et `LIEN_INTERIEUR` /
@@ -276,6 +294,12 @@ nouvelle** : il faut la faire valider avant de la coder.
 ---
 
 ## Résolues
+
+### Statuts « Générée » et « Validée » comptés comme facturés — tranché le 2026-10-30
+
+Décision de la direction : **oui**, ils comptent dans le facturé et le dû.
+Le comportement de `FinancialDashboardService` est le bon, rien à coder.
+
 
 ### TX-14 (2026-09-24) — L'ODP se compte en MOIS (correction de TX-12)
 

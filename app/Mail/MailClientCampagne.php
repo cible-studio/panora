@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\Campaign;
 use App\Services\Diffusion\ModelesMail;
 use Carbon\CarbonInterface;
@@ -24,7 +25,7 @@ use Illuminate\Queue\SerializesModels;
  * Envoyé par Brevo uniquement (RelanceFinCampagneService::envoyerParBrevo),
  * suivi dans Brevo → Transactionnel, tag = tagBrevo().
  */
-class MailClientCampagne extends Mailable
+class MailClientCampagne extends Mailable implements MailCommercial
 {
     use Queueable, SerializesModels;
 

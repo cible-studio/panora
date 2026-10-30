@@ -30,6 +30,18 @@ return [
 
     'disks' => [
 
+        // Contenu éditable de la maquette du site CIBLE (/cible).
+        // App\Support\Contenu s'en sert comme couche de surcharge au-dessus
+        // des défauts versionnés de config/admin-schema.php. L'espace
+        // d'administration n'est pas porté ici : le disque reste donc vide et
+        // la maquette sert les défauts — mais la classe exige un disque
+        // déclaré pour ne pas lever à la première lecture.
+        'contenu' => [
+            'driver' => 'local',
+            'root' => storage_path('app/contenu'),
+            'throw' => true,
+        ],
+
         // Sauvegardes (config/backup.php) — sur le serveur.
         'backups' => [
             'driver' => 'local',

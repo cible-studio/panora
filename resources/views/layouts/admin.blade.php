@@ -151,6 +151,16 @@
                         <span class="nav-text">Tarifs communes</span>
                     </a>
                     @endif
+                    {{-- 2026-07-21 : Devis — module commercial non-bloquant.
+                         Visible aux 3 rôles staff qui ont besoin de la visibilité
+                         (commercial pour créer ses devis, comptable/MP en lecture
+                         pour anticiper facturation et poses futures). --}}
+                    @if($isAdmin || $isCom || $isComptable || $isMP)
+                    <a href="{{ route('admin.quotes.index') }}" data-tooltip="Devis" class="nav-item {{ request()->routeIs('admin.quotes.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M9 11H5a2 2 0 0 0-2 2v7h4"/><path d="M15 11h4a2 2 0 0 1 2 2v7h-4"/><path d="M9 4h6v16H9z"/></svg></span>
+                        <span class="nav-text">Devis</span>
+                    </a>
+                    @endif
                     {{-- 2026-07-21 : Facturation ouvert au comptable + commercial
                          (émission, édition, envoi + saisie versements + relances). --}}
                     @if($isAdmin || $isComptable || $isCom)
@@ -386,8 +396,19 @@
                     </svg>
                 </button>
 
+                {{-- Retour intelligent (2026-10-29). La vue garde la main si
+                     elle déclare son propre topbarLeft ; sinon le layout
+                     pose le retour lui-même, pour qu'aucun écran ne reste
+                     sans issue. Le partial ne rend rien quand il n'y a pas
+                     de provenance : la barre reste propre quand on arrive
+                     par le menu. --}}
                 @if(!empty($topbarLeft))
                 <div class="topbar-left">{{ $topbarLeft }}</div>
+                @else
+                    @php $retourAutomatique = trim(view('admin.partials._smart_back')->render()); @endphp
+                    @if($retourAutomatique !== '')
+                    <div class="topbar-left">{!! $retourAutomatique !!}</div>
+                    @endif
                 @endif
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
 

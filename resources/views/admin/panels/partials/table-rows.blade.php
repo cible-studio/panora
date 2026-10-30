@@ -1,7 +1,9 @@
 {{-- resources/views/admin/panels/partials/table-rows.blade.php --}}
 @if($source !== 'externe')
 @forelse($panels as $panel)
-<tr>
+{{-- data-ligne-url : toute la ligne ouvre le panneau, sauf les zones déjà
+     interactives. Mécanisme dans admin/partials/ligne-cliquable. --}}
+<tr data-ligne-url="{{ route('admin.panels.show', $panel) }}">
     <td style="vertical-align:middle;">
         @php
             $photo = $panel->photos->first();
@@ -20,7 +22,7 @@
                  style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid var(--border);background:var(--surface2);">
         @endif
     </td>
-    <td style="vertical-align:middle;"><span style="font-family:monospace;color:var(--accent);font-weight:700;">{{ $panel->reference }}</span></td>
+    <td style="vertical-align:middle;"><a href="{{ route('admin.panels.show', $panel) }}" data-ligne-principal style="font-family:monospace;color:var(--accent);font-weight:700;" title="Ouvrir le panneau">{{ $panel->reference }}</a></td>
     <td style="vertical-align:middle;"><div style="font-weight:500;">{{ $panel->name }}</div><div style="font-size:11px;color:var(--text3);">{{ $panel->category?->name ?? '—' }} @if($panel->is_lit) · 💡 @endif</div></td>
     <td style="vertical-align:middle;">{{ $panel->commune->name }}</td>
     <td style="vertical-align:middle;">

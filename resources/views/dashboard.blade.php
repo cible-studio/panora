@@ -118,6 +118,53 @@
             </a>
         </div>
 
+        {{-- ════════════ KPIs DEVIS COMMERCIAUX (module devis Phase 4) ════════════
+             Visible admin, MP, commercial, comptable. 90 derniers jours.
+        ═══════════════════════════════════════════════════════════════════════ --}}
+        @php
+            $userRole  = auth()->user()?->role?->value;
+            $showDevis = in_array($userRole, ['admin', 'mediaplanner', 'commercial'], true);
+        @endphp
+        @if($showDevis && !empty($devisKpis))
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px">
+            <a href="{{ route('admin.quotes.index', ['status' => 'envoye']) }}" class="kpi-card" style="--kpi-color:#8b5cf6;text-decoration:none">
+                <div class="kpi-card__top-bar" style="background:#8b5cf6"></div>
+                <div class="kpi-card__icon" style="color:#8b5cf6">📄</div>
+                <div class="kpi-card__value" style="color:#8b5cf6">{{ $devisKpis['enAttente'] }}</div>
+                <div class="kpi-card__label">Devis en attente</div>
+                <div class="kpi-card__sub">{{ $devisKpis['envoyes'] }} envoyés (90j)</div>
+                <div class="kpi-card__arrow" style="color:#8b5cf6">→</div>
+            </a>
+
+            <a href="{{ route('admin.quotes.index', ['status' => 'accepte']) }}" class="kpi-card" style="--kpi-color:#22c55e;text-decoration:none">
+                <div class="kpi-card__top-bar" style="background:#22c55e"></div>
+                <div class="kpi-card__icon" style="color:#22c55e">🎯</div>
+                <div class="kpi-card__value" style="color:#22c55e">{{ $devisKpis['tauxConv'] }}%</div>
+                <div class="kpi-card__label">Taux de conversion (90j)</div>
+                <div class="kpi-card__sub">{{ $devisKpis['acceptes'] }} acceptés / {{ $devisKpis['envoyes'] }} envoyés</div>
+                <div class="kpi-card__arrow" style="color:#22c55e">→</div>
+            </a>
+
+            <a href="{{ route('admin.quotes.index') }}" class="kpi-card" style="--kpi-color:#0ea5e9;text-decoration:none">
+                <div class="kpi-card__top-bar" style="background:#0ea5e9"></div>
+                <div class="kpi-card__icon" style="color:#0ea5e9">💼</div>
+                <div class="kpi-card__value" style="color:#0ea5e9;font-size:22px">{{ $fmtKpi($devisKpis['pipeline']) }}</div>
+                <div class="kpi-card__label">Pipeline devis (FCFA)</div>
+                <div class="kpi-card__sub">Devis envoyés + en négo</div>
+                <div class="kpi-card__arrow" style="color:#0ea5e9">→</div>
+            </a>
+
+            <a href="{{ route('admin.quotes.index', ['status' => 'accepte']) }}" class="kpi-card" style="--kpi-color:#f59e0b;text-decoration:none">
+                <div class="kpi-card__top-bar" style="background:#f59e0b"></div>
+                <div class="kpi-card__icon" style="color:#f59e0b">💰</div>
+                <div class="kpi-card__value" style="color:#f59e0b;font-size:22px">{{ $fmtKpi($devisKpis['panierMoyen']) }}</div>
+                <div class="kpi-card__label">Panier moyen accepté</div>
+                <div class="kpi-card__sub">{{ $devisKpis['refuses'] }} refusés · {{ $devisKpis['expires'] }} expirés</div>
+                <div class="kpi-card__arrow" style="color:#f59e0b">→</div>
+            </a>
+        </div>
+        @endif
+
         {{-- ════════════ TOP 10 CLIENTS + COMMUNES (Phase 8D cahier §12) ════════════ --}}
         @if((!empty($topClients) && $topClients->isNotEmpty()) || (!empty($topCommunes) && $topCommunes->isNotEmpty()))
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">

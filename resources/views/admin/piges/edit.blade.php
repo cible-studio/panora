@@ -1,15 +1,12 @@
 <x-admin-layout title="Modifier pige — {{ $pige->panel?->reference }}">
 
 <x-slot:topbarLeft>
-    {{-- Retour --}}
-    <a href="{{ route('admin.piges.show', $pige) }}"
-       class="btn btn-ghost btn-sm"
-       style="display:flex;align-items:center;gap:5px">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        Retour
-    </a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.piges.show', $pige),
+        'label' => 'La pige',
+    ]])
 </x-slot:topbarLeft>
 
 <x-slot:topbarActions>

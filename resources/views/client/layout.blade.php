@@ -340,6 +340,13 @@
         ],
         [
             'type'  => 'item',
+            'label' => 'Devis',
+            'route' => 'client.devis.index',
+            'active'=> request()->routeIs('client.devis.*'),
+            'icon'  => '<path d="M9 11H5a2 2 0 0 0-2 2v7h4"/><path d="M15 11h4a2 2 0 0 1 2 2v7h-4"/><path d="M9 4h6v16H9z"/>',
+        ],
+        [
+            'type'  => 'item',
             'label' => 'Campagnes',
             'route' => 'client.campagnes',
             'active'=> request()->routeIs('client.campagnes*'),

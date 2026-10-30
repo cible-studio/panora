@@ -1,0 +1,280 @@
+<x-admin-layout title="Devis {{ $quote->reference }}">
+    <x-slot:topbarLeft>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.quotes.index'),
+        'label' => 'Devis',
+    ]])
+</x-slot:topbarLeft>
+    <x-slot:topbarActions>
+        <a href="{{ route('admin.quotes.pdf', $quote) }}" class="btn btn-ghost btn-sm" title="Télécharger le PDF du devis">📄 <span class="btn-label">Télécharger PDF</span></a>
+        @can('update', $quote)
+            <a href="{{ route('admin.quotes.edit', $quote) }}" class="btn btn-ghost btn-sm" title="Modifier le devis">✏️ <span class="btn-label">Modifier</span></a>
+        @endcan
+        @can('updatePrice', $quote)
+            @cannot('update', $quote)
+                {{-- Bouton dédié pour les rôles qui n'ont PAS accès à l'édition
+                     complète (comptable) mais peuvent ajuster les prix. Le
+                     commercial owner et l'admin passent par "Modifier". --}}
+                <button type="button" class="btn btn-ghost btn-sm" title="Ajuster les prix du devis"
+                        onclick="document.getElementById('quote-price-form').classList.toggle('is-open');window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})">
+                    💰 <span class="btn-label">Ajuster les prix</span>
+                </button>
+            @endcannot
+        @endcan
+        @can('send', $quote)
+            <form method="POST" action="{{ route('admin.quotes.send', $quote) }}" style="display:inline"
+                  onsubmit="return ApercuEnvoi.formulaire(event, this, {{ json_encode(route('admin.apercu-envoi', ['devis', $quote->id])) }}, '📤 Envoyer le devis', 'Envoyer', 'Le PDF du devis est joint au mail.');">
+                @csrf
+                <button type="submit" class="btn btn-primary btn-sm keep-label" title="Envoyer le devis au client">📤 <span class="btn-label">Envoyer au client</span></button>
+            </form>
+        @endcan
+        @can('duplicate', $quote)
+            <form method="POST" action="{{ route('admin.quotes.duplicate', $quote) }}" style="display:inline">
+                @csrf
+                <button type="submit" class="btn btn-ghost btn-sm" title="Dupliquer le devis">📋 <span class="btn-label">Dupliquer</span></button>
+            </form>
+        @endcan
+        @can('delete', $quote)
+            <button type="button" class="btn btn-ghost btn-sm" title="Mettre le devis à la corbeille" onclick="ouvrirCorbeilleDevis(this)"
+                    data-url="{{ route('admin.quotes.destroy', $quote) }}" data-ref="{{ $quote->reference }}"
+                    data-titre="{{ $quote->title }}" data-client="{{ $quote->client?->name }}">🗑 <span class="btn-label">Corbeille</span></button>
+        @endcan
+    </x-slot:topbarActions>
+
+    @include('admin.quotes.partials._corbeille')
+    @include('admin.partials.apercu-envoi')
+
+    @php $st = $quote->status->uiConfig(); @endphp
+
+    {{-- ═══════════════════ EN-TÊTE ═══════════════════ --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap">
+            <div>
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+                    <span style="font-family:monospace;font-size:18px;font-weight:800;color:var(--accent)">{{ $quote->reference }}</span>
+                    <span style="background:{{ $st['bg'] }};color:{{ $st['color'] }};border:1px solid {{ $st['border'] }};padding:4px 12px;border-radius:14px;font-size:12px;font-weight:700">
+                        {{ $st['icon'] }} {{ $quote->status->label() }}
+                    </span>
+                    @if($quote->version > 1)
+                        <span style="background:rgba(139,92,246,.10);color:#6d28d9;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700">v{{ $quote->version }}</span>
+                    @endif
+                </div>
+                <h1 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:8px">{{ $quote->title }}</h1>
+                <div style="font-size:13px;color:var(--text3)">
+                    Créé par <strong>{{ $quote->creator?->name ?? '—' }}</strong> le {{ $quote->created_at->format('d/m/Y H:i') }}
+                    · Commercial : <strong>{{ $quote->commercial?->name ?? '—' }}</strong>
+                </div>
+            </div>
+            <div style="text-align:right">
+                <div style="font-size:32px;font-weight:800;color:var(--text)">{{ number_format($quote->total_a_payer, 0, ',', ' ') }} <span style="font-size:14px;color:var(--text3)">FCFA</span></div>
+                <div style="font-size:12px;color:var(--text3)">Total à payer TTC + taxes</div>
+                @if($quote->status === \App\Enums\QuoteStatus::ENVOYE && $quote->expires_at)
+                    @php $daysLeft = (int) now()->diffInDays($quote->expires_at, false); @endphp
+                    <div style="margin-top:10px;padding:8px 12px;background:{{ $daysLeft < 3 ? 'rgba(180,83,9,.10)' : 'rgba(59,130,246,.08)' }};border-radius:8px;font-size:12px">
+                        <strong>Expire le {{ $quote->expires_at->format('d/m/Y') }}</strong>
+                        · @if($daysLeft < 0) ⌛ {{ abs($daysLeft) }}j dépassé @else J-{{ $daysLeft }} @endif
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+        <div>
+            {{-- ═══════════════════ LIGNES ═══════════════════ --}}
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px">
+                <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:700">🪧 Panneaux proposés ({{ $quote->lines->count() }})</div>
+                <table style="width:100%;border-collapse:collapse">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;padding:10px;font-size:11px;color:var(--text3);background:var(--surface2)">Désignation</th>
+                            <th style="text-align:left;padding:10px;font-size:11px;color:var(--text3);background:var(--surface2)">Commune</th>
+                            <th style="text-align:right;padding:10px;font-size:11px;color:var(--text3);background:var(--surface2)">m²</th>
+                            <th style="text-align:right;padding:10px;font-size:11px;color:var(--text3);background:var(--surface2)">PU</th>
+                            <th style="text-align:center;padding:10px;font-size:11px;color:var(--text3);background:var(--surface2)">Qté</th>
+                            <th style="text-align:center;padding:10px;font-size:11px;color:var(--text3);background:var(--surface2)">Mois</th>
+                            <th style="text-align:right;padding:10px;font-size:11px;color:var(--text3);background:var(--surface2)">Montant HT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($quote->lines as $line)
+                            <tr>
+                                <td style="padding:10px">{{ $line->designation }}</td>
+                                <td style="padding:10px;color:var(--text2);font-size:12.5px">{{ $line->snapshot_commune_name ?? '—' }}</td>
+                                <td style="padding:10px;text-align:right">{{ number_format($line->dimension_m2, 2, ',', '') }}</td>
+                                <td style="padding:10px;text-align:right">{{ number_format($line->pu_ht_mensuel, 0, ',', ' ') }}</td>
+                                <td style="padding:10px;text-align:center">{{ $line->quantite }}</td>
+                                <td style="padding:10px;text-align:center">{{ number_format($line->duree_mois, 1, ',', '') }}</td>
+                                <td style="padding:10px;text-align:right;font-weight:700">{{ number_format($line->montant_ht_ligne, 0, ',', ' ') }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            @if($quote->services->count() > 0)
+                <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px">
+                    <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:700">🔧 Services annexes</div>
+                    <table style="width:100%;border-collapse:collapse">
+                        @foreach($quote->services as $svc)
+                            <tr>
+                                <td style="padding:10px">{{ $svc->label }}</td>
+                                <td style="padding:10px;text-align:right;font-weight:700">{{ number_format($svc->prix_ht, 0, ',', ' ') }} FCFA</td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            @endif
+
+            @if($quote->notes_client)
+                <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">
+                    <div style="font-weight:700;margin-bottom:6px">💬 Message client</div>
+                    <div style="color:var(--text2);white-space:pre-wrap">{{ $quote->notes_client }}</div>
+                </div>
+            @endif
+
+            @if($quote->notes_internes)
+                <div style="background:#fef7e6;border:1px solid #f59e0b;border-radius:12px;padding:16px;margin-bottom:16px">
+                    <div style="font-weight:700;margin-bottom:6px;color:#78350f">🔒 Notes internes (non envoyées au client)</div>
+                    <div style="color:#78350f;white-space:pre-wrap">{{ $quote->notes_internes }}</div>
+                </div>
+            @endif
+        </div>
+
+        <div>
+            {{-- Bloc client --}}
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">
+                <div style="font-weight:700;margin-bottom:10px;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Client</div>
+                <div style="font-size:15px;font-weight:700">{{ $quote->client?->name ?? '—' }}</div>
+                @include('admin.partials.interlocuteur-affiche', [
+                    'dossier' => $quote,
+                    'lienModifier' => route('admin.quotes.edit', $quote),
+                ])
+                @if($quote->client?->email)
+                    <div style="font-size:12.5px;color:var(--text3);margin-top:4px">📧 {{ $quote->client->email }}</div>
+                @endif
+                @if($quote->client?->phone)
+                    <div style="font-size:12.5px;color:var(--text3)">📞 {{ $quote->client->phone }}</div>
+                @endif
+                @if($quote->client?->ncc)
+                    <div style="font-size:12.5px;color:var(--text3);margin-top:4px">NCC : {{ $quote->client->ncc }}</div>
+                @endif
+            </div>
+
+            {{-- Bloc totaux --}}
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">
+                <div style="font-weight:700;margin-bottom:10px;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Totaux</div>
+                <table style="width:100%;font-size:13px">
+                    <tr><td style="padding:4px 0;color:var(--text2)">Total HT panneaux</td><td style="text-align:right">{{ number_format($quote->amount, 0, ',', ' ') }}</td></tr>
+                    @if($quote->remise_pct > 0)
+                        <tr><td style="padding:4px 0;color:var(--text2)">Remise ({{ number_format($quote->remise_pct, 2, ',', '') }}%)</td><td style="text-align:right;color:#dc2626">- {{ number_format($quote->amount - $quote->net_ht, 0, ',', ' ') }}</td></tr>
+                        <tr><td style="padding:4px 0;color:var(--text2)">Net HT panneaux</td><td style="text-align:right">{{ number_format($quote->net_ht, 0, ',', ' ') }}</td></tr>
+                    @endif
+                    @if($quote->services_ht_total > 0)
+                        <tr><td style="padding:4px 0;color:var(--text2)">Services HT</td><td style="text-align:right">{{ number_format($quote->services_ht_total, 0, ',', ' ') }}</td></tr>
+                    @endif
+                    <tr><td style="padding:4px 0;color:var(--text2)">TVA ({{ (int) $quote->tva }}%)</td><td style="text-align:right">{{ number_format($quote->tva_amount + (int) round($quote->services_ht_total * ((float) $quote->tva / 100)), 0, ',', ' ') }}</td></tr>
+                    <tr><td style="padding:4px 0;color:var(--text2)">TSP</td><td style="text-align:right">{{ number_format($quote->tsp_amount, 0, ',', ' ') }}</td></tr>
+                    <tr><td style="padding:4px 0;color:var(--text2)">TM</td><td style="text-align:right">{{ number_format($quote->tm_total, 0, ',', ' ') }}</td></tr>
+                    <tr><td style="padding:4px 0;color:var(--text2)">ODP</td><td style="text-align:right">{{ number_format($quote->odp_total, 0, ',', ' ') }}</td></tr>
+                    <tr style="border-top:2px solid var(--border);background:var(--accent);color:#fff">
+                        <td style="padding:8px 6px;font-weight:800">TOTAL À PAYER</td>
+                        <td style="padding:8px 6px;text-align:right;font-weight:800;font-size:16px">{{ number_format($quote->total_a_payer, 0, ',', ' ') }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            {{-- Bloc lien public --}}
+            @if(in_array($quote->status, [\App\Enums\QuoteStatus::ENVOYE, \App\Enums\QuoteStatus::EN_NEGOCIATION], true))
+                <div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:12px;padding:16px;margin-bottom:16px">
+                    <div style="font-weight:700;color:#6d28d9;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:.5px">🔗 Lien public client</div>
+                    <div style="font-size:11.5px;color:#475569;margin-bottom:8px">À partager avec un client sans compte Panora :</div>
+                    <input type="text" readonly value="{{ url('/devis/' . $quote->public_token) }}" onclick="this.select();document.execCommand('copy');this.style.background='#dcfce7'" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-family:monospace;font-size:11px;background:#fff;cursor:pointer" title="Cliquer pour copier">
+                </div>
+            @endif
+
+            {{-- Bloc conversion --}}
+            @if($quote->convertedReservation)
+                <div style="background:#f0f9f0;border:1px solid #86e186;border-radius:12px;padding:16px">
+                    <div style="font-weight:700;color:#15803d;margin-bottom:6px">✅ Converti en réservation</div>
+                    <a href="{{ route('admin.reservations.show', $quote->convertedReservation) }}" style="color:#15803d;text-decoration:underline">Voir la réservation {{ $quote->convertedReservation->reference ?? '#' . $quote->convertedReservation->id }}</a>
+                </div>
+            @endif
+        </div>
+    </div>
+
+    {{-- Formulaire d'ajustement des PRIX uniquement — dédié au Comptable.
+         Révélé par le bouton "💰 Ajuster les prix" du topbar. Poste vers
+         admin.quotes.price (QuoteController::updatePrice) qui n'accepte
+         QUE line_prices[id] et service_prices[id] — pas de modif possible
+         sur panneaux/dates/client/remise/statut. --}}
+    @can('updatePrice', $quote)
+        @cannot('update', $quote)
+            <div id="quote-price-form" style="display:none; margin-top:24px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+                    <h3 style="font-size:16px; font-weight:700; margin:0">💰 Ajuster les prix du devis</h3>
+                    <button type="button" onclick="document.getElementById('quote-price-form').classList.remove('is-open')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:20px">✕</button>
+                </div>
+                <form method="POST" action="{{ route('admin.quotes.price', $quote) }}">
+                    @csrf
+
+                    @if($quote->lines->count() > 0)
+                        <div style="margin-bottom:16px">
+                            <div style="font-weight:700; font-size:13px; margin-bottom:8px; color:var(--text2)">🪧 Lignes panneau — PU HT mensuel (FCFA)</div>
+                            <table style="width:100%; border-collapse:collapse">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left; padding:6px; font-size:11px; color:var(--text3)">Panneau</th>
+                                        <th style="text-align:right; padding:6px; font-size:11px; color:var(--text3)">Nouveau PU</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($quote->lines as $line)
+                                        <tr>
+                                            <td style="padding:6px; font-size:13px">{{ $line->designation }}</td>
+                                            <td style="padding:6px; text-align:right">
+                                                <input type="number" name="line_prices[{{ $line->id }}]" min="0" step="1"
+                                                       value="{{ (int) $line->pu_ht_mensuel }}"
+                                                       style="width:130px; padding:5px 8px; border:1px solid var(--border); border-radius:6px; text-align:right; font-weight:600">
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
+                    @if($quote->services->count() > 0)
+                        <div style="margin-bottom:16px">
+                            <div style="font-weight:700; font-size:13px; margin-bottom:8px; color:var(--text2)">🔧 Services annexes — Prix HT (FCFA)</div>
+                            <table style="width:100%; border-collapse:collapse">
+                                <tbody>
+                                    @foreach($quote->services as $svc)
+                                        <tr>
+                                            <td style="padding:6px; font-size:13px">{{ $svc->label }}</td>
+                                            <td style="padding:6px; text-align:right">
+                                                <input type="number" name="service_prices[{{ $svc->id }}]" min="0" step="1"
+                                                       value="{{ (int) $svc->prix_ht }}"
+                                                       style="width:130px; padding:5px 8px; border:1px solid var(--border); border-radius:6px; text-align:right; font-weight:600">
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:12px; border-top:1px solid var(--border)">
+                        <p style="font-size:11px; color:var(--text3); margin:0">
+                            Les nouveaux prix seront recalculés (HT / TVA / TTC / taxes / total) automatiquement.
+                        </p>
+                        <button type="submit" class="btn btn-primary btn-sm">💾 Enregistrer les prix</button>
+                    </div>
+                </form>
+                <style>#quote-price-form.is-open { display:block !important; }</style>
+            </div>
+        @endcannot
+    @endcan
+</x-admin-layout>

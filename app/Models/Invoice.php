@@ -312,6 +312,40 @@ class Invoice extends Model implements Auditable
     // ═══════════════════════════════════════════════════════════════
 
     /**
+     * Montant total à payer — SOURCE UNIQUE (2026-10-29).
+     *
+     * `total_a_payer` est la colonne de référence, mais elle est
+     * NOT NULL DEFAULT 0 : une facture créée sans passer par
+     * InvoiceCalculator y porte 0 alors que `amount_ttc` est renseigné.
+     * D'où le repli, qui était recopié à quatre endroits dans ce modèle,
+     * dans PaymentService, ScheduleGenerator et une dizaine de vues.
+     *
+     * Pour les sommes SQL, utiliser self::SQL_MONTANT_TOTAL : une
+     * requête `sum('total_a_payer')` compterait ces factures pour zéro.
+     */
+    public function montantTotal(): float
+    {
+        return (float) ($this->total_a_payer ?: $this->amount_ttc ?: 0);
+    }
+
+    /**
+     * Même règle que montantTotal(), en SQL — pour les agrégats.
+     *
+     *   Invoice::query()->selectRaw('SUM(' . Invoice::SQL_MONTANT_TOTAL . ') AS total')
+     *
+     * COALESCE seul ne suffirait pas : il ne couvre que NULL, pas le 0
+     * que porte la colonne par défaut.
+     */
+    public const SQL_MONTANT_TOTAL =
+        'CASE WHEN invoices.total_a_payer > 0 THEN invoices.total_a_payer ELSE COALESCE(invoices.amount_ttc, 0) END';
+
+    /** Somme SQL du montant total à payer, repli compris. */
+    public static function sommeMontantTotal($query): float
+    {
+        return (float) ($query->clone()->selectRaw('SUM(' . self::SQL_MONTANT_TOTAL . ') AS t')->value('t') ?? 0);
+    }
+
+    /**
      * Somme des versements enregistrés sur cette facture.
      * Source : invoice_payments. Si la facture est historique (avant
      * la refonte) et n'a pas encore de InvoicePayment mais a un paid_at
@@ -327,7 +361,7 @@ class Invoice extends Model implements Auditable
         if ($sum <= 0 && $this->status === 'payee' && $this->paid_at) {
             // Facture historique sans InvoicePayment — on considère
             // le total_a_payer (ou amount_ttc en fallback) comme payé.
-            return (float) ($this->total_a_payer ?: $this->amount_ttc ?: 0);
+            return $this->montantTotal();
         }
         return $sum;
     }
@@ -335,7 +369,7 @@ class Invoice extends Model implements Auditable
     /** Reste à payer = total_a_payer − versements. Borné à 0. */
     public function remainingAmount(): float
     {
-        $total = (float) ($this->total_a_payer ?: $this->amount_ttc ?: 0);
+        $total = $this->montantTotal();
         return max(0.0, round($total - $this->paidAmount(), 2));
     }
 
@@ -345,7 +379,7 @@ class Invoice extends Model implements Auditable
      */
     public function paidPercentage(): float
     {
-        $total = (float) ($this->total_a_payer ?: $this->amount_ttc ?: 0);
+        $total = $this->montantTotal();
         if ($total <= 0) return 0.0;
         return round(min(100.0, ($this->paidAmount() / $total) * 100), 1);
     }
@@ -389,7 +423,7 @@ class Invoice extends Model implements Auditable
     {
         if ($this->status === 'annulee') return 'annulee';
         $paid  = $this->paidAmount();
-        $total = (float) ($this->total_a_payer ?: $this->amount_ttc ?: 0);
+        $total = $this->montantTotal();
         if ($total > 0 && $paid + 0.01 >= $total) return 'soldee';
         if ($this->isOverdue()) return 'en_retard';
         if ($paid <= 0) return 'non_payee';

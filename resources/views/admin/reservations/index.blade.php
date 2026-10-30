@@ -588,6 +588,11 @@
         </div>
     </div>
 
+    {{-- Toute la ligne ouvre la réservation (2026-10-29). Posé une fois
+         pour l'écran, hors du <table> : l'écouteur est délégué au
+         document, donc il couvre les lignes rechargées en AJAX. --}}
+    @include('admin.partials.ligne-cliquable')
+
     {{-- ══ MODAL SUPPRESSION SINGLE — warning campagne conditionnel
          Avant : le bullet « la campagne sera annulée » s'affichait toujours,
          même sans campagne liée → mensonge UX. Maintenant : affiché

@@ -1,6 +1,7 @@
 <?php
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\Reservation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -21,7 +22,7 @@ use Illuminate\Queue\SerializesModels;
  *
  * Un seul template polymorphique = uniformité visuelle garantie.
  */
-class PropositionDateChangeMail extends Mailable
+class PropositionDateChangeMail extends Mailable implements MailCommercial
 {
     use Queueable, SerializesModels;
 

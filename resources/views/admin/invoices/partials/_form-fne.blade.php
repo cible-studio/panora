@@ -525,7 +525,14 @@
                         <div id="rec-svc-detail" style="display:flex;flex-direction:column;gap:3px">
                             <div style="font-size:11px;color:var(--text3);font-style:italic">Aucun service ajouté</div>
                         </div>
+                        {{-- 2026-10-30 : le HT apparaît aussi, comme sur le
+                             récapitulatif du devis — les deux écrans doivent
+                             présenter la même chose. --}}
                         <div class="fne-recap-row fne-recap-small" style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);font-weight:700">
+                            <span class="lbl">Total services HT</span>
+                            <span class="val" id="rec-svc-ht">0 FCFA</span>
+                        </div>
+                        <div class="fne-recap-row fne-recap-small" style="font-weight:700">
                             <span class="lbl">Total services TTC</span>
                             <span class="val" id="rec-svc">0 FCFA</span>
                         </div>
@@ -2022,6 +2029,9 @@
         document.getElementById('rec-tm').textContent     = fmt(totalTm);
         document.getElementById('rec-odp').textContent    = fmt(totalOdp);
         document.getElementById('rec-svc').textContent    = fmt(svcTtc);
+        // 2026-10-30 : le HT aussi, comme sur le récapitulatif du devis.
+        const svcHtEl = document.getElementById('rec-svc-ht');
+        if (svcHtEl) svcHtEl.textContent = fmt(svcHt);
         document.getElementById('rec-total').textContent  = fmt(total);
 
         // Rafraîchit aussi les libellés TVA/TSP dans le récap (le user

@@ -262,6 +262,11 @@
         </div>
     </div>
 
+    {{-- Toute la ligne ouvre la campagne (2026-10-29). Posé une fois pour
+         l'écran, hors du <table> : l'écouteur est délégué au document,
+         donc il couvre aussi les lignes rechargées en AJAX. --}}
+    @include('admin.partials.ligne-cliquable')
+
     {{-- ── Barre d'action groupée campagnes (admin + MP) ──────────────
          Actions contextuelles : chaque action n'apparaît que si au moins
          une campagne sélectionnée y est éligible (selon son statut), avec

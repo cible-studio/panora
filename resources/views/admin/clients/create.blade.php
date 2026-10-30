@@ -1,8 +1,13 @@
 <x-admin-layout title="Nouveau client">
 
     <x-slot:topbarLeft>
-        <a href="{{ route('admin.clients.index') }}" class="btn btn-ghost">← Retour</a>
-    </x-slot:topbarLeft>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.clients.index'),
+        'label' => 'Clients',
+    ]])
+</x-slot:topbarLeft>
 
     <div style="max-width:680px;margin:0 auto;">
 

@@ -79,7 +79,14 @@ class JournalMailsTest extends TestCase
         $ligne = JournalMail::where('canal', 'brevo')->sole();
         $this->assertSame('envoye', $ligne->statut);
         $this->assertSame('awa@orange.ci', $ligne->destinataires);
-        $this->assertSame('commercial@cible-ci.com', $ligne->copie);
+        // 2026-10-30 : la copie commerciale s'ajoute à celle de fin de
+        // campagne. Ces mails partent par l'API Brevo, donc leur copie est
+        // réunie dans RelanceFinCampagneService::copie() — l'écouteur de
+        // MessageSending, lui, ne voit que les envois du mailer Laravel.
+        $this->assertSame(
+            'commercial@cible-ci.com, stephane.oponou@cible-ci.com',
+            $ligne->copie
+        );
         $this->assertSame(['campagne', $c->id], [$ligne->dossier_type, $ligne->dossier_id]);
         $this->assertStringStartsWith('Brevo · ', $ligne->type);
     }

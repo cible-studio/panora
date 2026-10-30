@@ -35,9 +35,15 @@
         ? trim(($cancelLabels[$campaign->cancellation_reason] ?? '') . ($campaign->cancellation_notes ? ' — ' . $campaign->cancellation_notes : ''))
         : null;
 @endphp
-<tr data-campaign-row="{{ $campaign->id }}" style="{{ $endingSoon ? 'background:rgba(232,160,32,0.03);' : '' }}">
+{{-- data-ligne-url : toute la ligne ouvre la campagne, sauf les zones déjà
+     interactives (client, cases à cocher, boutons d'action). Mécanisme
+     dans admin/partials/ligne-cliquable.blade.php. --}}
+<tr data-campaign-row="{{ $campaign->id }}"
+    data-ligne-url="{{ route('admin.campaigns.show', $campaign) }}"
+    style="{{ $endingSoon ? 'background:rgba(232,160,32,0.03);' : '' }}">
     @if(in_array(auth()->user()?->role?->value, ['admin', 'mediaplanner'], true))
-    <td class="col-check" style="text-align:center;">
+    {{-- Colonne de sélection : on y vise une case, jamais le détail. --}}
+    <td class="col-check" style="text-align:center;" data-ligne-ignore>
         <input type="checkbox" class="bulk-checkbox"
                value="{{ $campaign->id }}"
                data-status="{{ $campaign->status->value }}"
@@ -46,7 +52,7 @@
     @endif
     {{-- ═══ COLONNE FUSIONNÉE : Campagne / Client ═══ --}}
     <td class="col-campaign" data-label="Campagne / Client">
-        <a href="{{ route('admin.campaigns.show', $campaign) }}" class="campaign-name" title="{{ $campaign->name }}">
+        <a href="{{ route('admin.campaigns.show', $campaign) }}" class="campaign-name" data-ligne-principal title="{{ $campaign->name }}">
             {{ $campaign->name }}
         </a>
         <div style="font-size:11px;color:var(--text3);margin-top:2px">

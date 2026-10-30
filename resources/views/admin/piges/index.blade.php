@@ -232,7 +232,11 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px" id="pige-grid">
 @foreach($piges as $pige)
 @php $sc = $pige->getStatusConfig(); @endphp
+{{-- data-ligne-url : toute la carte ouvre la pige, sauf les zones déjà
+     interactives — la photo garde son agrandissement, les boutons leur
+     rôle. Mécanisme dans admin/partials/ligne-cliquable.blade.php. --}}
 <div class="pige-card"
+     data-ligne-url="{{ route('admin.piges.show', $pige) }}"
      data-search="{{ strtolower(($pige->panel?->reference ?? '').' '.($pige->panel?->name ?? '').' '.($pige->campaign?->name ?? '').' '.($pige->technicien?->name ?? '')) }}"
      data-status="{{ $pige->status }}"
      data-id="{{ $pige->id }}">
@@ -378,6 +382,10 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
 </div>
 @endforeach
 </div>
+
+{{-- Toute la carte ouvre la pige (2026-10-29). Posé une fois pour
+     l'écran : l'écouteur est délégué au document. --}}
+@include('admin.partials.ligne-cliquable')
 
 {{-- Pagination --}}
 @if($piges->hasPages())

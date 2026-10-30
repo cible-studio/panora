@@ -368,7 +368,16 @@ class CommercialPerformanceService
             ->where('commercial_user_id', $commercialId)
             ->where('start_date', '<=', $to)
             ->where('end_date',   '>=', $from)
-            ->with(['client:id,name,sector', 'invoices:id,campaign_id,total_a_payer,status,issued_at,paid_at'])
+            // 2026-10-29 : amount_ttc est nécessaire au repli de
+            // Invoice::montantTotal(), et les versements au calcul du
+            // reste à payer — sans eux la vue faisait une requête par
+            // facture, et comptait zéro les factures à total_a_payer nul.
+            ->with([
+                'client:id,name,sector',
+                'invoices:id,campaign_id,total_a_payer,amount_ttc,status,issued_at,paid_at',
+                'invoices.payments:id,invoice_id,montant',
+                'invoices.schedules:id,invoice_id,due_date,paid_at',
+            ])
             ->orderByDesc('start_date')
             ->paginate($perPage);
     }

@@ -1,6 +1,11 @@
 <x-admin-layout title="Signalements & Analyse">
 
 <x-slot:topbarLeft>
+    {{-- Le slot porte le titre de l'écran : le layout n'y posera donc pas
+         le retour de lui-même. On l'appelle ici pour honorer une
+         provenance explicite (?back=, depuis les rapports par exemple).
+         Page du menu : pas de retour déduit, c'est voulu. --}}
+    @include('admin.partials._smart_back')
     <h1 style="font-size:20px;font-weight:800;margin:0;display:flex;align-items:center;gap:8px">
         ⚠️ Signalements terrain
         @if($view === 'analyse')

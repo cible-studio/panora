@@ -622,6 +622,11 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         {{ $poseTasks->links() }}
     </div>
     @endif
+
+    {{-- Toute la ligne ouvre la pose (2026-10-29). Posé une fois pour
+         l'écran : l'écouteur est délégué au document, donc il couvre les
+         lignes rechargées en AJAX (filtres, pagination, rafraîchissement). --}}
+    @include('admin.partials.ligne-cliquable')
 </div>
 
 <script>

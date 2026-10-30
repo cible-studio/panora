@@ -286,14 +286,16 @@ class FinanceDashboardController extends Controller
                 // Hotfix 2026-06-22 : colonne réelle 'total_a_payer' (cf.
                 // Invoice::$fillable). 'total_amount' n'existe pas → 1054
                 // sur /admin/finance/relances.
-                ->get(['id', 'client_id', 'total_a_payer']);
+                // 2026-10-29 : amount_ttc chargé aussi, pour le repli de
+                // Invoice::montantTotal() — total_a_payer vaut 0 par défaut.
+                ->get(['id', 'client_id', 'total_a_payer', 'amount_ttc']);
             foreach ($drafts as $d) {
                 $cid = $d->client_id;
                 if (!isset($brouillonsByClient[$cid])) {
                     $brouillonsByClient[$cid] = ['brouillons_count' => 0, 'brouillons_total' => 0.0];
                 }
                 $brouillonsByClient[$cid]['brouillons_count'] += 1;
-                $brouillonsByClient[$cid]['brouillons_total'] += (float) ($d->total_a_payer ?? 0);
+                $brouillonsByClient[$cid]['brouillons_total'] += $d->montantTotal();
             }
         }
         $byClient = $byClient->map(function ($row) use ($duByClient, $brouillonsByClient) {
@@ -426,9 +428,10 @@ class FinanceDashboardController extends Controller
             ->whereNull('credit_note_for_id')
             ->where('client_id', $clientId)
             ->when($commercialUid !== null, fn($q) => $q->forCommercialUser($commercialUid))
-            ->get(['id', 'total_a_payer']);
+            ->get(['id', 'total_a_payer', 'amount_ttc']);
         $brouillonsCount = $drafts->count();
-        $brouillonsTotal = (float) $drafts->sum('total_a_payer');
+        // montantTotal() : même repli que partout ailleurs (2026-10-29).
+        $brouillonsTotal = (float) $drafts->sum(fn ($facture) => $facture->montantTotal());
 
         return view('admin.finance.partials.relance-detail', [
             'relance'         => $relance, // mise en évidence

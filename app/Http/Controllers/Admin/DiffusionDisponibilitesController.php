@@ -53,12 +53,17 @@ class DiffusionDisponibilitesController extends Controller
         $calendrier = $this->diffusion->calendrier();
         $prochain = $calendrier->prochainEnvoi(now());
         [$debut, $fin] = $calendrier->periode($prochain['creneau']);
+        // Fenêtre d'envoi (2026-10-30) : le catalogue part AVANT sa
+        // période, l'écran doit dire entre quelles dates.
+        [$fenetreDebut, $fenetreFin] = $calendrier->fenetreEnvoi($prochain['creneau']);
 
         $annee = now()->year;
 
         return view('admin.diffusion.index', [
             'prochain'         => $prochain,
             'prochainePeriode' => DiffusionCalendrier::libellePeriode($debut, $fin),
+            'prochaineFenetre' => DiffusionCalendrier::libellePeriode($fenetreDebut, $fenetreFin),
+            'envoiDecale'      => !$prochain['date_envoi']->isSameDay($fenetreDebut),
             'modeTest'         => $this->diffusion->estModeTest(),
             'autoActif'        => (bool) config('diffusion.auto'),
             'brevoConfigure'   => $this->brevo->estConfigure(),

@@ -32,6 +32,10 @@ Thumbs.db
 
 node_modules
 vendor
+# Gabarits Laravel publiés (mails aux couleurs de la charte) : à versionner.
+!resources/views/vendor/
+# Bibliothèques embarquées du site vitrine CIBLE (Three.js, Leaflet).
+!public/cible/assets/vendor/
 # Variables d'environnement (CRITIQUE)
 .env
 .env.backup

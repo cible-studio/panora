@@ -278,6 +278,14 @@ Route::prefix('client')->name('client.')->middleware(\App\Http\Middleware\SetFre
         Route::get('/propositions', [ClientDashboardController::class, 'propositions'])->name('propositions');
         Route::get('/propositions/{token}', [ClientDashboardController::class, 'propositionDetail'])->name('proposition.detail');
 
+        // ── Devis (nouveau module 2026-07-21) ──────────────────
+        Route::get('/devis',                                [\App\Http\Controllers\Client\ClientQuoteController::class, 'index'])   ->name('devis.index');
+        Route::get('/devis/{quote}',                        [\App\Http\Controllers\Client\ClientQuoteController::class, 'show'])    ->name('devis.show')  ->whereNumber('quote');
+        Route::get('/devis/{quote}/pdf',                    [\App\Http\Controllers\Client\ClientQuoteController::class, 'pdf'])     ->name('devis.pdf')   ->whereNumber('quote');
+        Route::post('/devis/{quote}/accept',                [\App\Http\Controllers\Client\ClientQuoteController::class, 'accept'])  ->name('devis.accept')->whereNumber('quote');
+        Route::post('/devis/{quote}/refuse',                [\App\Http\Controllers\Client\ClientQuoteController::class, 'refuse'])  ->name('devis.refuse')->whereNumber('quote');
+        Route::post('/devis/{quote}/request-modification',  [\App\Http\Controllers\Client\ClientQuoteController::class, 'requestModification'])->name('devis.request-modification')->whereNumber('quote');
+
         // Campagnes
         Route::get('/campagnes', [ClientDashboardController::class, 'campagnes'])->name('campagnes');
         Route::get('/campagnes/{campaign}', [ClientDashboardController::class, 'campagneDetail'])->name('campagne.detail');
@@ -889,6 +897,58 @@ Route::prefix('admin')
                 ->name('invoices.schedule.pay');
             Route::patch('invoices/{invoice}/schedule/{schedule}/unpaid', [InvoiceController::class, 'unmarkScheduleEntryPaid'])
                 ->name('invoices.schedule.unpay');
+        });
+
+        // ════════════════════════════════════════════════
+        // DEVIS (Quote) — module commercial non-bloquant
+        // ════════════════════════════════════════════════
+        // Lecture : commercial (ses devis), comptable, MP (tous en lecture)
+        // Écriture (create/update/send/convert) : commercial (ses devis)
+        //   + admin via before()
+        // Cf. app/Policies/QuotePolicy.php pour matrice complète.
+        Route::prefix('quotes')->name('quotes.')->group(function () {
+            // Lecture ouverte aux 3 rôles staff qui ont besoin de visibilité
+            Route::middleware('role:admin,commercial,comptable,mediaplanner')->group(function () {
+                Route::get('/',                  [\App\Http\Controllers\Admin\QuoteController::class, 'index'])->name('index');
+                Route::get('{quote}',            [\App\Http\Controllers\Admin\QuoteController::class, 'show'])->name('show')->whereNumber('quote');
+                Route::get('{quote}/pdf',        [\App\Http\Controllers\Admin\QuoteController::class, 'exportPdf'])->name('pdf')->whereNumber('quote');
+            });
+            // Édition ciblée des PRIX (lignes panneau + services) : ouverte
+            // au comptable en plus d'admin/commercial. Le comptable ne peut
+            // PAS modifier la structure (panneaux/période/remise/envoi) —
+            // uniquement les tarifs, pour coordonner l'anticipation de
+            // facturation. Autorisation fine via QuotePolicy::updatePrice.
+            Route::middleware('role:admin,commercial,comptable')->group(function () {
+                Route::post('{quote}/price', [\App\Http\Controllers\Admin\QuoteController::class, 'updatePrice'])
+                    ->name('price')->whereNumber('quote');
+            });
+
+            // Écriture (structure) réservée admin + commercial (les MP/comptable
+            // sont en lecture seule sur la structure — le prix passe par la
+            // route dédiée ci-dessus).
+            Route::middleware('role:admin,commercial')->group(function () {
+                // AJAX — recherche panneaux (autocomplete Select2 dans le form devis)
+                // Doit rester AVANT create() pour ne pas être matché par {quote}.
+                Route::get('search-panels',          [\App\Http\Controllers\Admin\QuoteController::class, 'searchPanels'])->name('search-panels');
+                // AJAX — récapitulatif en direct pendant la saisie
+                // (2026-10-30). Le SERVEUR calcule : les formules ne sont
+                // jamais recopiées en JavaScript.
+                // Avant create() pour ne pas être pris pour un {quote}.
+                Route::post('totaux',                [\App\Http\Controllers\Admin\QuoteController::class, 'totaux'])->name('totaux');
+                Route::get('create',                 [\App\Http\Controllers\Admin\QuoteController::class, 'create'])->name('create');
+                Route::post('/',                     [\App\Http\Controllers\Admin\QuoteController::class, 'store'])->name('store');
+                Route::get('{quote}/edit',           [\App\Http\Controllers\Admin\QuoteController::class, 'edit'])->name('edit')->whereNumber('quote');
+                Route::put('{quote}',                [\App\Http\Controllers\Admin\QuoteController::class, 'update'])->name('update')->whereNumber('quote');
+                Route::patch('{quote}',              [\App\Http\Controllers\Admin\QuoteController::class, 'update'])->name('update.patch')->whereNumber('quote');
+                Route::post('{quote}/send',          [\App\Http\Controllers\Admin\QuoteController::class, 'send'])->name('send')->whereNumber('quote');
+                Route::post('{quote}/extend',        [\App\Http\Controllers\Admin\QuoteController::class, 'extend'])->name('extend')->whereNumber('quote');
+                Route::post('{quote}/duplicate',     [\App\Http\Controllers\Admin\QuoteController::class, 'duplicate'])->name('duplicate')->whereNumber('quote');
+                Route::post('{quote}/archive',       [\App\Http\Controllers\Admin\QuoteController::class, 'archive'])->name('archive')->whereNumber('quote');
+                // Corbeille (2026-10-29) : droits fins dans QuotePolicy::delete / restore.
+                Route::delete('{quote}',             [\App\Http\Controllers\Admin\QuoteController::class, 'destroy'])->name('destroy')->whereNumber('quote');
+                Route::post('corbeille/{id}/restaurer', [\App\Http\Controllers\Admin\QuoteController::class, 'restore'])
+                    ->name('restore')->whereNumber('id')->middleware('role:admin');
+            });
         });
 
         // ════════════════════════════════════════════════

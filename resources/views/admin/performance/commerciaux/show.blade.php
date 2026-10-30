@@ -187,9 +187,12 @@
                 <tbody>
                     @forelse($campaigns as $c)
                         @php
-                            $totalFact   = $c->invoices->sum('total_a_payer');
-                            $encaisseCmp = $c->invoices->reduce(fn ($s, $i) => $s + ($i->total_a_payer - $i->remainingAmount()), 0);
-                            $reste       = $totalFact - $encaisseCmp;
+                            // 2026-10-29 : montantTotal() au lieu de la colonne
+                            // brute — elle vaut 0 par défaut, et une facture
+                            // créée hors InvoiceCalculator comptait pour zéro.
+                            $totalFact   = $c->invoices->sum(fn ($i) => $i->montantTotal());
+                            $encaisseCmp = $c->invoices->sum(fn ($i) => $i->paidAmount());
+                            $reste       = $c->invoices->sum(fn ($i) => $i->remainingAmount());
                             // 2026-07-15 (feedback patronne) : couleurs par statut
                             // via uiConfig() de l'enum. Fallback gris si le cast
                             // n'a pas fonctionné (status en string brut).

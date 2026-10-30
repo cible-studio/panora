@@ -55,7 +55,11 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/login') ||
     url.pathname.startsWith('/logout') ||
     url.pathname.includes('/export')  ||
-    url.pathname.includes('/pdf')
+    url.pathname.includes('/pdf')     ||
+    // Site vitrine CIBLE (statique, public/cible/) : il a son propre service
+    // worker, à portée /cible/. Le cache « cache-first » d'ici y figerait
+    // d'anciennes versions des styles et scripts.
+    url.pathname.startsWith('/cible')
   ) {
     return; // laisse le navigateur gérer normalement
   }

@@ -82,9 +82,13 @@
     @php
         $fromStr = $from->toDateString();
         $toStr   = $to->toDateString();
-        $urlInvoices  = route('admin.invoices.index',  ['date_from' => $fromStr, 'date_to' => $toStr]);
-        $urlCampActive = route('admin.campaigns.index', ['date_from' => $fromStr, 'date_to' => $toStr]);
-        $urlCampNouv   = route('admin.campaigns.index', ['created_from' => $fromStr, 'created_to' => $toStr]);
+        // 2026-10-29 : on emporte la provenance. Factures et Campagnes sont
+        // des pages du menu : sans ce back, elles n'affichent aucun retour
+        // et on reste bloqué après un clic sur un KPI.
+        $provenance = ['back' => 'performance.commercial'];
+        $urlInvoices  = route('admin.invoices.index',  ['date_from' => $fromStr, 'date_to' => $toStr] + $provenance);
+        $urlCampActive = route('admin.campaigns.index', ['date_from' => $fromStr, 'date_to' => $toStr] + $provenance);
+        $urlCampNouv   = route('admin.campaigns.index', ['created_from' => $fromStr, 'created_to' => $toStr] + $provenance);
     @endphp
     <style>
         a.perf-kpi { text-decoration:none; color:inherit; cursor:pointer; transition: transform .12s, box-shadow .15s; display:block; position:relative; }

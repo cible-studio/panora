@@ -1,6 +1,7 @@
 <?php
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\Campaign;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -20,7 +21,7 @@ use Illuminate\Queue\SerializesModels;
  * ⚠️ Pas de ShouldQueue : envoi synchrone fiable même sans worker
  *    queue:work (QUEUE_CONNECTION=database sinon mails bloqués).
  */
-class CampaignStartedMail extends Mailable
+class CampaignStartedMail extends Mailable implements MailCommercial
 {
     use Queueable, SerializesModels;
 

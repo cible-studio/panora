@@ -201,6 +201,11 @@ class DashboardController extends Controller
                 return $this->computeFinanceKpis($isCommercial, $uid, $now);
             });
 
+        // ═══ KPIs Devis (Phase 4 module commercial) ═══
+        // Compteurs sur les 90 derniers jours + taux de conversion + panier
+        // moyen accepté. Scope commercial : ses devis (commercial_user_id).
+        $devisKpis = $this->computeQuoteKpis($isCommercial, $uid, $now);
+
         return view('dashboard', compact(
             'totalPanneaux', 'panneauxLibres', 'panneauxOccupes',
             'panneauxMaintenance', 'reservationsEnAttente',
@@ -215,8 +220,53 @@ class DashboardController extends Controller
             'caMonthFne', 'caYearFne', 'encaissMonth',
             'invoicesEnRetard', 'totalRecouvrer', 'previsionMontant30j',
             // Phase 8D — Top 10 clients + Top 10 communes (§12)
-            'topClients', 'topCommunes'
+            'topClients', 'topCommunes',
+            'devisKpis'
         ));
+    }
+
+    /**
+     * KPIs devis (90 derniers jours) : envoyés, acceptés, refusés, expirés,
+     * taux de conversion, panier moyen accepté. Scope commercial appliqué.
+     *
+     * @return array{envoyes:int, acceptes:int, refuses:int, expires:int,
+     *               en_negociation:int, en_attente:int, taux_conversion:float,
+     *               panier_moyen_accepte:int, montant_pipeline:int}
+     */
+    protected function computeQuoteKpis(bool $isCommercial, int $uid, \Carbon\Carbon $now): array
+    {
+        $depuis = $now->copy()->subDays(90)->startOfDay();
+
+        $base = \App\Models\Quote::query()
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
+            ->where('created_at', '>=', $depuis);
+
+        $envoyes    = (clone $base)->whereIn('status', ['envoye', 'accepte', 'accepte_avec_conflit', 'refuse', 'expire', 'en_negociation'])->count();
+        $acceptes   = (clone $base)->whereIn('status', ['accepte', 'accepte_avec_conflit'])->count();
+        $refuses    = (clone $base)->where('status', 'refuse')->count();
+        $expires    = (clone $base)->where('status', 'expire')->count();
+        $enNego     = (clone $base)->where('status', 'en_negociation')->count();
+        $enAttente  = (clone $base)->where('status', 'envoye')->count();
+
+        // Taux de conversion : acceptés / (envoyés une fois — donc tout sauf brouillon/archive)
+        $tauxConv = $envoyes > 0
+            ? round(($acceptes / $envoyes) * 100, 1)
+            : 0.0;
+
+        // Panier moyen accepté
+        $panierMoyen = (int) (clone $base)
+            ->whereIn('status', ['accepte', 'accepte_avec_conflit'])
+            ->avg('total_a_payer');
+
+        // Pipeline : total FCFA des devis envoyés / en négo (non décidés)
+        $pipeline = (int) (clone $base)
+            ->whereIn('status', ['envoye', 'en_negociation'])
+            ->sum('total_a_payer');
+
+        return compact(
+            'envoyes', 'acceptes', 'refuses', 'expires',
+            'enNego', 'enAttente', 'tauxConv', 'panierMoyen', 'pipeline'
+        );
     }
 
     /**
@@ -233,13 +283,17 @@ class DashboardController extends Controller
             ->whereNotIn('status', ['annulee'])
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
 
+        // 2026-10-29 : COALESCE ne couvrait que NULL. La colonne
+        // total_a_payer est NOT NULL DEFAULT 0, donc une facture créée hors
+        // InvoiceCalculator comptait pour zéro ici. Invoice::SQL_MONTANT_TOTAL
+        // porte le même repli que Invoice::montantTotal(), partout.
         $caMonthFne   = (int) (clone $finScope)
             ->whereYear('issued_at', $now->year)
             ->whereMonth('issued_at', $now->month)
-            ->sum(\DB::raw('COALESCE(total_a_payer, amount_ttc)'));
+            ->sum(\DB::raw(\App\Models\Invoice::SQL_MONTANT_TOTAL));
         $caYearFne    = (int) (clone $finScope)
             ->whereYear('issued_at', $now->year)
-            ->sum(\DB::raw('COALESCE(total_a_payer, amount_ttc)'));
+            ->sum(\DB::raw(\App\Models\Invoice::SQL_MONTANT_TOTAL));
         $encaissMonth = (int) \App\Models\InvoicePayment::query()
             ->whereYear('paid_at', $now->year)
             ->whereMonth('paid_at', $now->month)
@@ -264,7 +318,8 @@ class DashboardController extends Controller
             ->sum('amount');
 
         $topClients = \App\Models\Invoice::query()
-            ->selectRaw('client_id, SUM(COALESCE(total_a_payer, amount_ttc)) AS ca_total, COUNT(*) AS nb_factures')
+            // Repli commun à toute l'application (Invoice::montantTotal).
+            ->selectRaw('client_id, SUM(' . \App\Models\Invoice::SQL_MONTANT_TOTAL . ') AS ca_total, COUNT(*) AS nb_factures')
             ->whereNotIn('status', ['annulee'])
             ->whereYear('issued_at', $now->year)
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))

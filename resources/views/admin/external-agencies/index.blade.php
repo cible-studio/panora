@@ -105,7 +105,8 @@
       </thead>
       <tbody>
         @forelse($agencies as $agency)
-          <tr>
+          {{-- Toute la ligne ouvre la régie — admin/partials/ligne-cliquable. --}}
+          <tr data-ligne-url="{{ route('admin.external-agencies.show', $agency) }}">
             <td>
               <div style="display:flex;align-items:center;gap:10px;">
                 <div class="avatar-circle">
@@ -176,6 +177,10 @@
         @endforelse
       </tbody>
     </table>
+
+    {{-- Toute la ligne ouvre la régie (2026-10-29). Posé une fois
+         pour l'écran, hors du <table>. --}}
+    @include('admin.partials.ligne-cliquable')
   </div>
 
   @if($agencies->hasPages())

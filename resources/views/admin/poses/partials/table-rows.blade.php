@@ -339,8 +339,11 @@
             $rowStyle = $isLate ? 'border-left:3px solid rgba(239,68,68,.5);background:rgba(239,68,68,.02)' : ($needsPige ? 'border-left:3px solid rgba(249,115,22,.4);background:rgba(249,115,22,.015)' : '');
         @endphp
         @php $isFinal = in_array($task->status, ['realisee', 'annulee']); @endphp
-        <tr class="trow" data-pose-id="{{ $task->id }}" data-campaign-group="{{ $currentCampaignId }}" style="{{ $rowStyle }}">
-            <td style="padding:10px 6px 10px 14px;width:32px">
+        {{-- Toute la ligne ouvre la pose, sauf les zones déjà interactives.
+             Mécanisme : admin/partials/ligne-cliquable. --}}
+        <tr class="trow" data-pose-id="{{ $task->id }}" data-campaign-group="{{ $currentCampaignId }}"
+            data-ligne-url="{{ route('admin.pose-tasks.show', $task) }}" style="{{ $rowStyle }}">
+            <td style="padding:10px 6px 10px 14px;width:32px" data-ligne-ignore>
                 <input type="checkbox" class="pose-check"
                        value="{{ $task->id }}"
                        {{ $isFinal ? 'disabled' : '' }}
@@ -358,7 +361,7 @@
                        style="accent-color:var(--accent);width:14px;height:14px;cursor:{{ $isFinal ? 'not-allowed' : 'pointer' }};opacity:{{ $isFinal ? '.35' : '1' }};">
             </td>
             <td style="padding:10px 12px">
-                <a href="{{ route('admin.pose-tasks.show', $task) }}" style="font-family:monospace;font-size:12px;font-weight:700;color:var(--accent);text-decoration:none;display:block">{{ $task->panel?->reference ?? '—' }}</a>
+                <a href="{{ route('admin.pose-tasks.show', $task) }}" data-ligne-principal style="font-family:monospace;font-size:12px;font-weight:700;color:var(--accent);text-decoration:none;display:block">{{ $task->panel?->reference ?? '—' }}</a>
                 <div style="font-size:11px;color:var(--text2);margin-top:1px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ $task->panel?->name }}">{{ $task->panel?->name ?? '—' }}</div>
                 @if($task->panel?->commune)<div style="font-size:10px;color:var(--text3)">{{ $task->panel->commune->name }}</div>@endif
             </td>

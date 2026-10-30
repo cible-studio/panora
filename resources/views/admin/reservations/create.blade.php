@@ -1,7 +1,12 @@
 <x-admin-layout title="Nouvelle réservation">
 
 <x-slot:topbarLeft>
-  <a href="{{ route('admin.reservations.index') }}" class="btn btn-ghost">← Retour</a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.reservations.index'),
+        'label' => 'Réservations',
+    ]])
 </x-slot:topbarLeft>
 
 <div style="max-width:960px;">

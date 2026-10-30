@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\Invoice;
 use App\Models\InvoiceSchedule;
 use App\Models\PublicLink;
@@ -19,7 +20,7 @@ use Illuminate\Queue\SerializesModels;
  * Idempotence : la commande positionne reminded_at sur l'échéance pour
  * éviter le double-envoi (cf. CheckDueDates::touchReminder).
  */
-class InvoiceScheduleReminderMail extends Mailable
+class InvoiceScheduleReminderMail extends Mailable implements MailCommercial
 {
     use Queueable, SerializesModels;
 

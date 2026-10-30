@@ -189,3 +189,9 @@ Cette liste est un MINIMUM. Chercher au-delà.
   dettes ouvertes (migrations non sqlite-portable, sous-rapports à
   auditer, etc.). À lire avant toute mission qui touche ces zones, à
   mettre à jour à chaque mission qui en crée ou clôt une.
+- **Vérifications en attente** : `docs/A_TESTER.md` liste ce qui demande
+  la VRAIE base (commandes de contrôle à lancer, écrans à ouvrir,
+  migrations à jouer, règles métier à faire trancher). Le travail se fait
+  sur deux postes, dont un à la base vide : ce fichier est le relais entre
+  eux. À lire au début d'une session, à cocher quand c'est fait, à
+  compléter dès qu'une mission laisse une vérification en suspens.

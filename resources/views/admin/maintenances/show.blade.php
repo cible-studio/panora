@@ -2,7 +2,12 @@
 <x-slot name="title">Maintenance — {{ $maintenance->panel->reference }}</x-slot>
 
 <x-slot name="topbarLeft">
-    <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">← Retour</a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon la destination ci-dessous. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.maintenances.index'),
+        'label' => 'Maintenances',
+    ]])
 </x-slot>
 
 <x-slot name="topbarActions">

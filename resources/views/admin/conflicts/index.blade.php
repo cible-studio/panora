@@ -1,10 +1,12 @@
 <x-admin-layout title="Conflits détectés">
 
 <x-slot:topbarLeft>
-    <a href="{{ route('dashboard') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-        Retour
-    </a>
+    {{-- Retour intelligent : la provenance (?back=), sinon le tableau de
+         bord. Page du menu : pas de retour déduit de la page précédente. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('dashboard'),
+        'label' => 'Tableau de bord',
+    ]])
 </x-slot:topbarLeft>
 
 {{-- ── BANDEAU SOMMAIRE ────────────────────────────────────── --}}

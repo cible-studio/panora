@@ -8,7 +8,7 @@
     $today = \Carbon\Carbon::today()->toDateString();
 @endphp
 <section class="live-kpi-grid">
-    <a href="{{ route('admin.pose-tasks.index', ['date_from' => $today, 'date_to' => $today]) }}"
+    <a href="{{ route('admin.pose-tasks.index', ['back' => 'pilotage', 'date_from' => $today, 'date_to' => $today]) }}"
        class="live-kpi live-kpi--total"
        title="Voir toutes les poses planifiées aujourd'hui">
         <div class="live-kpi-icon">📋</div>
@@ -17,7 +17,7 @@
             <div class="live-kpi-label">Poses du jour</div>
         </div>
     </a>
-    <a href="{{ route('admin.pose-tasks.index', ['status' => 'realisee', 'date_from' => $today, 'date_to' => $today]) }}"
+    <a href="{{ route('admin.pose-tasks.index', ['back' => 'pilotage', 'status' => 'realisee', 'date_from' => $today, 'date_to' => $today]) }}"
        class="live-kpi live-kpi--done"
        title="Voir les poses livrées aujourd'hui">
         <div class="live-kpi-icon">✅</div>
@@ -26,7 +26,7 @@
             <div class="live-kpi-label">Faites</div>
         </div>
     </a>
-    <a href="{{ route('admin.pose-tasks.index', ['status' => 'en_cours']) }}"
+    <a href="{{ route('admin.pose-tasks.index', ['back' => 'pilotage', 'status' => 'en_cours']) }}"
        class="live-kpi live-kpi--progress"
        title="Voir les poses en cours">
         <div class="live-kpi-icon">🚗</div>

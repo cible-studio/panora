@@ -128,7 +128,7 @@
                                 </td>
                                 <td class="num">
                                     {{-- Lien vers la liste des factures impayées de ce client. --}}
-                                    <a href="{{ route('admin.invoices.index', ['client_id' => $row['client_id'], 'pay_status' => 'non_payee']) }}"
+                                    <a href="{{ route('admin.invoices.index', ['back' => 'finance', 'client_id' => $row['client_id'], 'pay_status' => 'non_payee']) }}"
                                        style="color:var(--accent);text-decoration:none;font-weight:600"
                                        title="Voir les factures impayées du client">{{ $row['factures_count'] }}</a>
                                 </td>

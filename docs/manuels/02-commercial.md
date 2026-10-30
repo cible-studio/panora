@@ -150,6 +150,38 @@ Quand le client paie (espèces, chèque, virement…), vous devez enregistrer le
 
 **💡 Astuce** : la vue **Finance → Relances** liste toutes vos relances envoyées avec leur suivi.
 
+### 4.8bis Envoyer un devis commercial (nouveauté module Devis)
+
+Un **devis** est une proposition **non-bloquante** : il permet de chiffrer une offre à un prospect sans réserver les panneaux (contrairement à une réservation en option qui bloque 7 jours).
+
+**Cas d'usage** :
+- Un prospect vous demande un chiffrage sur 10 panneaux — vous pouvez lui envoyer un devis PDF sans engager le parc
+- Plusieurs commerciaux peuvent proposer les mêmes panneaux à des prospects différents en parallèle
+- Le devis engage financièrement la régie sur son offre pendant la période de validité (30 jours par défaut)
+
+**Créer un devis** :
+1. Menu → **Devis** → **+ Nouveau devis**
+2. Choisir le client (ou créer un nouveau si prospect nouveau)
+3. Sélectionner les panneaux depuis le catalogue (bouton **+ Ajouter panneau** OU depuis la vue **Disponibilités** → bouton **Ajouter au devis en cours**)
+4. Ajuster prix, durée, remise, services annexes
+5. Enregistrer → statut **Brouillon** (modifiable à volonté)
+6. Bouton **Envoyer au client** → le PDF part par email avec un lien direct pour accepter/refuser en ligne
+
+**Suivre un devis** :
+- **Brouillon** — en cours de rédaction
+- **Envoyé** — le client a reçu le mail, il peut consulter, accepter, refuser ou demander une modification
+- **En négociation** — le client demande un ajustement (vous pouvez le dupliquer pour créer une v2)
+- **Accepté** — 🎉 une réservation ferme est créée **automatiquement**, la campagne s'auto-provisionne
+- **Refusé** — motif enregistré
+- **Expiré** — au-delà de la validité (30j) sans décision, le devis passe automatiquement en expiré
+
+**⚠️ Conflit à l'acceptation** : si un panneau du devis a été réservé par un autre commercial entre l'envoi et l'acceptation, le devis passe en **Accepté avec conflit** et vous recevez une alerte 🚨 → vous devez contacter le client pour ajuster.
+
+**💡 Astuces** :
+- Utilisez **Dupliquer** pour créer une v2 quand un client négocie
+- Le **lien public** (bouton copier dans la fiche devis) permet à un prospect **sans compte** d'accéder au devis sans se connecter
+- Le KPI **Taux de conversion** sur le dashboard mesure votre efficacité (acceptés / envoyés sur 90j)
+
 ### 4.8 Consulter votre performance
 
 1. Menu → **Performance commerciale** → sélectionner votre nom
@@ -173,6 +205,8 @@ Quand le client paie (espèces, chèque, virement…), vous devez enregistrer le
 |---|:-:|
 | Créer un client | ✅ |
 | Créer une réservation / proposition | ✅ |
+| Créer / envoyer un devis (module Devis) | ✅ |
+| Convertir un devis accepté en réservation | ✅ (automatique quand le client accepte) |
 | Modifier VOS réservations | ✅ |
 | Modifier une réservation d'un autre commercial | ❌ |
 | Annuler une réservation | ❌ (à demander au MP ou à l'admin) |

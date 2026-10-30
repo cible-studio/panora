@@ -26,7 +26,9 @@ use Illuminate\Support\Str;
  *
  * Spécification validée le 2026-09-29 (docs/DIFFUSION_DISPONIBILITES.md) :
  *
- *   • Le 1er et le 15 à 10h, décalés au premier jour ouvrable suivant
+ *   • Deux catalogues par mois, envoyés AVANT la période qu'ils
+ *     annoncent : celui du 1er entre le 20 et le 25 du mois précédent,
+ *     celui du 15 entre le 1er et le 5 du mois. Premier jour ouvrable suivant
  *     (cf. DiffusionCalendrier).
  *   • Parc CIBLE uniquement : panneaux libres sur toute la période, plus
  *     ceux qui se libèrent en cours de période (avec leur date). Exclus :

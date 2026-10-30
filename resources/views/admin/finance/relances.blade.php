@@ -1,25 +1,15 @@
 <x-admin-layout>
 <x-slot name="title">Historique des relances</x-slot>
 
-@php
-    // Bouton retour intelligent : ramène à la page précédente si le user
-    // arrive depuis ailleurs (fiche facture, fiche client, dashboard…),
-    // sinon fallback sur le tableau de bord financier.
-    $referer = url()->previous();
-    $cur = url()->current();
-    $backUrl = ($referer && $referer !== $cur && !str_contains($referer, '/admin/finance/relances'))
-        ? $referer
-        : route('admin.finance.index');
-@endphp
-
 <x-slot:topbarLeft>
-    <a href="{{ $backUrl }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px"
-       title="Revenir sur la page précédente">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-        </svg>
-        Retour
-    </a>
+    {{-- Retour intelligent : la provenance (?back=), sinon la page
+         précédente, sinon le tableau de bord financier. Cette vue
+         calculait son propre repli sur le référent (2026-06-18) ; la
+         logique est désormais dans le partial, pour tous les écrans. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.finance.index'),
+        'label' => 'Tableau de bord financier',
+    ]])
 </x-slot:topbarLeft>
 
 {{-- 2026-06-18 — Boutons "Recouvrement" / "Créances" déplacés du

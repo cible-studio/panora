@@ -66,7 +66,7 @@
                                     @if($c['commune_id'])
                                         {{-- Lien vers la liste des panneaux de cette commune (vue
                                              la plus utile pour comprendre ce qui a généré l'encaissement). --}}
-                                        <a href="{{ route('admin.panels.index', ['commune_id' => $c['commune_id']]) }}"
+                                        <a href="{{ route('admin.panels.index', ['back' => 'finance', 'commune_id' => $c['commune_id']]) }}"
                                            style="color:var(--accent);text-decoration:none;font-weight:600"
                                            title="Voir les panneaux de cette commune">
                                             {{ $c['commune_name'] ?? '—' }}
@@ -106,7 +106,7 @@
                                     @if($c['user_id'])
                                         {{-- Lien vers la liste des campagnes assignées à ce commercial
                                              (utilise le filtre commercial_user_id ajouté récemment). --}}
-                                        <a href="{{ route('admin.campaigns.index', ['commercial_user_id' => $c['user_id']]) }}"
+                                        <a href="{{ route('admin.campaigns.index', ['back' => 'finance', 'commercial_user_id' => $c['user_id']]) }}"
                                            style="color:var(--accent);text-decoration:none;font-weight:600"
                                            title="Voir les campagnes de {{ $c['user_name'] }}">
                                             {{ $c['user_name'] }}
@@ -117,7 +117,7 @@
                                 </td>
                                 <td class="num">
                                     @if($c['user_id'])
-                                        <a href="{{ route('admin.invoices.index', ['commercial_user_id' => $c['user_id']]) }}"
+                                        <a href="{{ route('admin.invoices.index', ['back' => 'finance', 'commercial_user_id' => $c['user_id']]) }}"
                                            style="color:var(--accent);text-decoration:none"
                                            title="Voir les factures liées à ce commercial">{{ $c['factures_count'] }}</a>
                                     @else

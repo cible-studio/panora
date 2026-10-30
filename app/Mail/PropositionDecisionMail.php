@@ -1,6 +1,7 @@
 <?php
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\Reservation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,7 +18,7 @@ use Illuminate\Queue\SerializesModels;
  * Destinataire : $reservation->user (le créateur de la proposition).
  * Si pas d'utilisateur lié, fallback sur tous les admins (à gérer côté caller).
  */
-class PropositionDecisionMail extends Mailable implements ShouldQueue
+class PropositionDecisionMail extends Mailable implements ShouldQueue, MailCommercial
 {
     use Queueable, SerializesModels;
 

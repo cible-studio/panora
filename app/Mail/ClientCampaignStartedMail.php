@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Reservation;
@@ -26,7 +27,7 @@ use Illuminate\Queue\SerializesModels;
  *
  * ⚠️ Pas de ShouldQueue : envoi synchrone fiable même sans worker.
  */
-class ClientCampaignStartedMail extends Mailable
+class ClientCampaignStartedMail extends Mailable implements MailCommercial
 {
     use Queueable, SerializesModels;
 

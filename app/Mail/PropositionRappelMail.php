@@ -1,6 +1,7 @@
 <?php
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\Reservation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -10,7 +11,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class PropositionRappelMail extends Mailable implements ShouldQueue
+class PropositionRappelMail extends Mailable implements ShouldQueue, MailCommercial
 {
     use Queueable, SerializesModels;
 
