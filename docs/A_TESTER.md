@@ -201,7 +201,7 @@ si un panneau est déjà pris par une réservation confirmée ou une campagne) :
 
 ---
 
-## 5. Variables à poser sur le serveur *(ajouté le 2026-10-30)*
+## 6. Variables à poser sur le serveur *(ajouté le 2026-10-30)*
 
 Ces trois réglages ont un défaut dans le code, mais c'est le `.env` du
 serveur qui fait foi. **Tant qu'ils n'y sont pas, rien ne change en
@@ -246,7 +246,7 @@ stephane.oponou@cible-ci.com
 
 ---
 
-## 6. Nouveau calendrier de diffusion *(ajouté le 2026-10-30)*
+## 7. Nouveau calendrier de diffusion *(ajouté le 2026-10-30)*
 
 Les catalogues partent désormais **avant** la période qu'ils annoncent :
 celui du 1er du mois entre le **20 et le 25 du mois précédent**, celui du
