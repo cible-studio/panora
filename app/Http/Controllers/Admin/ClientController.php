@@ -301,6 +301,9 @@ class ClientController extends Controller
                                    ->orderByDesc('last_login_at')
                                    ->orderBy('name'),
         ]);
+        // Vrais totaux (2026-10-30) : les listes ci-dessus sont limitées à 8 et 5,
+        // les compteurs de la fiche s'y arrêtaient.
+        $client->loadCount(['campaigns', 'reservations']);
 
         $totalFacture = $client->invoices()->sum('amount_ttc');
         $sectors = Client::SECTORS;
@@ -441,6 +444,81 @@ class ClientController extends Controller
         return redirect()
             ->route('admin.clients.index')
             ->with('success', "Client {$name} supprimé.");
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // REGROUPER DEUX FICHES (2026-10-30) — Direction seulement.
+    // Règle : App\Services\Clients\RegroupementClients (la fenêtre de la
+    // fiche ne fait qu'afficher ce que le serveur calcule).
+    // ══════════════════════════════════════════════════════════════
+
+    /** Fiches proposées : celles qui ressemblent (doublons probables), ou une recherche. */
+    public function regrouperFiches(Request $request, Client $client)
+    {
+        $recherche = trim((string) $request->query('q', ''));
+        $ids = [];
+        if ($recherche === '') {
+            $v = app(NomEntreprise::class)->verifier($client->name, $client->id, 8);
+            $ids = array_merge($v['identique'] ? [$v['identique']['id']] : [], array_column($v['proches'], 'id'));
+        }
+
+        $fiches = Client::query()
+            ->whereKeyNot($client->id)
+            ->when($recherche !== '', fn ($q) => $q->search($recherche), fn ($q) => $q->whereKey($ids ?: [0]))
+            ->withCount(['campaigns', 'reservations'])
+            ->orderBy('name')
+            ->limit(12)
+            ->get(['id', 'name', 'statut_commercial', 'created_at']);
+
+        return response()->json([
+            'suggestions' => $recherche === '',
+            'fiches'      => $fiches->map(fn (Client $f) => [
+                'id'           => $f->id,
+                'name'         => $f->name,
+                'statut'       => Client::STATUTS[$f->statut_commercial] ?? 'Client',
+                'campagnes'    => (int) $f->campaigns_count,
+                'reservations' => (int) $f->reservations_count,
+                'cree'         => $f->created_at?->format('d/m/Y'),
+            ])->values(),
+        ]);
+    }
+
+    /** Ce que fera le regroupement, sans rien modifier. */
+    public function regrouperApercu(Request $request, Client $client, \App\Services\Clients\RegroupementClients $regroupement)
+    {
+        [$garder, $retirer] = $this->fichesARegrouper($request, $client);
+
+        return response()->json($regroupement->apercu($retirer, $garder));
+    }
+
+    public function regrouper(Request $request, Client $client, \App\Services\Clients\RegroupementClients $regroupement)
+    {
+        $data = $request->validate([
+            'liaisons'           => ['nullable', 'array'],
+            'liaisons.*'         => ['string', 'regex:/^\d+:\d+$/'],
+            'factures_comprises' => ['nullable', 'boolean'],
+        ]);
+        [$garder, $retirer] = $this->fichesARegrouper($request, $client);
+        $liaisons = array_map(fn ($p) => array_map('intval', explode(':', $p)), $data['liaisons'] ?? []);
+
+        $regroupement->regrouper($retirer, $garder, $request->user(), $liaisons, (bool) ($data['factures_comprises'] ?? false));
+
+        $message = "« {$retirer->name} » a été regroupée avec « {$garder->name} ».";
+        session()->flash('success', $message);
+
+        return response()->json(['ok' => true, 'message' => $message, 'url' => route('admin.clients.show', $garder)]);
+    }
+
+    /** @return array{0: Client, 1: Client} [fiche gardée, fiche retirée] */
+    private function fichesARegrouper(Request $request, Client $client): array
+    {
+        $data = $request->validate([
+            'avec'   => ['required', 'integer'],
+            'garder' => ['required', 'in:cette,autre'],
+        ]);
+        $autre = Client::findOrFail($data['avec']);
+
+        return $data['garder'] === 'autre' ? [$autre, $client] : [$client, $autre];
     }
 
     // ══════════════════════════════════════════════════════════════

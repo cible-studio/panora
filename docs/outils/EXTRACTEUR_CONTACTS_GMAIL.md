@@ -98,7 +98,7 @@ Un second script, `panora-contacts.gs`, range chaque matin les adresses de « Co
 | À valider | Les nouvelles adresses. Colonne **Décision** : Garder (avec un statut), Écarter, Écarter le domaine |
 | Écartés | Ce qui a été retiré, adresse ou domaine entier. Rien n'en revient. **Remettre** pour annuler |
 | Ignorés | Écartés par le script (adresses personnelles). **À valider** pour en reprendre une |
-| Correspondances | Noms d'entreprise à aligner sur Panora (« Moov-africa » → « MOOV »). **Oui** puis menu **Appliquer les correspondances** : toutes les lignes concernées sont corrigées d'un coup, pour éviter une fiche en double dans Panora. Inutile pour une simple différence d'écriture : depuis le 29/10/2026, Panora reconnaît seul « Coris-Bank » = « CORIS BANK » (majuscules, accents, espaces, tirets et points ignorés) |
+| Correspondances | Noms d'entreprise à aligner sur Panora (« Moov-africa » → « MOOV »). **Oui** puis menu **Appliquer les correspondances** : toutes les lignes concernées sont corrigées d'un coup, pour éviter une fiche en double dans Panora. Inutile pour une simple différence d'écriture : depuis le 29/10/2026, Panora reconnaît seul « Coris-Bank » = « CORIS BANK » (majuscules, accents, espaces, tirets et points ignorés). Une fiche **regroupée** dans Panora (bouton « 🔀 Regrouper » de la fiche client, 30/10/2026) : son ancien nom, son adresse et son domaine mènent tout seuls à la fiche gardée, sans « Entreprise supprimée » |
 
 Les décisions s'appliquent au tri du matin, ou tout de suite avec **Ranger maintenant**. Une ligne **supprimée** à la main est rangée dans « Écartés » : elle ne revient pas.
 

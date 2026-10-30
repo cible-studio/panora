@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Client;
+use App\Models\ClientRegroupement;
 use Illuminate\Support\Str;
 
 /**
@@ -18,9 +19,10 @@ use Illuminate\Support\Str;
  *         « ATHOME » ≈ « ATHOME360 ») ;
  *       - orthographe très proche (« VISUELCONCEPTS » ≈ « VISUEL CONCEPT »).
  *
- * Les fiches supprimées ne comptent pas. Instance « scoped » (une par requête
- * ou par job) : la liste des noms est lue une fois, puis tenue à jour par les
- * événements du modèle Client.
+ * Les fiches supprimées ne comptent pas, sauf une fiche regroupée avec une
+ * autre (2026-10-30) : son nom renvoie vers la fiche gardée. Instance
+ * « scoped » (une par requête ou par job) : la liste des noms est lue une
+ * fois, puis tenue à jour par les événements du modèle Client.
  */
 final class NomEntreprise
 {
@@ -40,6 +42,9 @@ final class NomEntreprise
 
     /** @var array<int, array{nom: string, cle: string, racine: string, mots: list<string>}>|null id → empreinte */
     private ?array $index = null;
+
+    /** @var array<string, int>|null clé du nom d'une fiche regroupée → id de la fiche gardée */
+    private ?array $anciensNoms = null;
 
     // ── Comparaison des noms (sans base) ─────────────────────────
 
@@ -92,20 +97,32 @@ final class NomEntreprise
 
     // ── Recherche dans les fiches ────────────────────────────────
 
-    /** Id de la fiche active qui porte déjà ce nom (la plus ancienne), hors $sauf. */
+    /**
+     * Id de la fiche active qui porte déjà ce nom (la plus ancienne), hors
+     * $sauf ; à défaut, la fiche qui a repris une fiche regroupée de ce nom.
+     */
     public function identique(?string $nom, ?int $sauf = null): ?int
+    {
+        return $this->trouver($nom, $sauf)['id'];
+    }
+
+    /** @return array{id: ?int, ancien_nom: bool} */
+    private function trouver(?string $nom, ?int $sauf): array
     {
         $cle = self::cle($nom);
         if ($cle === '') {
-            return null;
+            return ['id' => null, 'ancien_nom' => false];
         }
         foreach ($this->index() as $id => $e) {
             if ($e['cle'] === $cle && $id !== $sauf) {
-                return $id;
+                return ['id' => $id, 'ancien_nom' => false];
             }
         }
+        $gardee = $this->anciensNoms[$cle] ?? null;
 
-        return null;
+        return $gardee !== null && $gardee !== $sauf
+            ? ['id' => $gardee, 'ancien_nom' => true]
+            : ['id' => null, 'ancien_nom' => false];
     }
 
     /**
@@ -115,7 +132,7 @@ final class NomEntreprise
      */
     public function verifier(?string $nom, ?int $sauf = null, int $max = 5): array
     {
-        $identique = $this->identique($nom, $sauf);
+        ['id' => $identique, 'ancien_nom' => $ancienNom] = $this->trouver($nom, $sauf);
         $saisie = self::empreinte($nom);
         $rang = [self::MEME_RACINE => 0, self::CONTENU => 1, self::ORTHOGRAPHE => 2];
 
@@ -142,7 +159,7 @@ final class NomEntreprise
         ] : null;
 
         return [
-            'identique' => $identique ? $carte($identique, 'même nom') : null,
+            'identique' => $identique ? $carte($identique, $ancienNom ? 'ancien nom de cette fiche (regroupée)' : 'même nom') : null,
             'proches'   => array_values(array_filter(array_map($carte, array_keys($proches), $proches))),
         ];
     }
@@ -167,6 +184,7 @@ final class NomEntreprise
     public function oublier(): void
     {
         $this->index = null;
+        $this->anciensNoms = null;
     }
 
     /** @return array<int, array{nom: string, cle: string, racine: string, mots: list<string>}> */
@@ -176,6 +194,14 @@ final class NomEntreprise
             $this->index = [];
             foreach (Client::query()->toBase()->orderBy('id')->get(['id', 'name']) as $c) {
                 $this->index[(int) $c->id] = self::empreinte($c->name);
+            }
+            // Noms des fiches regroupées, seulement vers une fiche gardée encore active.
+            $this->anciensNoms = [];
+            foreach (ClientRegroupement::anciensNoms() as $r) {
+                $cle = self::cle($r['nom']);
+                if ($cle !== '' && isset($this->index[$r['client_id']])) {
+                    $this->anciensNoms[$cle] ??= $r['client_id'];
+                }
             }
         }
 

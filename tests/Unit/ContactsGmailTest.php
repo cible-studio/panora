@@ -152,6 +152,26 @@ class ContactsGmailTest extends TestCase
         $this->assertStringContainsString('supprimée dans Panora : MTN CI', $r['message']);
     }
 
+    public function test_fiche_regroupee_le_contact_rejoint_la_fiche_gardee(): void
+    {
+        // 2026-10-30 : MTN CI (20) a été regroupée avec MTN COTE D'IVOIRE (21).
+        (require base_path('database/migrations/2026_10_30_100000_create_client_regroupements_table.php'))->up();
+        DB::table('clients')->insert(['id' => 21, 'name' => "MTN COTE D'IVOIRE", 'statut_commercial' => 'client']);
+        DB::table('clients')->where('id', 20)->update(['deleted_at' => now()]);
+        DB::table('client_regroupements')->insert(['ancien_client_id' => 20, 'ancien_nom' => 'MTN CI', 'client_id' => 21, 'created_at' => now(), 'updated_at' => now()]);
+
+        // Par le nom de l'ancienne fiche, écrit autrement.
+        $r = $this->une(['email' => 'ali@mtn-group.com', 'nom' => 'Ali', 'entreprise' => 'mtn-ci']);
+        $this->assertSame([21, 'cree'], [$r['client_id'], $r['resultat']]);
+        // Par l'adresse de l'ancienne fiche.
+        $r = $this->une(['email' => 'info@mtn.ci', 'nom' => 'Info']);
+        $this->assertSame(21, $r['client_id']);
+        // Par le domaine de l'ancienne fiche.
+        $r = $this->une(['email' => 'zoe@mtn.ci', 'nom' => 'Zoé']);
+        $this->assertSame(21, $r['client_id']);
+        $this->assertSame(0, ClientContact::where('client_id', 20)->count());
+    }
+
     public function test_entreprise_inconnue_creee_au_statut_du_contact_sans_ncc(): void
     {
         $r = $this->une(['email' => 'fatou@sucaf.ci', 'nom' => 'Fatou', 'entreprise' => 'Sucaf', 'secteur' => 'Agro-industrie', 'relation' => 'Prospect']);
