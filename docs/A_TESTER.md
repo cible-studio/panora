@@ -38,7 +38,7 @@ Lecture seule, elle ne modifie rien. Six sections :
 - [ ] Les écrans concordent après correction : la liste des factures et
       `/admin/finance` annoncent le **même** restant dû.
 
-⚠ **Lire la section 6 avant de modifier un de ces calculs** : elle liste
+⚠ **Lire la section 4 avant de modifier un de ces calculs** : elle liste
 les quatre pièges rencontrés pendant l'audit, dont deux qui ne lèvent
 aucune erreur et donnent silencieusement un total à zéro.
 
@@ -115,29 +115,7 @@ dans l'application :
 
 ---
 
-## 4. Migration en attente
-
-- [ ] `php artisan migrate` — `2026_10_29_110000_add_catalogues_par_zone_to_diffusion_envois`
-      (deux catalogues de disponibilités par envoi, Abidjan et intérieur).
-      Vérifiée **up et down** sur SQLite. Partie en production le
-      2026-10-29 : le déploiement la joue tout seul (`migrate --force`).
-      Vérifier dans Coolify que le démarrage n'a pas échoué.
-
----
-
-## 5. Modèle Brevo à remplacer
-
-- [ ] Coller `docs/diffusion/modele-brevo-disponibilites-leger.html` dans
-      Brevo (modèle n° 14). Tant que ce n'est pas fait, le mail client ne
-      montre **qu'un seul** lien au lieu des deux (Abidjan / intérieur).
-      `params.LIEN_PDF` reste fourni exprès pour que le bouton actuel ne
-      devienne pas mort entre-temps. Cf. `docs/TECHNICAL_DEBT.md`.
-- [ ] Après collage : un envoi en mode test montre **deux** liens
-      (Abidjan, intérieur), et chacun ouvre son PDF.
-
----
-
-## 6. Pour qui reprend le contrôle financier — pièges déjà rencontrés
+## 4. Pour qui reprend le contrôle financier — pièges déjà rencontrés
 
 > Contexte : l'audit du 2026-10-29 a été fait depuis un poste **sans
 > données** (base locale vide). Les trois écarts corrigés l'ont été en
