@@ -174,6 +174,23 @@ class Invoice extends Model implements Auditable
         'annulee'             => ['brouillon'],
     ];
 
+    // Identité du client figée à l'émission (2026-10-30) — règle : IdentiteClientFacture.
+    protected static function booted(): void
+    {
+        static::saving(fn (self $facture) => \App\Support\IdentiteClientFacture::appliquer($facture));
+    }
+
+    /**
+     * Nom, NCC, RCCM, régime, adresse à imprimer sur la facture : figés dès
+     * l'émission, la fiche actuelle tant que c'est un brouillon.
+     *
+     * @return array{nom: ?string, ncc: ?string, rccm: ?string, regime_imposition: ?string, adresse: ?string, fige: bool, nom_actuel: ?string}
+     */
+    public function identiteClient(): array
+    {
+        return \App\Support\IdentiteClientFacture::lire($this);
+    }
+
     public function client()
     {
         // withTrashed() : on garde la relation lisible même si le client a été

@@ -7,17 +7,6 @@ en crée ou clôt une.
 
 ## Ouvertes
 
-### Les factures ne gardent pas l'identité du client (constaté 2026-10-30)
-
-`pdf/invoice.blade.php` et `pdf/quote.blade.php` relisent **la fiche client
-à chaque affichage** (nom, NCC, RCCM, régime). Une facture déjà émise, voire
-certifiée FNE, se réimprime donc avec les données **actuelles** de la fiche :
-renommer une fiche ou la regrouper avec une autre change le PDF d'anciennes
-factures. Le regroupement l'annonce et exige « J'ai compris », et refuse si
-les NCC diffèrent avec des factures émises — mais le fond reste ouvert :
-figer l'identité du client sur la facture à l'émission (comme les taux,
-`Commune::ratesAt()`). Décision métier à prendre (règle N°5).
-
 ### `Client::$fillable` ne correspond pas à la table (constaté 2026-10-30)
 
 `ifu` et `rccm` existent en base mais pas dans `$fillable` (ignorés sans
@@ -294,6 +283,18 @@ nouvelle** : il faut la faire valider avant de la coder.
 ---
 
 ## Résolues
+
+### Les factures ne gardaient pas l'identité du client — résolu le 2026-10-30
+
+Décision de la direction : l'identité est **figée à l'émission** (nom, NCC,
+RCCM, régime d'imposition, adresse postale). Colonnes `client_*` et
+`client_fige_le` sur `invoices`, règle unique `App\Support\IdentiteClientFacture`
+(gel à la sortie du brouillon, effacé si la facture repasse en brouillon).
+Utilisée par le PDF, la page publique, la fiche facture, la liste PDF et
+l'export Excel. Les factures déjà émises ont été figées avec la fiche du
+30/10 (l'identité d'origine n'avait jamais été gardée). Les écrans de suivi
+(recouvrement, relances) gardent le client tel qu'il est aujourd'hui.
+
 
 ### Statuts « Générée » et « Validée » comptés comme facturés — tranché le 2026-10-30
 

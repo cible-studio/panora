@@ -489,24 +489,26 @@
             </td>
             <td class="client">
                 <div class="client-title">Client</div>
-                <div class="row"><span class="lbl">Nom :</span> {{ $invoice->client?->name ?? '—' }}</div>
+                {{-- Identité figée à l'émission (2026-10-30) ; e-mail et téléphone : la fiche. --}}
+                @php $identite = $invoice->identiteClient(); @endphp
+                <div class="row"><span class="lbl">Nom :</span> {{ $identite['nom'] ?? '—' }}</div>
                 @if(!empty($invoice->client?->email))
                     <div class="row"><span class="lbl">Adresse :</span> {{ $invoice->client->email }}</div>
                 @endif
-                @if(!empty($invoice->client?->address))
-                    <div class="row"><span class="lbl">Adresse postale :</span> {{ $invoice->client->address }}</div>
+                @if(!empty($identite['adresse']))
+                    <div class="row"><span class="lbl">Adresse postale :</span> {{ $identite['adresse'] }}</div>
                 @endif
                 @if(!empty($invoice->client?->phone))
                     <div class="row"><span class="lbl">Téléphone :</span> {{ $invoice->client->phone }}</div>
                 @endif
-                @if(!empty($invoice->client?->ncc))
-                    <div class="row"><span class="lbl">NCC :</span> {{ $invoice->client->ncc }}</div>
+                @if(!empty($identite['ncc']))
+                    <div class="row"><span class="lbl">NCC :</span> {{ $identite['ncc'] }}</div>
                 @endif
-                @if(!empty($invoice->client?->rccm))
-                    <div class="row"><span class="lbl">RCCM :</span> {{ $invoice->client->rccm }}</div>
+                @if(!empty($identite['rccm']))
+                    <div class="row"><span class="lbl">RCCM :</span> {{ $identite['rccm'] }}</div>
                 @endif
-                @if(!empty($invoice->client?->regime_imposition))
-                    <div class="row"><span class="lbl">Régime d'imposition :</span> {{ $invoice->client->regime_imposition }}</div>
+                @if(!empty($identite['regime_imposition']))
+                    <div class="row"><span class="lbl">Régime d'imposition :</span> {{ $identite['regime_imposition'] }}</div>
                 @endif
             </td>
         </tr>

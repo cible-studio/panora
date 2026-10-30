@@ -127,6 +127,17 @@ Deux migrations partent avec ce lot, jouées au démarrage (`migrate --force`) :
 - [ ] Sheet → « Envoyer à Panora » **après** les regroupements : aucun
       « Entreprise supprimée » pour les fiches regroupées
 
+**Identité du client figée sur les factures** (décision du 2026-10-30,
+migration `2026_10_30_110000_add_identite_client_to_invoices`, jamais jouée
+sur MySQL — le serveur local était arrêté) :
+
+- [ ] Après la mise en ligne : une facture déjà émise montre le même nom et
+      NCC qu'avant (la migration les a figés avec la fiche du jour)
+- [ ] Renommer une fiche client (essai sur dev) : le PDF d'une facture émise
+      ne change pas ; sa fiche facture indique « Fiche aujourd'hui : … »
+- [ ] Une facture en brouillon suit la fiche ; à sa génération, l'identité
+      se fige
+
 **Contrôles de disponibilité ajoutés le même jour** (règle validée : refus
 si un panneau est déjà pris par une réservation confirmée ou une campagne) :
 

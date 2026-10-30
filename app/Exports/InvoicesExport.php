@@ -93,7 +93,7 @@ class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 
         return [
             $invoice->reference,
-            $invoice->client?->name ?? '—',
+            $invoice->identiteClient()['nom'] ?? '—', // nom figé à l'émission (2026-10-30)
             $invoice->campaign?->name ?? '—',
             $statusLabels[$invoice->status] ?? $invoice->status,
             $invoice->issued_at?->format('d/m/Y') ?? '',
