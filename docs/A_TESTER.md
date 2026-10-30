@@ -269,3 +269,46 @@ a pas de rattrapage automatique — règle validée le 2026-10-30.
 
 - [ ] Envoyer le catalogue de novembre **à la main**, depuis *Diffusion
       dispos → Envoi manuel*. Fait le : ______
+
+---
+
+## 7. Module Devis — optimisations *(ajouté le 2026-10-30)*
+
+Quatre demandes livrées sur `develop`. **Le module Devis n'est pas en
+production** (phase de test), donc tout se vérifie sur l'environnement de
+test.
+
+- [ ] `php artisan migrate` — `2026_10_30_100000_add_tva_applicable_to_quote_services`
+      (TVA au choix par service). Additive, défaut `true` : aucun devis
+      existant ne change de total.
+
+**TVA sur les services annexes**
+
+- [ ] Nouveau devis → ajouter deux services, en décocher un : la colonne
+      TTC et le sous-total suivent, exactement comme sur la facture FNE
+- [ ] Enregistrer, rouvrir : le choix est conservé
+- [ ] Accepter le devis et le convertir : la facture reprend le même
+      choix, et **le même montant**
+
+**Numéro et titre**
+
+- [ ] Nouveau devis : le numéro `DEV-2026-xxx` s'affiche, non modifiable
+- [ ] Choisir un client → le titre se remplit ; ajouter une campagne → il
+      se complète
+- [ ] Écrire par-dessus, puis changer de client : le titre **ne doit plus
+      bouger**
+
+**Recherche de panneaux**
+
+- [ ] Dans une ligne, taper `bouet` → « Port Bouët » doit sortir
+- [ ] Taper `ABG` → `ABG-002` oui, `CABG-001` non
+- [ ] Taper un nom de commune → les panneaux de cette commune sortent
+
+**Aperçu en direct**
+
+- [ ] Le récapitulatif et l'aperçu apparaissent à droite et suivent le
+      défilement
+- [ ] Chaque saisie les met à jour après une courte pause
+- [ ] Le total de l'aperçu est **le même** que celui du devis une fois
+      enregistré — c'est le contrôle qui compte
+- [ ] Sur un écran étroit (< 1280 px), la colonne passe sous le formulaire
