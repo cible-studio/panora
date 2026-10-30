@@ -608,6 +608,98 @@ class QuoteController extends Controller
         }
     }
 
+    /**
+     * Aperçu en direct du devis pendant sa saisie (2026-10-30).
+     *
+     * Le formulaire envoie son contenu, le SERVEUR calcule et rend : les
+     * totaux viennent d'InvoiceCalculator, exactement comme à
+     * l'enregistrement. Recopier ces formules en JavaScript ferait tôt ou
+     * tard diverger l'aperçu du devis réellement émis — c'est interdit
+     * par le CLAUDE.md, et c'est précisément le genre d'écart qui finit
+     * en litige client.
+     *
+     * Rien n'est enregistré : les lignes et services sont construits en
+     * mémoire. Un formulaire incomplet renvoie simplement un aperçu vide
+     * plutôt qu'une erreur de validation.
+     */
+    public function apercu(Request $request, InvoiceCalculator $calculator): \Illuminate\Http\JsonResponse
+    {
+        $this->authorize('create', Quote::class);
+
+        $debut = $request->input('period_start') ?: null;
+        $fin   = $request->input('period_end') ?: null;
+
+        // Lignes : on reprend l'enrichissement de syncLines (taux figés à
+        // la date du jour via Commune::ratesAt), sans rien persister.
+        $lignes = [];
+        foreach ((array) $request->input('lines', []) as $l) {
+            $pu = (float) ($l['pu_ht_mensuel'] ?? 0);
+            $designation = trim((string) ($l['designation'] ?? ''));
+            if ($designation === '' && $pu <= 0) {
+                continue;
+            }
+
+            $commune = !empty($l['commune_id']) ? Commune::find($l['commune_id']) : null;
+            $taux    = $commune?->ratesAt(now()->toDateString())
+                ?? ['odp' => 0, 'tm' => (float) config('billing.tm_default', 1000)];
+
+            $ligne = [
+                'designation'           => $designation,
+                'snapshot_commune_name' => $commune?->name,
+                'dimension_m2'          => (float) ($l['dimension_m2'] ?? 0),
+                'pu_ht_mensuel'         => $pu,
+                'quantite'              => (int) ($l['quantite'] ?? 1),
+                'duree_mois'            => (float) ($l['duree_mois'] ?? 1),
+                'odp_rate_applique'     => (float) $taux['odp'],
+                'tm_rate_applique'      => (float) $taux['tm'],
+                'campaign_start'        => $debut,
+                'campaign_end'          => $fin,
+            ];
+
+            $lignes[] = $ligne + $calculator->calculateLine($ligne);
+        }
+
+        $services = [];
+        foreach ((array) $request->input('services', []) as $s) {
+            $label = trim((string) ($s['label'] ?? ''));
+            $prix  = (float) ($s['prix_ht'] ?? 0);
+            if ($label === '' || $prix <= 0) {
+                continue;
+            }
+            $services[] = [
+                'label'          => $label,
+                'prix_ht'        => $prix,
+                'tva_applicable' => !array_key_exists('tva_applicable', $s)
+                    || filter_var($s['tva_applicable'], FILTER_VALIDATE_BOOLEAN),
+            ];
+        }
+
+        $totaux = $calculator->calculateInvoice($lignes, [
+            'remise_pct' => (float) $request->input('remise_pct', 0),
+            'services'   => $services ?: null,
+        ]);
+
+        $client   = Client::find($request->input('client_id'));
+        $campagne = Campaign::find($request->input('campaign_id'));
+
+        return response()->json([
+            'vide'   => $lignes === [] && $services === [],
+            'totaux' => $totaux,
+            'html'   => view('admin.quotes.partials._apercu', [
+                'reference'    => $request->input('reference') ?: '—',
+                'titre'        => trim((string) $request->input('title', '')),
+                'client'       => $client,
+                'campagne'     => $campagne,
+                'periodeDebut' => $debut,
+                'periodeFin'   => $fin,
+                'lignes'       => $lignes,
+                'services'     => $services,
+                'totaux'       => $totaux,
+                'tva'          => (float) ($totaux['tva'] ?? 18),
+            ])->render(),
+        ]);
+    }
+
     protected function syncServices(Quote $quote, array $services): void
     {
         $idx = 0;

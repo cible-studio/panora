@@ -60,6 +60,10 @@
     $quoteTva = (float) old('tva', $isEdit ? ($quote->tva ?? 18) : 18);
 @endphp
 
+{{-- Deux colonnes (2026-10-30) : la saisie à gauche, le récapitulatif et
+     l'aperçu du devis à droite, qui suit le défilement. Sur petit écran,
+     la colonne passe dessous (cf. la règle responsive plus bas). --}}
+<div class="qf-colonnes">
 <form method="POST" action="{{ $action }}" id="quote-form" style="display:flex;flex-direction:column;gap:20px">
     @csrf
     @if($method === 'PUT') @method('PUT') @endif
@@ -316,6 +320,39 @@
     </div>
 </form>
 
+{{-- ═══ Colonne de droite : récapitulatif puis aperçu ═══
+     Les deux sont calculés et rendus par le SERVEUR
+     (QuoteController::apercu) : ce qu'on lit ici est ce qui sera
+     enregistré, au franc près. --}}
+<aside class="qf-cote">
+    <div class="qf-recap">
+        <div class="qf-recap-tete">
+            <span>Récapitulatif</span>
+            <span class="qf-recap-etat" id="qf-etat">en direct</span>
+        </div>
+        <div class="qf-recap-corps">
+            <div class="qf-recap-ligne"><span>Total HT brut</span><strong id="qf-brut">0</strong></div>
+            <div class="qf-recap-ligne" id="qf-ligne-remise" hidden><span>Remise</span><strong id="qf-remise">0</strong></div>
+            <div class="qf-recap-ligne qf-recap-fort"><span>Total HT</span><strong id="qf-net">0</strong></div>
+            <div class="qf-recap-ligne"><span>TVA</span><strong id="qf-tva">0</strong></div>
+            <div class="qf-recap-ligne" id="qf-ligne-taxes" hidden><span>Taxes (TSP · TM · ODP)</span><strong id="qf-taxes">0</strong></div>
+            <div class="qf-recap-ligne" id="qf-ligne-services" hidden><span>Services TTC</span><strong id="qf-services">0</strong></div>
+        </div>
+        <div class="qf-recap-total">
+            <span>Total à payer</span>
+            <strong id="qf-total">0 FCFA</strong>
+        </div>
+    </div>
+
+    <div class="qf-apercu-boite">
+        <div class="qf-recap-tete"><span>Aperçu du devis</span></div>
+        <div id="qf-apercu" class="qf-apercu">
+            <div class="qa-vide">Renseignez le devis pour le voir se dessiner.</div>
+        </div>
+    </div>
+</aside>
+</div>
+
 @push('scripts')
 {{-- Select2 (partagé avec admin/invoices/index et admin/quotes/index) --}}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
@@ -333,6 +370,55 @@
     .qf-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(232,160,32,.15); }
 
     /* ── Lignes panneaux : chaque ligne dans un "tile" pour lisibilité ── */
+    /* ═══ Deux colonnes : saisie à gauche, récap + aperçu à droite ═══
+       (2026-10-30). La colonne de droite suit le défilement. */
+    .qf-colonnes { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:20px; align-items:start; }
+    .qf-cote { position:sticky; top:72px; display:flex; flex-direction:column; gap:14px; max-height:calc(100vh - 90px); overflow:auto; }
+    @media (max-width: 1280px) { .qf-colonnes { grid-template-columns:1fr; } .qf-cote { position:static; max-height:none; } }
+
+    .qf-recap, .qf-apercu-boite { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+    .qf-recap-tete {
+        display:flex; align-items:center; justify-content:space-between;
+        padding:10px 14px; background:var(--surface2); border-bottom:1px solid var(--border);
+        font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--text2);
+    }
+    .qf-recap-etat { font-weight:600; text-transform:none; letter-spacing:0; color:var(--text3); }
+    .qf-recap-etat.calcul { color:var(--accent); }
+    .qf-recap-corps { padding:12px 14px; display:flex; flex-direction:column; gap:7px; }
+    .qf-recap-ligne { display:flex; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--text2); }
+    .qf-recap-ligne strong { color:var(--text); white-space:nowrap; }
+    .qf-recap-fort { padding-top:7px; border-top:1px solid var(--border); font-weight:700; }
+    .qf-recap-total {
+        display:flex; justify-content:space-between; align-items:center; gap:10px;
+        padding:12px 14px; background:var(--accent); color:#fff; font-weight:800;
+    }
+    .qf-recap-total strong { font-size:16px; white-space:nowrap; }
+    .qf-apercu { padding:14px; font-size:12px; }
+
+    /* ═══ L'aperçu du document lui-même ═══ */
+    .qa-doc { color:var(--text); }
+    .qa-entete { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding-bottom:10px; border-bottom:2px solid var(--text); }
+    .qa-marque { font-size:15px; font-weight:800; letter-spacing:.5px; }
+    .qa-sous, .qa-commune { font-size:10.5px; color:var(--text3); }
+    .qa-type { font-size:11px; font-weight:800; letter-spacing:1.5px; color:var(--accent); }
+    .qa-ref { font-family:monospace; font-size:12.5px; font-weight:700; }
+    .qa-bloc { padding:10px 0; }
+    .qa-titre-devis { font-weight:700; font-size:13px; }
+    .qa-meta { font-size:11px; color:var(--text3); margin-top:2px; }
+    .qa-section { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--text3); margin:12px 0 4px; }
+    .qa-table { width:100%; border-collapse:collapse; font-size:11.5px; }
+    .qa-table th { padding:5px 4px; font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:var(--text3); border-bottom:1px solid var(--border); }
+    .qa-table td { padding:5px 4px; border-bottom:1px solid var(--border); vertical-align:top; }
+    .qa-vide { padding:18px 6px; text-align:center; font-size:11.5px; color:var(--text3); font-style:italic; }
+    .qa-tva-pastille { display:inline-block; margin-left:5px; padding:1px 5px; border-radius:999px; font-size:9px; font-weight:800; }
+    .qa-tva-pastille.qa-avec { background:rgba(22,163,74,.12); color:#15803d; }
+    .qa-tva-pastille.qa-sans { background:var(--surface2); color:var(--text3); }
+    .qa-totaux { margin-top:12px; display:flex; flex-direction:column; gap:5px; }
+    .qa-ligne { display:flex; justify-content:space-between; gap:10px; font-size:11.5px; color:var(--text2); }
+    .qa-ligne.qa-remise { color:#b45309; }
+    .qa-ligne.qa-fort { padding-top:5px; border-top:1px solid var(--border); font-weight:700; color:var(--text); }
+    .qa-total-final { display:flex; justify-content:space-between; gap:10px; margin-top:8px; padding-top:8px; border-top:2px solid var(--text); font-weight:800; font-size:13px; }
+
     /* Interrupteur TVA d'un service annexe (2026-10-30) — même apparence
        que celui de la facture FNE, pour que les deux écrans se ressemblent. */
     .qs-tva-toggle {
@@ -824,9 +910,84 @@ window.QuoteForm = (function() {
             if (e.target.matches('.qs-tva, [name="tva"]')) recalcServices();
         });
         recalcServices();
+
+        // Aperçu : toute modification du formulaire relance la demande.
+        ['input', 'change'].forEach(ev =>
+            document.getElementById('quote-form')?.addEventListener(ev, demanderApercu));
+        $('#quote-client, #quote-campaign').on('change', demanderApercu);
+        demanderApercu();
     });
 
-    return { addLine, addService, recalcServices };
+    // ── Aperçu en direct (2026-10-30) ──────────────────────────────
+    // Le serveur calcule ET rend : aucune formule n'est recopiée ici.
+    const APERCU_URL = @json(route('admin.quotes.apercu'));
+    const CSRF = document.querySelector('meta[name="csrf-token"]')?.content
+        || document.querySelector('#quote-form input[name="_token"]')?.value;
+
+    let minuteur = null;
+    let demandeEnCours = 0;
+    const fmt = n => Number(n || 0).toLocaleString('fr-FR');
+
+    function demanderApercu() {
+        // Anti-rafale : on ne part qu'une fois la saisie calmée.
+        clearTimeout(minuteur);
+        document.getElementById('qf-etat')?.classList.add('calcul');
+        minuteur = setTimeout(chargerApercu, 450);
+    }
+
+    async function chargerApercu() {
+        const form = document.getElementById('quote-form');
+        if (!form) return;
+
+        const mien = ++demandeEnCours;
+        const corps = new FormData(form);
+        corps.append('reference', @json($isEdit ? $quote->reference : ($referenceProposee ?? '')));
+
+        try {
+            const r = await fetch(APERCU_URL, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: corps,
+            });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const d = await r.json();
+
+            // Une réponse dépassée par une plus récente est ignorée.
+            if (mien !== demandeEnCours) return;
+
+            const t = d.totaux || {};
+            const txt = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+            const bloc = (id, afficher) => { const e = document.getElementById(id); if (e) e.hidden = !afficher; };
+
+            txt('qf-brut',  fmt(t.amount));
+            txt('qf-net',   fmt(t.net_ht));
+            txt('qf-tva',   fmt(t.tva_amount));
+            txt('qf-total', fmt(t.total_a_payer) + ' FCFA');
+
+            const remise = (t.amount || 0) - (t.net_ht || 0);
+            bloc('qf-ligne-remise', remise > 0);
+            txt('qf-remise', '− ' + fmt(remise));
+
+            const taxes = (t.tsp_amount || 0) + (t.tm_total || 0) + (t.odp_total || 0);
+            bloc('qf-ligne-taxes', taxes > 0);
+            txt('qf-taxes', fmt(taxes));
+
+            bloc('qf-ligne-services', (t.services_ttc_total || 0) > 0);
+            txt('qf-services', fmt(t.services_ttc_total));
+
+            const cible = document.getElementById('qf-apercu');
+            if (cible && d.html) cible.innerHTML = d.html;
+        } catch (e) {
+            // Un aperçu en panne ne doit jamais gêner la saisie.
+            console.warn('Aperçu du devis indisponible :', e.message);
+        } finally {
+            if (mien === demandeEnCours) {
+                document.getElementById('qf-etat')?.classList.remove('calcul');
+            }
+        }
+    }
+
+    return { addLine, addService, recalcServices, demanderApercu };
 })();
 </script>
 @endpush

@@ -930,6 +930,11 @@ Route::prefix('admin')
                 // AJAX — recherche panneaux (autocomplete Select2 dans le form devis)
                 // Doit rester AVANT create() pour ne pas être matché par {quote}.
                 Route::get('search-panels',          [\App\Http\Controllers\Admin\QuoteController::class, 'searchPanels'])->name('search-panels');
+                // AJAX — aperçu en direct pendant la saisie (2026-10-30).
+                // Le SERVEUR calcule les totaux et rend le document : les
+                // formules ne sont jamais recopiées en JavaScript.
+                // Avant create() pour ne pas être pris pour un {quote}.
+                Route::post('apercu',                [\App\Http\Controllers\Admin\QuoteController::class, 'apercu'])->name('apercu');
                 Route::get('create',                 [\App\Http\Controllers\Admin\QuoteController::class, 'create'])->name('create');
                 Route::post('/',                     [\App\Http\Controllers\Admin\QuoteController::class, 'store'])->name('store');
                 Route::get('{quote}/edit',           [\App\Http\Controllers\Admin\QuoteController::class, 'edit'])->name('edit')->whereNumber('quote');
