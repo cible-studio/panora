@@ -21,9 +21,11 @@
 
     <h2>Destinataire</h2>
     <div style="background:var(--bg);border-radius:10px;padding:14px;font-size:13px;line-height:1.7">
-        <strong>{{ $invoice->client?->name ?? '—' }}</strong><br>
-        @if($invoice->client?->ncc)NCC : {{ $invoice->client->ncc }}<br>@endif
-        @if($invoice->client?->address){{ $invoice->client->address }}<br>@endif
+        {{-- Identité figée à l'émission (2026-10-30). --}}
+        @php $identite = $invoice->identiteClient(); @endphp
+        <strong>{{ $identite['nom'] ?? '—' }}</strong><br>
+        @if($identite['ncc'])NCC : {{ $identite['ncc'] }}<br>@endif
+        @if($identite['adresse']){{ $identite['adresse'] }}<br>@endif
         @if($invoice->client?->email){{ $invoice->client->email }}@endif
     </div>
 

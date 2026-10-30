@@ -40,8 +40,9 @@ use OwenIt\Auditing\Events\AuditCustom;
  *   · Refus : fiche à retirer avec un compte ou une équipe d'espace client ;
  *     NCC différents et factures déjà émises (deux sociétés, sans doute) ;
  *     table inconnue portant un client_id dans la base.
- *   · Factures déjà émises : elles se réimpriment au nom de la fiche gardée
- *     (le PDF relit la fiche) → case « J'ai compris » obligatoire.
+ *   · Factures déjà émises : elles passent sur la fiche gardée mais leur
+ *     PDF garde le nom et le NCC figés à leur émission (2026-10-30,
+ *     IdentiteClientFacture) → case « J'ai compris » obligatoire.
  *   · « Relier » une réservation et une campagne de l'autre fiche :
  *     seulement si rien ne peut se déclencher derrière (cf. liaisons()).
  *
@@ -141,7 +142,7 @@ final class RegroupementClients
             }
             $factures = $this->facturesEmises($retirer);
             if ($factures && !$facturesComprises) {
-                throw ValidationException::withMessages(['factures_comprises' => "Cochez « J'ai compris » : les factures déjà émises de « {$retirer->name} » s'afficheront au nom de « {$garder->name} »."]);
+                throw ValidationException::withMessages(['factures_comprises' => "Cochez « J'ai compris » : les factures déjà émises de « {$retirer->name} » passeront sur « {$garder->name} » (leur PDF garde le nom et le NCC de leur émission)."]);
             }
             $aRelier = $this->liaisonsDemandees($retirer, $garder, $liaisons);
 

@@ -115,7 +115,7 @@
         @forelse($invoices as $inv)
         <tr>
             <td class="ref">{{ $inv->reference }}</td>
-            <td>{{ $inv->client?->name ?? '—' }}</td>
+            <td>{{ $inv->identiteClient()['nom'] ?? '—' }}</td>
             <td>{{ \Illuminate\Support\Str::limit($inv->campaign?->name ?? '—', 35) }}</td>
             <td>{{ $inv->issued_at?->format('d/m/Y') ?? '' }}</td>
             <td>{{ $inv->paid_at?->format('d/m/Y') ?? '—' }}</td>

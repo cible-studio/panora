@@ -373,12 +373,20 @@
                     <div>
                         <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">CLIENT</div>
                         @if($invoice->client)
+                            {{-- Nom figé à l'émission (2026-10-30) ; la fiche a pu être renommée depuis. --}}
+                            @php $identite = $invoice->identiteClient(); @endphp
                             <a href="{{ route('admin.clients.show', $invoice->client) }}"
                                style="font-weight:700;color:var(--text);text-decoration:none;border-bottom:1px dashed var(--border2);display:inline-flex;align-items:center;gap:4px"
                                title="Ouvrir la fiche client">
-                                {{ $invoice->client->name }}
+                                {{ $identite['nom'] ?? $invoice->client->name }}
                                 <span style="color:var(--accent);font-size:11px">↗</span>
                             </a>
+                            @if($identite['fige'] && $identite['nom_actuel'] && $identite['nom_actuel'] !== $identite['nom'])
+                                <div style="font-size:11px;color:var(--text3);margin-top:2px;"
+                                     title="La facture garde le nom de son émission ; la fiche client porte aujourd'hui un autre nom.">
+                                    Fiche aujourd'hui : {{ $identite['nom_actuel'] }} ⓘ
+                                </div>
+                            @endif
                         @else
                             <span style="color:var(--text3)">—</span>
                         @endif

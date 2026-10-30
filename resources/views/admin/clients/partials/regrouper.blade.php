@@ -179,7 +179,7 @@ window.Regrouper = (function () {
 
         if (a.factures_emises.length) {
             h += bloc('ambre', `<strong>${pluriel(a.factures_emises.length, 'facture')} déjà émise${a.factures_emises.length > 1 ? 's' : ''}</strong> : ${a.factures_emises.map(esc).join(', ')}<br>`
-                + `Leur PDF s'affichera au nom et au NCC de « ${G} ».`
+                + `Elles passent sur « ${G} » ; leur PDF garde le nom et le NCC de leur émission.`
                 + `<label style="display:flex;gap:8px;align-items:center;margin-top:8px;cursor:pointer;"><input type="checkbox" id="rg-factures"> J'ai compris</label>`);
         }
 
