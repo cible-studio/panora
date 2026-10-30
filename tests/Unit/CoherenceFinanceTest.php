@@ -77,44 +77,66 @@ class CoherenceFinanceTest extends TestCase
     {
         $source = $this->source('app/Http/Controllers/Admin/InvoiceController.php');
 
+        // 2026-10-30 — les tuiles de la liste vivent dans montantsListe(),
+        // appelée au chargement ET par la réponse AJAX des actions.
+        $this->assertStringContainsString(
+            "['encaisse' => \$montantTotal, 'restant' => \$montantRestantDu] = \$this->montantsListe(",
+            $source
+        );
         $this->assertMatchesRegularExpression(
-            '/\$montantRestantDu\s*=.*?remainingAmount\(\)/s',
+            '/\$restant\s*=.*?remainingAmount\(\)/s',
             $source,
             'Le KPI « Restant » doit passer par remainingAmount(), comme le reste de l\'application.'
         );
         $this->assertDoesNotMatchRegularExpression(
-            '/\$montantRestantDu\s*=\s*\(clone \$kpiQuery\(\)\)[^;]*->sum\(\x27total_a_payer\x27\)/s',
+            '/\$restant\s*=[^;]*->sum\(\x27total_a_payer\x27\)/s',
             $source,
             'Sommer total_a_payer compterait une facture à moitié réglée pour son montant entier.'
         );
     }
 
-    // ── 2. Les avoirs écartés des deux côtés ───────────────────────
+    // ── 2. Avoirs et brouillons écartés : une seule règle ──────────
 
-    public function test_les_avoirs_sont_ecartes_de_la_liste_des_factures(): void
+    public function test_les_avoirs_et_brouillons_sont_ecartes_par_la_regle_unique(): void
     {
-        $source = $this->source('app/Http/Controllers/Admin/InvoiceController.php');
-
-        // Le CA encaissé et le restant dû de la liste doivent les écarter,
-        // comme le fait FinancialDashboardService.
-        $this->assertGreaterThanOrEqual(
-            2,
-            substr_count($source, 'credit_note_for_id'),
-            'Les KPI de la liste doivent écarter les avoirs, comme la page Finance.'
-        );
-    }
-
-    public function test_la_liste_ecarte_aussi_les_brouillons_du_ca_encaisse(): void
-    {
-        $source = $this->source('app/Http/Controllers/Admin/InvoiceController.php');
-
+        // Règle validée le 2026-10-30 : ni brouillon, ni annulée, ni avoir.
+        $this->assertSame(['brouillon', 'annulee'], Invoice::STATUTS_HORS_CA);
         $this->assertStringContainsString(
-            "whereNotIn('invoices.status', ['brouillon', 'annulee'])",
-            $source,
-            'Le CA encaissé excluait seulement les annulées, Finance excluait aussi les brouillons.'
+            "whereNull(\$p . 'credit_note_for_id')",
+            $this->source('app/Models/Invoice.php')
         );
     }
 
+    public function test_la_regle_n_est_plus_recopiee(): void
+    {
+        // Ces fichiers portaient chacun leur copie de la règle, parfois
+        // fausse (brouillons comptés, générées oubliées). Tous passent
+        // désormais par Invoice::facturees() / nonAnnulees().
+        foreach ([
+            'app/Http/Controllers/Admin/InvoiceController.php',
+            'app/Http/Controllers/Admin/DashboardController.php',
+            'app/Http/Controllers/Admin/ClientController.php',
+            'app/Services/FinancialDashboardService.php',
+            'app/Services/CaRealService.php',
+            'app/Services/CommercialPerformanceService.php',
+            'app/Console/Commands/CheckDueDates.php',
+            'app/Console/Commands/VerifierFinance.php',
+            'app/Models/Campaign.php',
+            'resources/views/admin/clients/show.blade.php',
+        ] as $fichier) {
+            $source = $this->source($fichier);
+            $this->assertDoesNotMatchRegularExpression(
+                '/whereNotIn\(\s*\x27(invoices\.)?status\x27,\s*\[\s*\x27(brouillon|annulee)\x27(,\s*\x27(brouillon|annulee)\x27)?\s*\]\)/',
+                $source,
+                "{$fichier} : copie de la règle du CA, passer par Invoice::facturees() ou nonAnnulees()."
+            );
+            $this->assertDoesNotMatchRegularExpression(
+                '/whereIn\(\s*\x27(invoices\.)?status\x27,\s*\[\s*\x27brouillon\x27,\s*\x27envoyee\x27/',
+                $source,
+                "{$fichier} : liste de statuts incomplète (générées, validées, partielles oubliées)."
+            );
+        }
+    }
     // ── 3. Plus aucune somme sans repli dans Finance ───────────────
 
     public function test_les_totaux_de_finance_passent_par_le_repli(): void
@@ -178,8 +200,8 @@ class CoherenceFinanceTest extends TestCase
 
     public function test_l_outil_chiffre_les_statuts_a_trancher(): void
     {
-        // La question « une facture Générée compte-t-elle comme facturée ? »
-        // reste ouverte : l'outil doit en donner le montant pour trancher.
+        // « Une facture Générée compte-t-elle comme facturée ? » : OUI, tranché
+        // le 2026-10-30. L'outil en donne toujours le montant, pour information.
         $source = $this->source('app/Console/Commands/VerifierFinance.php');
 
         $this->assertStringContainsString("'generee', 'validee'", $source);

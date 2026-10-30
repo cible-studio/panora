@@ -58,6 +58,42 @@ aucune erreur et donnent silencieusement un total à zéro.
       d’affaires facturé et dans le montant dû. C’est déjà ce que fait
       `FinancialDashboardService` (seuls `brouillon` et `annulee` sont
       écartés) : rien à changer dans le code.
+- [x] **Règle appliquée partout le 2026-10-30** (`Invoice::facturees()`) :
+      plusieurs écrans avaient leur propre copie, souvent différente
+      (accueil, fiche client, page facture, performance commerciale, liste
+      des factures, PDF de la liste). Contrôles ci-dessous.
+
+### Après la mise en ligne de la règle unique du CA (2026-10-30)
+
+Rien n’a pu être rejoué sur une vraie base MySQL (MySQL local arrêté) :
+seuls les tests SQLite sont passés. À faire en production, ou sur
+`panora_essai` quand MySQL tourne :
+
+- [ ] `php artisan finance:verifier` : la ligne « Générée / Validée » n’est
+      plus une anomalie, juste une information. Le « Reste réellement à
+      encaisser » (section 4) doit égaler le « Restant » de la liste des
+      factures et le dû de la page Finance.
+- [ ] Accueil : « CA du mois / de l’année » et « Total à recouvrer » ne
+      comptent plus les brouillons → ils peuvent **baisser** (16 brouillons
+      = 195 M FCFA au 30/10). C’est voulu.
+- [ ] Fiche client → « Synthèse financière » et total facturé de l’en-tête :
+      même chiffre, brouillons et avoirs exclus.
+- [ ] Page d’une facture → bloc « Client » : « Encaissé TTC » = somme des
+      versements, « Reste dû TTC » = ce qui manque ; le lien « Toutes (N) »
+      compte toutes les factures, brouillons compris.
+- [ ] Liste des factures : cliquer « ✅ Marquer soldée » sur une facture
+      envoyée → la tuile « CA Encaissé » **augmente** du solde (avant, elle
+      sautait à un autre chiffre), le « Restant » baisse d’autant.
+- [ ] Cette facture → onglet versements : un versement « SOLDE_AUTO_… » du
+      solde, mode « autre ». « ↩ Retour en brouillon » le retire (un
+      versement saisi à la main reste).
+- [ ] Facturer une campagne qui a déjà une facture « Générée » ou
+      « Validée » : le « reste à facturer » en tient compte (avant, non).
+- [ ] Liste des factures → export PDF : la tuile « Encaissé » = versements
+      reçus (acomptes compris), plus le TTC des seules factures soldées.
+- [ ] Performance commerciale : « factures impayées » et « reste dû »
+      comptent aussi les générées / validées ; le CA HT ne compte plus les
+      brouillons ni les avoirs.
 
 ---
 
@@ -119,7 +155,8 @@ Deux migrations partent avec ce lot, jouées au démarrage (`migrate --force`) :
 
 - [x] Coolify : la production a redémarré sans erreur après la mise en ligne
       *(fait le 2026-10-30 — les regroupements ont tourné en production)*
-- [ ] Moteur des tables en production — dans le terminal Coolify :
+- [x] Moteur des tables en production — dans le terminal Coolify :
+      *(fait le 2026-10-30 : `"InnoDB" => 67`, aucune table MyISAM)*
       `php artisan tinker --execute="dump(collect(DB::select('SHOW TABLE STATUS'))->countBy('Engine')->all());"`
       → attendu : InnoDB seul. (`SHOW TABLE STATUS` tapé tel quel dans le shell ne marche pas.)
       Pourquoi : `Engine`

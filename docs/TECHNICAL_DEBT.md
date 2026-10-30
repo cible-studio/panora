@@ -7,6 +7,34 @@ en crée ou clôt une.
 
 ## Ouvertes
 
+### Périmètre « commercial » : deux définitions (constaté 2026-10-30)
+
+Une facture « appartient » à un commercial selon deux règles différentes :
+- `Invoice::forCommercialUser()` : campagne du commercial, ou facture sans
+  campagne qu'il a créée (listes, accueil, Finance, restant de la liste) ;
+- `invoices.commercial_user_id` : performance commerciale, et la tuile
+  « CA Encaissé » de la liste des factures.
+
+Un commercial peut donc voir un encaissé et un restant calculés sur deux
+paniers de factures. Non touché lors de la règle unique du CA (autre
+logique). À trancher : laquelle fait foi pour un commercial ?
+
+### Annulation d'une campagne : seules les factures brouillon / envoyée sont annulées (constaté 2026-10-30)
+
+`CampaignService` (annulation d'une campagne) passe en « annulée » les
+factures liées en `brouillon` ou `envoyee` seulement. Une facture
+`generee`, `validee` ou `en_retard` reste due, bien que la campagne soit
+annulée ; une `partiellement_payee` aussi (là, un versement a eu lieu :
+avoir ou remboursement). Règle métier à faire trancher avant d'y toucher.
+
+### PDF de la liste des factures : montants des lignes en `amount_ttc` (constaté 2026-10-30)
+
+`pdf/invoices-list` affiche et totalise `amount_ttc`, pas
+`Invoice::montantTotal()` (`total_a_payer`, repli `amount_ttc`) qu'utilisent
+Finance et la liste. « Total TTC » peut donc différer du total à payer
+quand ODP / TM sont refacturés. La tuile « Encaissé » a été alignée le
+2026-10-30, pas les montants des lignes. À valider avant de changer.
+
 ### `Client::$fillable` ne correspond pas à la table (constaté 2026-10-30)
 
 `ifu` et `rccm` existent en base mais pas dans `$fillable` (ignorés sans
@@ -300,6 +328,15 @@ l'export Excel. Les factures déjà émises ont été figées avec la fiche du
 
 Décision de la direction : **oui**, ils comptent dans le facturé et le dû.
 Le comportement de `FinancialDashboardService` est le bon, rien à coder.
+
+**Suite, même jour** : la règle vit désormais à un seul endroit,
+`Invoice::facturees()` / `restreindreAuFacture()` / `compteAuCa()` (CA et
+dû : ni brouillon, ni annulée, ni avoir) et `Invoice::nonAnnulees()` (déjà
+facturé d'une campagne). Accueil, Finance, CA réel, performance
+commerciale, fiche client, page facture, liste et PDF de la liste, alertes
+d'échéance, `finance:verifier` y passent. « Marquer soldée » enregistre le
+versement du solde (`SOLDE_AUTO_…`), que « Retour en brouillon » retire.
+Garde-fou : `CoherenceFinanceTest::test_la_regle_n_est_plus_recopiee`.
 
 
 ### TX-14 (2026-09-24) — L'ODP se compte en MOIS (correction de TX-12)

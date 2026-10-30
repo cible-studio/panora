@@ -279,8 +279,10 @@ class DashboardController extends Controller
      */
     protected function computeFinanceKpis(bool $isCommercial, int $uid, \Carbon\Carbon $now): array
     {
+        // CA facturé (2026-10-30) : même règle que Finance et Rapports —
+        // ni brouillon, ni annulée, ni avoir (Invoice::restreindreAuFacture).
         $finScope = \App\Models\Invoice::query()
-            ->whereNotIn('status', ['annulee'])
+            ->facturees()
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
 
         // 2026-10-29 : COALESCE ne couvrait que NULL. La colonne
@@ -297,7 +299,8 @@ class DashboardController extends Controller
         $encaissMonth = (int) \App\Models\InvoicePayment::query()
             ->whereYear('paid_at', $now->year)
             ->whereMonth('paid_at', $now->month)
-            ->when($isCommercial, fn($q) => $q->whereHas('invoice', fn($i) => $i->forCommercialUser($uid)))
+            // Versements des seules factures comptées (comme Finance).
+            ->whereHas('invoice', fn($i) => $i->facturees()->when($isCommercial, fn($q) => $q->forCommercialUser($uid)))
             ->sum('montant');
         $invoicesEnRetard = (clone $finScope)
             ->where('status', 'en_retard')->count();
@@ -320,7 +323,7 @@ class DashboardController extends Controller
         $topClients = \App\Models\Invoice::query()
             // Repli commun à toute l'application (Invoice::montantTotal).
             ->selectRaw('client_id, SUM(' . \App\Models\Invoice::SQL_MONTANT_TOTAL . ') AS ca_total, COUNT(*) AS nb_factures')
-            ->whereNotIn('status', ['annulee'])
+            ->facturees()
             ->whereYear('issued_at', $now->year)
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
             ->groupBy('client_id')
@@ -332,7 +335,7 @@ class DashboardController extends Controller
         $topCommunes = \App\Models\InvoiceLine::query()
             ->selectRaw('commune_id, snapshot_commune_name, SUM(montant_ht_ligne) AS ht_total')
             ->whereHas('invoice', function ($q) use ($isCommercial, $uid, $now) {
-                $q->whereNotIn('status', ['annulee'])
+                $q->facturees()
                   ->whereYear('issued_at', $now->year)
                   ->when($isCommercial, fn($qq) => $qq->forCommercialUser($uid));
             })

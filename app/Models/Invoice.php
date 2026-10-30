@@ -363,6 +363,50 @@ class Invoice extends Model implements Auditable
     }
 
     /**
+     * CA FACTURÉ — SOURCE UNIQUE (règle validée par la direction le 2026-10-30).
+     *
+     * Une facture compte dans le chiffre d'affaires facturé et dans le dû dès
+     * qu'elle sort du brouillon : générée, validée, envoyée, partiellement
+     * soldée, soldée, en retard, en litige. Ne comptent jamais : le brouillon
+     * (un projet), l'annulée, l'avoir. L'envoi au client n'est pas requis.
+     * Le DÛ, c'est ce même ensemble moins les versements (remainingAmount()).
+     * L'ENCAISSÉ, ce sont les versements (invoice_payments).
+     *
+     *   Invoice::facturees()->…                          (Eloquent)
+     *   Invoice::restreindreAuFacture(DB::table('invoices'), 'invoices')
+     */
+    public const STATUTS_HORS_CA = ['brouillon', 'annulee'];
+
+    /** Applique la règle du CA facturé à n'importe quelle requête (Eloquent ou DB::table). */
+    public static function restreindreAuFacture($query, string $table = 'invoices')
+    {
+        $p = $table !== '' ? $table . '.' : '';
+
+        return $query->whereNotIn($p . 'status', self::STATUTS_HORS_CA)->whereNull($p . 'credit_note_for_id');
+    }
+
+    public function scopeFacturees($query)
+    {
+        return self::restreindreAuFacture($query, $this->getTable());
+    }
+
+    /** Même règle, sur une facture déjà chargée (listes, PDF). */
+    public function compteAuCa(): bool
+    {
+        return !in_array($this->status, self::STATUTS_HORS_CA, true) && $this->credit_note_for_id === null;
+    }
+
+    /**
+     * DÉJÀ FACTURÉ d'une campagne (reste à facturer) : toute facture sauf
+     * l'annulée — brouillons compris, pour ne pas facturer deux fois la
+     * même campagne (2026-10-30).
+     */
+    public function scopeNonAnnulees($query)
+    {
+        return $query->where($this->getTable() . '.status', '!=', 'annulee');
+    }
+
+    /**
      * Somme des versements enregistrés sur cette facture.
      * Source : invoice_payments. Si la facture est historique (avant
      * la refonte) et n'a pas encore de InvoicePayment mais a un paid_at

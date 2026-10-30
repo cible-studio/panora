@@ -426,13 +426,14 @@
              nb impayés, retard moyen, historique des paiements + relances.
         ════════════════════════════════════════════════════════════════ --}}
         @php
+            // CA facturé (2026-10-30) : ni brouillon, ni annulée, ni avoir — même règle que Finance.
             $clientInvoices = \App\Models\Invoice::where('client_id', $client->id)
-                ->whereNotIn('status', ['annulee'])
+                ->facturees()
                 ->with(['payments', 'schedules'])
                 ->orderByDesc('issued_at')
                 ->get();
 
-            $totalFactured = (int) $clientInvoices->sum(fn($i) => (int) ($i->total_a_payer ?: $i->amount_ttc));
+            $totalFactured = (int) $clientInvoices->sum(fn($i) => (int) $i->montantTotal());
             $totalPaid     = (int) $clientInvoices->sum(fn($i) => (int) $i->paidAmount());
             $soldeDu       = max(0, $totalFactured - $totalPaid);
             $countImpayes  = $clientInvoices->filter(fn($i) => $i->remainingAmount() > 0)->count();

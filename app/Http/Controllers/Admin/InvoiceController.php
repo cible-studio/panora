@@ -10,6 +10,9 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class InvoiceController extends Controller
 {
+    /** Préfixe de référence du versement créé par « Marquer soldée ». */
+    private const REF_SOLDE_AUTO = 'SOLDE_AUTO_';
+
     public function index(Request $request)
     {
         $this->authorize('viewAny', Invoice::class);
@@ -105,36 +108,7 @@ class InvoiceController extends Controller
         // (FinancialDashboardService) : brouillons ET avoirs en plus des
         // annulées. Un avoir est une écriture négative : compté ici, il
         // faisait diverger ce KPI de celui de la page Finance.
-        $montantTotal = (int) \DB::table('invoice_payments')
-            ->join('invoices', 'invoices.id', '=', 'invoice_payments.invoice_id')
-            ->whereNotIn('invoices.status', ['brouillon', 'annulee'])
-            ->whereNull('invoices.credit_note_for_id')
-            ->when($isCommercial, fn($q) => $q->whereExists(function ($sub) use ($uid) {
-                $sub->select(\DB::raw(1))
-                    ->from('invoices as i2')
-                    ->whereColumn('i2.id', 'invoice_payments.invoice_id')
-                    ->where(function ($w) use ($uid) {
-                        $w->where('i2.commercial_user_id', $uid);
-                    });
-            }))
-            ->sum('invoice_payments.montant');
-
-        // Restant dû global (Envoyée + Partielle + En retard).
-        //
-        // 2026-10-29 — CORRECTION : on sommait `total_a_payer`, c'est-à-dire
-        // le montant FACTURÉ, sans déduire les versements déjà reçus. Une
-        // facture de 6 660 000 réglée à moitié comptait pour 6 660 000 dans
-        // le « Restant », alors que sa ligne affichait 3 638 576 et que la
-        // page Finance en comptait autant. On passe par remainingAmount(),
-        // la même méthode que le reste de l'application.
-        $montantRestantDu = (int) round(
-            (clone $kpiQuery())
-                ->whereIn('status', ['envoyee', 'partiellement_payee', 'en_retard'])
-                ->whereNull('credit_note_for_id')
-                ->with(['payments:id,invoice_id,montant', 'schedules:id,invoice_id,due_date,paid_at'])
-                ->get()
-                ->sum(fn (Invoice $facture) => $facture->remainingAmount())
-        );
+        ['encaisse' => $montantTotal, 'restant' => $montantRestantDu] = $this->montantsListe($isCommercial, $uid);
         
         // ✅ AJAX response
         if ($request->ajax() || $request->input('ajax')) {
@@ -681,16 +655,25 @@ class InvoiceController extends Controller
         // Même scope que ci-dessus pour cohérence.
         $clientStats = null;
         if ($invoice->client_id) {
+            // 2026-10-30 : mêmes règles que Finance — factures comptées au CA
+            // (ni brouillon, ni annulée, ni avoir), encaissé = versements,
+            // en attente = reste dû. Avant : brouillons comptés « en attente »,
+            // versements partiels ignorés, générées et validées oubliées.
             $allClientInvoices = Invoice::where('client_id', $invoice->client_id)
+                ->facturees()
                 ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
-                ->select('status', 'amount_ttc')
+                ->with(['payments', 'schedules'])
                 ->get();
             $clientStats = [
                 'count_total'   => $allClientInvoices->count(),
-                'count_paid'    => $allClientInvoices->where('status', 'payee')->count(),
-                'count_pending' => $allClientInvoices->whereIn('status', ['brouillon', 'envoyee'])->count(),
-                'sum_paid_ttc'  => (float) $allClientInvoices->where('status', 'payee')->sum('amount_ttc'),
-                'sum_pending_ttc' => (float) $allClientInvoices->whereIn('status', ['brouillon', 'envoyee'])->sum('amount_ttc'),
+                'count_paid'    => $allClientInvoices->filter(fn ($i) => $i->remainingAmount() <= 0)->count(),
+                'count_pending' => $allClientInvoices->filter(fn ($i) => $i->remainingAmount() > 0)->count(),
+                'sum_paid_ttc'  => (float) $allClientInvoices->sum(fn ($i) => $i->paidAmount()),
+                'sum_pending_ttc' => (float) $allClientInvoices->sum(fn ($i) => $i->remainingAmount()),
+                // Lien « Toutes (N) » : la liste ouverte montre aussi brouillons et annulées.
+                'count_all'     => Invoice::where('client_id', $invoice->client_id)
+                    ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
+                    ->count(),
                 'scope'         => $isCommercial ? 'commercial' : 'global',
             ];
         }
@@ -934,7 +917,7 @@ class InvoiceController extends Controller
         // non-annulées, on prévient (mais on n'empêche pas — facturation
         // partielle / complémentaire reste possible).
         $existingCount = $campaign->invoices()
-            ->whereNotIn('status', ['annulee'])->count();
+            ->nonAnnulees()->count(); // même règle que Campaign::alreadyBilledHt()
 
         $opts = $request->validate([
             'remise_pct'           => 'nullable|numeric|min:0|max:100',
@@ -1427,7 +1410,7 @@ class InvoiceController extends Controller
         }
     }
 
-    public function markPaid(Request $request, Invoice $invoice)
+    public function markPaid(Request $request, Invoice $invoice, \App\Services\PaymentService $payments)
     {
         $this->authorize('markPaid', $invoice);
 
@@ -1448,11 +1431,42 @@ class InvoiceController extends Controller
                 "🚫 Campagne liée annulée — paiement bloqué. Annule la facture (🚫) ou clarifie la situation avant de marquer soldée.");
         }
 
-        $invoice->update([
-            'status'  => 'payee',
-            'paid_at' => now(),
-        ]);
-        return $this->statusResponse($request, $invoice, true, 'Facture marquée comme soldée. ✅');
+        // 2026-10-30 — comme « Solder manuellement » : un versement du solde
+        // est enregistré. Avant, seul le statut changeait : l'encaissé, le
+        // reste dû et l'échéancier ignoraient ce paiement.
+        $remaining = (int) round($invoice->remainingAmount());
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($invoice, $payments, $remaining) {
+                if ($remaining > 0) {
+                    $payments->register($invoice, [
+                        'paid_at'    => now()->toDateString(),
+                        'montant'    => $remaining,
+                        'mode'       => 'autre',
+                        'reference'  => self::REF_SOLDE_AUTO . now()->format('YmdHis'),
+                        'is_acompte' => false,
+                        'note'       => 'Facture marquée soldée : versement du solde enregistré automatiquement.',
+                    ]);
+                }
+
+                // Envoyée : PaymentService a déjà passé la facture en « payée ».
+                // Brouillon (ou aucun solde) : la synchro n'agit pas, on garde
+                // le passage direct d'avant.
+                $invoice->refresh();
+                if ($invoice->status !== 'payee') {
+                    $invoice->update([
+                        'status'  => 'payee',
+                        'paid_at' => $invoice->paid_at ?? now(),
+                    ]);
+                }
+            });
+        } catch (\DomainException $e) {
+            return $this->statusResponse($request, $invoice, false, '🚫 ' . $e->getMessage());
+        }
+
+        $message = $remaining > 0
+            ? 'Facture marquée comme soldée. ✅ Versement de ' . number_format($remaining, 0, ',', ' ') . ' FCFA enregistré.'
+            : 'Facture marquée comme soldée. ✅';
+        return $this->statusResponse($request, $invoice, true, $message);
     }
 
     /**
@@ -1479,7 +1493,7 @@ class InvoiceController extends Controller
      * (ex: marquée payée par erreur, à corriger avant pagination comptable).
      * Réinitialise paid_at pour rester cohérent avec le statut.
      */
-    public function revertDraft(Request $request, Invoice $invoice)
+    public function revertDraft(Request $request, Invoice $invoice, \App\Services\PaymentService $payments)
     {
         $this->authorize('revertDraft', $invoice);
 
@@ -1487,10 +1501,21 @@ class InvoiceController extends Controller
             return $this->statusResponse($request, $invoice, false, 'Facture déjà en brouillon.');
         }
 
-        $invoice->update([
-            'status'  => 'brouillon',
-            'paid_at' => null,
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($invoice, $payments) {
+            $invoice->update([
+                'status'  => 'brouillon',
+                'paid_at' => null,
+            ]);
+
+            // 2026-10-30 — « Marquer soldée » enregistre un versement du solde.
+            // Revenir en brouillon (cas « marquée payée par erreur ») retire ce
+            // versement automatique, comme avant où seul le statut changeait.
+            // Les versements saisis à la main ne sont jamais touchés.
+            $invoice->payments()
+                ->where('reference', 'like', self::REF_SOLDE_AUTO . '%')
+                ->get()
+                ->each(fn ($versement) => $payments->delete($versement));
+        });
         return $this->statusResponse($request, $invoice, true, 'Facture rebasculée en brouillon.');
     }
 
@@ -1516,6 +1541,10 @@ class InvoiceController extends Controller
         $uid = (int) ($user?->id ?? 0);
         $base = fn() => Invoice::query()
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
+        // 2026-10-30 — mêmes chiffres qu'au chargement de la liste. Avant,
+        // « ca » valait la somme des factures « payée » : la tuile
+        // « CA Encaissé » changeait de valeur après chaque action.
+        $montants = $this->montantsListe($isCommercial, $uid);
 
         return response()->json([
             'success'  => $ok,
@@ -1525,9 +1554,44 @@ class InvoiceController extends Controller
                 'brouillon' => (clone $base())->where('status', 'brouillon')->count(),
                 'envoyee'   => (clone $base())->where('status', 'envoyee')->count(),
                 'payee'     => (clone $base())->where('status', 'payee')->count(),
-                'ca'        => (float) (clone $base())->where('status', 'payee')->sum('amount_ttc'),
+                'ca'        => $montants['encaisse'],
+                'restant'   => $montants['restant'],
             ],
         ], $ok ? 200 : 422);
+    }
+
+    /**
+     * Tuiles « CA Encaissé » et « Restant » de la liste des factures,
+     * au chargement de la page comme dans la réponse AJAX des actions.
+     *
+     * 2026-10-30 — règle unique du CA (Invoice::facturees) : ni brouillon,
+     * ni annulée, ni avoir. Encaissé = versements reçus. Restant = reste
+     * dû de ces factures, générées, validées et en litige comprises
+     * (avant : envoyée / partielle / en retard seulement, d'où un écart
+     * avec la page Finance).
+     */
+    private function montantsListe(bool $isCommercial, int $uid): array
+    {
+        // Périmètre d'un commercial inchangé sur l'encaissé :
+        // invoices.commercial_user_id (cf. docs/TECHNICAL_DEBT.md).
+        $encaisse = (int) \DB::table('invoice_payments')
+            ->join('invoices', 'invoices.id', '=', 'invoice_payments.invoice_id')
+            ->where(fn ($q) => Invoice::restreindreAuFacture($q, 'invoices'))
+            ->when($isCommercial, fn ($q) => $q->where('invoices.commercial_user_id', $uid))
+            ->sum('invoice_payments.montant');
+
+        // 2026-10-29 — reste dû via remainingAmount() (versements déduits),
+        // la même méthode que le reste de l'application.
+        $restant = (int) round(
+            Invoice::query()
+                ->facturees()
+                ->when($isCommercial, fn ($q) => $q->forCommercialUser($uid))
+                ->with(['payments:id,invoice_id,montant', 'schedules:id,invoice_id,due_date,paid_at'])
+                ->get()
+                ->sum(fn (Invoice $facture) => $facture->remainingAmount())
+        );
+
+        return ['encaisse' => $encaisse, 'restant' => $restant];
     }
 
     public function exportPdf(Invoice $invoice)
@@ -1622,7 +1686,9 @@ class InvoiceController extends Controller
      */
     protected function exportListPdfInner(Request $request)
     {
-        $invoices = $this->filteredQuery($request)->get();
+        $invoices = $this->filteredQuery($request)
+            ->with('payments:id,invoice_id,montant') // tuile « Encaissé » du PDF
+            ->get();
 
         $clientName = null;
         if ($request->filled('client_id')) {
