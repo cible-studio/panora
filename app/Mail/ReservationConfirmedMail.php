@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\PublicLink;
 use App\Models\Reservation;
 use Illuminate\Bus\Queueable;
@@ -10,7 +11,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class ReservationConfirmedMail extends Mailable
+class ReservationConfirmedMail extends Mailable implements MailCommercial
 {
     use Queueable, SerializesModels;
 

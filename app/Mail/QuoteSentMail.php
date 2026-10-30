@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\Quote;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Bus\Queueable;
@@ -18,7 +19,7 @@ use Illuminate\Queue\SerializesModels;
  *     • vers /client/devis/{id} si le client a un compte
  *     • vers /devis/{token} sinon (lien public)
  */
-class QuoteSentMail extends Mailable
+class QuoteSentMail extends Mailable implements MailCommercial
 {
     use Queueable, SerializesModels;
 

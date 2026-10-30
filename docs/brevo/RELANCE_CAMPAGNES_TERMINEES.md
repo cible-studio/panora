@@ -72,7 +72,7 @@ Brevo → **Campagnes** → **Modèles** → **Créer un modèle** → **Code HT
 1. Colle tout le contenu de `modele-relance-campagne-terminee.html`.
 2. Renseigne :
    - expéditeur : `commercial@cible-ci.com` ;
-   - nom : `CIBLE CI — Service commercial`, ou le prénom d'un commercial ;
+   - nom : `CIBLE CI — Service Commercial`, ou le prénom d'un commercial ;
    - objet : celui de l'étape 5.
 3. **Laisse vide** « Aperçu du texte » : le modèle a déjà le sien.
 4. Enregistre, puis **active** le modèle.

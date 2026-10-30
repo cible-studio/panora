@@ -77,7 +77,7 @@ Délai de prise en compte : jusqu'à 48 h. Brevo passe les enregistrements au ve
 
 ### Étape 3 — Ajouter l'expéditeur
 *Expéditeurs → Ajouter* : `commercial@cible-ci.com`, nom affiché
-« CIBLE CI — Service commercial ». Saisir le code reçu dans cette boîte.
+« CIBLE CI — Service Commercial ». Saisir le code reçu dans cette boîte.
 Cette boîte doit être lue : les clients y répondront.
 
 ### Étape 4 — Créer les attributs de contact
@@ -185,7 +185,7 @@ formulaire de désinscription dans Brevo, puis renseigner son identifiant
 ```dotenv
 BREVO_API_KEY=                        # étape 6 — à coller directement, jamais à transmettre
 BREVO_SENDER_EMAIL=commercial@cible-ci.com
-BREVO_SENDER_NAME="CIBLE CI — Service commercial"
+BREVO_SENDER_NAME="CIBLE CI — Service Commercial"
 BREVO_LIST_CLIENTS=                   # étape 5 — identifiant de « Clients — Disponibilités »
 BREVO_LIST_TESTS=                     # étape 5 — identifiant de « Tests internes »
 BREVO_TEMPLATE_DISPOS=                # étape 7 — vide = gabarit Panora

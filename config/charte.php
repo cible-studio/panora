@@ -64,7 +64,7 @@ return [
     'coordonnees' => [
         'activite'   => env('CHARTE_ACTIVITE', 'Régie publicitaire · Côte d\'Ivoire'),
         'adresse'    => env('CHARTE_ADRESSE', 'Rue des Ambassadeurs, Riviera M\'Badon · 10 BP 1029 Abidjan 10'),
-        'telephones' => env('CHARTE_TELEPHONES', '+225 07 98 49 66 74 · +225 27 22 20 80 08'),
+        'telephones' => env('CHARTE_TELEPHONES', '+225 07 98 49 66 74 · +225 07 00 78 06 27 · +225 27 22 20 80 08'),
         'email'      => env('CHARTE_EMAIL', 'commercial@cible-ci.com'),
         'site'       => env('CHARTE_SITE', 'cible-ci.com'),
     ],

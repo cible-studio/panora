@@ -29,7 +29,7 @@ return [
     // valeur entre guillemets (« \"CIBLE CI\" » vu en prod le 2026-10-01).
     'sender' => [
         'email' => trim((string) env('BREVO_SENDER_EMAIL'), " \"'\\") ?: null,
-        'name'  => trim((string) env('BREVO_SENDER_NAME', 'Service commercial'), " \"'\\") ?: 'Service commercial',
+        'name'  => trim((string) env('BREVO_SENDER_NAME', 'Service Commercial'), " \"'\\") ?: 'Service Commercial',
     ],
 
     // Identifiants numériques des listes Brevo (Contacts → Listes).

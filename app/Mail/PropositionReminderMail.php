@@ -1,6 +1,7 @@
 <?php
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\Reservation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -19,7 +20,7 @@ use Illuminate\Queue\SerializesModels;
  *   - J+2 : informatif ("vous n'avez pas encore validé")
  *   - J+5 : pressant (J-2 avant expiration)
  */
-class PropositionReminderMail extends Mailable implements ShouldQueue
+class PropositionReminderMail extends Mailable implements ShouldQueue, MailCommercial
 {
     use Queueable, SerializesModels;
 

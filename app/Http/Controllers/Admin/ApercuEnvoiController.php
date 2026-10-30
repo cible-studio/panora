@@ -50,7 +50,7 @@ class ApercuEnvoiController extends Controller
         return [
             new CampaignStartedMail($campaign),
             $client ? array_column($client->destinatairesSuivi($campaign->interlocuteur), 'email') : [],
-            [],
+            self::copieCommerciale(),
         ];
     }
 
@@ -59,7 +59,7 @@ class ApercuEnvoiController extends Controller
     {
         $this->authorize('send', $quote);
 
-        return [new QuoteSentMail($quote), $quote->adressesClient(), []];
+        return [new QuoteSentMail($quote), $quote->adressesClient(), self::copieCommerciale()];
     }
 
     /** @return array{0: Mailable, 1: list<string>, 2: list<string>} */
@@ -73,6 +73,20 @@ class ApercuEnvoiController extends Controller
             $apercu->proposition_slug = 'apercu';
         }
 
-        return [new PropositionMail($apercu), $reservation->adressesClient(), []];
+        return [new PropositionMail($apercu), $reservation->adressesClient(), self::copieCommerciale()];
+    }
+    /**
+     * Copie commerciale (2026-10-30) : les trois mails de cet aperçu sont
+     * marqués App\Mail\Concerns\MailCommercial, donc l'écouteur de
+     * MessageSending y ajoute cette copie à l'envoi. L'aperçu doit la
+     * montrer, sinon il annoncerait des destinataires incomplets.
+     *
+     * @return list<string>
+     */
+    private static function copieCommerciale(): array
+    {
+        return \App\Services\Diffusion\DiffusionDisponibilitesService::adresses(
+            config('mails.copie_commerciale')
+        );
     }
 }

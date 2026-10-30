@@ -93,6 +93,40 @@ class AppServiceProvider extends ServiceProvider
             [\App\Services\JournalMails::class, 'surEnvoi']
         );
 
+        // ─── Copie commerciale (2026-10-30) ────────────────────────────
+        // Tout mail marqué App\Mail\Concerns\MailCommercial part avec la
+        // copie de config('mails.copie_commerciale'). Branché sur
+        // MessageSending : c'est le seul point par lequel passent TOUS les
+        // envois (NotificationMailer, Mail::to()->send(), file d'attente).
+        // On AJOUTE : une copie déjà posée par le mailable est conservée.
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Mail\Events\MessageSending::class,
+            function (\Illuminate\Mail\Events\MessageSending $event) {
+                $mailable = $event->data['__laravel_mailable'] ?? null;
+                if (!$mailable || !is_subclass_of($mailable, \App\Mail\Concerns\MailCommercial::class)) {
+                    return;
+                }
+
+                $copies = \App\Services\Diffusion\DiffusionDisponibilitesService::adresses(
+                    config('mails.copie_commerciale')
+                );
+                if (!$copies) return;
+
+                $message = $event->message;
+                // Ni en double avec une copie existante, ni avec un
+                // destinataire direct : le commercial qui reçoit déjà le
+                // mail ne doit pas en recevoir un second exemplaire.
+                $deja = array_map(
+                    fn (\Symfony\Component\Mime\Address $a) => mb_strtolower($a->getAddress()),
+                    array_merge($message->getTo(), $message->getCc())
+                );
+
+                foreach (array_diff($copies, $deja) as $copie) {
+                    $message->addCc($copie);
+                }
+            }
+        );
+
         // ─── Inliner CSS pour tous les emails ──────────────────────────
         // Sans ça, Gmail/Outlook strippent le <style> au forward et le
         // mail transféré perd son design. tijsverkoyen/css-to-inline-styles

@@ -72,12 +72,29 @@ class RelanceFinCampagneService
         return max(1, (int) config('diffusion.fin_campagne.jours', 7));
     }
 
-    /** @return string[] */
+    /**
+     * Copie des mails de fin de campagne et de renouvellement.
+     *
+     * Deux sources réunies ici (2026-10-30) :
+     *   · RELANCE_FIN_COPIE, propre à ces envois (à défaut l'expéditeur) ;
+     *   · la copie commerciale de config('mails.copie_commerciale'),
+     *     commune à tous les mails commerciaux et de facturation.
+     *
+     * Ces mails partent par l'API Brevo, pas par le mailer de Laravel :
+     * l'écouteur de MessageSending qui pose la copie commerciale ailleurs
+     * ne les voit pas. Sans cette réunion, ils seraient les seuls mails
+     * commerciaux sans copie.
+     *
+     * @return string[]
+     */
     public function copie(): array
     {
-        return DiffusionDisponibilitesService::adresses(
-            config('diffusion.fin_campagne.copie') ?: config('brevo.sender.email')
-        );
+        return array_values(array_unique(array_merge(
+            DiffusionDisponibilitesService::adresses(
+                config('diffusion.fin_campagne.copie') ?: config('brevo.sender.email')
+            ),
+            DiffusionDisponibilitesService::adresses(config('mails.copie_commerciale')),
+        )));
     }
 
     // ══════════════════════════════════════════════════════════════

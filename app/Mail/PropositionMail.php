@@ -5,6 +5,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\MailCommercial;
 use App\Models\Reservation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -21,7 +22,7 @@ use Illuminate\Queue\SerializesModels;
  * asynchrone (l'admin n'attend pas le SMTP). Si pas de worker, le driver
  * `sync` envoie immédiatement (config par défaut Laravel).
  */
-class PropositionMail extends Mailable implements ShouldQueue
+class PropositionMail extends Mailable implements ShouldQueue, MailCommercial
 {
     use Queueable, SerializesModels;
 
