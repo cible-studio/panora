@@ -128,11 +128,13 @@ Deux migrations partent avec ce lot, jouées au démarrage (`migrate --force`) :
 `2026_10_30_090000_create_notifications_table` et
 `2026_10_30_100000_create_client_regroupements_table`.
 
-- [ ] Coolify : la production a redémarré sans erreur après la mise en ligne
+- [x] Coolify : la production a redémarré sans erreur après la mise en ligne
+      *(fait le 2026-10-30 — les regroupements ont tourné en production)*
 - [ ] Moteur des tables en production : `SHOW TABLE STATUS` → `Engine`
       = InnoDB (cf. TECHNICAL_DEBT, MyISAM). Le regroupement vérifie tout
       **avant** d'écrire, mais seul InnoDB annule un regroupement interrompu
-- [ ] Les 8 doublons, **quand personne ne travaille dans Panora** :
+- [x] Les 8 doublons, **quand personne ne travaille dans Panora** :
+      *(fait le 2026-10-30 par la Direction, + ORO dans ASSEKE ORO : tous passés)*
       ouvrir la fiche à garder → 🔀 Regrouper → choisir l'autre → lire
       l'aperçu → cocher « relier » seulement si Panora le propose
 - [ ] Après chaque regroupement : la campagne est toujours dans le même
