@@ -331,7 +331,7 @@ class QuoteController extends Controller
     {
         $this->authorize('update', $quote);
 
-        $data = $this->validateQuotePayload($request);
+        $data = $this->validateQuotePayload($request, $quote);
 
         return DB::transaction(function () use ($quote, $data, $builder) {
             $wasSentBefore = $quote->status === QuoteStatus::EN_NEGOCIATION;
@@ -498,10 +498,19 @@ class QuoteController extends Controller
 
     // ─── HELPERS ───────────────────────────────────────────────────
 
-    protected function validateQuotePayload(Request $request): array
+    protected function validateQuotePayload(Request $request, ?Quote $quote = null): array
     {
+        // Client supprimé (soft delete) refusé (2026-10-30) : `exists` seul
+        // acceptait une fiche à la corbeille. En modification ($quote), le
+        // client actuel du devis reste accepté tel quel ; seul le passage
+        // VERS une autre fiche supprimée est refusé.
+        $garderClientActuel = $quote !== null
+            && (int) $request->input('client_id') === (int) $quote->client_id;
+
         $data = $request->validate([
-            'client_id'                    => 'required|exists:clients,id',
+            'client_id'                    => ['required', $garderClientActuel
+                ? \Illuminate\Validation\Rule::exists('clients', 'id')
+                : \Illuminate\Validation\Rule::exists('clients', 'id')->whereNull('deleted_at')],
             'client_contact_id'            => InterlocuteurDuClient::regles($request->integer('client_id') ?: null), // 2026-10-29
             'campaign_id'                  => 'nullable|exists:campaigns,id',
             'title'                        => 'required|string|max:200',
@@ -527,6 +536,7 @@ class QuoteController extends Controller
             'services.*.prix_ht'           => 'required_with:services|numeric|min:0',
         ], [
             'lines.required' => 'Au moins une ligne (panneau) est requise dans un devis.',
+            'client_id.exists' => 'Ce client est introuvable ou a été supprimé.',
             ...InterlocuteurDuClient::MESSAGES,
         ]);
 

@@ -9,6 +9,7 @@ use App\Services\AlertService;
 use App\Services\QuoteConverter;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -26,8 +27,7 @@ class ClientQuoteController extends Controller
     /** Liste des devis du client authentifié. */
     public function index()
     {
-        $clientId = (int) session('client_id');
-        $client   = \App\Models\Client::findOrFail($clientId);
+        $client = Auth::guard('client')->user();
 
         $quotes = Quote::where('client_id', $client->id)
             // Le client ne voit pas les brouillons (interne au commercial)
@@ -42,8 +42,7 @@ class ClientQuoteController extends Controller
     /** Détail d'un devis (accessible seulement si appartient au client authentifié). */
     public function show(Quote $quote)
     {
-        $clientId = (int) session('client_id');
-        abort_unless($quote->client_id === $clientId, 403, 'Ce devis ne vous appartient pas.');
+        abort_unless($this->appartientAuClient($quote), 403, 'Ce devis ne vous appartient pas.');
 
         $quote->load(['commercial:id,name,email,whatsapp_number', 'lines', 'services']);
 
@@ -53,8 +52,7 @@ class ClientQuoteController extends Controller
     /** Télécharger le PDF d'un devis client. */
     public function pdf(Quote $quote)
     {
-        $clientId = (int) session('client_id');
-        abort_unless($quote->client_id === $clientId, 403);
+        abort_unless($this->appartientAuClient($quote), 403);
 
         $quote->load(['client', 'commercial', 'lines', 'services']);
         $pdf = Pdf::loadView('pdf.quote', ['quote' => $quote])->setPaper('A4', 'portrait');
@@ -67,7 +65,7 @@ class ClientQuoteController extends Controller
         $this->assertCanDecide($quote);
 
         try {
-            $result = $converter->convertFromQuote($quote, decidedBy: 'client:' . session('client_id'));
+            $result = $converter->convertFromQuote($quote, decidedBy: 'client:' . $this->clientConnecteId());
         } catch (\Throwable $e) {
             Log::error('quote.accept.failed', [
                 'quote_id' => $quote->id, 'error' => $e->getMessage(),
@@ -148,10 +146,29 @@ class ClientQuoteController extends Controller
 
     // ─── HELPERS ──────────────────────────────────────────────────
 
+    /**
+     * Client connecté (2026-10-30) : même source que les autres écrans de
+     * l'espace client, le guard 'client'. La clé de session `client_id`
+     * lue auparavant n'était écrite nulle part : la liste était vide et
+     * chaque devis renvoyait 403. Un membre d'équipe (ClientUser) est
+     * connecté sur la fiche de son entreprise : il voit donc ses devis.
+     */
+    protected function clientConnecteId(): int
+    {
+        return (int) Auth::guard('client')->id();
+    }
+
+    /** Le devis est-il celui du client connecté ? (jamais celui d'un autre) */
+    protected function appartientAuClient(Quote $quote): bool
+    {
+        $clientId = $this->clientConnecteId();
+
+        return $clientId > 0 && (int) $quote->client_id === $clientId;
+    }
+
     protected function assertCanDecide(Quote $quote): void
     {
-        $clientId = (int) session('client_id');
-        abort_unless($quote->client_id === $clientId, 403);
+        abort_unless($this->appartientAuClient($quote), 403);
         abort_unless($quote->status === QuoteStatus::ENVOYE, 403,
             'Ce devis n\'est plus dans un état permettant une décision.'
         );
