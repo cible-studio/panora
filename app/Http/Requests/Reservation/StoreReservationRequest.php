@@ -13,7 +13,9 @@ class StoreReservationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'client_id'   => 'required|exists:clients,id',
+            // Client supprimé (soft delete) refusé (2026-10-30) : `exists`
+            // seul acceptait une fiche à la corbeille.
+            'client_id'   => ['required', Rule::exists('clients', 'id')->whereNull('deleted_at')],
     
             // Côté serveur :
             // - start_date : ne peut pas être dans le passé (after_or_equal:today)
@@ -82,7 +84,7 @@ class StoreReservationRequest extends FormRequest
     {
         return [
             'client_id.required'        => 'Le client est obligatoire.',
-            'client_id.exists'          => 'Client introuvable.',
+            'client_id.exists'          => 'Ce client est introuvable ou a été supprimé.',
             'start_date.required'       => 'La date de début est obligatoire.',
             'start_date.after_or_equal' => 'La date de début ne peut pas être dans le passé.',
             'start_date.before'         => 'La date de début ne peut pas dépasser 24 mois à l\'avance.',

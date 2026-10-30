@@ -96,8 +96,9 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
             return null;
         }
 
-        // Doublon par NCC (si fourni)
-        if ($ncc !== '' && Client::query()->where('ncc', $ncc)->whereNull('deleted_at')->exists()) {
+        // Doublon par NCC (si fourni) — fiches supprimées comprises (2026-10-30) :
+        // l'index unique de la base les compte, l'enregistrement planterait.
+        if ($ncc !== '' && Client::withTrashed()->where('ncc', $ncc)->exists()) {
             $this->skipped++;
             return null;
         }

@@ -119,6 +119,110 @@ class AvailabilityService
         throw new BookingConflictException($details);
     }
 
+    /**
+     * Panneaux déjà pris FERMEMENT sur la période (2026-10-30) : réservation
+     * confirmée ou campagne planifiée / active / en pause. Une option (en
+     * attente) ne compte pas : plusieurs options peuvent coexister, la
+     * première confirmée gagne (cf. PropositionService::confirmer).
+     *
+     * Règle validée par la direction le 2026-10-30 — refus si un panneau est
+     * déjà pris fermement, au moment de :
+     *   · confirmer une réservation (fiche, action en masse) ;
+     *   · accepter une proposition (le client) ;
+     *   · importer une campagne depuis un PDF.
+     * Exclure la réservation concernée ET sa campagne liée, sinon le dossier
+     * se trouve en conflit avec lui-même (cf. TECHNICAL_DEBT 2026-10-23).
+     *
+     * @return list<array{panel_id: int, reference: ?string, blocking_source: string, blocking_ref: string, release_date: ?string, next_free: ?string}>
+     */
+    public function conflitsFermes(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null,
+        ?int   $excludeCampaignId    = null,
+    ): array {
+        $panelIds = array_values(array_filter(array_map('intval', $panelIds)));
+        if (empty($panelIds)) return [];
+
+        $reservations = DB::table('reservation_panels as rp')
+            ->join('reservations as r', 'r.id', '=', 'rp.reservation_id')
+            ->leftJoin('clients as cl', 'cl.id', '=', 'r.client_id')
+            ->whereIn('rp.panel_id', $panelIds)
+            ->where('r.status', ReservationStatus::CONFIRME->value)
+            ->whereNull('r.deleted_at')
+            ->where('r.start_date', '<=', $endDate)
+            ->where('r.end_date',   '>=', $startDate)
+            ->when($excludeReservationId, fn($q) => $q->where('r.id', '!=', $excludeReservationId))
+            ->get(['rp.panel_id', 'r.reference as dossier', 'cl.name as client', 'r.end_date']);
+
+        $campagnes = DB::table('campaign_panels as cp')
+            ->join('campaigns as c', 'c.id', '=', 'cp.campaign_id')
+            ->leftJoin('clients as cl', 'cl.id', '=', 'c.client_id')
+            ->whereIn('cp.panel_id', $panelIds)
+            ->where('cp.type', 'interne')
+            ->whereIn('c.status', self::BLOCKING_CAMPAIGN_STATUSES)
+            ->whereNull('c.deleted_at')
+            ->where('c.start_date', '<=', $endDate)
+            ->where('c.end_date',   '>=', $startDate)
+            ->when($excludeCampaignId, fn($q) => $q->where('c.id', '!=', $excludeCampaignId))
+            ->get(['cp.panel_id', 'c.name as dossier', 'cl.name as client', 'c.end_date']);
+
+        // Un panneau, un motif : la campagne d'abord (engagement signé).
+        $parPanneau = [];
+        foreach ([['campaign', $campagnes], ['reservation', $reservations]] as [$source, $lignes]) {
+            foreach ($lignes as $l) {
+                $parPanneau[(int) $l->panel_id] ??= ['source' => $source, 'ligne' => $l];
+            }
+        }
+        if (!$parPanneau) return [];
+
+        $refs = Panel::whereIn('id', array_keys($parPanneau))->pluck('reference', 'id');
+        $conflits = [];
+        foreach ($parPanneau as $pid => ['source' => $source, 'ligne' => $l]) {
+            $fin = $l->end_date ? \Carbon\Carbon::parse($l->end_date) : null;
+            $conflits[] = [
+                'panel_id'        => $pid,
+                'reference'       => $refs[$pid] ?? null,
+                'blocking_source' => $source,
+                'blocking_ref'    => trim($l->dossier . ($l->client ? ' — ' . $l->client : '')),
+                'release_date'    => $fin?->format('d/m/Y'),
+                'next_free'       => $fin?->copy()->addDay()->format('d/m/Y'),
+            ];
+        }
+
+        return $conflits;
+    }
+
+    /**
+     * Refus si un panneau est déjà pris fermement (cf. conflitsFermes()).
+     * Message : « Panneau(x) déjà pris sur cette période : P-001 (campagne
+     * Lancement — ORANGE CI), P-002 (réservation RES-12 — MOOV). »
+     *
+     * @throws BookingConflictException
+     */
+    public function assertLibresFermement(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null,
+        ?int   $excludeCampaignId    = null,
+    ): void {
+        $conflits = $this->conflitsFermes($panelIds, $startDate, $endDate, $excludeReservationId, $excludeCampaignId);
+        if (!$conflits) return;
+
+        throw new BookingConflictException($conflits, self::messageConflitsFermes($conflits));
+    }
+
+    /** Texte commun du refus (écrans, fenêtres, imports). */
+    public static function messageConflitsFermes(array $conflits): string
+    {
+        $parts = array_map(fn ($c) => ($c['reference'] ?? '#' . $c['panel_id'])
+            . ' (' . ($c['blocking_source'] === 'campaign' ? 'campagne ' : 'réservation ') . $c['blocking_ref'] . ')', $conflits);
+
+        return (count($conflits) > 1 ? 'Panneaux déjà pris' : 'Panneau déjà pris') . ' sur cette période : ' . implode(', ', $parts) . '.';
+    }
+
     // Statuts de CAMPAGNE qui bloquent un panneau. Une fois la résa
     // confirmée et la campagne créée, c'est cette dernière qui porte
     // l'engagement sur la période. Sans inclure ce check, on perd la
@@ -981,7 +1085,13 @@ class AvailabilityService
         $bookings = DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->join('clients', 'clients.id', '=', 'reservations.client_id')
-            ->leftJoin('campaigns', 'campaigns.reservation_id', '=', 'reservations.id')
+            // Campagne supprimée (soft delete) ignorée DANS la jointure
+            // (2026-10-30) : son nom ne s'affiche plus, et la réservation
+            // reste listée (jointure gauche conservée).
+            ->leftJoin('campaigns', function ($j) {
+                $j->on('campaigns.reservation_id', '=', 'reservations.id')
+                  ->whereNull('campaigns.deleted_at');
+            })
             ->whereIn('reservation_panels.panel_id', $panelIds)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
             ->where('reservations.start_date', '<=', $endDate)

@@ -527,7 +527,9 @@ class FinanceDashboardController extends Controller
     public function storeRelance(Request $request, \App\Services\ReminderService $reminders)
     {
         $data = $request->validate([
-            'client_id'    => 'required|exists:clients,id',
+            // Client supprimé (soft delete) refusé (2026-10-30), comme dans la
+            // liste du formulaire (Client::orderBy, fiches supprimées exclues).
+            'client_id'    => ['required', \Illuminate\Validation\Rule::exists('clients', 'id')->whereNull('deleted_at')],
             'invoice_id'   => 'nullable|exists:invoices,id',
             'schedule_id'  => 'nullable|exists:invoice_schedules,id',
             'relance_date' => 'required|date',
@@ -535,6 +537,8 @@ class FinanceDashboardController extends Controller
             'note'         => 'required|string|max:2000',
             'outcome'      => 'nullable|in:' . implode(',', \App\Services\ReminderService::OUTCOMES),
             'suite_donnee' => 'nullable|string|max:200',
+        ], [
+            'client_id.exists' => 'Ce client est introuvable ou a été supprimé.',
         ]);
 
         // RBAC : un commercial ne peut enregistrer une relance que sur une

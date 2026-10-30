@@ -1299,7 +1299,8 @@ class ReservationController extends Controller
 
         // 3) Validation des autres champs (sans toucher panel_ids — on l'a déjà parsé)
         $request->validate([
-            'client_id' => 'required|exists:clients,id',
+            // Client supprimé (soft delete) refusé à la création (2026-10-30).
+            'client_id' => ['required', \Illuminate\Validation\Rule::exists('clients', 'id')->whereNull('deleted_at')],
             'client_contact_id' => InterlocuteurDuClient::regles($request->integer('client_id') ?: null),
             // Commercial assigné : doit être admin ou commercial actif.
             'commercial_user_id' => [
@@ -1325,7 +1326,10 @@ class ReservationController extends Controller
             'campaign_name' => 'nullable|string|max:150',
             // Tâche 6.1 — montant personnalisé optionnel (override du calcul auto)
             'amount' => 'nullable|numeric|min:0|max:9999999999',
-        ], InterlocuteurDuClient::MESSAGES);
+        ], [
+            'client_id.exists' => 'Ce client est introuvable ou a été supprimé.',
+            ...InterlocuteurDuClient::MESSAGES,
+        ]);
 
         // Limite de 50 internes + 50 externes RETIRÉE (feedback user :
         // grosse campagne de 200+ panneaux bloquée à la création).
@@ -2360,7 +2364,11 @@ class ReservationController extends Controller
             );
         } else {
             $previousStatus = $reservation->status?->value ?? $reservation->status;
-            $this->reservationService->changeStatus($reservation, $request->status);
+            try {
+                $this->reservationService->changeStatus($reservation, $request->status);
+            } catch (\App\Exceptions\BookingConflictException $e) {
+                return back()->with('error', $e->getMessage());
+            }
 
             $statusLabels = ['confirme' => 'confirmée', 'refuse' => 'refusée', 'en_attente' => 'en attente', 'termine' => 'terminée'];
             $label = $statusLabels[$request->status] ?? $request->status;
@@ -2822,6 +2830,9 @@ class ReservationController extends Controller
                     $this->reservationService->delete($r);
                     $applied++;
                 }
+            } catch (\App\Exceptions\BookingConflictException $e) {
+                // Panneaux déjà pris par un autre dossier (2026-10-30) : on dit lesquels.
+                $skipped[] = $r->reference . ' (' . $e->getMessage() . ')';
             } catch (\Throwable $e) {
                 Log::warning('reservation.bulk.skipped', [
                     'id' => $r->id, 'action' => $data['action'], 'err' => $e->getMessage(),

@@ -44,15 +44,8 @@ class ActivatePlannedCampaigns extends Command
             if (!$result['ok']) {
                 $this->warn(" ! Campagne #{$campaign->id} ({$campaign->name}) : " . $result['error']);
 
-                // Alerte admin pour signaler une campagne planifiée
-                // sans panneau (l'admin doit intervenir).
-                AlertService::create(
-                    'campagne',
-                    'warning',
-                    '⚠️ Campagne planifiée sans panneau — ' . $campaign->name,
-                    'La date de début est atteinte mais aucun panneau n\'est attaché. Ajoutez des panneaux puis activez manuellement.',
-                    $campaign
-                );
+                // Alerte admin : l'admin doit intervenir.
+                $this->alerterBlocage($campaign, $result['error']);
                 $blocked++;
                 continue;
             }
@@ -69,10 +62,57 @@ class ActivatePlannedCampaigns extends Command
         }
 
         $msg = "$activated campagne(s) activée(s)";
-        if ($blocked)  $msg .= ", $blocked bloquée(s) sans panneau";
+        if ($blocked)  $msg .= ", $blocked bloquée(s)";
         if ($deferred) $msg .= ", $deferred reportée(s) (démarrages différés)";
         $this->info($msg . '.');
         return self::SUCCESS;
+    }
+
+    /**
+     * Alerte d'une campagne planifiée que CampaignService::activate a
+     * refusé de démarrer (2026-10-30). Avant, le titre disait toujours
+     * « sans panneau », même quand la vraie raison était un conflit de
+     * panneaux : l'admin cherchait un panneau manquant qui ne l'était pas.
+     *
+     *   · aucun panneau  → alerte inchangée (même titre, même message) ;
+     *   · conflit        → code « conflit_reservation », raison exacte ;
+     *   · autre raison   → code « campagne_statut », raison exacte.
+     *
+     * Le code est passé explicitement (pas déduit du titre, qui contient
+     * le nom de la campagne) et le titre ne dépend que de la campagne :
+     * AlertService déduplique par code + campagne, l'alerte non lue est
+     * mise à jour chaque nuit au lieu d'être recréée.
+     */
+    private function alerterBlocage(Campaign $campaign, string $erreur): void
+    {
+        // Même garde que CampaignService::activate (au moins 1 panneau).
+        $sansPanneau = ($campaign->panels()->count() + $campaign->externalPanels()->count()) === 0;
+
+        if ($sansPanneau) {
+            AlertService::create(
+                'campagne',
+                'warning',
+                '⚠️ Campagne planifiée sans panneau — ' . $campaign->name,
+                'La date de début est atteinte mais aucun panneau n\'est attaché. Ajoutez des panneaux puis activez manuellement.',
+                $campaign
+            );
+            return;
+        }
+
+        // Libellé de CampaignService::detectConflictsOnCurrentPanels. S'il
+        // change, l'alerte retombe sur « campagne_statut » : la raison
+        // exacte reste dans le message.
+        $conflit = str_starts_with($erreur, 'Conflit de panneaux');
+
+        AlertService::create(
+            $conflit ? 'conflit_reservation' : 'campagne_statut',
+            'warning',
+            ($conflit ? '⚡ Campagne planifiée bloquée par un conflit de panneaux — ' : '⚠️ Campagne planifiée non démarrée — ')
+                . $campaign->name,
+            'La date de début est atteinte mais la campagne n\'a pas pu être activée : ' . $erreur
+                . ' Corrigez puis activez manuellement.',
+            $campaign
+        );
     }
 
     /**
