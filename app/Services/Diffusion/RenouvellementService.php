@@ -213,22 +213,46 @@ class RenouvellementService
     // RÉPONSES ET DÉCISIONS
     // ══════════════════════════════════════════════════════════════
 
-    /** Réponse du client (page des boutons) : enregistrée, accusé, équipe prévenue. */
-    public function enregistrerReponse(Renouvellement $dossier, string $choix, ?string $message): void
+    /**
+     * Réponse du client (page des boutons) : enregistrée, accusé, équipe prévenue.
+     *
+     * Une seule réponse par lien (règle de l'utilisateur, 2026-10-30) : une
+     * fois enregistrée, le lien n'en accepte plus d'autre — sinon un client
+     * peut envoyer plusieurs réponses, et l'équipe reçoit autant de mails.
+     * Pour changer d'avis, il passe par son commercial. Relecture verrouillée :
+     * deux clics simultanés n'enregistrent qu'une réponse.
+     *
+     * @return bool false si le client avait déjà répondu (rien n'est fait)
+     */
+    public function enregistrerReponse(Renouvellement $dossier, string $choix, ?string $message): bool
     {
         $message = self::nettoyer($message);
 
-        $dossier->fill([
-            'statut'          => $choix,
-            'reponse_choix'   => $choix,
-            'reponse_message' => $message,
-            'reponse_at'      => now(),
-            'reponse_par'     => 'client',
-        ]);
-        $dossier->noter('Réponse du client : ' . ModelesMail::CHOIX[$choix], $message, 'Client');
-        $dossier->save();
+        $enregistre = DB::transaction(function () use ($dossier, $choix, $message) {
+            $frais = Renouvellement::whereKey($dossier->id)->lockForUpdate()->first();
+            if (!$frais || $frais->reponse_at !== null) {
+                return null;
+            }
+            $frais->fill([
+                'statut'          => $choix,
+                'reponse_choix'   => $choix,
+                'reponse_message' => $message,
+                'reponse_at'      => now(),
+                'reponse_par'     => 'client',
+            ]);
+            $frais->noter('Réponse du client : ' . ModelesMail::CHOIX[$choix], $message, 'Client');
+            $frais->save();
+
+            return $frais;
+        });
+        if (!$enregistre) {
+            return false;
+        }
+        $dossier->setRawAttributes($enregistre->getAttributes(), true);
 
         $this->apresReponse($dossier, $choix, $message, essai: false);
+
+        return true;
     }
 
     /** Réponse depuis un mail de test : rien n'est enregistré, les mails partent en test. */

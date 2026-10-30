@@ -288,6 +288,43 @@ class RenouvellementServiceTest extends TestCase
         $this->assertSame('en_attente', $dossier->fresh()->statut);
     }
 
+    public function test_une_seule_reponse_par_lien(): void
+    {
+        // Règle du 2026-10-30 : après une réponse, le lien n'en accepte plus d'autre.
+        $this->withoutMiddleware(\App\Http\Middleware\SyncReactiveState::class);
+        $dossier = $this->service()->dossier($this->campagne());
+
+        $this->post("/renouvellement/{$dossier->token}", ['choix' => 'renouveler'])->assertOk()->assertSee('votre réponse est bien enregistrée');
+        $envois = $this->envoisBrevo()->count();
+
+        // Revenir sur le lien : la réponse est rappelée, plus de formulaire.
+        $this->get("/renouvellement/{$dossier->token}/refus")->assertOk()
+            ->assertSee('Votre réponse est déjà enregistrée')->assertSee('Je souhaite renouveler ma campagne')
+            ->assertDontSee('Confirmer ma réponse');
+
+        // Renvoyer une réponse (ou la même) : rien n'est enregistré, aucun mail ne repart.
+        $this->post("/renouvellement/{$dossier->token}", ['choix' => 'refus'])->assertOk()->assertSee('Votre réponse est déjà enregistrée');
+        $this->assertFalse($this->service()->enregistrerReponse($dossier->fresh(), 'ajuster', null));
+        $this->assertSame(['renouveler', 'renouveler'], [$dossier->fresh()->statut, $dossier->fresh()->reponse_choix]);
+        $this->assertSame($envois, $this->envoisBrevo()->count());
+        Mail::assertSent(RenouvellementReponseMail::class, 1);
+    }
+
+    public function test_lien_essai_simule_la_reponse_unique_et_peut_se_refaire(): void
+    {
+        $this->withoutMiddleware(\App\Http\Middleware\SyncReactiveState::class);
+        $dossier = $this->service()->dossier($this->campagne());
+        $sig = RenouvellementService::signatureEssai($dossier);
+
+        $this->post("/renouvellement-essai/{$dossier->id}/{$sig}", ['choix' => 'ajuster'])->assertOk()->assertSee('votre réponse est bien enregistrée');
+        $this->get("/renouvellement-essai/{$dossier->id}/{$sig}/refus")->assertOk()
+            ->assertSee('Votre réponse est déjà enregistrée')->assertSee('Recommencer l')->assertDontSee('Confirmer ma réponse');
+        $this->post("/renouvellement-essai/{$dossier->id}/{$sig}", ['choix' => 'refus'])->assertSee('Votre réponse est déjà enregistrée');
+
+        $this->get("/renouvellement-essai/{$dossier->id}/{$sig}?refaire=1")->assertOk()->assertSee('Confirmer ma réponse');
+        $this->assertSame('en_attente', $dossier->fresh()->statut); // un essai n'enregistre jamais rien
+    }
+
     public function test_renouvellement_confirme_le_client_ne_peut_plus_changer(): void
     {
         $this->withoutMiddleware(\App\Http\Middleware\SyncReactiveState::class);
