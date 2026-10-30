@@ -177,12 +177,31 @@ CHARTE_TELEPHONES="+225 07 98 49 66 74 · +225 07 00 78 06 27 · +225 27 22 20 8
 MAIL_COPIE_COMMERCIALE=stephane.oponou@cible-ci.com
 ```
 
-- [ ] Les trois posées sur le serveur, `php artisan config:clear` passé
+- [x] **Les trois posées sur le serveur, redéploiement fait le 2026-10-30.**
+
+Contrôle en une commande, à lancer sur le serveur — si une valeur est
+vide ou ancienne, c'est que le cache de configuration n'a pas été refait :
+
+```
+php artisan tinker --execute="echo config('brevo.sender.name'), PHP_EOL, config('charte.coordonnees.telephones'), PHP_EOL, config('mails.copie_commerciale'), PHP_EOL;"
+```
+
+Attendu :
+
+```
+CIBLE CI — Service Commercial
++225 07 98 49 66 74 · +225 07 00 78 06 27 · +225 27 22 20 80 08
+stephane.oponou@cible-ci.com
+```
+
+- [ ] Les trois valeurs sont celles attendues
 - [ ] Un devis envoyé en test : Stéphane est bien en copie, le pied de
       page porte les trois numéros, l'expéditeur affiche « Service **C**ommercial »
 - [ ] Une facture envoyée : même vérification
 - [ ] Un mail de **suivi** (preuve d'affichage, maintenance) : Stéphane
       n'est **pas** en copie — c'est voulu
+- [ ] *Clients → Journal des mails* : la colonne « Copie » porte bien
+      l'adresse sur les mails commerciaux, et reste vide sur les autres
 
 ---
 
