@@ -4,6 +4,7 @@ namespace App\Services\Contacts;
 
 use App\Models\Client;
 use App\Models\ClientContact;
+use App\Models\ClientRegroupement;
 use App\Models\EnvoiContactsGmail;
 use App\Support\NomEntreprise;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,8 @@ use Illuminate\Support\Facades\Log;
  *   · adresse déjà connue (interlocuteur ou fiche) : laissée où elle est,
  *     seuls les champs vides sont complétés, jamais dupliquée ;
  *   · adresse ou entreprise supprimée dans Panora : refusée, elle ne
- *     revient pas ;
+ *     revient pas — sauf une fiche regroupée avec une autre (2026-10-30) :
+ *     le contact rejoint la fiche gardée ;
  *   · nouvelle adresse : entreprise trouvée par le domaine, sinon par le nom
  *     (même écrit autrement : « Coris-Bank » = « CORIS BANK », règle
  *     NomEntreprise, 2026-10-29), sinon créée (statut et secteur du Sheets, sans NCC ni adresse
@@ -156,7 +158,8 @@ class ContactsGmailService
         // ── 2. Adresse de la fiche d'une entreprise ──────────────────
         $fiches = Client::withTrashed()->whereRaw('LOWER(TRIM(email)) = ?', [$email])->orderBy('id')->get();
         if ($fiches->isNotEmpty()) {
-            $client = $fiches->first(fn ($c) => !$c->trashed());
+            $client = $fiches->first(fn ($c) => !$c->trashed())
+                ?? ClientRegroupement::ficheGardee($fiches->first()->id);
             if (!$client) {
                 return self::refus('Entreprise supprimée dans Panora : ' . $fiches->first()->name . '.');
             }
@@ -212,9 +215,14 @@ class ContactsGmailService
                         ->orWhereHas('contacts', fn ($c) => $c->whereRaw('LOWER(TRIM(email)) LIKE ?', ['%@' . $domaine])))
                     ->first();
             }
-            if ($supprimee) {
+            // Fiche regroupée avec une autre (2026-10-30) : le contact rejoint la fiche gardée.
+            $client = $supprimee ? ClientRegroupement::ficheGardee($supprimee->id) : null;
+            if ($supprimee && !$client) {
                 return self::refus('Entreprise supprimée dans Panora : ' . $supprimee->name . '.');
             }
+        }
+
+        if (!$client) {
             if ($entreprise === '') {
                 return self::refus("Renseigner l'entreprise.");
             }

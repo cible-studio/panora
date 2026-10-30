@@ -976,7 +976,22 @@ Route::prefix('admin')
             ->middleware('role:admin,commercial,mediaplanner,comptable')->name('clients.update');
         Route::delete('clients/{client}', [ClientController::class, 'destroy'])
             ->middleware('role:admin')->name('clients.destroy');
-        Route::get('clients/{client}', [ClientController::class, 'show'])->name('clients.show');
+        // Regrouper deux fiches (2026-10-30) : Direction seulement.
+        Route::middleware('role:admin')->group(function () {
+            Route::get('clients/{client}/regrouper/fiches', [ClientController::class, 'regrouperFiches'])->name('clients.regrouper.fiches');
+            Route::get('clients/{client}/regrouper/apercu', [ClientController::class, 'regrouperApercu'])->name('clients.regrouper.apercu');
+            Route::post('clients/{client}/regrouper', [ClientController::class, 'regrouper'])->name('clients.regrouper');
+        });
+        // Une fiche regroupée avec une autre ouvre la fiche gardée (anciens liens :
+        // alertes, journal des mails, historique du Sheet).
+        Route::get('clients/{client}', [ClientController::class, 'show'])->name('clients.show')
+            ->missing(function (\Illuminate\Http\Request $request) {
+                $gardee = \App\Models\ClientRegroupement::ficheGardee((int) $request->route('client'));
+                abort_unless($gardee, 404);
+
+                return redirect()->route('admin.clients.show', $gardee)
+                    ->with('info', 'Cette fiche a été regroupée avec « ' . $gardee->name . ' ».');
+            });
 
         Route::get('clients/{client}/data', [ClientController::class, 'getClientData'])
             ->name('admin.clients.data')

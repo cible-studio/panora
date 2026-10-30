@@ -34,6 +34,10 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a href="{{ route('admin.clients.edit', $client) }}"
            class="btn btn-ghost btn-sm">✏️ Modifier</a>
+        @if(auth()->user()?->isAdmin())
+        <button type="button" onclick="Regrouper.ouvrir()" class="btn btn-ghost btn-sm"
+                title="Regrouper avec une autre fiche de la même entreprise (doublon)">🔀 Regrouper</button>
+        @endif
         <button type="button"
                 onclick="openDeleteClient({{ $client->id }}, '{{ addslashes($client->name) }}', {{ $client->hasActiveCampaigns() ? 1 : 0 }})"
                 class="btn btn-ghost btn-sm"
@@ -288,8 +292,8 @@
 
         {{-- Badges client récurrent / satisfaction --}}
         @php
-            $campaignsCount     = $client->campaigns->count();
-            $reservationsCount  = $client->reservations->count();
+            $campaignsCount     = $client->campaigns_count ?? $client->campaigns->count();
+            $reservationsCount  = $client->reservations_count ?? $client->reservations->count();
             $isRecurrent        = $campaignsCount > 1;
             // Note moyenne satisfaction (calculée si la table existe — sinon null)
             $satisfactionAvg = null;
@@ -848,6 +852,10 @@
         </div>
     </div>
 </div>
+
+@if(auth()->user()?->isAdmin())
+    @include('admin.clients.partials.regrouper')
+@endif
 
 {{-- ────────── MODAL INTERLOCUTEUR ────────── --}}
 <div id="contact-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;padding:16px;"
