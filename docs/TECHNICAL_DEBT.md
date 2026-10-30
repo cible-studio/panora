@@ -50,15 +50,6 @@ Laissé tel quel volontairement : ajouter un repli changerait les montants
 des devis partout d'un coup, ce qui demande une validation métier à part.
 À traiter si un devis à 0 est constaté.
 
-### Statuts « Générée » et « Validée » comptés comme facturés (2026-10-29)
-
-`FinancialDashboardService` n'écarte que `brouillon` et `annulee`. Une
-facture générée ou validée — donc pas encore envoyée au client — entre dans
-« Facturé sur la période » et dans le « Dû ».
-
-Règle **non tranchée** : elle doit l'être par la direction (règle N°5). La
-section 1 de `php artisan finance:verifier` chiffre ce que cela représente.
-
 ### Diffusion : le modèle Brevo en ligne doit être remplacé (2026-10-29)
 
 Panora envoie désormais `LIEN_ABIDJAN` / `NB_ABIDJAN` et `LIEN_INTERIEUR` /
@@ -303,6 +294,12 @@ nouvelle** : il faut la faire valider avant de la coder.
 ---
 
 ## Résolues
+
+### Statuts « Générée » et « Validée » comptés comme facturés — tranché le 2026-10-30
+
+Décision de la direction : **oui**, ils comptent dans le facturé et le dû.
+Le comportement de `FinancialDashboardService` est le bon, rien à coder.
+
 
 ### TX-14 (2026-09-24) — L'ODP se compte en MOIS (correction de TX-12)
 

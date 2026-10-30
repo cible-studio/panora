@@ -44,31 +44,13 @@ aucune erreur et donnent silencieusement un total à zéro.
 
 ---
 
-## 2. Règle métier à trancher — statuts « Générée » et « Validée »
+## 2. Statuts « Générée » et « Validée » — tranché
 
-**Non tranchée au 2026-10-29. Rien n'a été codé dans un sens ou dans
-l'autre** (règle N°5 du CLAUDE.md : une règle financière doit être validée
-par écrit avant d'être codée).
-
-Aujourd'hui, `FinancialDashboardService` n'écarte que `brouillon` et
-`annulee`. Une facture **générée** ou **validée** — donc *pas encore
-envoyée au client* — entre dans « Facturé sur la période » et dans le
-« Dû ».
-
-La question à poser à la direction :
-
-> Une facture générée ou validée, mais pas encore envoyée au client,
-> doit-elle compter dans le chiffre d'affaires facturé et dans le montant
-> dû ?
-
-- [ ] Réponse de la direction :
-- [ ] Si « non » : écarter `generee` et `validee` dans
-      `FinancialDashboardService::openInvoicesQuery()` **et**
-      `invoicesQueryForPeriod()`, puis vérifier les écrans voisins
-      (accueil, performance commerciale, fiche client, exports).
-
-La section 1 de `finance:verifier` donne le montant concerné : c'est lui
-qui permet de juger si la question est urgente.
+- [x] **Décision de la direction (2026-10-30) : OUI.** Une facture générée ou
+      validée, même pas encore envoyée au client, compte dans le chiffre
+      d’affaires facturé et dans le montant dû. C’est déjà ce que fait
+      `FinancialDashboardService` (seuls `brouillon` et `annulee` sont
+      écartés) : rien à changer dans le code.
 
 ---
 
@@ -171,8 +153,8 @@ si un panneau est déjà pris par une réservation confirmée ou une campagne) :
 2. Ouvrir `/admin/invoices` et `/admin/finance` côte à côte : le restant
    dû doit être **le même nombre** des deux côtés. C'est le contrôle qui
    prouve que la correction a pris.
-3. Si la section 1 montre des montants en « Générée » / « Validée »,
-   poser la question de la section 2 à la direction.
+3. ~~Poser la question des statuts « Générée » / « Validée »~~ : tranchée
+   le 2026-10-30 (ils comptent, cf. section 2).
 
 **Quatre pièges à connaître avant de toucher à ces calculs :**
 
