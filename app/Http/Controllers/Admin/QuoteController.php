@@ -678,9 +678,20 @@ class QuoteController extends Controller
             'services'   => $services ?: null,
         ]);
 
+        $tva = (float) ($totaux['tva'] ?? 18);
+
         return response()->json([
             'vide'   => $lignes === [] && $services === [],
             'totaux' => $totaux,
+            // Le détail nommé des services (2026-10-30) : un montant
+            // global ne dit pas d'où il vient. Le TTC est calculé ici,
+            // avec la même règle que le total — jamais côté navigateur.
+            'services' => array_map(fn (array $s) => [
+                'label'          => $s['label'],
+                'tva_applicable' => $s['tva_applicable'],
+                'ht'             => (int) round($s['prix_ht']),
+                'ttc'            => (int) round($s['tva_applicable'] ? $s['prix_ht'] * (1 + $tva / 100) : $s['prix_ht']),
+            ], $services),
         ]);
     }
 

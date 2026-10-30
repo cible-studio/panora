@@ -238,6 +238,55 @@ class DevisFormulaireTest extends TestCase
         $this->assertStringContainsString('grid-template-columns:minmax(0,1fr)', $this->formulaire());
     }
 
+    // ── Les services sont nommés dans les deux récapitulatifs ──────
+
+    public function test_le_recapitulatif_du_devis_nomme_chaque_service(): void
+    {
+        // « Total TTC 59 000 » seul ne dit pas d'où vient le montant.
+        $source = $this->formulaire();
+
+        $this->assertStringContainsString('qf-services-detail', $source);
+        $this->assertStringContainsString('qf-badge-ht', $source,
+            'Un service hors TVA doit se signaler dans le détail.');
+        $this->assertStringContainsString('Aucun service ajouté', $source);
+    }
+
+    public function test_le_libelle_d_un_service_est_echappe_avant_affichage(): void
+    {
+        // Le libellé est saisi librement et part dans du HTML.
+        $source = $this->formulaire();
+
+        $this->assertStringContainsString('const echapper', $source);
+        $this->assertMatchesRegularExpression(
+            "/'<span title=\"' \+ echapper\(s\.label\) \+ '\">' \+ echapper\(s\.label\)/",
+            $source,
+            'Le libellé doit être échappé dans l\'attribut ET dans le texte.'
+        );
+    }
+
+    public function test_le_montant_de_chaque_service_vient_du_serveur(): void
+    {
+        // Le TTC par service est calculé avec la même règle que le total,
+        // pas recalculé dans le navigateur.
+        $source = file_get_contents(base_path('app/Http/Controllers/Admin/QuoteController.php'));
+
+        $this->assertStringContainsString("'services' => array_map(", $source);
+        $this->assertStringContainsString("'ttc'            => (int) round(", $source);
+    }
+
+    public function test_la_facture_affiche_aussi_le_total_ht_des_services(): void
+    {
+        // Les deux récapitulatifs doivent présenter la même chose : la
+        // facture nommait déjà ses services, il lui manquait le HT.
+        $source = file_get_contents(base_path('resources/views/admin/invoices/partials/_form-fne.blade.php'));
+
+        $this->assertStringContainsString('rec-svc-ht', $source);
+        $this->assertStringContainsString('Total services HT', $source);
+        $this->assertStringContainsString('Total services TTC', $source);
+        // Et elle continue de nommer chaque service.
+        $this->assertStringContainsString('rec-svc-detail', $source);
+    }
+
     private function formulaire(): string
     {
         return file_get_contents(base_path('resources/views/admin/quotes/partials/_form.blade.php'));

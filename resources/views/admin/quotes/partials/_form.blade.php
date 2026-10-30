@@ -362,10 +362,16 @@
                 </div>
             </div>
 
+            {{-- Chaque service est nommé (2026-10-30) : un « Total TTC »
+                 seul ne disait pas d'où venait le montant. Le montant
+                 affiché est le TTC du service, badge « HT » s'il échappe
+                 à la TVA. Même présentation que le récapitulatif de la
+                 facture FNE. --}}
             <div class="qf-recap-groupe" id="qf-groupe-services" hidden>
                 <div class="qf-recap-sous-titre">Services annexes</div>
-                <div class="qf-recap-ligne"><span>Total HT</span><strong id="qf-services-ht">0</strong></div>
-                <div class="qf-recap-ligne"><span>Total TTC</span><strong id="qf-services">0</strong></div>
+                <div id="qf-services-detail" class="qf-recap-detail"></div>
+                <div class="qf-recap-ligne qf-recap-sous-total"><span>Total HT</span><strong id="qf-services-ht">0</strong></div>
+                <div class="qf-recap-ligne qf-recap-sous-total"><span>Total TTC</span><strong id="qf-services">0</strong></div>
             </div>
         </div>
 
@@ -434,6 +440,22 @@
         font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.5px;
         color:var(--text3);
     }
+
+    /* Détail nommé des services. Un libellé trop long est coupé par des
+       points de suspension plutôt que de pousser le montant hors du cadre. */
+    .qf-recap-detail { display:flex; flex-direction:column; gap:3px; }
+    .qf-recap-detail .qf-recap-ligne span {
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:62%;
+    }
+    .qf-recap-detail .qf-recap-ligne { font-size:12px; }
+    .qf-recap-detail .qf-recap-ligne strong { font-weight:600; }
+    .qf-recap-vide { font-size:11.5px; color:var(--text3); font-style:italic; }
+    .qf-badge-ht {
+        display:inline-block; margin-left:4px; padding:1px 5px; border-radius:4px;
+        background:rgba(59,130,246,.12); color:#1d4ed8; font-size:9px; font-weight:800;
+    }
+    .qf-recap-sous-total { padding-top:5px; border-top:1px dashed var(--border); font-weight:700; }
+    .qf-recap-sous-total span { color:var(--text2); }
 
     .qf-recap-total {
         display:flex; justify-content:space-between; align-items:center; gap:10px;
@@ -1010,6 +1032,11 @@ window.QuoteForm = (function() {
         minuteur = setTimeout(chargerTotaux, 400);
     }
 
+    // Un libellé de service est saisi librement : il part dans du HTML,
+    // donc il est échappé avant affichage.
+    const echapper = s => String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
     const txt  = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
     const bloc = (id, afficher) => { const e = document.getElementById(id); if (e) e.hidden = !afficher; };
     const taux = v => rtrimZeros(Number(v || 0).toFixed(2));
@@ -1054,9 +1081,23 @@ window.QuoteForm = (function() {
             bloc('qf-ligne-tm',  tm  > 0); txt('qf-tm',  fmt(tm));
             bloc('qf-ligne-odp', odp > 0); txt('qf-odp', fmt(odp));
 
-            bloc('qf-groupe-services', (t.services_ttc_total || 0) > 0);
+            // Services : chacun par son nom, puis les deux totaux.
+            const services = d.services || [];
+            bloc('qf-groupe-services', services.length > 0);
             txt('qf-services-ht', fmt(t.services_ht_total));
             txt('qf-services',    fmt(t.services_ttc_total));
+
+            const detail = document.getElementById('qf-services-detail');
+            if (detail) {
+                detail.innerHTML = services.length === 0
+                    ? '<div class="qf-recap-vide">Aucun service ajouté</div>'
+                    : services.map(s =>
+                        '<div class="qf-recap-ligne">'
+                        + '<span title="' + echapper(s.label) + '">' + echapper(s.label)
+                        + (s.tva_applicable ? '' : '<span class="qf-badge-ht">HT</span>')
+                        + '</span><strong>' + fmt(s.ttc) + '</strong></div>'
+                      ).join('');
+            }
         } catch (e) {
             // Un récapitulatif en panne ne doit jamais gêner la saisie.
             console.warn('Récapitulatif indisponible :', e.message);
