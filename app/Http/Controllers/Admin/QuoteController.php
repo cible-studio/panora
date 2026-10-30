@@ -609,20 +609,19 @@ class QuoteController extends Controller
     }
 
     /**
-     * Aperçu en direct du devis pendant sa saisie (2026-10-30).
+     * Récapitulatif en direct du devis pendant sa saisie (2026-10-30).
      *
-     * Le formulaire envoie son contenu, le SERVEUR calcule et rend : les
-     * totaux viennent d'InvoiceCalculator, exactement comme à
-     * l'enregistrement. Recopier ces formules en JavaScript ferait tôt ou
-     * tard diverger l'aperçu du devis réellement émis — c'est interdit
-     * par le CLAUDE.md, et c'est précisément le genre d'écart qui finit
-     * en litige client.
+     * Le formulaire envoie son contenu, le SERVEUR calcule : les totaux
+     * viennent d'InvoiceCalculator, exactement comme à l'enregistrement.
+     * Recopier ces formules en JavaScript ferait tôt ou tard diverger le
+     * récapitulatif du devis réellement émis — c'est interdit par le
+     * CLAUDE.md, et c'est le genre d'écart qui finit en litige client.
      *
      * Rien n'est enregistré : les lignes et services sont construits en
-     * mémoire. Un formulaire incomplet renvoie simplement un aperçu vide
-     * plutôt qu'une erreur de validation.
+     * mémoire. Un formulaire incomplet renvoie des totaux à zéro plutôt
+     * qu'une erreur de validation.
      */
-    public function apercu(Request $request, InvoiceCalculator $calculator): \Illuminate\Http\JsonResponse
+    public function totaux(Request $request, InvoiceCalculator $calculator): \Illuminate\Http\JsonResponse
     {
         $this->authorize('create', Quote::class);
 
@@ -679,24 +678,9 @@ class QuoteController extends Controller
             'services'   => $services ?: null,
         ]);
 
-        $client   = Client::find($request->input('client_id'));
-        $campagne = Campaign::find($request->input('campaign_id'));
-
         return response()->json([
             'vide'   => $lignes === [] && $services === [],
             'totaux' => $totaux,
-            'html'   => view('admin.quotes.partials._apercu', [
-                'reference'    => $request->input('reference') ?: '—',
-                'titre'        => trim((string) $request->input('title', '')),
-                'client'       => $client,
-                'campagne'     => $campagne,
-                'periodeDebut' => $debut,
-                'periodeFin'   => $fin,
-                'lignes'       => $lignes,
-                'services'     => $services,
-                'totaux'       => $totaux,
-                'tva'          => (float) ($totaux['tva'] ?? 18),
-            ])->render(),
         ]);
     }
 

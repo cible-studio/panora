@@ -194,17 +194,21 @@
             ⚠️ Un panneau ne peut être ajouté qu'<strong>une seule fois</strong>. Pour proposer plusieurs exemplaires du même,
             augmente la colonne <strong>Qté</strong> plutôt que de dupliquer la ligne.
         </p>
-        <div style="overflow:visible">
-            <table id="quote-lines-table" style="width:100%;border-collapse:separate;border-spacing:0 8px">
+        {{-- Défilement horizontal (2026-10-30) : sans lui, les colonnes
+             de droite (m², PU, Qté, Mois) étaient écrasées puis coupées
+             dès que la fenêtre rétrécissait. Les menus déroulants ne sont
+             pas rognés : Select2 les attache au <body> (dropdownParent). --}}
+        <div class="ql-defilement">
+            <table id="quote-lines-table" class="ql-table" style="border-collapse:separate;border-spacing:0 8px">
                 <thead>
                     <tr>
-                        <th class="ql-th" style="text-align:left;min-width:280px">Panneau / Désignation</th>
-                        <th class="ql-th" style="text-align:left;width:160px">Commune</th>
-                        <th class="ql-th" style="text-align:right;width:100px">m²</th>
-                        <th class="ql-th" style="text-align:right;width:120px">PU HT / mois</th>
-                        <th class="ql-th" style="text-align:center;width:70px">Qté</th>
-                        <th class="ql-th" style="text-align:center;width:80px">Mois</th>
-                        <th style="width:40px;background:var(--surface2);border-radius:0 8px 8px 0"></th>
+                        <th class="ql-th ql-col-desi" style="text-align:left">Panneau / Désignation</th>
+                        <th class="ql-th ql-col-commune" style="text-align:left">Commune</th>
+                        <th class="ql-th ql-col-m2" style="text-align:right">m²</th>
+                        <th class="ql-th ql-col-pu" style="text-align:right">PU HT / mois</th>
+                        <th class="ql-th ql-col-qte" style="text-align:center">Qté</th>
+                        <th class="ql-th ql-col-mois" style="text-align:center">Mois</th>
+                        <th class="ql-col-action" style="background:var(--surface2);border-radius:0 8px 8px 0"></th>
                     </tr>
                 </thead>
                 <tbody id="quote-lines-tbody">
@@ -247,8 +251,8 @@
             <h3 style="font-size:14px;font-weight:800">🔧 Services annexes (optionnel)</h3>
             <button type="button" onclick="QuoteForm.addService()" style="background:var(--accent);color:#fff;padding:8px 14px;border:none;border-radius:8px;font-weight:700;cursor:pointer">+ Ajouter un service</button>
         </div>
-        <div style="overflow-x:auto">
-            <table id="quote-services-table" style="width:100%;border-collapse:collapse">
+        <div class="ql-defilement">
+            <table id="quote-services-table" class="qs-table" style="border-collapse:collapse">
                 <thead>
                     <tr>
                         <th class="ql-th" style="text-align:left">Libellé</th>
@@ -265,9 +269,9 @@
                     @foreach($services as $i => $s)
                         @php $svcTva = !array_key_exists('tva_applicable', $s) || (bool) $s['tva_applicable']; @endphp
                         <tr class="qs-row">
-                            <td style="padding:6px"><input type="text" name="services[{{ $i }}][label]" maxlength="200" value="{{ $s['label'] ?? '' }}" placeholder="ex. Impression affiches dos bleu" class="ql-input"></td>
-                            <td style="padding:6px"><input type="number" name="services[{{ $i }}][prix_ht]" min="0" step="1" value="{{ $s['prix_ht'] ?? 0 }}" class="ql-input ql-num qs-prix"></td>
-                            <td style="padding:6px;text-align:center">
+                            <td style="padding:6px" data-label="Libellé"><input type="text" name="services[{{ $i }}][label]" maxlength="200" value="{{ $s['label'] ?? '' }}" placeholder="ex. Impression affiches dos bleu" class="ql-input"></td>
+                            <td style="padding:6px" data-label="Prix HT"><input type="number" name="services[{{ $i }}][prix_ht]" min="0" step="1" value="{{ $s['prix_ht'] ?? 0 }}" class="ql-input ql-num qs-prix"></td>
+                            <td style="padding:6px;text-align:center" data-label="TVA">
                                 {{-- Le champ caché garantit qu'un interrupteur éteint
                                      envoie « 0 » : sans lui, rien n'est transmis et
                                      PHP comprend « absent » = soumis à TVA. --}}
@@ -278,7 +282,7 @@
                                     <span class="qs-tva-text">{{ $svcTva ? 'TVA' : 'HT' }}</span>
                                 </label>
                             </td>
-                            <td style="padding:6px;text-align:right"><span class="qs-ttc" style="font-weight:700">—</span></td>
+                            <td style="padding:6px;text-align:right" data-label="TTC"><span class="qs-ttc" style="font-weight:700">—</span></td>
                             <td style="padding:6px;text-align:center"><button type="button" onclick="this.closest('tr').remove();QuoteForm.recalcServices()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
                         </tr>
                     @endforeach
@@ -320,34 +324,54 @@
     </div>
 </form>
 
-{{-- ═══ Colonne de droite : récapitulatif puis aperçu ═══
-     Les deux sont calculés et rendus par le SERVEUR
-     (QuoteController::apercu) : ce qu'on lit ici est ce qui sera
-     enregistré, au franc près. --}}
+{{-- ═══ Colonne de droite : le récapitulatif ═══
+     Calculé par le SERVEUR (QuoteController::totaux) avec les mêmes
+     règles qu'à l'enregistrement : ce qu'on lit ici est ce qui sera
+     enregistré, au franc près.
+
+     Le total à payer est hors de la zone qui défile : avec plusieurs
+     services, il sortait de l'écran et devenait illisible. --}}
 <aside class="qf-cote">
     <div class="qf-recap">
         <div class="qf-recap-tete">
             <span>Récapitulatif</span>
             <span class="qf-recap-etat" id="qf-etat">en direct</span>
         </div>
+
         <div class="qf-recap-corps">
             <div class="qf-recap-ligne"><span>Total HT brut</span><strong id="qf-brut">0</strong></div>
-            <div class="qf-recap-ligne" id="qf-ligne-remise" hidden><span>Remise</span><strong id="qf-remise">0</strong></div>
+            <div class="qf-recap-ligne qf-recap-remise" id="qf-ligne-remise" hidden>
+                <span id="qf-remise-libelle">Remise</span><strong id="qf-remise">0</strong>
+            </div>
             <div class="qf-recap-ligne qf-recap-fort"><span>Total HT</span><strong id="qf-net">0</strong></div>
-            <div class="qf-recap-ligne"><span>TVA</span><strong id="qf-tva">0</strong></div>
-            <div class="qf-recap-ligne" id="qf-ligne-taxes" hidden><span>Taxes (TSP · TM · ODP)</span><strong id="qf-taxes">0</strong></div>
-            <div class="qf-recap-ligne" id="qf-ligne-services" hidden><span>Services TTC</span><strong id="qf-services">0</strong></div>
+            <div class="qf-recap-ligne"><span id="qf-tva-libelle">TVA</span><strong id="qf-tva">0</strong></div>
+
+            {{-- Taxes détaillées, une ligne chacune (2026-10-30) : elles
+                 étaient regroupées sous « Taxes (TSP · TM · ODP) », on ne
+                 savait pas ce que couvrait le montant. --}}
+            <div class="qf-recap-groupe" id="qf-groupe-taxes" hidden>
+                <div class="qf-recap-sous-titre">Taxes</div>
+                <div class="qf-recap-ligne" id="qf-ligne-tsp" hidden>
+                    <span id="qf-tsp-libelle">TSP</span><strong id="qf-tsp">0</strong>
+                </div>
+                <div class="qf-recap-ligne" id="qf-ligne-tm" hidden>
+                    <span>Taxe municipale <small>TM</small></span><strong id="qf-tm">0</strong>
+                </div>
+                <div class="qf-recap-ligne" id="qf-ligne-odp" hidden>
+                    <span>Occupation du domaine public <small>ODP</small></span><strong id="qf-odp">0</strong>
+                </div>
+            </div>
+
+            <div class="qf-recap-groupe" id="qf-groupe-services" hidden>
+                <div class="qf-recap-sous-titre">Services annexes</div>
+                <div class="qf-recap-ligne"><span>Total HT</span><strong id="qf-services-ht">0</strong></div>
+                <div class="qf-recap-ligne"><span>Total TTC</span><strong id="qf-services">0</strong></div>
+            </div>
         </div>
+
         <div class="qf-recap-total">
             <span>Total à payer</span>
             <strong id="qf-total">0 FCFA</strong>
-        </div>
-    </div>
-
-    <div class="qf-apercu-boite">
-        <div class="qf-recap-tete"><span>Aperçu du devis</span></div>
-        <div id="qf-apercu" class="qf-apercu">
-            <div class="qa-vide">Renseignez le devis pour le voir se dessiner.</div>
         </div>
     </div>
 </aside>
@@ -370,13 +394,22 @@
     .qf-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(232,160,32,.15); }
 
     /* ── Lignes panneaux : chaque ligne dans un "tile" pour lisibilité ── */
-    /* ═══ Deux colonnes : saisie à gauche, récap + aperçu à droite ═══
-       (2026-10-30). La colonne de droite suit le défilement. */
-    .qf-colonnes { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:20px; align-items:start; }
-    .qf-cote { position:sticky; top:72px; display:flex; flex-direction:column; gap:14px; max-height:calc(100vh - 90px); overflow:auto; }
-    @media (max-width: 1280px) { .qf-colonnes { grid-template-columns:1fr; } .qf-cote { position:static; max-height:none; } }
+    /* ═══ Deux colonnes : saisie à gauche, récapitulatif à droite ═══
+       (2026-10-30). minmax(0,1fr) est indispensable : sans lui, une
+       colonne de grille prend la largeur de son contenu le plus large et
+       le tableau des lignes pousse toute la page au lieu de défiler. */
+    .qf-colonnes { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:20px; align-items:start; }
+    .qf-cote { position:sticky; top:72px; }
+    @media (max-width: 1280px) { .qf-colonnes { grid-template-columns:1fr; } .qf-cote { position:static; } }
 
-    .qf-recap, .qf-apercu-boite { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+    /* Le récap se tient en hauteur d'écran : seul son CORPS défile, la
+       barre du total reste visible. Avec plusieurs services, elle sortait
+       de l'écran et on ne voyait plus le montant. */
+    .qf-recap {
+        background:var(--surface); border:1px solid var(--border); border-radius:10px;
+        overflow:hidden; display:flex; flex-direction:column; max-height:calc(100vh - 96px);
+    }
+    @media (max-width: 1280px) { .qf-recap { max-height:none; } }
     .qf-recap-tete {
         display:flex; align-items:center; justify-content:space-between;
         padding:10px 14px; background:var(--surface2); border-bottom:1px solid var(--border);
@@ -384,40 +417,30 @@
     }
     .qf-recap-etat { font-weight:600; text-transform:none; letter-spacing:0; color:var(--text3); }
     .qf-recap-etat.calcul { color:var(--accent); }
-    .qf-recap-corps { padding:12px 14px; display:flex; flex-direction:column; gap:7px; }
-    .qf-recap-ligne { display:flex; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--text2); }
-    .qf-recap-ligne strong { color:var(--text); white-space:nowrap; }
+
+    /* Seul le corps défile — la barre du total reste toujours à l'écran. */
+    .qf-recap-corps { padding:12px 14px; display:flex; flex-direction:column; gap:7px; overflow-y:auto; min-height:0; }
+    .qf-recap-ligne { display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12.5px; color:var(--text2); }
+    .qf-recap-ligne span { min-width:0; }
+    .qf-recap-ligne small { font-size:10px; color:var(--text3); font-weight:700; }
+    .qf-recap-ligne strong { color:var(--text); white-space:nowrap; flex-shrink:0; }
     .qf-recap-fort { padding-top:7px; border-top:1px solid var(--border); font-weight:700; }
+    .qf-recap-fort span, .qf-recap-fort strong { color:var(--text); }
+    .qf-recap-remise span, .qf-recap-remise strong { color:#b45309; }
+
+    /* Groupes repliés visuellement : taxes et services annexes. */
+    .qf-recap-groupe { display:flex; flex-direction:column; gap:6px; padding:8px 0 0; border-top:1px solid var(--border); }
+    .qf-recap-sous-titre {
+        font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.5px;
+        color:var(--text3);
+    }
+
     .qf-recap-total {
         display:flex; justify-content:space-between; align-items:center; gap:10px;
-        padding:12px 14px; background:var(--accent); color:#fff; font-weight:800;
+        padding:14px; background:var(--accent); color:#fff; font-weight:800;
+        flex-shrink:0;
     }
-    .qf-recap-total strong { font-size:16px; white-space:nowrap; }
-    .qf-apercu { padding:14px; font-size:12px; }
-
-    /* ═══ L'aperçu du document lui-même ═══ */
-    .qa-doc { color:var(--text); }
-    .qa-entete { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding-bottom:10px; border-bottom:2px solid var(--text); }
-    .qa-marque { font-size:15px; font-weight:800; letter-spacing:.5px; }
-    .qa-sous, .qa-commune { font-size:10.5px; color:var(--text3); }
-    .qa-type { font-size:11px; font-weight:800; letter-spacing:1.5px; color:var(--accent); }
-    .qa-ref { font-family:monospace; font-size:12.5px; font-weight:700; }
-    .qa-bloc { padding:10px 0; }
-    .qa-titre-devis { font-weight:700; font-size:13px; }
-    .qa-meta { font-size:11px; color:var(--text3); margin-top:2px; }
-    .qa-section { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--text3); margin:12px 0 4px; }
-    .qa-table { width:100%; border-collapse:collapse; font-size:11.5px; }
-    .qa-table th { padding:5px 4px; font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:var(--text3); border-bottom:1px solid var(--border); }
-    .qa-table td { padding:5px 4px; border-bottom:1px solid var(--border); vertical-align:top; }
-    .qa-vide { padding:18px 6px; text-align:center; font-size:11.5px; color:var(--text3); font-style:italic; }
-    .qa-tva-pastille { display:inline-block; margin-left:5px; padding:1px 5px; border-radius:999px; font-size:9px; font-weight:800; }
-    .qa-tva-pastille.qa-avec { background:rgba(22,163,74,.12); color:#15803d; }
-    .qa-tva-pastille.qa-sans { background:var(--surface2); color:var(--text3); }
-    .qa-totaux { margin-top:12px; display:flex; flex-direction:column; gap:5px; }
-    .qa-ligne { display:flex; justify-content:space-between; gap:10px; font-size:11.5px; color:var(--text2); }
-    .qa-ligne.qa-remise { color:#b45309; }
-    .qa-ligne.qa-fort { padding-top:5px; border-top:1px solid var(--border); font-weight:700; color:var(--text); }
-    .qa-total-final { display:flex; justify-content:space-between; gap:10px; margin-top:8px; padding-top:8px; border-top:2px solid var(--text); font-weight:800; font-size:13px; }
+    .qf-recap-total strong { font-size:15px; white-space:nowrap; }
 
     /* Interrupteur TVA d'un service annexe (2026-10-30) — même apparence
        que celui de la facture FNE, pour que les deux écrans se ressemblent. */
@@ -449,13 +472,44 @@
     .ql-td:last-child, .ql-td:nth-last-child(2) { padding-right:10px; }
     .ql-cell-stack { display:flex; flex-direction:column; gap:6px; }
     .ql-input {
-        width:100%; height:38px; padding:0 10px;
+        width:100%; height:40px; padding:0 10px;
         background:var(--surface); border:1px solid var(--border);
-        border-radius:6px; color:var(--text); font-size:13px; font-family:inherit;
+        border-radius:6px; color:var(--text); font-size:13.5px; font-family:inherit;
     }
     .ql-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(232,160,32,.12); }
     .ql-num { text-align:right; }
     .ql-center { text-align:center; }
+
+    /* ═══ Tableau des lignes : défilement horizontal et colonnes assez
+       larges pour qu'on LISE ce qu'on tape (2026-10-30) ═══
+       Les champs chiffrés étaient si étroits qu'un tarif à six chiffres
+       y était tronqué. Largeurs reprises de la facture FNE. */
+    .ql-defilement { overflow-x:auto; overflow-y:visible; padding-bottom:4px; }
+    .ql-table { width:100%; min-width:1020px; }
+    .ql-col-desi    { min-width:300px; }
+    .ql-col-commune { width:170px; min-width:150px; }
+    .ql-col-m2      { width:110px; min-width:100px; }
+    .ql-col-pu      { width:150px; min-width:140px; }
+    .ql-col-qte     { width:90px;  min-width:80px; }
+    .ql-col-mois    { width:100px; min-width:90px; }
+    .ql-col-action  { width:46px; }
+
+    /* Les flèches natives des champs nombre mangent la place utile :
+       on les retire, la valeur occupe toute la largeur. */
+    .ql-num::-webkit-outer-spin-button,
+    .ql-num::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+    .ql-num { -moz-appearance:textfield; appearance:textfield; }
+
+    /* Une barre de défilement discrète mais visible : sans elle, on ne
+       devine pas qu'il reste des colonnes à droite. */
+    .ql-defilement::-webkit-scrollbar { height:8px; }
+    .ql-defilement::-webkit-scrollbar-track { background:var(--surface2); border-radius:999px; }
+    .ql-defilement::-webkit-scrollbar-thumb { background:var(--border2, var(--border)); border-radius:999px; }
+    .ql-defilement::-webkit-scrollbar-thumb:hover { background:var(--text3); }
+
+    /* Services annexes : mêmes règles, en plus étroit. */
+    .qs-table { width:100%; min-width:720px; }
+    .qs-table .ql-th:first-child { min-width:260px; }
     .ql-designation { background:var(--surface); border-color:var(--border); }
     textarea.qf-input { line-height:1.5; }
 
@@ -579,6 +633,12 @@
     /* Tableau des lignes — sur mobile chaque ligne devient une carte
        empilée pour rester lisible sans scroll horizontal. */
     @media (max-width: 800px) {
+        /* La table passe en cartes : le min-width et le défilement
+           horizontal n'ont plus lieu d'être, et provoqueraient un
+           débordement de la page (2026-10-30). */
+        .ql-table { min-width: 0; }
+        .ql-defilement { overflow-x: visible; }
+
         #quote-lines-table thead { display: none; }
         #quote-lines-table, #quote-lines-table tbody { display: block; width: 100%; }
         #quote-lines-table tr.ql-row {
@@ -623,6 +683,7 @@
 
     /* Tableau services — même approche mobile-first */
     @media (max-width: 600px) {
+        .qs-table { min-width: 0; }
         #quote-services-table, #quote-services-table tbody { display: block; }
         #quote-services-table thead { display: none; }
         #quote-services-table tr.qs-row {
@@ -639,6 +700,19 @@
             display: block;
         }
         #quote-services-table tr.qs-row td:first-child { grid-column: 1 / -1; }
+
+        /* Étiquettes au-dessus de chaque champ, comme pour les lignes :
+           sans en-tête de tableau, « 59 004 » tout seul ne veut rien dire
+           (2026-10-30). Le libellé et le bouton supprimer s'en passent. */
+        #quote-services-table tr.qs-row td::before {
+            content: attr(data-label);
+            display: block;
+            font-size: 10px; font-weight: 700; color: var(--text3);
+            text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px;
+        }
+        #quote-services-table tr.qs-row td:first-child::before,
+        #quote-services-table tr.qs-row td:last-child::before { content: ""; }
+        #quote-services-table tr.qs-row td:last-child { align-self: end; text-align: right; }
     }
     .qf-panel-hint { font-size:11px; color:var(--text3); margin-top:2px; }
 </style>
@@ -836,9 +910,9 @@ window.QuoteForm = (function() {
         const row = document.createElement('tr');
         row.className = 'qs-row';
         row.innerHTML = `
-            <td style="padding:6px"><input type="text" name="services[${i}][label]" maxlength="200" placeholder="ex. Impression affiches dos bleu" class="ql-input"></td>
-            <td style="padding:6px"><input type="number" name="services[${i}][prix_ht]" min="0" step="1" value="0" class="ql-input ql-num qs-prix"></td>
-            <td style="padding:6px;text-align:center">
+            <td style="padding:6px" data-label="Libellé"><input type="text" name="services[${i}][label]" maxlength="200" placeholder="ex. Impression affiches dos bleu" class="ql-input"></td>
+            <td style="padding:6px" data-label="Prix HT"><input type="number" name="services[${i}][prix_ht]" min="0" step="1" value="0" class="ql-input ql-num qs-prix"></td>
+            <td style="padding:6px;text-align:center" data-label="TVA">
                 <label class="qs-tva-toggle is-on">
                     <input type="hidden" name="services[${i}][tva_applicable]" value="0">
                     <input type="checkbox" name="services[${i}][tva_applicable]" value="1" class="qs-tva" checked>
@@ -846,7 +920,7 @@ window.QuoteForm = (function() {
                     <span class="qs-tva-text">TVA</span>
                 </label>
             </td>
-            <td style="padding:6px;text-align:right"><span class="qs-ttc" style="font-weight:700">—</span></td>
+            <td style="padding:6px;text-align:right" data-label="TTC"><span class="qs-ttc" style="font-weight:700">—</span></td>
             <td style="padding:6px;text-align:center"><button type="button" onclick="this.closest('tr').remove();recalcServices()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
         `;
         tbody.appendChild(row);
@@ -911,16 +985,17 @@ window.QuoteForm = (function() {
         });
         recalcServices();
 
-        // Aperçu : toute modification du formulaire relance la demande.
+        // Récapitulatif : toute modification du formulaire le relance.
         ['input', 'change'].forEach(ev =>
-            document.getElementById('quote-form')?.addEventListener(ev, demanderApercu));
-        $('#quote-client, #quote-campaign').on('change', demanderApercu);
-        demanderApercu();
+            document.getElementById('quote-form')?.addEventListener(ev, demanderTotaux));
+        $('#quote-client, #quote-campaign').on('change', demanderTotaux);
+        demanderTotaux();
     });
 
-    // ── Aperçu en direct (2026-10-30) ──────────────────────────────
-    // Le serveur calcule ET rend : aucune formule n'est recopiée ici.
-    const APERCU_URL = @json(route('admin.quotes.apercu'));
+    // ── Récapitulatif en direct (2026-10-30) ───────────────────────
+    // Le serveur calcule, le navigateur se contente d'afficher : aucune
+    // formule n'est recopiée ici (CLAUDE.md).
+    const TOTAUX_URL = @json(route('admin.quotes.totaux'));
     const CSRF = document.querySelector('meta[name="csrf-token"]')?.content
         || document.querySelector('#quote-form input[name="_token"]')?.value;
 
@@ -928,58 +1003,63 @@ window.QuoteForm = (function() {
     let demandeEnCours = 0;
     const fmt = n => Number(n || 0).toLocaleString('fr-FR');
 
-    function demanderApercu() {
+    function demanderTotaux() {
         // Anti-rafale : on ne part qu'une fois la saisie calmée.
         clearTimeout(minuteur);
         document.getElementById('qf-etat')?.classList.add('calcul');
-        minuteur = setTimeout(chargerApercu, 450);
+        minuteur = setTimeout(chargerTotaux, 400);
     }
 
-    async function chargerApercu() {
+    const txt  = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    const bloc = (id, afficher) => { const e = document.getElementById(id); if (e) e.hidden = !afficher; };
+    const taux = v => rtrimZeros(Number(v || 0).toFixed(2));
+    const rtrimZeros = s => s.replace(/,?0+$/, '').replace(/\.?0+$/, '').replace('.', ',');
+
+    async function chargerTotaux() {
         const form = document.getElementById('quote-form');
         if (!form) return;
 
         const mien = ++demandeEnCours;
-        const corps = new FormData(form);
-        corps.append('reference', @json($isEdit ? $quote->reference : ($referenceProposee ?? '')));
 
         try {
-            const r = await fetch(APERCU_URL, {
+            const r = await fetch(TOTAUX_URL, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: corps,
+                body: new FormData(form),
             });
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const d = await r.json();
 
-            // Une réponse dépassée par une plus récente est ignorée.
+            // Une réponse dépassée par une plus récente est ignorée :
+            // sinon le récap peut revenir en arrière sur une frappe rapide.
             if (mien !== demandeEnCours) return;
 
             const t = d.totaux || {};
-            const txt = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-            const bloc = (id, afficher) => { const e = document.getElementById(id); if (e) e.hidden = !afficher; };
 
             txt('qf-brut',  fmt(t.amount));
             txt('qf-net',   fmt(t.net_ht));
             txt('qf-tva',   fmt(t.tva_amount));
+            txt('qf-tva-libelle', 'TVA (' + taux(t.tva) + ' %)');
             txt('qf-total', fmt(t.total_a_payer) + ' FCFA');
 
             const remise = (t.amount || 0) - (t.net_ht || 0);
             bloc('qf-ligne-remise', remise > 0);
+            txt('qf-remise-libelle', 'Remise (' + taux(t.remise_pct) + ' %)');
             txt('qf-remise', '− ' + fmt(remise));
 
-            const taxes = (t.tsp_amount || 0) + (t.tm_total || 0) + (t.odp_total || 0);
-            bloc('qf-ligne-taxes', taxes > 0);
-            txt('qf-taxes', fmt(taxes));
+            // Taxes, une ligne chacune : on doit savoir ce qu'on paie.
+            const tsp = t.tsp_amount || 0, tm = t.tm_total || 0, odp = t.odp_total || 0;
+            bloc('qf-groupe-taxes', tsp + tm + odp > 0);
+            bloc('qf-ligne-tsp', tsp > 0); txt('qf-tsp', fmt(tsp));
+            bloc('qf-ligne-tm',  tm  > 0); txt('qf-tm',  fmt(tm));
+            bloc('qf-ligne-odp', odp > 0); txt('qf-odp', fmt(odp));
 
-            bloc('qf-ligne-services', (t.services_ttc_total || 0) > 0);
-            txt('qf-services', fmt(t.services_ttc_total));
-
-            const cible = document.getElementById('qf-apercu');
-            if (cible && d.html) cible.innerHTML = d.html;
+            bloc('qf-groupe-services', (t.services_ttc_total || 0) > 0);
+            txt('qf-services-ht', fmt(t.services_ht_total));
+            txt('qf-services',    fmt(t.services_ttc_total));
         } catch (e) {
-            // Un aperçu en panne ne doit jamais gêner la saisie.
-            console.warn('Aperçu du devis indisponible :', e.message);
+            // Un récapitulatif en panne ne doit jamais gêner la saisie.
+            console.warn('Récapitulatif indisponible :', e.message);
         } finally {
             if (mien === demandeEnCours) {
                 document.getElementById('qf-etat')?.classList.remove('calcul');
@@ -987,7 +1067,7 @@ window.QuoteForm = (function() {
         }
     }
 
-    return { addLine, addService, recalcServices, demanderApercu };
+    return { addLine, addService, recalcServices, demanderTotaux };
 })();
 </script>
 @endpush
