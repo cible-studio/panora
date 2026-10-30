@@ -33,8 +33,15 @@ Lecture seule, elle ne modifie rien. Six sections :
 | 5 | Sur-paiements | Versements supérieurs au montant dû (saisie en double ?) |
 | 6 | Rattachement client | Factures sans client existant, invisibles en recouvrement |
 
-- [ ] Commande lancée, résultat noté ici :
-      _(coller le résumé)_
+- [x] Commande lancée en production le 2026-10-30. Résumé :
+      · comptées par Finance : 2 partiellement soldées (8 489 800), 1 litige
+        (504 000), 1 soldée (205 200) ; écartées : 16 brouillons
+        (195 242 564 — à faire relire par le comptable : générer ou annuler),
+        1 annulée (4 130 000) ;
+      · 4 brouillons à `total_a_payer` = 0 (FAC-2026-006/007/008/011,
+        46 665 000) : sans effet, les brouillons ne sont pas comptés ;
+      · restant dû réel 4 889 800 (l'ancienne liste annonçait 8 489 800 —
+        corrigé le 29/10) ; aucun avoir, aucun sur-paiement, aucun client manquant.
 - [ ] Les écrans concordent après correction : la liste des factures et
       `/admin/finance` annoncent le **même** restant dû.
 
@@ -112,7 +119,10 @@ Deux migrations partent avec ce lot, jouées au démarrage (`migrate --force`) :
 
 - [x] Coolify : la production a redémarré sans erreur après la mise en ligne
       *(fait le 2026-10-30 — les regroupements ont tourné en production)*
-- [ ] Moteur des tables en production : `SHOW TABLE STATUS` → `Engine`
+- [ ] Moteur des tables en production — dans le terminal Coolify :
+      `php artisan tinker --execute="dump(collect(DB::select('SHOW TABLE STATUS'))->countBy('Engine')->all());"`
+      → attendu : InnoDB seul. (`SHOW TABLE STATUS` tapé tel quel dans le shell ne marche pas.)
+      Pourquoi : `Engine`
       = InnoDB (cf. TECHNICAL_DEBT, MyISAM). Le regroupement vérifie tout
       **avant** d'écrire, mais seul InnoDB annule un regroupement interrompu
 - [x] Les 8 doublons, **quand personne ne travaille dans Panora** :
@@ -124,15 +134,17 @@ Deux migrations partent avec ce lot, jouées au démarrage (`migrate --force`) :
       lien de la fiche ouvre la fiche gardée
 - [ ] DENTSU (deux fiches avec campagnes et factures) : regarder les NCC
       dans l'aperçu avant de valider
-- [ ] Sheet → « Envoyer à Panora » **après** les regroupements : aucun
-      « Entreprise supprimée » pour les fiches regroupées
+- [x] Sheet → « Envoyer à Panora » **après** les regroupements : aucun
+      « Entreprise supprimée » pour les fiches regroupées *(30/10 : 2 536 créés,
+      seuls refus = contacts sans entreprise)*
 
 **Identité du client figée sur les factures** (décision du 2026-10-30,
 migration `2026_10_30_110000_add_identite_client_to_invoices`, jamais jouée
 sur MySQL — le serveur local était arrêté) :
 
-- [ ] Après la mise en ligne : une facture déjà émise montre le même nom et
-      NCC qu'avant (la migration les a figés avec la fiche du jour)
+- [x] Après la mise en ligne : une facture déjà émise montre le même nom et
+      NCC qu'avant (la migration les a figés avec la fiche du jour) *(vu le 30/10 ;
+      le menu Devis apparaît aussi en production)*
 - [ ] Renommer une fiche client (essai sur dev) : le PDF d'une facture émise
       ne change pas ; sa fiche facture indique « Fiche aujourd'hui : … »
 - [ ] Une facture en brouillon suit la fiche ; à sa génération, l'identité
