@@ -70,27 +70,11 @@ class PanelController extends Controller
             // Exemple : "ABG" trouve "ABG-002" mais pas "CABG-001"
             // "port bouet" trouve "Port Bouët" (les accents sont normalisés
             // des deux côtés via unaccentSql/stripAccents).
-           if ($request->filled('search')) {
-                $search = $this->stripAccents(trim($request->search));
-                $escapedSearch = preg_quote($search, '/');
-                $pattern = '(^|[^a-zA-Z0-9])' . $escapedSearch . '([^a-zA-Z0-9]|$)';
-
-                $refExpr      = $this->unaccentSql('reference');
-                $nameExpr     = $this->unaccentSql('name');
-                $quartierExpr = $this->unaccentSql('quartier');
-                $adresseExpr  = $this->unaccentSql('adresse');
-                $communeExpr  = $this->unaccentSql('name');
-
-                $query->where(function ($q) use ($pattern, $refExpr, $nameExpr, $quartierExpr, $adresseExpr, $communeExpr) {
-                    $q->whereRaw("$refExpr REGEXP ?", [$pattern])
-                      ->orWhereRaw("$nameExpr REGEXP ?", [$pattern])
-                      ->orWhereRaw("$quartierExpr REGEXP ?", [$pattern])
-                      ->orWhereRaw("$adresseExpr REGEXP ?", [$pattern])
-                      ->orWhereHas('commune', function($c) use ($pattern, $communeExpr) {
-                          $c->whereRaw("$communeExpr REGEXP ?", [$pattern]);
-                      });
-                });
-            }
+            // 2026-10-30 : la règle est sortie d'ici dans
+            // App\Support\RecherchePanneaux, pour que la recherche de
+            // panneaux du DEVIS se comporte exactement pareil. Elle n'est
+            // plus écrite qu'à un seul endroit.
+            \App\Support\RecherchePanneaux::appliquer($query, $request->search);
             
             if ($request->filled('commune_id')) {
                 $query->where('commune_id', $request->commune_id);
@@ -1145,45 +1129,18 @@ class PanelController extends Controller
     // ══════════════════════════════════════════════════════════════
 
     /**
-     * Retire les accents et passe en minuscules — pour normaliser le terme
-     * de recherche côté PHP avant de construire la regex.
+     * Les deux helpers ci-dessous vivent désormais dans
+     * App\Support\RecherchePanneaux (2026-10-30), partagés avec la
+     * recherche de panneaux du devis. Conservés en délégation : des
+     * appels subsistent pour les panneaux de régies externes.
      */
     private function stripAccents(string $s): string
     {
-        return strtr(mb_strtolower($s, 'UTF-8'), [
-            'à'=>'a','á'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a',
-            'ç'=>'c',
-            'è'=>'e','é'=>'e','ê'=>'e','ë'=>'e',
-            'ì'=>'i','í'=>'i','î'=>'i','ï'=>'i',
-            'ñ'=>'n',
-            'ò'=>'o','ó'=>'o','ô'=>'o','õ'=>'o','ö'=>'o',
-            'ù'=>'u','ú'=>'u','û'=>'u','ü'=>'u',
-            'ý'=>'y','ÿ'=>'y',
-        ]);
+        return \App\Support\RecherchePanneaux::normaliser($s);
     }
 
-    /**
-     * Construit une expression SQL qui retire les accents d'une colonne
-     * (chaîne REPLACE imbriquées + LOWER). Portable sur MySQL/MariaDB
-     * sans dépendre de la collation configurée — la recherche fonctionne
-     * que la base soit en utf8mb4_unicode_ci, _general_ci ou _bin.
-     */
     private function unaccentSql(string $column): string
     {
-        $map = [
-            'à'=>'a','á'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a',
-            'ç'=>'c',
-            'è'=>'e','é'=>'e','ê'=>'e','ë'=>'e',
-            'ì'=>'i','í'=>'i','î'=>'i','ï'=>'i',
-            'ñ'=>'n',
-            'ò'=>'o','ó'=>'o','ô'=>'o','õ'=>'o','ö'=>'o',
-            'ù'=>'u','ú'=>'u','û'=>'u','ü'=>'u',
-            'ý'=>'y','ÿ'=>'y',
-        ];
-        $expr = "LOWER($column)";
-        foreach ($map as $from => $to) {
-            $expr = "REPLACE($expr, '$from', '$to')";
-        }
-        return $expr;
+        return \App\Support\RecherchePanneaux::sansAccents($column);
     }
 }

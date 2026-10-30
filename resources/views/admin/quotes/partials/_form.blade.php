@@ -49,8 +49,15 @@
 
     $oldServices = old('services');
     $services = $oldServices ?: ($isEdit && $quote->services->count() > 0
-        ? $quote->services->map(fn($s) => ['label'=>$s->label, 'prix_ht'=>$s->prix_ht])->all()
+        ? $quote->services->map(fn($s) => [
+            'label'          => $s->label,
+            'prix_ht'        => $s->prix_ht,
+            'tva_applicable' => (bool) $s->tva_applicable,
+          ])->all()
         : []);
+    // Taux de TVA du devis (colonne `tva`), pour afficher le TTC de chaque
+    // service dans le formulaire (2026-10-30).
+    $quoteTva = (float) old('tva', $isEdit ? ($quote->tva ?? 18) : 18);
 @endphp
 
 <form method="POST" action="{{ $action }}" id="quote-form" style="display:flex;flex-direction:column;gap:20px">
@@ -69,6 +76,18 @@
     {{-- ── Bloc 1 : identité du devis ── --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px">
         <h3 style="font-size:14px;font-weight:800;margin-bottom:14px">📋 Identité du devis</h3>
+        {{-- Numéro du devis (2026-10-30) : attribué par Panora, affiché pour
+             qu'on sache lequel sera pris, mais non modifiable — un numéro
+             saisi à la main créerait des doublons. Quote::generateReference()
+             le produit déjà à l'enregistrement, il n'était simplement nulle
+             part à l'écran. --}}
+        <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+            <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Numéro du devis</span>
+            <strong style="font-family:monospace;font-size:15px;color:var(--accent)">{{ $isEdit ? $quote->reference : ($referenceProposee ?? '—') }}</strong>
+            <span style="font-size:11px;color:var(--text3)">
+                {{ $isEdit ? 'attribué à la création' : 'attribué automatiquement à l\'enregistrement' }}
+            </span>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
             <div>
                 <label class="qf-label">Client *</label>
@@ -99,9 +118,20 @@
                 'classeLabel' => 'qf-label', 'classeSelect' => 'qf-input',
             ])
         </div>
+        {{-- Titre proposé à partir du client et de la campagne (2026-10-30),
+             et laissé modifiable. Dès qu'on le modifie, Panora n'y touche
+             plus — data-auto passe à 0. --}}
         <div style="margin-top:12px">
             <label class="qf-label">Titre du devis *</label>
-            <input type="text" name="title" required maxlength="200" value="{{ old('title', $isEdit ? $quote->title : '') }}" placeholder="ex. Campagne lancement Duster - Q2 2026" class="qf-input">
+            @php $titreSaisi = old('title', $isEdit ? $quote->title : ''); @endphp
+            <input type="text" name="title" id="quote-title" required maxlength="200"
+                   value="{{ $titreSaisi }}"
+                   data-auto="{{ $titreSaisi === '' ? '1' : '0' }}"
+                   placeholder="proposé d'après le client et la campagne — modifiable"
+                   class="qf-input">
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">
+                Proposé d'après le client et la campagne. Écrivez par-dessus pour le fixer.
+            </div>
         </div>
         <div style="margin-top:16px;padding:10px 14px;background:#f5f3ff;border-left:3px solid #8b5cf6;border-radius:0 6px 6px 0">
             <div style="font-size:12px;font-weight:700;color:#6d28d9;margin-bottom:4px">📅 Période de la campagne</div>
@@ -218,20 +248,43 @@
                 <thead>
                     <tr>
                         <th class="ql-th" style="text-align:left">Libellé</th>
-                        <th class="ql-th" style="text-align:right;width:160px">Prix HT (FCFA)</th>
+                        <th class="ql-th" style="text-align:right;width:150px">Prix HT (FCFA)</th>
+                        {{-- TVA au choix, service par service (2026-10-30) :
+                             même règle que la facture FNE. Un frais déjà taxé
+                             par le fournisseur se refacture sans TVA. --}}
+                        <th class="ql-th" style="text-align:center;width:110px">TVA {{ rtrim(rtrim(number_format($quoteTva, 2, ',', ''), '0'), ',') }}%</th>
+                        <th class="ql-th" style="text-align:right;width:140px">TTC</th>
                         <th style="width:40px;background:var(--surface2)"></th>
                     </tr>
                 </thead>
                 <tbody id="quote-services-tbody">
                     @foreach($services as $i => $s)
+                        @php $svcTva = !array_key_exists('tva_applicable', $s) || (bool) $s['tva_applicable']; @endphp
                         <tr class="qs-row">
                             <td style="padding:6px"><input type="text" name="services[{{ $i }}][label]" maxlength="200" value="{{ $s['label'] ?? '' }}" placeholder="ex. Impression affiches dos bleu" class="ql-input"></td>
-                            <td style="padding:6px"><input type="number" name="services[{{ $i }}][prix_ht]" min="0" step="1" value="{{ $s['prix_ht'] ?? 0 }}" class="ql-input ql-num"></td>
-                            <td style="padding:6px;text-align:center"><button type="button" onclick="this.closest('tr').remove()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
+                            <td style="padding:6px"><input type="number" name="services[{{ $i }}][prix_ht]" min="0" step="1" value="{{ $s['prix_ht'] ?? 0 }}" class="ql-input ql-num qs-prix"></td>
+                            <td style="padding:6px;text-align:center">
+                                {{-- Le champ caché garantit qu'un interrupteur éteint
+                                     envoie « 0 » : sans lui, rien n'est transmis et
+                                     PHP comprend « absent » = soumis à TVA. --}}
+                                <label class="qs-tva-toggle {{ $svcTva ? 'is-on' : 'is-off' }}">
+                                    <input type="hidden" name="services[{{ $i }}][tva_applicable]" value="0">
+                                    <input type="checkbox" name="services[{{ $i }}][tva_applicable]" value="1" class="qs-tva" {{ $svcTva ? 'checked' : '' }}>
+                                    <span class="qs-tva-switch"></span>
+                                    <span class="qs-tva-text">{{ $svcTva ? 'TVA' : 'HT' }}</span>
+                                </label>
+                            </td>
+                            <td style="padding:6px;text-align:right"><span class="qs-ttc" style="font-weight:700">—</span></td>
+                            <td style="padding:6px;text-align:center"><button type="button" onclick="this.closest('tr').remove();QuoteForm.recalcServices()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
+            {{-- Sous-total TTC des services, comme sur la facture FNE. --}}
+            <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;background:rgba(232,160,32,.06);border-radius:8px">
+                <span style="font-size:12px;color:var(--text2);font-weight:700">Sous-total services TTC</span>
+                <span id="qs-sous-total" style="font-size:14px;font-weight:800;color:var(--accent)">0 FCFA</span>
+            </div>
         </div>
     </div>
 
@@ -280,6 +333,29 @@
     .qf-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(232,160,32,.15); }
 
     /* ── Lignes panneaux : chaque ligne dans un "tile" pour lisibilité ── */
+    /* Interrupteur TVA d'un service annexe (2026-10-30) — même apparence
+       que celui de la facture FNE, pour que les deux écrans se ressemblent. */
+    .qs-tva-toggle {
+        display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+        padding:0 10px; height:36px; border:1px solid var(--border);
+        background:var(--surface2); border-radius:8px; user-select:none;
+    }
+    .qs-tva-toggle:hover { border-color:var(--text3); }
+    .qs-tva-toggle input[type="checkbox"] { position:absolute; opacity:0; width:0; height:0; }
+    .qs-tva-toggle .qs-tva-switch {
+        position:relative; width:34px; height:20px; background:#94a3b8;
+        border-radius:999px; transition:background .15s; flex-shrink:0;
+    }
+    .qs-tva-toggle .qs-tva-switch::after {
+        content:''; position:absolute; top:2px; left:2px; width:16px; height:16px;
+        background:#fff; border-radius:50%; transition:transform .15s;
+    }
+    .qs-tva-toggle.is-on  .qs-tva-switch { background:#16a34a; }
+    .qs-tva-toggle.is-on  .qs-tva-switch::after { transform:translateX(14px); }
+    .qs-tva-toggle .qs-tva-text { font-size:11px; font-weight:800; line-height:1; min-width:30px; }
+    .qs-tva-toggle.is-on  .qs-tva-text { color:#16a34a; }
+    .qs-tva-toggle.is-off .qs-tva-text { color:var(--text3); }
+
     .ql-th { padding:6px 10px; font-size:11px; color:var(--text3); background:var(--surface2); text-transform:uppercase; letter-spacing:.5px; }
     .ql-th:first-child { border-radius:8px 0 0 8px; }
     .ql-td { padding:8px 10px; vertical-align:middle; background:var(--surface2); }
@@ -675,19 +751,82 @@ window.QuoteForm = (function() {
         row.className = 'qs-row';
         row.innerHTML = `
             <td style="padding:6px"><input type="text" name="services[${i}][label]" maxlength="200" placeholder="ex. Impression affiches dos bleu" class="ql-input"></td>
-            <td style="padding:6px"><input type="number" name="services[${i}][prix_ht]" min="0" step="1" value="0" class="ql-input ql-num"></td>
-            <td style="padding:6px;text-align:center"><button type="button" onclick="this.closest('tr').remove()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
+            <td style="padding:6px"><input type="number" name="services[${i}][prix_ht]" min="0" step="1" value="0" class="ql-input ql-num qs-prix"></td>
+            <td style="padding:6px;text-align:center">
+                <label class="qs-tva-toggle is-on">
+                    <input type="hidden" name="services[${i}][tva_applicable]" value="0">
+                    <input type="checkbox" name="services[${i}][tva_applicable]" value="1" class="qs-tva" checked>
+                    <span class="qs-tva-switch"></span>
+                    <span class="qs-tva-text">TVA</span>
+                </label>
+            </td>
+            <td style="padding:6px;text-align:right"><span class="qs-ttc" style="font-weight:700">—</span></td>
+            <td style="padding:6px;text-align:center"><button type="button" onclick="this.closest('tr').remove();recalcServices()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
         `;
         tbody.appendChild(row);
+        recalcServices();
+    }
+
+    /**
+     * TTC de chaque service et sous-total (2026-10-30).
+     * Le taux vient du champ TVA du devis : un seul endroit à changer.
+     */
+    function recalcServices() {
+        const taux = parseFloat(document.querySelector('[name="tva"]')?.value ?? {{ $quoteTva }}) || 0;
+        let totalTtc = 0;
+
+        document.querySelectorAll('#quote-services-tbody .qs-row').forEach(row => {
+            const prix   = parseFloat(row.querySelector('.qs-prix')?.value) || 0;
+            const coche  = row.querySelector('.qs-tva')?.checked;
+            const ttc    = coche ? Math.round(prix * (1 + taux / 100)) : Math.round(prix);
+            totalTtc    += ttc;
+
+            const cible = row.querySelector('.qs-ttc');
+            if (cible) cible.textContent = prix > 0 ? ttc.toLocaleString('fr-FR') + ' F' : '—';
+
+            // L'étiquette de l'interrupteur suit son état.
+            const bascule = row.querySelector('.qs-tva-toggle');
+            const texte   = row.querySelector('.qs-tva-text');
+            if (bascule) bascule.classList.toggle('is-on', !!coche);
+            if (bascule) bascule.classList.toggle('is-off', !coche);
+            if (texte)   texte.textContent = coche ? 'TVA' : 'HT';
+        });
+
+        const sousTotal = document.getElementById('qs-sous-total');
+        if (sousTotal) sousTotal.textContent = totalTtc.toLocaleString('fr-FR') + ' FCFA';
     }
 
     // ── Boot ──
     $(function() {
         initHeaderSelects();
         document.querySelectorAll('#quote-lines-tbody .ql-row').forEach(initLineSelects);
+
+        // Titre proposé d'après le client et la campagne, tant qu'on ne
+        // l'a pas écrit soi-même.
+        const titre = document.getElementById('quote-title');
+        const proposerTitre = () => {
+            if (!titre || titre.dataset.auto !== '1') return;
+            const client   = document.querySelector('#quote-client option:checked')?.textContent?.trim();
+            const campagne = document.querySelector('#quote-campaign option:checked')?.textContent?.trim();
+            if (!client) return;
+            titre.value = campagne ? `${client} — ${campagne}` : client;
+        };
+        titre?.addEventListener('input', () => { titre.dataset.auto = '0'; });
+        $('#quote-client, #quote-campaign').on('change', proposerTitre);
+        proposerTitre();
+
+        // Services : TTC recalculé à chaque saisie de prix, à chaque
+        // bascule de TVA, et quand le taux du devis change.
+        document.addEventListener('input', e => {
+            if (e.target.matches('.qs-prix, [name="tva"]')) recalcServices();
+        });
+        document.addEventListener('change', e => {
+            if (e.target.matches('.qs-tva, [name="tva"]')) recalcServices();
+        });
+        recalcServices();
     });
 
-    return { addLine, addService };
+    return { addLine, addService, recalcServices };
 })();
 </script>
 @endpush

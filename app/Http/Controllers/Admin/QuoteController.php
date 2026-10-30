@@ -163,8 +163,13 @@ class QuoteController extends Controller
         $campaigns = Campaign::orderBy('name')->get(['id', 'name', 'client_id']);
         $communes = Commune::orderBy('name')->get(['id', 'name']);
         $validDays = (int) config('billing.quote_valid_days_default', 30);
+        // Numéro proposé, affiché en lecture seule dans le formulaire
+        // (2026-10-30). Le numéro définitif est attribué à
+        // l'enregistrement : si un autre devis est créé entre-temps,
+        // c'est celui-là qui fait foi.
+        $referenceProposee = Quote::generateReference();
 
-        return view('admin.quotes.create', compact('clients', 'campaigns', 'communes', 'preselect', 'validDays', 'prefilledLines'));
+        return view('admin.quotes.create', compact('clients', 'campaigns', 'communes', 'preselect', 'validDays', 'prefilledLines', 'referenceProposee'));
     }
 
     public function store(Request $request, QuoteBuilder $builder)
@@ -240,13 +245,13 @@ class QuoteController extends Controller
 
         // Colonnes réelles dans Panora : adresse (fr), format_id (belongsTo PanelFormat).
         // Surface m² = format.surface (colonne calculée) OU format.width * format.height.
-        $panels = \App\Models\Panel::with(['commune:id,name', 'format:id,width,height,surface,name'])
-            ->when($q !== '', fn($qr) => $qr->where(fn($s) =>
-                $s->where('reference', 'like', "%{$q}%")
-                  ->orWhere('name', 'like', "%{$q}%")
-                  ->orWhere('adresse', 'like', "%{$q}%")
-                  ->orWhere('quartier', 'like', "%{$q}%")
-            ))
+        //
+        // 2026-10-30 : même recherche que l'inventaire — mot entier, sans
+        // accents, commune comprise (App\Support\RecherchePanneaux). Avant,
+        // un simple LIKE : « bouet » ne trouvait pas « Port Bouët », et
+        // « ABG » remontait aussi CABG-001.
+        $requete = \App\Models\Panel::with(['commune:id,name', 'format:id,width,height,surface,name']);
+        $panels = \App\Support\RecherchePanneaux::appliquer($requete, $q)
             ->whereNull('deleted_at')
             ->orderBy('reference')
             ->limit(30)
@@ -534,6 +539,8 @@ class QuoteController extends Controller
             'services'                     => 'nullable|array|max:30',
             'services.*.label'             => 'required_with:services|string|max:200',
             'services.*.prix_ht'           => 'required_with:services|numeric|min:0',
+            // TVA au choix sur chaque service (2026-10-30). Absent = soumis.
+            'services.*.tva_applicable'    => 'nullable|boolean',
         ], [
             'lines.required' => 'Au moins une ligne (panneau) est requise dans un devis.',
             'client_id.exists' => 'Ce client est introuvable ou a été supprimé.',
@@ -611,6 +618,11 @@ class QuoteController extends Controller
             $quote->services()->create([
                 'label'       => $label,
                 'prix_ht'     => (int) round($prix),
+                // TVA au choix, service par service (2026-10-30). Absent du
+                // formulaire = soumis à TVA, comme avant.
+                'tva_applicable' => array_key_exists('tva_applicable', $s)
+                    ? (bool) filter_var($s['tva_applicable'], FILTER_VALIDATE_BOOLEAN)
+                    : true,
                 'order_index' => $idx++,
             ]);
         }

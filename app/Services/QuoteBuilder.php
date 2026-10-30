@@ -53,9 +53,15 @@ class QuoteBuilder
 
         // 2) Agrégats devis
         $linesArr = $quote->lines->map(fn(QuoteLine $l) => $l->toArray())->all();
+        // tva_applicable transmis depuis le 2026-10-30 : InvoiceCalculator
+        // sait déjà le traiter (il le fait pour les factures depuis le
+        // 2026-08-03), le devis se contentait de ne pas le lui passer —
+        // un service sans TVA était donc annoncé TTC sur le devis et HT
+        // sur la facture qui en découlait.
         $svcArr   = $quote->services->map(fn($s) => [
-            'label'   => $s->label,
-            'prix_ht' => (float) $s->prix_ht,
+            'label'          => $s->label,
+            'prix_ht'        => (float) $s->prix_ht,
+            'tva_applicable' => (bool) $s->tva_applicable,
         ])->all();
 
         $totals = $this->calculator->calculateInvoice($linesArr, [
