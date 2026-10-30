@@ -520,8 +520,7 @@ class FinancialDashboardService
     protected function openInvoicesQuery(?int $commercialUserId = null)
     {
         $q = Invoice::query()
-            ->whereNotIn('status', ['brouillon', 'annulee'])
-            ->whereNull('credit_note_for_id');
+            ->facturees(); // règle unique du CA facturé (Invoice::restreindreAuFacture)
 
         if ($commercialUserId !== null) {
             $q->forCommercialUser($commercialUserId);
@@ -533,8 +532,7 @@ class FinancialDashboardService
     protected function invoicesQueryForPeriod(CarbonInterface $from, CarbonInterface $to, ?int $commercialUserId = null)
     {
         $q = Invoice::query()
-            ->whereNotIn('status', ['brouillon', 'annulee'])
-            ->whereNull('credit_note_for_id')
+            ->facturees() // règle unique du CA facturé (Invoice::restreindreAuFacture)
             ->whereBetween('issued_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()]);
 
         if ($commercialUserId !== null) {
@@ -553,8 +551,7 @@ class FinancialDashboardService
         $q = InvoicePayment::query()
             ->whereBetween('invoice_payments.paid_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
             ->whereHas('invoice', function ($iv) use ($commercialUserId) {
-                $iv->whereNotIn('status', ['brouillon', 'annulee'])
-                   ->whereNull('credit_note_for_id');
+                $iv->facturees();
                 if ($commercialUserId !== null) {
                     $iv->forCommercialUser($commercialUserId);
                 }

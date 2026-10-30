@@ -53,7 +53,8 @@ class CommercialPerformanceService
         $caHt = (int) DB::table('invoices')
             ->where('commercial_user_id', $commercialId)
             ->whereBetween('issued_at', [$from->toDateString(), $to->toDateString()])
-            ->whereNotIn('status', ['annulee'])
+            // CA facturé (2026-10-30) : ni brouillon, ni annulée, ni avoir.
+            ->where(fn ($q) => Invoice::restreindreAuFacture($q, 'invoices'))
             ->sum('net_ht');
 
         $nbCampagnes = $this->campaignsBaseQuery($commercialId, $from, $to)->count();
@@ -78,11 +79,15 @@ class CommercialPerformanceService
             ->selectRaw('AVG(DATEDIFF(paid_at, issued_at)) as avg_days')
             ->value('avg_days');
 
-        // ── Factures impayées (statuts non-soldé)
+        // ── Factures impayées : le dû de Finance (2026-10-30) — toute facture
+        //    comptée au CA, générée et validée comprises, moins les versements.
         $impayees = Invoice::query()
             ->where('commercial_user_id', $commercialId)
-            ->whereIn('status', ['envoyee', 'partiellement_payee', 'en_retard', 'litige'])
-            ->get();
+            ->facturees()
+            ->with(['payments', 'schedules'])
+            ->get()
+            ->filter(fn ($inv) => $inv->remainingAmount() > 0)
+            ->values();
         $resteDu = $impayees->sum(fn ($inv) => $inv->remainingAmount());
 
         return [
@@ -312,7 +317,7 @@ class CommercialPerformanceService
         // CA HT — source : invoices.net_ht (cohérent avec kpis())
         $rowsHt = DB::table('invoices')
             ->whereNotNull('commercial_user_id')
-            ->whereNotIn('status', ['annulee'])
+            ->where(fn ($q) => Invoice::restreindreAuFacture($q, 'invoices')) // CA facturé (2026-10-30)
             ->whereBetween('issued_at', [$start->toDateString(), $end->toDateString()])
             ->selectRaw('YEAR(issued_at) as y, MONTH(issued_at) as m,
                          SUM(net_ht) as ca_ht')

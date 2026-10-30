@@ -94,7 +94,7 @@
         <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <div class="kpi-card__value" data-kpi="ca" data-kpi-value="ca" style="color:var(--accent);font-size:18px">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
         <div class="kpi-card__label">CA Encaissé</div>
-        <div class="kpi-card__sub">FCFA · Restant : {{ number_format($montantRestantDu, 0, ',', ' ') }}</div>
+        <div class="kpi-card__sub">FCFA · Restant : <span data-kpi="restant">{{ number_format($montantRestantDu, 0, ',', ' ') }}</span></div>
         <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
     </a>
 </div>
@@ -568,6 +568,10 @@ cursor: pointer;
         const ca = document.querySelector('[data-kpi="ca"]');
         if (ca && counts.ca !== undefined) {
             ca.textContent = new Intl.NumberFormat('fr-FR').format(Math.round(counts.ca));
+        }
+        const restant = document.querySelector('[data-kpi="restant"]');
+        if (restant && counts.restant !== undefined) {
+            restant.textContent = new Intl.NumberFormat('fr-FR').format(Math.round(counts.restant));
         }
     }
 

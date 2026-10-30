@@ -511,7 +511,10 @@ class Campaign extends Model
     {
         return (float) Invoice::query()
             ->where('campaign_id', $this->id)
-            ->whereIn('status', ['brouillon', 'envoyee', 'payee'])
+            // Toute facture sauf l'annulée, brouillons compris (2026-10-30) : avant,
+            // une facture générée, validée, partiellement soldée, en retard ou en
+            // litige n'était pas « déjà facturée » — risque de facturer deux fois.
+            ->nonAnnulees()
             ->sum('amount');
     }
 

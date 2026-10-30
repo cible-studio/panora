@@ -189,8 +189,7 @@ class CaRealService
         ?int $clientId = null
     ) {
         $q = Invoice::query()
-            ->whereNotIn('status', ['brouillon', 'annulee'])
-            ->whereNull('credit_note_for_id')
+            ->facturees() // règle unique du CA facturé (Invoice::restreindreAuFacture)
             ->whereBetween('issued_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()]);
 
         if ($commercialUserId !== null) {
@@ -214,8 +213,7 @@ class CaRealService
         return InvoicePayment::query()
             ->whereBetween('invoice_payments.paid_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
             ->whereHas('invoice', function ($iv) use ($commercialUserId, $clientId) {
-                $iv->whereNotIn('status', ['brouillon', 'annulee'])
-                   ->whereNull('credit_note_for_id');
+                $iv->facturees();
                 if ($commercialUserId !== null) {
                     $iv->forCommercialUser($commercialUserId);
                 }

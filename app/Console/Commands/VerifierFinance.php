@@ -25,7 +25,7 @@ class VerifierFinance extends Command
     protected $description = 'Contrôle de cohérence des chiffres du tableau de bord financier (lecture seule)';
 
     /** Statuts écartés des totaux par la page Finance. */
-    private const ECARTES = ['brouillon', 'annulee'];
+    private const ECARTES = Invoice::STATUTS_HORS_CA;
 
     private int $anomalies = 0;
 
@@ -108,9 +108,10 @@ class VerifierFinance extends Command
         $aTrancher = $lignes->whereIn('status', ['generee', 'validee']);
         if ($aTrancher->isNotEmpty()) {
             $montant = $aTrancher->sum(fn ($l) => (float) $l->total);
-            $this->signaler(sprintf(
-                '%s facture(s) « Générée / Validée » pour %s FCFA sont comptées comme facturées'
-                . ' alors qu\'elles ne sont pas encore parties chez le client. Règle à confirmer.',
+            // Règle tranchée le 2026-10-30 : elles comptent. Simple information.
+            $this->line(sprintf(
+                '   %s facture(s) « Générée / Validée » pour %s FCFA, comptées comme facturées'
+                . ' (règle validée le 2026-10-30).',
                 $aTrancher->sum('nb'),
                 number_format($montant, 0, ',', ' ')
             ));
@@ -190,8 +191,7 @@ class VerifierFinance extends Command
         $this->line('── 4. Restant dû : ancienne formule vs réelle ─────────────');
 
         $ouvertes = $this->base($annee)
-            ->whereIn('status', ['envoyee', 'partiellement_payee', 'en_retard'])
-            ->whereNull('credit_note_for_id')
+            ->facturees() // même périmètre que le dû de Finance et de la liste (2026-10-30)
             ->with(['payments:id,invoice_id,montant', 'schedules:id,invoice_id,due_date,paid_at'])
             ->get();
 
@@ -230,8 +230,7 @@ class VerifierFinance extends Command
         $this->line('── 5. Versements supérieurs au montant dû ─────────────────');
 
         $factures = $this->base($annee)
-            ->whereNotIn('status', ['brouillon', 'annulee'])
-            ->whereNull('credit_note_for_id')
+            ->facturees()
             ->with('payments:id,invoice_id,montant')
             ->get();
 
@@ -264,8 +263,7 @@ class VerifierFinance extends Command
         $this->line('── 6. Rattachement client ─────────────────────────────────');
 
         $orphelines = $this->base($annee)
-            ->whereNotIn('status', ['brouillon', 'annulee'])
-            ->whereNull('credit_note_for_id')
+            ->facturees()
             ->whereNotExists(fn ($q) => $q->select(DB::raw(1))->from('clients')
                 ->whereColumn('clients.id', 'invoices.client_id'))
             ->get(['id', 'reference', 'client_id', 'total_a_payer', 'amount_ttc']);

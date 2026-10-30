@@ -48,9 +48,7 @@ class CheckDueDates extends Command
         // pour résoudre le commercial sans N+1.
         $schedules = InvoiceSchedule::query()
             ->whereNull('paid_at')
-            ->whereHas('invoice', fn($q) => $q
-                ->whereNotIn('status', ['brouillon', 'annulee'])
-                ->whereNull('credit_note_for_id'))
+            ->whereHas('invoice', fn($q) => $q->facturees()) // règle unique du dû (2026-10-30)
             ->with([
                 'invoice.client:id,name',
                 'invoice.campaign',

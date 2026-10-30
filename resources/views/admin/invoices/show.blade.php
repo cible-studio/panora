@@ -1488,11 +1488,11 @@
                                 <div style="font-weight:800;font-size:14px;color:#22c55e">{{ $clientStats['count_paid'] }}</div>
                             </div>
                             <div>
-                                <div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.5px">CA soldé TTC</div>
+                                <div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Encaissé TTC</div>
                                 <div style="font-weight:800;font-size:13px;color:var(--accent)">{{ number_format($clientStats['sum_paid_ttc'], 0, ',', ' ') }}</div>
                             </div>
                             <div>
-                                <div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.5px">En attente TTC</div>
+                                <div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Reste dû TTC</div>
                                 <div style="font-weight:800;font-size:13px;color:#f59e0b">{{ number_format($clientStats['sum_pending_ttc'], 0, ',', ' ') }}</div>
                             </div>
                         </div>
@@ -1510,7 +1510,7 @@
                     <div class="card-title" style="font-size:13px">📋 Autres factures du client</div>
                     <a href="{{ route('admin.invoices.index', ['client_id' => $invoice->client_id]) }}"
                        class="btn btn-ghost btn-sm" style="font-size:11px">
-                        Toutes ({{ $clientStats['count_total'] ?? 0 }}) →
+                        Toutes ({{ $clientStats['count_all'] ?? 0 }}) →
                     </a>
                 </div>
                 <div class="card-body" style="padding:6px">

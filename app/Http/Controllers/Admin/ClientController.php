@@ -325,7 +325,8 @@ class ClientController extends Controller
         // les compteurs de la fiche s'y arrêtaient.
         $client->loadCount(['campaigns', 'reservations']);
 
-        $totalFacture = $client->invoices()->sum('amount_ttc');
+        // CA facturé (2026-10-30) : ni brouillon, ni annulée, ni avoir — même règle que Finance.
+        $totalFacture = (int) \App\Models\Invoice::sommeMontantTotal(\App\Models\Invoice::where('client_id', $client->id)->facturees());
         $sectors = Client::SECTORS;
 
         // ── Inventaire panneaux du client (Dev A) ─────────────────

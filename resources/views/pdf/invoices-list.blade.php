@@ -90,8 +90,11 @@
             <div class="val">{{ number_format((float) $invoices->sum('amount_ttc'), 0, ',', ' ') }} FCFA</div>
         </td>
         <td class="ch-kpi k-vert">
-            <div class="lbl">Encaissé (soldées)</div>
-            <div class="val">{{ number_format((float) $invoices->where('status','payee')->sum('amount_ttc'), 0, ',', ' ') }} FCFA</div>
+            {{-- 2026-10-30 : versements reçus sur les factures comptées au CA
+                 (Invoice::compteAuCa), acomptes compris — avant, le TTC des
+                 seules factures « payée ». --}}
+            <div class="lbl">Encaissé</div>
+            <div class="val">{{ number_format((float) $invoices->filter->compteAuCa()->sum(fn ($i) => $i->paidAmount()), 0, ',', ' ') }} FCFA</div>
         </td>
     </tr>
 </table>
