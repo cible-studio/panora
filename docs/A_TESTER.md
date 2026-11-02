@@ -418,6 +418,11 @@ sont réglées sur le même numéro, le test est refusé.
 - [ ] Après déploiement : « Envoyer un test » → reçu par les 2 adresses de
       « Tests internes » seulement ; le mail de confirmation annonce 2
       destinataires
+      *(2026-11-02 : la campagne Brevo #20 vise bien 2 destinataires, mais
+      Brevo l'a suspendue, « 0 email restant » : le quota gratuit de 300/jour
+      a été épuisé par « test #8 ». Panora l'affiche pourtant « envoyé », car
+      il ne voit pas cette suspension. Refaire le test le 3/11 pour vérifier
+      la réception.)*
 - [ ] Avant le premier vrai envoi : nettoyer les adresses en rebond (15 %
       sur les 300 premiers — Brevo exige < 2 %)
 
