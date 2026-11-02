@@ -62,6 +62,22 @@ class DiffusionDisponibilitesService
         return config('diffusion.mode') !== 'production';
     }
 
+    /**
+     * Cet envoi est-il un test ? Oui s'il vient du bouton « Envoyer un
+     * test », OU si le serveur est en mode test. Source unique (2026-11-02) :
+     * la liste visée, la synchronisation, l'objet et les destinataires
+     * internes en dépendent.
+     *
+     * Incident du 2026-11-02 : la liste ne regardait que le mode du
+     * serveur. Un « Envoyer un test » avec DIFFUSION_MODE=production a
+     * recopié les 830 clients dans la liste clients et leur a envoyé le
+     * catalogue (300 partis avant que Brevo ne suspende).
+     */
+    public function estEnvoiTest(DiffusionEnvoi $envoi): bool
+    {
+        return $envoi->mode === DiffusionEnvoi::MODE_TEST || $this->estModeTest();
+    }
+
     // ══════════════════════════════════════════════════════════════
     // CE QU'ON ENVOIE
     // ══════════════════════════════════════════════════════════════
@@ -473,12 +489,13 @@ class DiffusionDisponibilitesService
         try {
             $envoi->update(['statut' => DiffusionEnvoi::STATUT_EN_COURS, 'erreur' => null]);
 
-            $listeId = $this->listeCible();
-            $nbDestinataires = $this->synchroniserDestinataires($listeId);
+            $test = $this->estEnvoiTest($envoi);
+            $listeId = $this->listeCible($test);
+            $nbDestinataires = $this->synchroniserDestinataires($listeId, $test);
 
             if ($nbDestinataires === 0) {
                 throw new BrevoException(
-                    $this->estModeTest()
+                    $test
                         ? 'La liste « Tests internes » est vide dans Brevo.'
                         : 'Aucun destinataire : aucun client n\'a d\'adresse valide non désinscrite.'
                 );
@@ -697,16 +714,24 @@ class DiffusionDisponibilitesService
     // BREVO
     // ══════════════════════════════════════════════════════════════
 
-    private function listeCible(): int
+    private function listeCible(bool $test): int
     {
-        $cle = $this->estModeTest() ? 'tests' : 'clients';
+        $cle = $test ? 'tests' : 'clients';
         $id = config("brevo.lists.{$cle}");
 
         if (!$id) {
             throw new BrevoException(
-                $this->estModeTest()
+                $test
                     ? 'BREVO_LIST_TESTS n\'est pas renseigné dans le .env (mode test).'
                     : 'BREVO_LIST_CLIENTS n\'est pas renseigné dans le .env.'
+            );
+        }
+
+        // Garde-fou (2026-11-02) : un test ne doit jamais pouvoir viser la
+        // liste des clients, même par erreur de réglage.
+        if ($test && (int) $id === (int) config('brevo.lists.clients')) {
+            throw new BrevoException(
+                'BREVO_LIST_TESTS et BREVO_LIST_CLIENTS désignent la même liste Brevo : le test n\'est pas parti.'
             );
         }
 
@@ -715,12 +740,13 @@ class DiffusionDisponibilitesService
 
     /**
      * Met la liste Brevo des clients en phase avec Panora et renvoie le
-     * nombre de destinataires. En mode test, la liste « Tests internes »
-     * est gérée à la main dans Brevo : on se contente de la compter.
+     * nombre de destinataires. Pour un test, la liste « Tests internes »
+     * est gérée à la main dans Brevo : on se contente de la compter, on
+     * n'y écrit jamais.
      */
-    private function synchroniserDestinataires(int $listeId): int
+    private function synchroniserDestinataires(int $listeId, bool $test): int
     {
-        if ($this->estModeTest()) {
+        if ($test) {
             return count($this->brevo->emailsDeLaListe($listeId));
         }
 
@@ -776,7 +802,7 @@ class DiffusionDisponibilitesService
         }
 
         $objet = str_replace('{periode}', $periode, (string) config('diffusion.objet'));
-        if ($envoi->mode === DiffusionEnvoi::MODE_TEST || $this->estModeTest()) {
+        if ($this->estEnvoiTest($envoi)) {
             $objet = '[TEST] ' . $objet;
         }
 
@@ -843,7 +869,7 @@ class DiffusionDisponibilitesService
     {
         $confirmation = self::adresses(config('diffusion.confirmation_email'));
 
-        if ($envoi->mode === DiffusionEnvoi::MODE_TEST || $this->estModeTest()) {
+        if ($this->estEnvoiTest($envoi)) {
             $auteur = $envoi->auteur?->email;
 
             return $auteur ? [mb_strtolower($auteur)] : $confirmation;
