@@ -257,8 +257,9 @@ class PoseController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'whatsapp_number']);
 
-        // Poses de la semaine (toutes statuses, on filtre côté grille)
+        // Poses de la semaine, annulées exclues (2026-11-02)
         $tasks = PoseTask::with(['panel:id,reference,name,commune_id', 'panel.commune:id,name', 'campaign:id,name'])
+            ->sansAnnulees()
             ->whereBetween('scheduled_at', [$weekStart, $weekEnd])
             ->orderBy('scheduled_at')
             ->get();
@@ -311,7 +312,8 @@ class PoseController extends Controller
             ]);
 
         // Cache 60s pour limiter la charge (markers peuvent être nombreux)
-        if ($request->filled('status'))         $query->where('pose_tasks.status', $request->status);
+        // Même règle que la liste : sans filtre de statut, annulées masquées.
+        $this->applyStatusFilter($query, $request);
         if ($request->filled('technicien_id'))  $query->where('pose_tasks.assigned_user_id', $request->technicien_id);
         if ($request->filled('campaign_id'))    $query->where('pose_tasks.campaign_id', $request->campaign_id);
 
@@ -866,6 +868,10 @@ class PoseController extends Controller
     {
         if ($request->filled('status')) {
             $query->where('pose_tasks.status', $request->status);
+        } else {
+            // 2026-11-02 — sans filtre, les annulées sont masquées : on les
+            // retrouve en cliquant sur la carte « Annulées ».
+            $query->sansAnnulees();
         }
         return $query;
     }
