@@ -666,11 +666,16 @@ class ClientController extends Controller
     }
 
     /**
-     * Génère un mot de passe lisible de type "Bleu-Soleil-42".
+     * Mot de passe temporaire lisible, du type « Bleu-Soleil-4821 ».
+     *
+     * 2026-11-02 — Cette méthode renvoyait la chaîne « password », pour
+     * tous les comptes clients, à la création comme à la réinitialisation
+     * (depuis le 2026-04-24). Elle délègue désormais au support partagé,
+     * qui tire un vrai mot de passe.
      */
     private function generateReadablePassword(): string
     {
-        return 'password';
+        return \App\Support\MotDePasseTemporaire::generer();
     }
 
 
