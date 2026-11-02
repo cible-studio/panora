@@ -52,7 +52,7 @@
                 </div>
             </div>
 
-            <div class="role-pill">⚡ <span class="nav-text">{{ Auth::user()?->role?->value ?? 'admin' }}</span></div>
+            <div class="role-pill">⚡ <span class="nav-text">{{ \App\Enums\UserRole::labelFor(Auth::user()?->role) }}</span></div>
 
             <nav class="sidebar-nav" @click="sidebarOpen = false">
                 {{-- Menu rangé par métier (2026-10-30) : vendre → poser → facturer →

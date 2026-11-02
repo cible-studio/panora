@@ -60,15 +60,8 @@
                         @endif
                     </td>
                     <td>
-                        @if($user->role->value === 'admin')
-                            <span class="badge badge-red">🛡️ Admin</span>
-                        @elseif($user->role->value === 'commercial')
-                            <span class="badge badge-blue">💼 Commercial</span>
-                        @elseif($user->role->value === 'mediaplanner')
-                            <span class="badge badge-purple">🗓️ Media Planner</span>
-                        @else
-                            <span class="badge badge-orange">🔧 Technicien</span>
-                        @endif
+                        {{-- Libellé, icône et couleur : App\Enums\UserRole (source unique). --}}
+                        <span class="badge {{ $user->role->classeBadge() }}">{{ $user->role->icone() }} {{ $user->role->label() }}</span>
                     </td>
                     <td>
                         <span style="font-family:monospace; color:var(--text2);">
