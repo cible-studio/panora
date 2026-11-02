@@ -208,6 +208,7 @@ BREVO_WEBHOOK_TOKEN=                  # longue chaîne aléatoire (48 caractère
 
 DIFFUSION_MODE=test                   # test = tout part vers « Tests internes »
 DIFFUSION_AUTO=false                  # true = envois automatiques du 1er et du 15
+DIFFUSION_DERNIER_ECHANGE_MIN=2025-01-01   # adresses au dernier échange plus ancien écartées (vide = règle désactivée)
 DIFFUSION_CONFIRMATION_EMAIL="commercial@cible-ci.com,studio@cible-ci.com"   # plusieurs adresses : séparées par des virgules
 ```
 

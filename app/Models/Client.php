@@ -33,6 +33,7 @@ class Client extends Authenticatable  // ← était "extends Model"
         'sector',
         'statut_commercial',
         'user_id',
+        'email_dernier_echange', // dernier mail échangé avec l'adresse de la fiche (2026-11-02)
         // Ajoute ici tout autre champ déjà présent dans ta table
 
         // ── Nouveaux champs auth ──
@@ -52,6 +53,7 @@ class Client extends Authenticatable  // ← était "extends Model"
         'password_changed_at'  => 'datetime',
         'last_login_at'        => 'datetime',
         'must_change_password' => 'boolean',
+        'email_dernier_echange' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -226,9 +228,31 @@ class Client extends Authenticatable  // ← était "extends Model"
         if ($this->estProspect()) {
             return [];
         }
-        $liste = $this->adressesDe($this->contacts->filter(fn ($ct) => ($ct->statut ?? self::STATUT_CLIENT) === self::STATUT_CLIENT));
+        $clients = $this->contacts->filter(fn ($ct) => ($ct->statut ?? self::STATUT_CLIENT) === self::STATUT_CLIENT);
 
-        return $liste ?: $this->adresseFiche();
+        // 2026-11-02 (direction) : une adresse dont le dernier échange est
+        // antérieur à diffusion.dernier_echange_min ne reçoit plus le
+        // catalogue — ce sont elles qui rebondissent. Date inconnue = reçoit.
+        // Si TOUS les interlocuteurs sont anciens, l'entreprise ne reçoit
+        // rien : pas de repli sur l'adresse de la fiche.
+        $recents = $clients->filter(fn ($ct) => !self::echangeTropAncien($ct->dernier_echange));
+        if ($clients->isNotEmpty() && $recents->isEmpty()) {
+            return [];
+        }
+        $liste = $this->adressesDe($recents);
+
+        return $liste ?: (self::echangeTropAncien($this->email_dernier_echange) ? [] : $this->adresseFiche());
+    }
+
+    /** Dernier échange antérieur à la date limite de diffusion ? (vide = non) */
+    public static function echangeTropAncien(mixed $date): bool
+    {
+        $limite = config('diffusion.dernier_echange_min');
+        if (!$date || !$limite) {
+            return false;
+        }
+
+        return \Illuminate\Support\Carbon::parse($date)->lt(\Illuminate\Support\Carbon::parse($limite)->startOfDay());
     }
 
     /** @return list<array{email: string, contact: ?string}> */
