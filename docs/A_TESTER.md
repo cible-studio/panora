@@ -420,3 +420,31 @@ sont réglées sur le même numéro, le test est refusé.
       destinataires
 - [ ] Avant le premier vrai envoi : nettoyer les adresses en rebond (15 %
       sur les 300 premiers — Brevo exige < 2 %)
+
+### 10 bis. Nettoyage des adresses — commande livrée le 2026-11-02
+
+Sur le serveur de production (terminal Coolify) :
+
+```
+php artisan dispos:nettoyer-adresses              # rapport seul, rien n'est écrit
+php artisan dispos:nettoyer-adresses --appliquer  # enregistre les exclusions
+```
+
+Écarte (motif « Adresse invalide », réversible depuis Diffusion dispos) :
+les adresses bloquées par Brevo dans la liste #3 (rebonds de « test #8 »)
+et celles d'un domaine sans serveur de mail (17 domaines / 32 adresses
+repérés dans le Sheet, ex. cocan2023.ci).
+
+- [ ] Rapport lu, puis `--appliquer` lancé. Destinataires restants : ______
+- [ ] Contacts anciens : décision à prendre (voir conversation du 2/11) —
+      dernier échange avant 2024 = 213 adresses, avant 2025 = 361
+
+## 9 bis. Droits — 2ᵉ série *(2026-11-02)*
+
+- [ ] **MP** : plus de « Clients » ni de « Messages » dans le menu ; les
+      adresses tapées à la main → page interdite. Il crée toujours un client
+      et choisit l'interlocuteur depuis Disponibilités / nouvelle campagne.
+      Les noms de clients ne sont plus cliquables pour lui. Renouvellements :
+      inchangé, il confirme toujours.
+- [ ] **Comptable** : les prix des panneaux (inventaire, campagne,
+      réservation) ne sont plus modifiables ; Tarifs communes inchangé.

@@ -65,7 +65,28 @@ class BrevoClient
     /** @return string[]  adresses présentes dans une liste */
     public function emailsDeLaListe(int $listId): array
     {
-        $emails = [];
+        $emails = array_column($this->contactsDeLaListe($listId), 'email');
+
+        return array_values(array_unique(array_map('mb_strtolower', array_filter($emails))));
+    }
+
+    /**
+     * Adresses d'une liste que Brevo a bloquées : rebond définitif,
+     * désinscription, plainte (2026-11-02, nettoyage après l'incident).
+     *
+     * @return string[]
+     */
+    public function emailsBloquesDeLaListe(int $listId): array
+    {
+        $bloques = array_filter($this->contactsDeLaListe($listId), fn($c) => !empty($c['emailBlacklisted']));
+
+        return array_values(array_unique(array_map('mb_strtolower', array_filter(array_column($bloques, 'email')))));
+    }
+
+    /** @return array<int, array<string, mixed>>  contacts bruts d'une liste, toutes pages */
+    private function contactsDeLaListe(int $listId): array
+    {
+        $contacts = [];
         $offset = 0;
         $limite = 500;
 
@@ -78,12 +99,12 @@ class BrevoClient
                 "lecture de la liste {$listId}"
             );
 
-            $lot = collect($r->json('contacts', []))->pluck('email')->filter()->all();
-            array_push($emails, ...$lot);
+            $lot = $r->json('contacts', []);
+            array_push($contacts, ...$lot);
             $offset += $limite;
         } while (count($lot) === $limite);
 
-        return array_values(array_unique(array_map('mb_strtolower', $emails)));
+        return $contacts;
     }
 
     /** @param string[] $emails */
