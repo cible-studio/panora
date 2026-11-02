@@ -56,25 +56,32 @@
 
             <nav class="sidebar-nav" @click="sidebarOpen = false">
                 {{-- Menu rangé par métier (2026-10-30) : vendre → poser → facturer →
-                     analyser → administrer. Les droits de chaque entrée sont inchangés. --}}
+                     analyser → administrer.
+                     2026-11-02 : qui voit quoi = config/acces.php, la même liste que
+                     les routes et les policies (App\Support\Acces). Une entrée
+                     n'apparaît que pour les rôles qui peuvent ouvrir la page. --}}
                     @php
                         $u = auth()->user();
-                        $isAdmin     = $u?->role?->value === 'admin';
-                        $isMP        = $u?->role?->value === 'mediaplanner';
-                        $isCom       = $u?->role?->value === 'commercial';
-                        $isComptable = $u?->role?->value === 'comptable';
-                        $isTech      = $u?->role?->value === 'technique';
+                        $isCom  = $u?->role?->value === 'commercial';
+                        $isTech = $u?->role?->value === 'technique';
+                        $voit   = fn (string ...$modules) => collect($modules)->contains(fn ($m) => \App\Support\Acces::peut($m));
                     @endphp
+                @if($voit('tableau_de_bord', 'alertes', 'messages'))
                 <div class="nav-section">
                     <div class="nav-label">Principal</div>
+                    @if($voit('tableau_de_bord'))
                     <a href="{{ route('dashboard') }}" data-tooltip="Tableau de bord" class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
                         <span class="nav-text">Tableau de bord</span>
                     </a>
+                    @endif
+                    @if($voit('alertes'))
                     <a href="{{ route('admin.alerts.index') }}" data-tooltip="Alertes" class="nav-item {{ request()->routeIs('admin.alerts.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
                         <span class="nav-text">Alertes</span>
                     </a>
+                    @endif
+                    @if($voit('messages'))
                     @php
                         // Badge messages non traités (status=new). Cache 60s pour
                         // ne pas re-query à chaque rendu de page admin.
@@ -91,49 +98,52 @@
                             <span class="nav-badge red">{{ $newMessagesCount > 99 ? '99+' : $newMessagesCount }}</span>
                         @endif
                     </a>
+                    @endif
                 </div>
+                @endif
 
+                @if($voit('clients', 'disponibilites', 'devis', 'reservations', 'campagnes', 'renouvellements', 'diffusion_dispos'))
                 <div class="nav-section">
                     <div class="nav-label">Commercial</div>
+                    @if($voit('clients'))
                     <a href="{{ route('admin.clients.index') }}" data-tooltip="Clients" class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                         <span class="nav-text">Clients</span>
                     </a>
-                    {{-- Disponibilités : visible aux 3 rôles staff (admin, MP, commercial).
-                         2026-07-21 : caché pour comptable (pas dans son périmètre
-                         — la route est déjà bloquée middleware, on évite un clic 403). --}}
-                    @if(!$isComptable)
+                    @endif
+                    @if($voit('disponibilites'))
                     <a href="{{ route('admin.reservations.disponibilites') }}" data-tooltip="Disponibilités" class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span>
                         <span class="nav-text">Disponibilités</span>
                     </a>
                     @endif
-                    {{-- 2026-07-21 : Devis — module commercial non-bloquant.
-                         Visible aux 3 rôles staff qui ont besoin de la visibilité
-                         (commercial pour créer ses devis, comptable/MP en lecture
-                         pour anticiper facturation et poses futures). --}}
-                    @if($isAdmin || $isCom || $isComptable || $isMP)
+                    {{-- Devis : commercial (les siens), MP en lecture seule. --}}
+                    @if($voit('devis'))
                     <a href="{{ route('admin.quotes.index') }}" data-tooltip="Devis" class="nav-item {{ request()->routeIs('admin.quotes.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M9 11H5a2 2 0 0 0-2 2v7h4"/><path d="M15 11h4a2 2 0 0 1 2 2v7h-4"/><path d="M9 4h6v16H9z"/></svg></span>
                         <span class="nav-text">Devis</span>
                     </a>
                     @endif
+                    @if($voit('reservations'))
                     <a href="{{ route('admin.reservations.index') }}" data-tooltip="Réservations" class="nav-item {{ request()->routeIs('admin.reservations.*') && !request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
                         <span class="nav-text">Réservations</span>
                     </a>
+                    @endif
+                    @if($voit('campagnes'))
                     <a href="{{ route('admin.campaigns.index') }}" data-tooltip="Campagnes" class="nav-item {{ request()->routeIs('admin.campaigns.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
                         <span class="nav-text">Campagnes</span>
                     </a>
-                    {{-- 2026-10-22 : renouvellement des campagnes annuelles (admin, MP, commercial). --}}
-                    @if($isAdmin || $isMP || $isCom)
+                    @endif
+                    {{-- 2026-10-22 : renouvellement des campagnes annuelles. --}}
+                    @if($voit('renouvellements'))
                     <a href="{{ route('admin.renouvellements.index') }}" data-tooltip="Renouvellements" class="nav-item {{ request()->routeIs('admin.renouvellements.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
                         <span class="nav-text">Renouvellements</span>
                     </a>
                     @endif
-                    @if($isAdmin)
+                    @if($voit('diffusion_dispos'))
                     {{-- 2026-09-29 : diffusion des disponibilités aux clients (Brevo). --}}
                     <a href="{{ route('admin.diffusion-dispos.index') }}" data-tooltip="Diffusion des disponibilités" class="nav-item {{ request()->routeIs('admin.diffusion-dispos.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e8a020" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
@@ -141,37 +151,51 @@
                     </a>
                     @endif
                 </div>
+                @endif
 
+                @if($voit('inventaire', 'regies', 'carte', 'poses', 'pilotage', 'piges', 'signalements', 'conflits', 'maintenance'))
                 <div class="nav-section">
                     <div class="nav-label">Parc & terrain</div>
+                    @if($voit('inventaire'))
                     <a href="{{ route('admin.panels.index') }}" data-tooltip="Inventaire" class="nav-item {{ request()->routeIs('admin.panels.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
                         <span class="nav-text">Inventaire</span>
                     </a>
+                    @endif
+                    @if($voit('regies'))
                     <a href="{{ route('admin.external-agencies.index') }}" data-tooltip="Régies externes" class="nav-item {{ request()->routeIs('admin.external-agencies.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
                         <span class="nav-text">Régies externes</span>
                     </a>
+                    @endif
+                    @if($voit('carte'))
                     <a href="{{ route('admin.map') }}" data-tooltip="Carte & Heatmap" class="nav-item {{ request()->routeIs('admin.map*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></span>
                         <span class="nav-text">Carte &amp; Heatmap</span>
                     </a>
-                    @if($isAdmin || $isMP)
+                    @endif
+                    @if($voit('poses'))
                     <a href="{{ route('admin.pose-tasks.index') }}" data-tooltip="Gestion Pose OOH" class="nav-item {{ request()->routeIs('admin.pose-tasks.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></span>
                         <span class="nav-text">Gestion Pose OOH</span>
                     </a>
+                    @endif
                     {{-- SM2b — Pilotage terrain live (admin + MP uniquement).
                          Placé sous "Gestion Pose OOH" (2026-06-19) : regroupement
                          logique avec le suivi opérationnel des poses. --}}
+                    @if($voit('pilotage'))
                     <a href="{{ route('admin.pilotage') }}" data-tooltip="Pilotage terrain (live)" class="nav-item {{ request()->routeIs('admin.pilotage') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span>
                         <span class="nav-text">Pilotage terrain</span>
                     </a>
+                    @endif
+                    @if($voit('piges'))
                     <a href="{{ route('admin.piges.index') }}" data-tooltip="Piges Photos" class="nav-item {{ request()->routeIs('admin.piges.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
                         <span class="nav-text">Piges Photos</span>
                     </a>
+                    @endif
+                    @if($voit('signalements'))
                     @php
                         // Signalements terrain à traiter : même pattern auto-correctif
                         // que Conflits — sur la page Signalements, valeur fraîche +
@@ -204,6 +228,8 @@
                             {{ $signalementsCount }}
                         </span>
                     </a>
+                    @endif
+                    @if($voit('conflits'))
                     @php
                         // Cache 60s : count des conflits actifs (double-bookings BD).
                         // Coût négligeable mais évite de refaire la query à chaque
@@ -232,19 +258,22 @@
                             <span class="nav-badge red">{{ $conflictCount }}</span>
                         @endif
                     </a>
+                    @endif
+                    @if($voit('maintenance'))
                     <a href="{{ route('admin.maintenances.index') }}" data-tooltip="Maintenance" class="nav-item {{ request()->routeIs('admin.maintenances.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
                         <span class="nav-text">Maintenance</span>
                     </a>
                     @endif
                 </div>
+                @endif
 
-                @if($isAdmin || $isCom || $isComptable || $isMP)
+                @if($voit('factures', 'finance', 'taxes', 'tarifs_communes'))
                 <div class="nav-section">
                     <div class="nav-label">Finance</div>
                     {{-- 2026-07-21 : Facturation ouvert au comptable + commercial
                          (émission, édition, envoi + saisie versements + relances). --}}
-                    @if($isAdmin || $isComptable || $isCom)
+                    @if($voit('factures'))
                     <a href="{{ route('admin.invoices.index') }}" data-tooltip="Facturation" class="nav-item {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
                         <span class="nav-text">Facturation</span>
@@ -253,7 +282,7 @@
                     {{-- Tableau de bord FINANCIER — Admin + Commercial + Comptable.
                          2026-07-21 : ajout comptable (recouvrement, ancienneté
                          créances, relances — c'est son écran clé). --}}
-                    @if($isAdmin || $isCom || $isComptable)
+                    @if($voit('finance'))
                     <a href="{{ route('admin.finance.index') }}" data-tooltip="Tableau de bord financier" class="nav-item {{ request()->routeIs('admin.finance.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
                         <span class="nav-text">Finance</span>
@@ -261,7 +290,7 @@
                     @endif
                     {{-- 2026-07-21 : Taxes Communes ouvert au comptable
                          (suivi mensuel des taxes ODP+TM à payer aux mairies). --}}
-                    @if($isAdmin || $isMP || $isComptable)
+                    @if($voit('taxes'))
                     <a href="{{ route('admin.taxes.index') }}" data-tooltip="Taxes Communes" class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
                         <span class="nav-text">Taxes Communes</span>
@@ -272,7 +301,7 @@
                          tarifaire. Le tarif COURANT reste sous admin
                          (page paramètres) pour éviter les changements
                          rétroactifs accidentels. --}}
-                    @if($isAdmin || $isComptable)
+                    @if($voit('tarifs_communes'))
                     <a href="{{ route('admin.settings.communes.tariffs') }}" data-tooltip="Tarifs communes (programmer)" class="nav-item {{ request()->routeIs('admin.settings.communes.tariffs*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg></span>
                         <span class="nav-text">Tarifs communes</span>
@@ -282,25 +311,26 @@
 
                 @endif
 
+                @if($voit('rapports', 'performance_commerciale', 'performance_techniciens', 'performance_equipes'))
                 <div class="nav-section">
                     <div class="nav-label">Analyse</div>
+                    @if($voit('rapports'))
                     <a href="{{ route('admin.rapports.index') }}" data-tooltip="Rapports" class="nav-item {{ request()->routeIs('admin.rapports.index') || request()->routeIs('admin.rapports.annulations') || request()->routeIs('admin.rapports.campagnes') || request()->routeIs('admin.rapports.taxes') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
                         <span class="nav-text">Rapports</span>
                     </a>
-                    {{-- M1 Performance Commerciale (mission 2026-06-17) — admin + MP + commercial.
+                    @endif
+                    {{-- M1 Performance Commerciale (mission 2026-06-17).
                          Le commercial voit son propre drill (le service force le scope au self). --}}
-                    @if($isAdmin || $isMP || ($isCommercial ?? auth()->user()?->role?->value === 'commercial'))
-                    <a href="{{ ($isCommercial ?? auth()->user()?->role?->value === 'commercial') ? route('admin.performance.commercial.me') : route('admin.performance.commercial.index') }}"
+                    @if($voit('performance_commerciale'))
+                    <a href="{{ $isCom ? route('admin.performance.commercial.me') : route('admin.performance.commercial.index') }}"
                        data-tooltip="Performance commerciale" class="nav-item {{ request()->routeIs('admin.performance.commercial.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
-                        <span class="nav-text">{{ ($isCommercial ?? auth()->user()?->role?->value === 'commercial') ? 'Ma performance' : 'Performance commerciale' }}</span>
+                        <span class="nav-text">{{ $isCom ? 'Ma performance' : 'Performance commerciale' }}</span>
                     </a>
                     @endif
-                    {{-- M2 Performance Technicien (mission 2026-06-17) — admin + MP + technique.
-                         Le tech voit son propre drill, idem M1. --}}
-                    @php $isTech = auth()->user()?->role?->value === 'technique'; @endphp
-                    @if($isAdmin || $isMP || $isTech)
+                    {{-- M2 Performance Technicien (mission 2026-06-17). --}}
+                    @if($voit('performance_techniciens'))
                     <a href="{{ $isTech ? route('admin.performance.tech.me') : route('admin.performance.tech.index') }}"
                        data-tooltip="Performance techniciens" class="nav-item {{ request()->routeIs('admin.performance.tech.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
@@ -311,7 +341,7 @@
                          (user : "ajoute le lien dans le menu pour faciliter l'accès").
                          Visible admin + mediaplanner uniquement (le technique ne
                          consulte que sa propre performance, pas le leaderboard équipe). --}}
-                    @if($isAdmin || $isMP)
+                    @if($voit('performance_equipes'))
                     <a href="{{ route('admin.performance.team.index') }}"
                        data-tooltip="Performance équipes" class="nav-item {{ request()->routeIs('admin.performance.team.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
@@ -319,30 +349,38 @@
                     </a>
                     @endif
                 </div>
+                @endif
 
-                @if($isAdmin)
+                @if($voit('utilisateurs', 'journal_mails', 'audit', 'parametres'))
                 <div class="nav-section">
                     <div class="nav-label">Administration</div>
+                    @if($voit('utilisateurs'))
                     <a href="{{ route('admin.users.index') }}" data-tooltip="Utilisateurs" class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
                         <span class="nav-text">Utilisateurs</span>
                     </a>
+                    @endif
                     {{-- 2026-10-29 : chaque mail parti de Panora, avec ses destinataires. --}}
+                    @if($voit('journal_mails'))
                     <a href="{{ route('admin.journal-mails.index') }}" data-tooltip="Journal des mails" class="nav-item {{ request()->routeIs('admin.journal-mails.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
                         <span class="nav-text">Journal des mails</span>
                     </a>
+                    @endif
+                    @if($voit('audit'))
                     <a href="{{ route('admin.audit.logs') }}" data-tooltip="Logs d'audit" class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
                         <span class="nav-text">Logs d'audit</span>
                     </a>
+                    @endif
+                    @if($voit('parametres'))
                     <a href="{{ route('admin.settings.index') }}" data-tooltip="Paramètres" class="nav-item {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
                         <span class="nav-text">Paramètres</span>
                     </a>
+                    @endif
                 </div>
-
-                @endif {{-- /admin only section --}}
+                @endif
             </nav>
 
             <div class="sidebar-footer">

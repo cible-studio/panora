@@ -804,20 +804,23 @@ Route::prefix('admin')
         });
 
         // ── Facturation ───────────────────────────────────────────────
-        // Lecture (index/show/pdf/exports liste) : tous staff (le commercial
-        // voit ses siennes via filtrage InvoiceController). Création /
-        // modification / suppression / changement statut = admin uniquement.
-        Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
-        Route::get('invoices/export/pdf',   [InvoiceController::class, 'exportListPdf'])->name('invoices.export.pdf');
-        Route::get('invoices/export/excel', [InvoiceController::class, 'exportListExcel'])->name('invoices.export.excel');
-        Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])
-            ->whereNumber('invoice')->name('invoices.show');
-        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])
-            ->whereNumber('invoice')->name('invoices.pdf');
-        // Phase 7 cahier §13 — Consultation des audits (timeline +
-        // diff JSON avant/après) sur une facture.
-        Route::get('invoices/{invoice}/audit', [InvoiceController::class, 'auditTimeline'])
-            ->whereNumber('invoice')->name('invoices.audit');
+        // Lecture (index/show/pdf/exports liste) : rôles du module « factures »
+        // de config/acces.php (le commercial voit les siennes via filtrage
+        // InvoiceController). 2026-11-02 : plus le MP — la page lui était
+        // cachée dans le menu mais s'ouvrait par l'adresse.
+        Route::middleware(\App\Support\Acces::middleware('factures'))->group(function () {
+            Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+            Route::get('invoices/export/pdf',   [InvoiceController::class, 'exportListPdf'])->name('invoices.export.pdf');
+            Route::get('invoices/export/excel', [InvoiceController::class, 'exportListExcel'])->name('invoices.export.excel');
+            Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])
+                ->whereNumber('invoice')->name('invoices.show');
+            Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])
+                ->whereNumber('invoice')->name('invoices.pdf');
+            // Phase 7 cahier §13 — Consultation des audits (timeline +
+            // diff JSON avant/après) sur une facture.
+            Route::get('invoices/{invoice}/audit', [InvoiceController::class, 'auditTimeline'])
+                ->whereNumber('invoice')->name('invoices.audit');
+        });
 
         // ⚠ Bloc admin+comptable : actions facturation accessibles au comptable
         // (saisie versements, transitions de statut, échéancier, lookups).
@@ -902,23 +905,22 @@ Route::prefix('admin')
         // ════════════════════════════════════════════════
         // DEVIS (Quote) — module commercial non-bloquant
         // ════════════════════════════════════════════════
-        // Lecture : commercial (ses devis), comptable, MP (tous en lecture)
+        // Lecture : commercial (ses devis), MP (tous, en lecture) — config/acces.php
         // Écriture (create/update/send/convert) : commercial (ses devis)
         //   + admin via before()
         // Cf. app/Policies/QuotePolicy.php pour matrice complète.
         Route::prefix('quotes')->name('quotes.')->group(function () {
-            // Lecture ouverte aux 3 rôles staff qui ont besoin de visibilité
-            Route::middleware('role:admin,commercial,comptable,mediaplanner')->group(function () {
+            // Lecture : rôles du module « devis » de config/acces.php
+            // (2026-11-02 : commercial + MP en lecture seule, plus le comptable).
+            Route::middleware(\App\Support\Acces::middleware('devis'))->group(function () {
                 Route::get('/',                  [\App\Http\Controllers\Admin\QuoteController::class, 'index'])->name('index');
                 Route::get('{quote}',            [\App\Http\Controllers\Admin\QuoteController::class, 'show'])->name('show')->whereNumber('quote');
                 Route::get('{quote}/pdf',        [\App\Http\Controllers\Admin\QuoteController::class, 'exportPdf'])->name('pdf')->whereNumber('quote');
             });
-            // Édition ciblée des PRIX (lignes panneau + services) : ouverte
-            // au comptable en plus d'admin/commercial. Le comptable ne peut
-            // PAS modifier la structure (panneaux/période/remise/envoi) —
-            // uniquement les tarifs, pour coordonner l'anticipation de
-            // facturation. Autorisation fine via QuotePolicy::updatePrice.
-            Route::middleware('role:admin,commercial,comptable')->group(function () {
+            // Édition ciblée des PRIX (lignes panneau + services) : admin et
+            // commercial propriétaire. 2026-11-02 : plus le comptable, qui n'a
+            // plus accès aux devis. Autorisation fine via QuotePolicy::updatePrice.
+            Route::middleware('role:admin,commercial')->group(function () {
                 Route::post('{quote}/price', [\App\Http\Controllers\Admin\QuoteController::class, 'updatePrice'])
                     ->name('price')->whereNumber('quote');
             });

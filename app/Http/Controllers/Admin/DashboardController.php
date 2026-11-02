@@ -136,10 +136,16 @@ class DashboardController extends Controller
         ->toArray();
 
         // ── CA Mensuel ─────────────────────────────────────────────
-        // Pour ADMIN/MP : CA global = somme des tarifs des panneaux occupés
+        // Pour ADMIN/COMPTABLE : CA global = somme des tarifs des panneaux occupés
         // Pour COMMERCIAL : CA personnel = somme des tarifs des panneaux
         // dans ses campagnes actives (commercial assigné OU créateur).
-        if ($isCommercial) {
+        // 2026-11-02 : rien n'est calculé pour les rôles hors du module
+        // « chiffres_financiers » (config/acces.php) — le MP ne voit plus le CA.
+        $voitChiffres = \App\Support\Acces::peut('chiffres_financiers');
+        if (!$voitChiffres) {
+            $caMensuel = 0;
+            $caMoisPrecedent = 0;
+        } elseif ($isCommercial) {
             $caMensuel = \App\Models\CampaignPanel::with('panel')
                 ->where('type', 'interne')
                 ->whereHas('campaign', function ($q) use ($scopeCampaignCommercial) {
@@ -197,14 +203,19 @@ class DashboardController extends Controller
         $cacheKey = "dashboard.fnekpis.{$uid}." . ($isCommercial ? 'c' : 'a') . '.' . $now->format('Y-m-d-H');
         [$caMonthFne, $caYearFne, $encaissMonth, $invoicesEnRetard,
          $totalRecouvrer, $previsionMontant30j, $topClients, $topCommunes]
-            = \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($isCommercial, $uid, $now) {
-                return $this->computeFinanceKpis($isCommercial, $uid, $now);
-            });
+            = $voitChiffres
+                ? \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($isCommercial, $uid, $now) {
+                    return $this->computeFinanceKpis($isCommercial, $uid, $now);
+                })
+                : [0, 0, 0, 0, 0, 0, collect(), collect()];
 
         // ═══ KPIs Devis (Phase 4 module commercial) ═══
         // Compteurs sur les 90 derniers jours + taux de conversion + panier
         // moyen accepté. Scope commercial : ses devis (commercial_user_id).
-        $devisKpis = $this->computeQuoteKpis($isCommercial, $uid, $now);
+        // Seulement pour les rôles du module « devis » (config/acces.php).
+        $devisKpis = \App\Support\Acces::peut('devis')
+            ? $this->computeQuoteKpis($isCommercial, $uid, $now)
+            : [];
 
         return view('dashboard', compact(
             'totalPanneaux', 'panneauxLibres', 'panneauxOccupes',
@@ -215,7 +226,7 @@ class DashboardController extends Controller
             'dernieresReservations', 'dernieresMaintenances',
             'campagnesRecentes', 'dernieresAlertes',
             'tauxOccupation', 'tauxParCommune',
-            'caMensuel', 'variationCA', 'caLabel', 'isCommercial',
+            'caMensuel', 'variationCA', 'caLabel', 'isCommercial', 'voitChiffres',
             // Phase 6 cahier §12 — KPIs financiers
             'caMonthFne', 'caYearFne', 'encaissMonth',
             'invoicesEnRetard', 'totalRecouvrer', 'previsionMontant30j',

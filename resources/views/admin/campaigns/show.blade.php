@@ -528,7 +528,10 @@
 
                 {{-- ── Facturation — intégrée dans la fiche Informations
                      (l'ancien bloc 4 mini-stats Panneaux/Poses/Piges/Contact
-                     est désormais en Quick Actions, sous Informations + Actions). ── --}}
+                     est désormais en Quick Actions, sous Informations + Actions).
+                     2026-11-02 : réservée au module « factures » (config/acces.php)
+                     — le MP ne voit plus les factures. ── --}}
+                @if(\App\Support\Acces::peut('factures'))
                 <div class="mt-6 pt-6 border-t" style="border-color:var(--border)">
                     <div class="text-xs uppercase font-semibold mb-3 flex items-center justify-between gap-2" style="color:var(--text3)">
                         <div class="flex items-center gap-2">
@@ -675,6 +678,7 @@
                         </div>
                     @endif
                 </div>
+                @endif
 
                 <style>@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}</style>
             </div>

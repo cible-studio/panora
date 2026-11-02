@@ -292,9 +292,9 @@ class QuoteController extends Controller
 
     /**
      * Édition ciblée des prix d'un devis (lignes panneau + services).
-     * Ouverte au Comptable via QuotePolicy::updatePrice (User::canEditPrices())
-     * pour coordonner l'anticipation de facturation, sans qu'il puisse
-     * modifier la structure (panneaux ajoutés/retirés, période, remise,
+     * Commercial propriétaire (admin via before) — QuotePolicy::updatePrice.
+     * 2026-11-02 : plus le comptable ni le MP (config/acces.php). Ne permet pas
+     * de modifier la structure (panneaux ajoutés/retirés, période, remise,
      * client, envoi, conversion — ces actions restent au commercial owner).
      *
      * Payload attendu :

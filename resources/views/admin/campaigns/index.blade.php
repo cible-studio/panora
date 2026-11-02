@@ -224,7 +224,8 @@
                 // (matrice FACTURES — MP ne facture pas).
                 $authRole = auth()->user()?->role?->value;
                 // 2026-07-21 : comptable ajouté (colonne Facturation visible)
-                $canSeeBilling = in_array($authRole, ['admin', 'commercial', 'comptable'], true);
+                // 2026-11-02 : rôles du module « factures » (config/acces.php).
+                $canSeeBilling = \App\Support\Acces::peut('factures');
             @endphp
             <table class="data-table" id="campaigns-table">
                 <thead>
