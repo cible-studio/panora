@@ -149,6 +149,48 @@ class BrevoClient
     }
 
     /**
+     * État d'une campagne et ses chiffres globaux (2026-11-02). Brevo
+     * accepte l'ordre d'envoi puis peut suspendre la campagne après coup ;
+     * il ne donne PAS la raison, seulement l'état.
+     *
+     * @return array{statut: ?string, partis: ?int, invalides: ?int}
+     *         statut : draft, queued, in_process, in_review, sent,
+     *         suspended, archive, cancelling, cancelled
+     */
+    public function campagne(int $campaignId): array
+    {
+        $r = $this->reponse(
+            $this->client()->get("/emailCampaigns/{$campaignId}", ['statistics' => 'globalStats']),
+            "lecture de la campagne {$campaignId}"
+        );
+        $chiffre = fn(string $cle) => is_numeric($v = $r->json("statistics.globalStats.{$cle}")) ? (int) $v : null;
+
+        return [
+            'statut'    => $r->json('status'),
+            'partis'    => $chiffre('sent'),
+            'invalides' => $chiffre('hardBounces'),
+        ];
+    }
+
+    /**
+     * Crédits e-mail restants du compte (2026-11-02) : somme des forfaits
+     * e-mail de type « sendLimit » (le forfait SMS est ignoré). null si
+     * Brevo n'en annonce aucun.
+     */
+    public function envoisRestants(): ?int
+    {
+        $r = $this->reponse($this->client()->get('/account'), 'lecture du compte');
+
+        $credits = collect($r->json('plan', []))
+            ->filter(fn($p) => ($p['creditsType'] ?? null) === 'sendLimit'
+                && ($p['type'] ?? null) !== 'sms'
+                && is_numeric($p['credits'] ?? null))
+            ->pluck('credits');
+
+        return $credits->isEmpty() ? null : (int) floor($credits->sum());
+    }
+
+    /**
      * Envoie UN mail individuel (API transactionnelle), avec un contenu
      * HTML déjà rendu par Panora. Utilisé par le mail de fin de campagne.
      * PAS de nouvelle tentative automatique, pour la même raison que

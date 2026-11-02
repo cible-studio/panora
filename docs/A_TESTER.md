@@ -421,8 +421,8 @@ sont réglées sur le même numéro, le test est refusé.
       *(2026-11-02 : la campagne Brevo #20 vise bien 2 destinataires, mais
       Brevo l'a suspendue, « 0 email restant » : le quota gratuit de 300/jour
       a été épuisé par « test #8 ». Panora l'affiche pourtant « envoyé », car
-      il ne voit pas cette suspension. Refaire le test le 3/11 pour vérifier
-      la réception.)*
+      il ne voit pas cette suspension (corrigé, cf. 10 quater). Refaire le
+      test le 3/11 pour vérifier la réception.)*
 - [ ] Avant le premier vrai envoi : nettoyer les adresses en rebond (15 %
       sur les 300 premiers — Brevo exige < 2 %)
 
@@ -464,8 +464,31 @@ n'est écarté.
       script du Sheets (Extensions → Apps Script, fichier `panora.gs`) *(fait le 2026-11-02)*
 - [x] Menu 📇 Panora → **Envoyer à Panora** *(fait le 2026-11-02 : 2 536 à jour,
       159 refusés ; 2 536 interlocuteurs datés dans Panora)*
-- [ ] Diffusion dispos : le nombre de destinataires baisse (≈ 500 attendus,
-      759 avant)
+- [x] Diffusion dispos : le nombre de destinataires baisse (≈ 500 attendus,
+      759 avant) *(constaté le 2026-11-02 : **465**)*
+
+### 10 quater. Envois suspendus par Brevo repérés *(règles validées le 2026-11-02)*
+
+Brevo accepte l'envoi puis peut le suspendre : quota épuisé, ou trop
+d'adresses invalides. Désormais, Panora :
+- vérifie avant l'envoi les envois restants chez Brevo ; s'il en manque,
+  rien ne part ;
+- relit toutes les 15 minutes les envois des dernières 24 h ;
+- passe une campagne suspendue en « Suspendu par Brevo » (onglet
+  « Échecs »), avec la cause probable, et prévient l'équipe.
+
+Sur le serveur de production (terminal Coolify), après la mise en ligne :
+
+- [ ] `php artisan dispos:verifier-envois --heures=48` → les deux tests du
+      2/11 (« test #8 » et celui de 16h10) passent « Suspendu par Brevo »
+      dans le journal, avec leur cause. Une alerte arrive à la personne qui
+      les a lancés.
+- [ ] `php artisan tinker --execute="echo app(App\Services\Brevo\BrevoClient::class)->envoisRestants();"`
+      → doit donner le même nombre que « email restant » dans Brevo. Si
+      c'est faux : me le signaler et, en attendant, poser
+      `DIFFUSION_CONTROLE_QUOTA=false` dans Coolify.
+- [ ] Le 3/11, « Envoyer un test » : un quart d'heure plus tard, la ligne du
+      journal est toujours « Envoyé » (Brevo l'a bien envoyée).
 
 ---
 

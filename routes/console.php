@@ -183,6 +183,13 @@ Schedule::command('dispos:reparer-pdf')
     ->everyMinute()
     ->withoutOverlapping(30)
     ->runInBackground();
+//     Toutes les 15 minutes (2026-11-02) : Brevo accepte l'envoi puis peut
+//     suspendre la campagne (quota épuisé, trop d'adresses invalides).
+//     Les envois des dernières 24 h sont relus ; une suspension passe au
+//     journal et l'équipe est prévenue.
+Schedule::command('dispos:verifier-envois')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(10);
 
 // 15. Sauvegarde nocturne de la base + des fichiers déposés (2026-10-02).
 //     spatie/laravel-backup, configuré dans config/backup.php ; guide :

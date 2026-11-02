@@ -125,6 +125,20 @@ class DiffusionJournalTest extends TestCase
         $this->actingAs($admin)->get('/admin/diffusion-dispos?journal[]=x&mois=abc&exclu[]=y')->assertOk();
     }
 
+    public function test_un_envoi_suspendu_par_brevo_s_affiche_dans_les_echecs(): void
+    {
+        // 2026-11-02 : accepté par Brevo puis suspendu, cf. dispos:verifier-envois.
+        $this->envoi('manuel', 'suspendu', '2026-10-28 09:00:00', "Cause probable : quota d'envois épuisé. Partis : 300 sur 830.");
+        DB::table('diffusion_envois')->update(['brevo_campaign_id' => 8]);
+        $admin = User::findOrFail(1);
+
+        $this->assertSame(1, DiffusionEnvoi::filtre('echecs')->count());
+        $this->withoutVite()->actingAs($admin)->get('/admin/diffusion-dispos?journal=echecs')->assertOk()
+            ->assertSee('Suspendu par Brevo')
+            ->assertSee('Partis : 300 sur 830.')
+            ->assertSee('marketing-reports/email/8/overview', false);
+    }
+
     public function test_adresses_exclues_les_50_plus_recentes_et_recherche(): void
     {
         $lignes = [];

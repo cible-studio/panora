@@ -12,7 +12,8 @@ use Illuminate\Support\Carbon;
  *
  * mode   : auto | manuel | test
  * statut : demande (envoi manuel en attente du planificateur) | prepare
- *          (PDF prêt, pas encore envoyé) | en_cours | envoye | echec
+ *          (PDF prêt, pas encore envoyé) | en_cours | envoye | echec |
+ *          suspendu (accepté par Brevo puis suspendu, cf. dispos:verifier-envois)
  */
 class DiffusionEnvoi extends Model
 {
@@ -27,6 +28,14 @@ class DiffusionEnvoi extends Model
     public const STATUT_EN_COURS = 'en_cours';
     public const STATUT_ENVOYE   = 'envoye';
     public const STATUT_ECHEC    = 'echec';
+    public const STATUT_SUSPENDU = 'suspendu';
+
+    /**
+     * Envois partis chez Brevo, au moins en partie (2026-11-02) : une
+     * campagne suspendue a pu atteindre une partie des destinataires. Ils
+     * comptent pour l'alerte anti-double envoi, et leurs PDF restent servis.
+     */
+    public const STATUTS_PARTIS = [self::STATUT_ENVOYE, self::STATUT_SUSPENDU];
 
     /**
      * Zones du catalogue (2026-10-29) : le mail client porte un lien par
@@ -121,7 +130,7 @@ class DiffusionEnvoi extends Model
         return match ($filtre) {
             'clients' => $q->whereIn('mode', [self::MODE_AUTO, self::MODE_MANUEL]),
             'tests'   => $q->where('mode', self::MODE_TEST),
-            'echecs'  => $q->where('statut', self::STATUT_ECHEC),
+            'echecs'  => $q->whereIn('statut', [self::STATUT_ECHEC, self::STATUT_SUSPENDU]),
             default   => $q,
         };
     }

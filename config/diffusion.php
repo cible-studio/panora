@@ -56,6 +56,12 @@ return [
     // manuel exige une confirmation renforcée (taper ENVOYER).
     'delai_alerte_heures' => 24,
 
+    // Avant chaque envoi, Panora demande à Brevo combien de mails le compte
+    // peut encore envoyer : s'il en reste moins que de destinataires, rien
+    // ne part (2026-11-02). false = contrôle coupé, si Brevo annonçait un
+    // nombre faux.
+    'controle_quota' => (bool) env('DIFFUSION_CONTROLE_QUOTA', true),
+
     // ── MAIL « VOTRE CAMPAGNE SE TERMINE » (J-7) ─────────────────────
     //
     // Règles validées le 2026-10-21 — cf. docs/DIFFUSION_DISPONIBILITES.md
