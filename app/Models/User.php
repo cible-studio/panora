@@ -150,11 +150,9 @@ class User extends Authenticatable
      */
     public function canEditPrices(): bool
     {
-        return in_array($this->role, [
-            UserRole::ADMIN,
-            UserRole::MEDIAPLANNER,
-            UserRole::COMPTABLE,
-        ], true);
+        // 2026-11-02 : rôles du module « prix_panneaux » (config/acces.php) —
+        // le comptable n'y est plus (lecture seule sur les prix).
+        return \App\Support\Acces::peut('prix_panneaux', $this);
     }
 
     // ── M1 Performance Commerciale (mission 2026-06-17) ──

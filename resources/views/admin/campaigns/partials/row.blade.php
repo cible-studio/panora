@@ -60,9 +60,9 @@
                 <span class="client-deleted" title="{{ $campaign->client->name }}">{{ \Illuminate\Support\Str::limit($campaign->client->name, 24) }}</span>
                 <span class="deleted-badge">Supprimé</span>
             @else
-                <a href="{{ route('admin.clients.show', $campaign->client) }}" style="color:var(--text3);text-decoration:none" title="{{ $campaign->client?->name }}">
+                <x-lien-client :client="$campaign->client" style="color:var(--text3);text-decoration:none" title="{{ $campaign->client?->name }}">
                     🏢 {{ \Illuminate\Support\Str::limit($campaign->client?->name ?? '—', 24) }}
-                </a>
+                </x-lien-client>
             @endif
         </div>
         @if($endingSoon)

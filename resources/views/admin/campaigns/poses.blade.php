@@ -20,7 +20,7 @@
         <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px">{{ $campaign->name }}</div>
         <div style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             @if($campaign->client)
-                <span>👤 <a href="{{ route('admin.clients.show', $campaign->client) }}" style="color:var(--accent);text-decoration:none">{{ $campaign->client->name }}</a></span>
+                <span>👤 <x-lien-client :client="$campaign->client" style="color:var(--accent);text-decoration:none">{{ $campaign->client->name }}</x-lien-client></span>
                 <span>·</span>
             @endif
             <span>📅 {{ $campaign->start_date->format('d/m/Y') }} → {{ $campaign->end_date->format('d/m/Y') }}</span>

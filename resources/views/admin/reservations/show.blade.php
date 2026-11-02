@@ -228,10 +228,10 @@
                               style="background:rgba(239,68,68,.1);color:var(--red)">Supprimé</span>
                     </div>
                 @else
-                    <a href="{{ route('admin.clients.show', $reservation->client) }}"
+                    <x-lien-client :client="$reservation->client"
                        class="font-semibold hover:underline" style="color:var(--text)">
                         {{ $reservation->client?->name ?? '—' }}
-                    </a>
+                    </x-lien-client>
                 @endif
                 @include('admin.partials.interlocuteur-affiche', [
                     'dossier' => $reservation,

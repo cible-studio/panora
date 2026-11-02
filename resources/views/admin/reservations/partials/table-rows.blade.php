@@ -50,9 +50,9 @@
         <span class="client-deleted">{{ $res->client?->name ?? '—' }}</span>
         <span class="deleted-badge">Supprimé</span>
         @else
-        <a href="{{ route('admin.clients.show', $res->client) }}" class="client-link">
+        <x-lien-client :client="$res->client" class="client-link">
             {{ $res->client?->name ?? '—' }}
-        </a>
+        </x-lien-client>
         @endif
     </td>
     <td class="date-range">

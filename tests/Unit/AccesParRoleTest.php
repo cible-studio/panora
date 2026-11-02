@@ -112,6 +112,40 @@ class AccesParRoleTest extends TestCase
         }
     }
 
+    public function test_decisions_du_2026_11_02_deuxieme_serie(): void
+    {
+        // Le MP perd les pages Clients et les Messages clients…
+        foreach (['admin.clients.index', 'admin.clients.show', 'admin.clients.edit', 'admin.clients.create',
+                  'admin.clients.export.csv', 'admin.clients.import', 'admin.clients.contacts.store',
+                  'admin.messages.index', 'admin.messages.show'] as $r) {
+            $this->assertNotContains('mediaplanner', $this->rolesDeLaRoute($r), $r);
+        }
+        // … mais garde dans ses formulaires la création d'un client, la
+        // vérification du nom et le choix de l'interlocuteur.
+        foreach (['admin.clients.quick-store', 'admin.clients.verifier-nom',
+                  'admin.clients.contacts.index', 'admin.clients.contacts.rapide'] as $r) {
+            $this->assertContains('mediaplanner', $this->rolesDeLaRoute($r), $r);
+        }
+        // Le MP garde les renouvellements (c'est lui qui confirme).
+        $this->assertContains('mediaplanner', $this->rolesDeLaRoute('admin.renouvellements.index'));
+        $this->assertContains('mediaplanner', $this->rolesDeLaRoute('admin.renouvellements.confirmer'));
+
+        // Le comptable : prix des panneaux en lecture seule…
+        $comptable = $this->utilisateur(UserRole::COMPTABLE);
+        $this->assertFalse($comptable->canEditPrices());
+        $this->assertTrue($this->utilisateur(UserRole::MEDIAPLANNER)->canEditPrices());
+        foreach (['admin.panels.price', 'admin.campaigns.panels.price', 'admin.campaigns.panels.price.reset',
+                  'admin.reservations.panels.price', 'admin.reservations.external-panels.price'] as $r) {
+            $this->assertNotContains('comptable', $this->rolesDeLaRoute($r), $r);
+        }
+        // … mais il voit Réservations, Inventaire, Régies, Carte et garde
+        // la programmation des tarifs communaux.
+        foreach (['admin.reservations.index', 'admin.panels.index', 'admin.external-agencies.index',
+                  'admin.map', 'admin.settings.communes.tariffs'] as $r) {
+            $this->assertContains('comptable', $this->rolesDeLaRoute($r), $r);
+        }
+    }
+
     public function test_le_menu_ne_garde_aucune_liste_de_roles_a_lui(): void
     {
         $menu = file_get_contents(base_path('resources/views/layouts/admin.blade.php'));

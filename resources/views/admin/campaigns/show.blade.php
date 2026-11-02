@@ -368,9 +368,9 @@
                                 <span class="text-xs px-2 py-0.5 rounded" style="color:#ef4444;background:rgba(239,68,68,0.1)">Supprimé</span>
                             </div>
                         @else
-                            <a href="{{ route('admin.clients.show', $campaign->client) }}" class="font-medium hover:underline" style="color:var(--accent)">
+                            <x-lien-client :client="$campaign->client" class="font-medium hover:underline" style="color:var(--accent)">
                                 {{ $campaign->client?->name ?? '—' }}
-                            </a>
+                            </x-lien-client>
                         @endif
                         @include('admin.partials.interlocuteur-affiche', [
                             'dossier' => $campaign,
@@ -827,7 +827,7 @@
                             </button>
                             <div class="text-xs mt-2 text-center" style="color:#d97706;line-height:1.5">
                                 ⚠️ Pas d'email renseigné pour ce client.
-                                @if($campaign->client)
+                                @if($campaign->client && \App\Support\Acces::peut('clients'))
                                     <a href="{{ route('admin.clients.edit', $campaign->client) }}"
                                        style="color:var(--accent);text-decoration:underline;font-weight:600">
                                         Ajouter un email →

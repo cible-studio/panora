@@ -320,12 +320,12 @@
                                         onmouseout="this.style.background=''">
                                         <td>
                                             @if ($occ['client'])
-                                                <a href="{{ route('admin.clients.show', $occ['client']) }}"
+                                                <x-lien-client :client="$occ['client']"
                                                     style="font-weight:700;color:var(--text);text-decoration:none;
                                           display:flex;align-items:center;gap:6px;">
                                                     <span style="font-size:18px;">👤</span>
                                                     {{ $occ['client']->name }}
-                                                </a>
+                                                </x-lien-client>
                                             @else
                                                 <span style="color:var(--text3);">—</span>
                                             @endif
