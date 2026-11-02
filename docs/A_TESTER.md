@@ -435,9 +435,8 @@ les adresses bloquées par Brevo dans la liste #3 (rebonds de « test #8 »)
 et celles d'un domaine sans serveur de mail (17 domaines / 32 adresses
 repérés dans le Sheet, ex. cocan2023.ci).
 
-- [ ] Rapport lu, puis `--appliquer` lancé. Destinataires restants : ______
-- [ ] Contacts anciens : décision à prendre (voir conversation du 2/11) —
-      dernier échange avant 2024 = 213 adresses, avant 2025 = 361
+- [x] Rapport lu, puis `--appliquer` lancé. Destinataires restants : **759** *(fait le 2026-11-02 : 46 bloquées par Brevo + 31 sur domaines morts)*
+- [x] Contacts anciens : **tranché le 2026-11-02 — avant 2025 écartés** (cf. 10 ter)
 
 ## 9 bis. Droits — 2ᵉ série *(2026-11-02)*
 
@@ -456,9 +455,9 @@ rien. Réglage : `DIFFUSION_DERNIER_ECHANGE_MIN` (défaut 2025-01-01).
 La date vient du Google Sheets : tant qu'il n'a pas été renvoyé, personne
 n'est écarté.
 
-- [ ] Après déploiement : coller `docs/outils/panora-contacts.gs` dans le
-      script du Sheets (Extensions → Apps Script), enregistrer
-- [ ] Menu 📇 Panora → **Envoyer à Panora** (toutes les lignes repartent
-      une fois : leur empreinte inclut maintenant la date)
+- [x] Après déploiement : coller `docs/outils/panora-contacts.gs` dans le
+      script du Sheets (Extensions → Apps Script, fichier `panora.gs`) *(fait le 2026-11-02)*
+- [x] Menu 📇 Panora → **Envoyer à Panora** *(fait le 2026-11-02 : 2 536 à jour,
+      159 refusés ; 2 536 interlocuteurs datés dans Panora)*
 - [ ] Diffusion dispos : le nombre de destinataires baisse (≈ 500 attendus,
       759 avant)
