@@ -6,6 +6,7 @@ use App\Enums\QuoteStatus;
 use App\Enums\UserRole;
 use App\Models\Quote;
 use App\Models\User;
+use App\Support\Acces;
 
 /**
  * RBAC devis :
@@ -13,10 +14,10 @@ use App\Models\User;
  *   Admin       → tout (via before)
  *   Commercial  → création + édition + envoi + conversion RESTREINTS à
  *                 SES devis (ownership commercial_user_id)
- *   Comptable   → lecture seule TOUS devis (visibilité pipeline
- *                 commercial pour anticiper la facturation à venir)
- *   MP          → lecture seule TOUS devis (visibilité besoins terrain
- *                 futurs — anticipation planification poses)
+ *   Comptable   → aucun accès depuis le 2026-11-02 (config/acces.php,
+ *                 module « devis » — les devis restent à l'espace commercial)
+ *   MP          → lecture seule TOUS devis (des devis bloquent des
+ *                 panneaux — anticipation planification poses)
  *   Technique   → aucun accès
  */
 class QuotePolicy
@@ -28,26 +29,22 @@ class QuotePolicy
         return null;
     }
 
-    /** Voir la liste des devis. */
+    /** Voir la liste des devis : rôles du module « devis » (config/acces.php). */
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, [
-            UserRole::COMMERCIAL,
-            UserRole::COMPTABLE,
-            UserRole::MEDIAPLANNER,
-        ], true);
+        return Acces::peut('devis', $user);
     }
 
-    /** Voir un devis précis. Commercial : ownership. Autres staff : oui. */
+    /** Voir un devis précis. Commercial : ownership. MP : tous, en lecture. */
     public function view(User $user, Quote $quote): bool
     {
-        if (in_array($user->role, [UserRole::COMPTABLE, UserRole::MEDIAPLANNER], true)) {
-            return true;
+        if (!Acces::peut('devis', $user)) {
+            return false;
         }
         if ($user->role === UserRole::COMMERCIAL) {
             return $quote->belongsToCommercialUser((int) $user->id);
         }
-        return false;
+        return true;
     }
 
     /** Créer un devis : Commercial (via before pour admin). */
@@ -72,8 +69,10 @@ class QuotePolicy
 
     /**
      * Modifier UNIQUEMENT les prix (pu_ht_mensuel des lignes panneau
-     * + prix_ht des services) d'un devis modifiable. Ouvert au
-     * Comptable pour coordonner l'anticipation de facturation.
+     * + prix_ht des services) d'un devis modifiable : commercial
+     * propriétaire (admin via before). 2026-11-02 : plus le comptable ni le
+     * MP (User::canEditPrices les incluait) — MP en lecture seule, comptable
+     * sans accès aux devis.
      *
      * Distinct de update() qui reste réservé au commercial owner
      * pour la structure du devis (ajout/retrait panneaux, période,
@@ -82,8 +81,6 @@ class QuotePolicy
     public function updatePrice(User $user, Quote $quote): bool
     {
         if (!$quote->isEditable()) return false;
-
-        if ($user->canEditPrices()) return true;
 
         // Commercial owner : mêmes règles que update()
         if ($user->role === UserRole::COMMERCIAL) {

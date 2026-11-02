@@ -373,3 +373,32 @@ s'affiche plus. Règle unique : `PoseTask::sansAnnulees()`.
 - [ ] Calendrier des poses (semaine du 15/10) : plus de cases rouges
       « Annulée ».
 - [ ] Carte des poses : plus de points rouges en vue « Total ».
+
+---
+
+## 9. Droits par rôle — source unique *(ajouté le 2026-11-02)*
+
+Qui voit quoi = `config/acces.php` (menu, routes, règles factures/devis,
+tableau de bord). Garde-fou : `tests/Unit/AccesParRoleTest`.
+
+À vérifier en se connectant avec chaque rôle :
+
+- [ ] **MP** : plus de « Facturation » ; `/admin/invoices` tapé à la main →
+      page interdite. « Devis » visible, en lecture seule (pas de bouton de
+      création ni de modification des prix).
+- [ ] **MP** — tableau de bord : plus de CA, encaissements, factures en
+      retard, à recouvrer, prévision, top clients / communes. La 3ᵉ carte
+      affiche « Panneaux occupés ». Les chiffres des devis restent.
+- [ ] **MP** — fiche campagne : plus de bloc « 💰 Facturation ». Fiche
+      client : plus de « CA Total », « Profil financier » ni « Historique
+      des relances ».
+- [ ] **MP** — classement des commerciaux : les montants restent, la carte
+      « CA HT équipe » n'est plus cliquable.
+- [ ] **Comptable** : plus de « Devis » ; `/admin/quotes` → page interdite.
+      Tout le reste inchangé (factures, finance, CA du tableau de bord).
+- [ ] **Commercial** et **admin** : rien ne change.
+
+Restent à trancher (laissés tels quels faute de réponse) : le comptable
+peut-il modifier les prix des panneaux (campagnes, inventaire) ? Doit-il
+voir Réservations, Inventaire, Régies, Carte ? Le MP doit-il perdre
+d'autres onglets (Messages clients, Clients, Renouvellements, Rapports) ?

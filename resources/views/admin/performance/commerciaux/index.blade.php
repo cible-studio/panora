@@ -101,6 +101,10 @@
         a.perf-kpi:hover::after { opacity: 1; transform: translateX(3px); }
     </style>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:18px">
+        {{-- 2026-11-02 : le MP garde le montant, mais n'a plus accès aux
+             factures (config/acces.php) — la carte n'est cliquable que pour
+             les rôles du module « factures ». --}}
+        @if(\App\Support\Acces::peut('factures'))
         <a href="{{ $urlInvoices }}"
            class="perf-kpi"
            style="border-left-color:#e8a020"
@@ -109,6 +113,13 @@
             <div class="perf-kpi-val" style="color:#c97d10">{{ $fmtM($totalCaHt) }} <span style="font-size:12px;color:var(--text3)">FCFA</span></div>
             <div class="perf-kpi-sub">→ voir les factures émises</div>
         </a>
+        @else
+        <div class="perf-kpi" style="border-left-color:#e8a020;position:relative">
+            <div class="perf-kpi-label">CA HT équipe</div>
+            <div class="perf-kpi-val" style="color:#c97d10">{{ $fmtM($totalCaHt) }} <span style="font-size:12px;color:var(--text3)">FCFA</span></div>
+            <div class="perf-kpi-sub">factures émises sur la période</div>
+        </div>
+        @endif
         <a href="{{ $urlCampActive }}"
            class="perf-kpi"
            style="border-left-color:var(--accent)"

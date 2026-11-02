@@ -4,6 +4,7 @@ namespace App\Policies;
 use App\Enums\UserRole;
 use App\Models\Invoice;
 use App\Models\User;
+use App\Support\Acces;
 
 /**
  * RBAC factures :
@@ -24,7 +25,8 @@ use App\Models\User;
  *                 - Déverrouillage d'une facture envoyée (admin only —
  *                   la modification post-envoi est un cas exceptionnel
  *                   qui doit remonter à la direction)
- *   MP          → lecture seule (index/show/PDF/exports liste)
+ *   MP          → aucun accès depuis le 2026-11-02 (config/acces.php,
+ *                 module « factures » — le MP ne facture pas)
  *   Commercial  → lecture + création + édition + envoi RESTREINTS à SES
  *                 factures (campagnes assignées — cf.
  *                 Invoice::scopeForCommercialUser et belongsToCommercialUser)
@@ -42,30 +44,26 @@ class InvoicePolicy
         return null;
     }
 
-    /** Voir l'index facturation : staff sauf technique. */
+    /** Voir l'index facturation : rôles du module « factures » (config/acces.php). */
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, [
-            UserRole::COMMERCIAL,
-            UserRole::MEDIAPLANNER,
-            UserRole::COMPTABLE,
-        ], true);
+        return Acces::peut('factures', $user);
     }
 
     /**
      * Voir une facture précise. Le commercial doit en être propriétaire
-     * (via la campagne liée). MP + Comptable voient tout (consolidation
-     * média / vision comptable globale).
+     * (via la campagne liée). Les autres rôles du module « factures »
+     * (comptable) voient tout.
      */
     public function view(User $user, Invoice $invoice): bool
     {
-        if (in_array($user->role, [UserRole::MEDIAPLANNER, UserRole::COMPTABLE], true)) {
-            return true;
+        if (!Acces::peut('factures', $user)) {
+            return false;
         }
         if ($user->role === UserRole::COMMERCIAL) {
             return $invoice->belongsToCommercialUser((int) $user->id);
         }
-        return false;
+        return true;
     }
 
     /**

@@ -328,12 +328,14 @@
         @endif
 
         {{-- Analyse financière (déplacée depuis la liste) --}}
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-            @foreach([
+        {{-- 2026-11-02 : « CA Total » réservé au module « factures » (config/acces.php). --}}
+        @php $voitFactures = \App\Support\Acces::peut('factures'); @endphp
+        <div style="display:grid;grid-template-columns:repeat({{ $voitFactures ? 3 : 2 }},1fr);gap:12px;">
+            @foreach(array_filter([
                 ['Réservations',  $reservationsCount,                                              'var(--text)'],
                 ['Campagnes',     $campaignsCount,                                                 '#3b82f6'],
-                ['CA Total',      number_format($totalFacture, 0, ',', ' ') . ' FCFA',             'var(--accent)'],
-            ] as [$label, $value, $color])
+                $voitFactures ? ['CA Total', number_format($totalFacture, 0, ',', ' ') . ' FCFA', 'var(--accent)'] : null,
+            ]) as [$label, $value, $color])
             <div style="background:var(--surface);border:1px solid var(--border);
                         border-radius:12px;padding:16px;text-align:center;">
                 <div style="font-size:20px;font-weight:800;color:{{ $color }};">
@@ -422,7 +424,9 @@
         {{-- ═══════════ ONGLET FINANCIER (Phase 6 cahier §10) ═══════════
              Synthèse : total facturé, total encaissé, solde dû, nb factures,
              nb impayés, retard moyen, historique des paiements + relances.
+             2026-11-02 : réservé au module « factures » (config/acces.php).
         ════════════════════════════════════════════════════════════════ --}}
+        @if($voitFactures)
         @php
             // CA facturé (2026-10-30) : ni brouillon, ni annulée, ni avoir — même règle que Finance.
             $clientInvoices = \App\Models\Invoice::where('client_id', $client->id)
@@ -526,6 +530,7 @@
                 </div>
             </div>
         </div>
+        @endif
         @endif
 
         {{-- Réservations récentes --}}
@@ -680,7 +685,9 @@
 </div>
 @endif
 
-{{-- ═══ Onglet Relances — Bloc 3 Famille D (2026-06-18) ═══ --}}
+{{-- ═══ Onglet Relances — Bloc 3 Famille D (2026-06-18) ═══
+     2026-11-02 : relances de factures → module « factures » (config/acces.php). --}}
+@if(\App\Support\Acces::peut('factures'))
 <div class="card" style="margin-top:20px;">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
         <div class="card-title">📞 Historique des relances ({{ $relancesStats['total'] }})</div>
@@ -813,6 +820,7 @@
         </div>
     @endif
 </div>
+@endif
 
 {{-- Modal suppression --}}
 <div id="modal-delete-client" class="modal-overlay" style="display:none"

@@ -49,6 +49,9 @@
                 <div class="kpi-card__arrow" style="color:var(--green)">→</div>
             </a>
 
+            {{-- 2026-11-02 : le CA est réservé au module « chiffres_financiers »
+                 (config/acces.php). Les autres voient le nombre de panneaux occupés. --}}
+            @if(!empty($voitChiffres))
             <a href="{{ route('admin.panels.index', ['status' => 'occupe']) }}" id="card-occupe" class="kpi-card" style="--kpi-color:var(--accent)"
                onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'"
                onmouseleave="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
@@ -74,12 +77,24 @@
                 </div>
                 <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
             </a>
+            @else
+            <a href="{{ route('admin.panels.index', ['status' => 'occupe']) }}" id="card-occupe" class="kpi-card" style="--kpi-color:var(--accent)"
+               onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'"
+               onmouseleave="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+                <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+                <div class="kpi-card__value" style="color:var(--accent)">{{ $panneauxOccupes ?? 0 }}</div>
+                <div class="kpi-card__label">Panneaux occupés</div>
+                <div class="kpi-card__sub">Voir panneaux occupés</div>
+                <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
+            </a>
+            @endif
         </div>
 
         {{-- ════════════ KPIs FINANCIERS (Phase 6 cahier §12) ════════════
              Encaissements mois, en retard, à recouvrer, prévision 30j.
         ═══════════════════════════════════════════════════════════════ --}}
         @php $fmtKpi = fn($n) => number_format((float) $n, 0, ',', ' '); @endphp
+        @if(!empty($voitChiffres))
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:20px">
             <a href="{{ route('admin.finance.index') }}" class="kpi-card" style="--kpi-color:#16a34a;text-decoration:none">
                 <div class="kpi-card__top-bar" style="background:#16a34a"></div>
@@ -117,13 +132,13 @@
                 <div class="kpi-card__arrow" style="color:#1d4ed8">→</div>
             </a>
         </div>
+        @endif
 
         {{-- ════════════ KPIs DEVIS COMMERCIAUX (module devis Phase 4) ════════════
-             Visible admin, MP, commercial, comptable. 90 derniers jours.
+             Rôles du module « devis » (config/acces.php). 90 derniers jours.
         ═══════════════════════════════════════════════════════════════════════ --}}
         @php
-            $userRole  = auth()->user()?->role?->value;
-            $showDevis = in_array($userRole, ['admin', 'mediaplanner', 'commercial'], true);
+            $showDevis = \App\Support\Acces::peut('devis');
         @endphp
         @if($showDevis && !empty($devisKpis))
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px">
