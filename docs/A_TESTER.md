@@ -402,3 +402,21 @@ Restent à trancher (laissés tels quels faute de réponse) : le comptable
 peut-il modifier les prix des panneaux (campagnes, inventaire) ? Doit-il
 voir Réservations, Inventaire, Régies, Carte ? Le MP doit-il perdre
 d'autres onglets (Messages clients, Clients, Renouvellements, Rapports) ?
+
+---
+
+## 10. Incident diffusion du 2026-11-02 — corrigé
+
+Avec `DIFFUSION_MODE=production`, le bouton « Envoyer un test » visait la
+liste **clients** (#3) : Panora y a recopié 830 clients et le catalogue
+« [TEST] » du 15 au 30 novembre est parti à 300 d'entre eux (Brevo a
+suspendu la campagne « test #8 », 15 % de rebonds). Corrigé : un test ne
+vise que « Tests internes » (#4) et n'y écrit jamais ; si les deux listes
+sont réglées sur le même numéro, le test est refusé.
+
+- [ ] Campagne « test #8 » laissée suspendue (ne pas la reprendre)
+- [ ] Après déploiement : « Envoyer un test » → reçu par les 2 adresses de
+      « Tests internes » seulement ; le mail de confirmation annonce 2
+      destinataires
+- [ ] Avant le premier vrai envoi : nettoyer les adresses en rebond (15 %
+      sur les 300 premiers — Brevo exige < 2 %)
