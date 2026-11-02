@@ -11,6 +11,7 @@
         $statutCouleurs = [
             'envoye'   => ['#dcfce7', '#166534', 'Envoyé'],
             'echec'    => ['#fee2e2', '#991b1b', 'Échec'],
+            'suspendu' => ['#fee2e2', '#991b1b', 'Suspendu par Brevo'],
             'en_cours' => ['#fef3c7', '#92400e', 'En cours'],
             'prepare'  => ['#e0e7ff', '#3730a3', 'PDF en préparation'],
             'demande'  => ['#f3e8ff', '#6b21a8', 'Demandé — en file d\'attente'],
@@ -209,6 +210,10 @@
                                                 <div style="margin-top:4px;line-height:1.45;">{{ $e->erreur }}</div>
                                             </details>
                                         @endif
+                                    @endif
+                                    @if($e->statut === \App\Models\DiffusionEnvoi::STATUT_SUSPENDU && $e->brevo_campaign_id)
+                                        <a href="{{ \App\Services\Brevo\BrevoClient::lienRapportCampagne((int) $e->brevo_campaign_id) }}" target="_blank" rel="noopener"
+                                           style="display:inline-block;font-size:11px;color:var(--accent);margin-top:4px;">Voir la campagne dans Brevo ↗</a>
                                     @endif
                                 </td>
                                 <td style="padding:9px 6px;text-align:right;">

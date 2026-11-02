@@ -426,7 +426,7 @@ class DiffusionDisponibilitesService
         // Depuis le 2026-10-29 un envoi porte jusqu'à trois catalogues :
         // le complet, Abidjan, l'intérieur. On ne retient que les envois
         // dont au moins un fichier a disparu, et on ne refait que celui-là.
-        $manquants = DiffusionEnvoi::where('statut', DiffusionEnvoi::STATUT_ENVOYE)
+        $manquants = DiffusionEnvoi::whereIn('statut', DiffusionEnvoi::STATUTS_PARTIS)
             ->whereDate('periode_fin', '>=', today()->toDateString())
             ->get()
             ->map(fn (DiffusionEnvoi $e) => [$e, array_filter(
@@ -501,6 +501,8 @@ class DiffusionDisponibilitesService
                 );
             }
 
+            $this->verifierQuota($nbDestinataires);
+
             $campagneId = $this->brevo->creerCampagne($this->contenuCampagne($envoi, $listeId));
             $this->brevo->envoyerCampagne($campagneId);
             $lienApercu = BrevoClient::lienRapportCampagne($campagneId);
@@ -553,7 +555,7 @@ class DiffusionDisponibilitesService
 
         $dejaParti = DiffusionEnvoi::where('creneau', $creneau->toDateString())
             ->where('mode', DiffusionEnvoi::MODE_AUTO)
-            ->whereIn('statut', [DiffusionEnvoi::STATUT_ENVOYE, DiffusionEnvoi::STATUT_EN_COURS])
+            ->whereIn('statut', [...DiffusionEnvoi::STATUTS_PARTIS, DiffusionEnvoi::STATUT_EN_COURS])
             ->exists();
 
         if ($dejaParti) {
@@ -702,12 +704,156 @@ class DiffusionDisponibilitesService
         ];
     }
 
+    /**
+     * Dernier envoi parti chez les clients. Un envoi suspendu par Brevo
+     * compte aussi (2026-11-02) : une partie des clients a pu le recevoir.
+     */
     public function dernierEnvoiReussi(): ?DiffusionEnvoi
     {
-        return DiffusionEnvoi::where('statut', DiffusionEnvoi::STATUT_ENVOYE)
+        return DiffusionEnvoi::whereIn('statut', DiffusionEnvoi::STATUTS_PARTIS)
             ->where('mode', '!=', DiffusionEnvoi::MODE_TEST)
             ->latest('envoye_at')
             ->first();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ÉTAT RÉEL CHEZ BREVO (2026-11-02)
+    // ══════════════════════════════════════════════════════════════
+
+    /** Au-delà, Brevo suspend la campagne : il exige moins de 2 % d'adresses invalides. */
+    private const SEUIL_INVALIDES = 0.02;
+
+    /**
+     * Relit chez Brevo les envois des dernières heures et repère ceux
+     * qu'il a suspendus. Appelé toutes les 15 minutes (dispos:verifier-envois).
+     *
+     * Brevo accepte l'ordre d'envoi même quand il ne pourra pas le tenir,
+     * puis suspend la campagne : aussitôt si le quota est épuisé, jusqu'à
+     * 3 h plus tard s'il juge les rebonds trop nombreux. Constaté le 2/11 :
+     * Panora affichait « Envoyé » pour deux campagnes suspendues.
+     *
+     * Une campagne terminée chez Brevo n'est plus relue. Si Brevo ne
+     * répond pas, l'envoi sera relu au passage suivant.
+     *
+     * @return int  nombre d'envois trouvés suspendus
+     */
+    public function verifierEnvoisRecents(int $heures = 24): int
+    {
+        $envois = DiffusionEnvoi::where('statut', DiffusionEnvoi::STATUT_ENVOYE)
+            ->whereNotNull('brevo_campaign_id')
+            ->where('envoye_at', '>=', now()->subHours($heures))
+            ->orderBy('id')
+            ->get();
+
+        $suspendus = 0;
+
+        foreach ($envois as $envoi) {
+            $termine = "diffusion-envoi-{$envoi->id}-termine-chez-brevo";
+            if (Cache::has($termine)) {
+                continue;
+            }
+
+            try {
+                $campagne = $this->brevo->campagne((int) $envoi->brevo_campaign_id);
+            } catch (\Throwable $e) {
+                Log::warning('diffusion.verification', ['envoi_id' => $envoi->id, 'erreur' => $e->getMessage()]);
+                continue;
+            }
+
+            if (in_array($campagne['statut'], ['sent', 'archive', 'cancelled'], true)) {
+                Cache::put($termine, true, now()->addDays(3));
+                continue;
+            }
+
+            if ($campagne['statut'] !== 'suspended') {
+                continue;   // encore en cours chez Brevo : relue au passage suivant
+            }
+
+            $envoi->update([
+                'statut' => DiffusionEnvoi::STATUT_SUSPENDU,
+                'erreur' => $this->explicationSuspension($envoi, $campagne),
+            ]);
+            Log::warning('diffusion.suspendue', ['envoi_id' => $envoi->id, 'campagne' => $envoi->brevo_campaign_id]);
+
+            $this->notifierEquipe($envoi->fresh(), BrevoClient::lienRapportCampagne((int) $envoi->brevo_campaign_id));
+            $suspendus++;
+        }
+
+        return $suspendus;
+    }
+
+    /**
+     * Brevo ne dit pas pourquoi il suspend : on le déduit de ses chiffres.
+     *   « Cause probable : quota d'envois épuisé et trop d'adresses
+     *     invalides (Brevo exige moins de 2 %). Partis : 300 sur 830 ·
+     *     adresses invalides : 46 (15,3 %) · envois restants sur le compte
+     *     Brevo : 0. »
+     *
+     * @param array{statut: ?string, partis: ?int, invalides: ?int} $campagne
+     */
+    private function explicationSuspension(DiffusionEnvoi $envoi, array $campagne): string
+    {
+        $prevus    = (int) $envoi->nb_destinataires;
+        $partis    = $campagne['partis'];
+        $invalides = $campagne['invalides'];
+
+        try {
+            $restants = $this->brevo->envoisRestants();
+        } catch (\Throwable) {
+            $restants = null;
+        }
+
+        $causes = [];
+        if ($restants !== null && $restants < max(1, $prevus - (int) $partis)) {
+            $causes[] = 'quota d\'envois épuisé';
+        }
+        if ($partis && $invalides !== null && $invalides / $partis >= self::SEUIL_INVALIDES) {
+            $causes[] = 'trop d\'adresses invalides (Brevo exige moins de 2 %)';
+        }
+
+        $faits = ['Partis : ' . ($partis ?? '?') . " sur {$prevus}"];
+        if ($invalides !== null) {
+            $taux = $partis ? ' (' . str_replace('.', ',', (string) round(100 * $invalides / $partis, 1)) . ' %)' : '';
+            $faits[] = "adresses invalides : {$invalides}{$taux}";
+        }
+        if ($restants !== null) {
+            $faits[] = "envois restants sur le compte Brevo : {$restants}";
+        }
+
+        return ($causes
+                ? 'Cause probable : ' . implode(' et ', $causes) . '. '
+                : 'Brevo ne donne pas la raison : voir la campagne dans Brevo. ')
+            . implode(' · ', $faits) . '.';
+    }
+
+    /**
+     * Règle validée le 2026-11-02 : si Brevo annonce moins d'envois
+     * restants que de destinataires, rien ne part. Brevo accepterait
+     * l'ordre puis suspendrait en cours de route (le 2/11 : 300 partis sur
+     * 830, puis un test lancé avec 0 envoi restant). Si Brevo ne répond
+     * pas, l'envoi n'est pas bloqué. DIFFUSION_CONTROLE_QUOTA=false coupe
+     * ce contrôle.
+     */
+    private function verifierQuota(int $nbDestinataires): void
+    {
+        if (!config('diffusion.controle_quota', true)) {
+            return;
+        }
+
+        try {
+            $restants = $this->brevo->envoisRestants();
+        } catch (\Throwable $e) {
+            Log::warning('diffusion.quota-illisible', ['erreur' => $e->getMessage()]);
+
+            return;
+        }
+
+        if ($restants !== null && $restants < $nbDestinataires) {
+            throw new BrevoException(
+                "Brevo n'a plus que {$restants} envoi(s) disponible(s), il en faut {$nbDestinataires} : rien n'est parti. "
+                . 'Attendre le renouvellement du quota (offre gratuite : 300 par jour) ou passer à une offre payante, puis relancer.'
+            );
+        }
     }
 
     // ══════════════════════════════════════════════════════════════

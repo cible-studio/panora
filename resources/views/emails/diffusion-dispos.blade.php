@@ -12,31 +12,49 @@
      * violet #81358A · gris #E6E6E6 · noir #111111 · blanc.
      * Poppins (titres) · Nunito (texte) — Arial si la messagerie les refuse.
      */
-    $title = $succes
-        ? 'Disponibilités envoyées aux clients'
-        : "L'envoi des disponibilités a échoué";
-    $preheader = $succes
-        ? ($test
-            ? "Test réussi — les disponibilités {$periode} sont arrivées dans la liste Tests internes."
-            : "{$envoi->nb_destinataires} client(s) ont reçu les disponibilités {$periode}.")
-        : "Les disponibilités {$periode} ne sont pas parties. Aucun client ne les a reçues.";
+    // Suspendu (2026-11-02) : Brevo a accepté l'envoi puis l'a arrêté ;
+    // une partie des destinataires a pu le recevoir.
+    $suspendu = $suspendu ?? false;
 
-    // Couleur du statut : vert = parti, jaune = test parti, rouge = échec.
+    $title = match (true) {
+        $succes   => 'Disponibilités envoyées aux clients',
+        $suspendu => "Brevo a suspendu l'envoi des disponibilités",
+        default   => "L'envoi des disponibilités a échoué",
+    };
+    $preheader = match (true) {
+        $succes && $test => "Test réussi — les disponibilités {$periode} sont arrivées dans la liste Tests internes.",
+        $succes          => "{$envoi->nb_destinataires} client(s) ont reçu les disponibilités {$periode}.",
+        $suspendu        => "Brevo a arrêté l'envoi des disponibilités {$periode} après son départ. Voir la cause.",
+        default          => "Les disponibilités {$periode} ne sont pas parties. Aucun client ne les a reçues.",
+    };
+
+    // Couleur du statut : vert = parti, jaune = test parti, rouge = échec ou suspendu.
     $couleur  = ! $succes ? '#E20613' : ($test ? '#FAB80B' : '#3AA835');
-    $surtitre = $succes ? ($test ? 'Envoi de test réussi' : 'Envoi réussi') : "Échec de l'envoi";
-    $titre    = $succes
-        ? ($test ? 'Le test est bien parti' : 'Les clients ont reçu les disponibilités')
-        : 'Les disponibilités ne sont pas parties';
+    $surtitre = match (true) {
+        $succes   => $test ? 'Envoi de test réussi' : 'Envoi réussi',
+        $suspendu => 'Envoi suspendu par Brevo',
+        default   => "Échec de l'envoi",
+    };
+    $titre = match (true) {
+        $succes   => $test ? 'Le test est bien parti' : 'Les clients ont reçu les disponibilités',
+        $suspendu => "Brevo a arrêté l'envoi en cours de route",
+        default   => 'Les disponibilités ne sont pas parties',
+    };
 
     $type = ucfirst($envoi->libelleMode()) . ($envoi->auteur ? ' — ' . $envoi->auteur->name : '');
 
     $chiffres = [
-        $succes
-            ? ['valeur' => $envoi->nb_destinataires ?? 0, 'libelle' => $test ? 'Destinataires de test' : 'Clients destinataires']
-            : ['valeur' => '—', 'libelle' => 'Aucun client contacté'],
+        match (true) {
+            $succes   => ['valeur' => $envoi->nb_destinataires ?? 0, 'libelle' => $test ? 'Destinataires de test' : 'Clients destinataires'],
+            $suspendu => ['valeur' => $envoi->nb_destinataires ?? 0, 'libelle' => 'Destinataires prévus'],
+            default   => ['valeur' => '—', 'libelle' => 'Aucun client contacté'],
+        },
         ['valeur' => $envoi->nb_panneaux ?? 0, 'libelle' => 'Panneaux présentés'],
-        ['valeur' => $succes ? ($envoi->envoye_at?->format('H\hi') ?? '—') : '—',
-         'libelle' => $succes ? 'Envoyé le ' . ($envoi->envoye_at?->format('d/m') ?? '') : 'Non envoyé'],
+        match (true) {
+            $succes   => ['valeur' => $envoi->envoye_at?->format('H\hi') ?? '—', 'libelle' => 'Envoyé le ' . ($envoi->envoye_at?->format('d/m') ?? '')],
+            $suspendu => ['valeur' => $envoi->envoye_at?->format('H\hi') ?? '—', 'libelle' => 'Lancé le ' . ($envoi->envoye_at?->format('d/m') ?? '')],
+            default   => ['valeur' => '—', 'libelle' => 'Non envoyé'],
+        },
     ];
 
     $titres = "font-family:'Poppins', Arial, Helvetica, sans-serif;";
@@ -139,7 +157,11 @@
         </tr></table>
         <div style="{{ $petit }}color:#111111;margin-top:22px;">Que faire</div>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px;">
-            @foreach([
+            @foreach($suspendu ? [
+                "Corriger la cause ci-dessus : quota épuisé, attendre son renouvellement ou changer d'offre Brevo ; adresses invalides, les exclure dans Panora.",
+                "Vérifier dans Brevo combien de mails sont partis : relancer depuis Panora renvoie le mail à tous les destinataires.",
+                "Ouvrir l'écran de diffusion dans Panora pour décider de la suite.",
+            ] : [
                 "Corriger la cause ci-dessus, ou la transmettre à l'administrateur.",
                 "Ouvrir l'écran de diffusion dans Panora.",
                 'Cliquer sur « Envoyer maintenant ».',
@@ -167,8 +189,8 @@
                 </td>
             </tr>
         @endforeach
-        @if($succes)
-            <tr><td style="{{ $lbl }}">Envoyé le</td><td style="{{ $val }}">{{ $envoi->envoye_at?->format('d/m/Y à H\hi') ?? '—' }}</td></tr>
+        @if($succes || $suspendu)
+            <tr><td style="{{ $lbl }}">{{ $succes ? 'Envoyé le' : 'Lancé le' }}</td><td style="{{ $val }}">{{ $envoi->envoye_at?->format('d/m/Y à H\hi') ?? '—' }}</td></tr>
         @endif
         @if($envoi->brevo_campaign_id)
             <tr><td style="{{ $lbl }}">Campagne Brevo</td><td style="{{ $val }}">n° {{ $envoi->brevo_campaign_id }}</td></tr>
@@ -180,6 +202,9 @@
         <tr><td align="center">
             @if($succes && $lienApercu)
                 <a href="{{ $lienApercu }}" class="bouton" style="{{ $bouton }}background-color:#E20613;color:#FFFFFF;">Voir les statistiques Brevo</a>
+            @endif
+            @if($suspendu && $lienApercu)
+                <a href="{{ $lienApercu }}" class="bouton" style="{{ $bouton }}background-color:#111111;color:#FFFFFF;">Voir la campagne dans Brevo</a>
             @endif
             @unless($succes)
                 <a href="{{ $lienEcran }}" class="bouton" style="{{ $bouton }}background-color:#E20613;color:#FFFFFF;">Ouvrir l'écran de diffusion</a>

@@ -209,6 +209,7 @@ BREVO_WEBHOOK_TOKEN=                  # longue chaîne aléatoire (48 caractère
 DIFFUSION_MODE=test                   # test = tout part vers « Tests internes »
 DIFFUSION_AUTO=false                  # true = envois automatiques du 1er et du 15
 DIFFUSION_DERNIER_ECHANGE_MIN=2025-01-01   # adresses au dernier échange plus ancien écartées (vide = règle désactivée)
+DIFFUSION_CONTROLE_QUOTA=true         # false = ne plus vérifier les envois restants chez Brevo avant d'envoyer
 DIFFUSION_CONFIRMATION_EMAIL="commercial@cible-ci.com,studio@cible-ci.com"   # plusieurs adresses : séparées par des virgules
 ```
 
@@ -257,6 +258,27 @@ Commande utile pour vérifier une date sans rien envoyer :
 php artisan dispos:diffuser --simuler=2026-11-02
 ```
 
+**Envoi suspendu par Brevo** (règles validées le 2026-11-02). Brevo accepte
+l'ordre d'envoi même quand il ne pourra pas le tenir, puis suspend la
+campagne : aussitôt si le quota est épuisé, jusqu'à 3 h plus tard s'il juge
+les rebonds trop nombreux. Il ne donne pas la raison. Constaté le 2/11 :
+Panora affichait « Envoyé » pour deux campagnes suspendues.
+
+- **Avant l'envoi**, Panora demande à Brevo combien de mails le compte peut
+  encore envoyer. S'il en reste moins que de destinataires, rien ne part et
+  le journal dit pourquoi. Si Brevo ne répond pas, l'envoi part.
+  `DIFFUSION_CONTROLE_QUOTA=false` coupe ce contrôle.
+- **Après l'envoi**, `dispos:verifier-envois` relit toutes les 15 minutes
+  les envois des dernières 24 h, jusqu'à ce que Brevo les dise terminés. Une
+  campagne suspendue passe « Suspendu par Brevo » (onglet « Échecs ») avec
+  la cause probable, déduite des chiffres de Brevo : quota épuisé, ou plus
+  de 2 % d'adresses invalides. L'équipe reçoit une alerte.
+- Un envoi suspendu compte comme parti : une partie des clients a pu le
+  recevoir. L'alerte anti-double envoi le signale, et ses PDF restent
+  servis.
+
+Pour relire des envois plus anciens, une fois : `php artisan dispos:verifier-envois --heures=48`.
+
 ---
 
 ## 5. Lire le suivi dans Brevo
@@ -295,6 +317,7 @@ l'écran de diffusion. Un bandeau le rappelle tant qu'elles manquent.
 | `app/Services/DisponibilitesPdfBuilder.php` | PDF images — partagé avec l'export manuel |
 | `app/Services/Brevo/BrevoClient.php` | Seul point de contact avec l'API Brevo |
 | `app/Console/Commands/DiffuserDisponibilites.php` | `dispos:diffuser` : 9h préparation du PDF, 10h envoi, chaque minute les demandes manuelles |
+| `app/Console/Commands/VerifierEnvoisDiffusion.php` | `dispos:verifier-envois` : toutes les 15 min, repère les envois suspendus par Brevo |
 | `app/Http/Controllers/Admin/DiffusionDisponibilitesController.php` | Écran admin |
 | `app/Http/Controllers/Webhooks/BrevoWebhookController.php` | Désinscriptions, rebonds, spam |
 | `app/Http/Controllers/PublicDiffusionController.php` | Lien public du PDF |
