@@ -1,3 +1,9 @@
+{{--
+  ⚠ CODE MORT au 2026-11-02 : ce partial n'est @include nulle part. La
+  vraie interface du compte client est la modale JS de clients/index.blade.php
+  (openAccountModal). Il est gardé et tenu à jour pour ne pas contredire
+  l'écran réel si quelqu'un le branche un jour ; voir TECHNICAL_DEBT.md.
+--}}
 @php $hasAccount = $client->hasAccount(); @endphp
  
 <div style="background:rgba(59,130,246,0.04);border:1px solid rgba(59,130,246,0.15);border-radius:12px;padding:18px 20px;margin:20px 0">
@@ -19,10 +25,10 @@
  
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <form method="POST" action="{{ route('admin.clients.account.reset', $client) }}"
-            onsubmit="return confirm('Réinitialiser le mot de passe de {{ $client->name }} ?')">
+            onsubmit="return confirm('Renvoyer les accès de ' + {{ \Illuminate\Support\Js::from($client->name) }} + ' ?\n\nUn NOUVEAU mot de passe temporaire part par email.\nSon mot de passe actuel cessera de fonctionner.')">
         @csrf
         <button type="submit" style="background:rgba(59,130,246,0.1);color:#93c5fd;border:1px solid rgba(59,130,246,0.25);border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer">
-          🔑 Réinitialiser le MDP
+          📧 Renvoyer les accès
         </button>
       </form>
  

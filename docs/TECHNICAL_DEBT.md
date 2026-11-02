@@ -308,9 +308,53 @@ Les échecs d'envoi et les clients sans adresse, eux, sont bien retentés
 chaque jour. Élargir la fenêtre (J-7 à J-1) serait une **règle métier
 nouvelle** : il faut la faire valider avant de la coder.
 
+### Le personnel n'a pas de « doit changer son mot de passe » (constaté 2026-11-02)
+
+Seule la table `clients` porte `must_change_password` (migration du
+2026-04-02) et seul `ForceClientPasswordChange` l'applique. La table
+`users` n'a pas l'équivalent : un mot de passe temporaire envoyé à un
+membre du personnel — à la création du compte, ou par « Renvoyer les
+accès » — reste valable **indéfiniment** s'il ne le change jamais.
+Il traîne donc dans sa boîte mail aussi longtemps que le compte vit.
+
+Combler l'écart demande trois choses, dont une décision métier :
+
+- migration `users.must_change_password` + `password_changed_at` ;
+- un middleware équivalent côté `admin`, et l'écran de changement ;
+- **à trancher** : un admin qui se réinitialise lui-même doit-il aussi
+  passer par cet écran ?
+
+Tant que ce n'est pas fait, rien ne presse les équipes à changer le mot
+de passe reçu. `App\Services\RenvoiAcces` documente la limite à l'endroit
+exact où elle se joue.
+
+### `clients/partials/account-actions.blade.php` est du code mort (constaté 2026-11-02)
+
+Ce partial dessine tout le bloc « Espace Client » (créer / renvoyer /
+révoquer) mais n'est `@include` **nulle part** : la vraie interface est la
+modale JS de `clients/index.blade.php` (`openAccountModal`). Il a été
+laissé en place et tenu à jour le 2026-11-02 pour ne pas contredire
+l'écran réel, mais il faut décider : le brancher, ou le supprimer. Le
+garder sans l'utiliser garantit qu'il divergera.
+
 ---
 
 ## Résolues
+
+### Tous les espaces clients avaient le mot de passe « password » — résolu le 2026-11-02
+
+`ClientController::generateReadablePassword()` renvoyait la chaîne
+littérale `password`, pour **tous** les comptes clients, à la création
+comme à la réinitialisation (commit `9b3be699` du 2026-04-24, « mot de
+passe par défaut pour les client »). Son commentaire annonçait pourtant
+un tirage « de type Bleu-Soleil-42 ». Toute personne connaissant
+l'adresse mail d'un client entrait dans son espace : campagnes,
+factures, montants.
+
+Corrigé par `App\Support\MotDePasseTemporaire` (tirage `random_int()`,
+source unique) puis par `App\Services\RenvoiAcces`. `origin/main` —
+la branche que la prod déploie — portait encore la faille au moment du
+correctif : **à reporter sur main avant toute autre mise en ligne**.
 
 ### Les factures ne gardaient pas l'identité du client — résolu le 2026-10-30
 

@@ -461,3 +461,60 @@ n'est écarté.
       159 refusés ; 2 536 interlocuteurs datés dans Panora)*
 - [ ] Diffusion dispos : le nombre de destinataires baisse (≈ 500 attendus,
       759 avant)
+
+---
+
+## 11. Renvoyer les accès — personnel et clients *(ajouté le 2026-11-02)*
+
+Nouveau bouton demandé par la direction : « un bouton simple pour
+renvoyer les accès ». Décision prise le 2026-11-02 : **un nouveau mot de
+passe temporaire**, un bouton par ligne, pas d'action groupée.
+
+### 🔴 D'abord, la faille à reporter en prod
+
+`origin/main` renvoyait la chaîne `password` comme mot de passe de
+**tous** les espaces clients (depuis le 2026-04-24). Le correctif est sur
+`develop` (`6bb2d891`). Tant qu'il n'est pas sur `main` :
+
+```
+# Sur le poste principal, pour mesurer l'exposition réelle :
+php artisan tinker --execute="
+  \$n = App\Models\Client::whereNotNull('password')->count();
+  \$f = App\Models\Client::whereNotNull('password')
+        ->get()->filter(fn(\$c) => \Illuminate\Support\Facades\Hash::check('password', \$c->password))->count();
+  echo \"Comptes clients : {\$n} — dont encore ouvrables avec « password » : {\$f}\n\";
+"
+```
+
+- □ Lancer la commande ci-dessus et **noter le chiffre ici** : ……
+- □ Si > 0 : après la mise en ligne, renvoyer les accès à ces clients
+  (bouton « Renvoyer les accès », un par un) — leur mot de passe actuel
+  est connu de n'importe qui.
+
+### Écrans à ouvrir
+
+- □ **Personnel** (`/admin/users`) : le bouton 📧 apparaît sur chaque
+  ligne, **sauf** la sienne, les comptes désactivés et ceux sans email.
+- □ Cliquer 📧 : la confirmation doit dire « Son mot de passe actuel
+  cessera de fonctionner ». Accepter → message vert, mail reçu, et
+  l'ancien mot de passe ne connecte plus.
+- □ Vérifier le mail reçu : objet « Votre mot de passe PANORA … a été
+  réinitialisé », mot de passe de la forme `Bleu-Soleil-4821`.
+- □ Tester sur un nom contenant une apostrophe (N'Guessan, M'Bahia) :
+  la confirmation doit s'afficher normalement, pas planter.
+- □ Une alerte « 📧 Accès renvoyés — <nom> » doit apparaître dans les
+  alertes utilisateur.
+- □ **Clients** (`/admin/clients`) : pastille « 🔐 Actif » → la modale
+  propose « Renvoyer les accès » (et non plus « Réinitialiser le MDP »).
+- □ Le client reçoit le mail, se connecte, et **doit** changer son mot de
+  passe à l'arrivée (`must_change_password`).
+- □ Créer un compte client neuf : le mot de passe envoyé doit être tiré
+  (plus jamais `password`).
+
+### À trancher
+
+- □ **Le personnel n'est pas forcé de changer son mot de passe** : la
+  table `users` n'a pas `must_change_password`. Le mot de passe envoyé
+  par mail reste donc valable tant que la personne ne le change pas.
+  Faut-il ajouter la contrainte (migration + écran + middleware) ?
+  Inscrit dans `TECHNICAL_DEBT.md`.

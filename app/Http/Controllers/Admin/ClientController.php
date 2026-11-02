@@ -10,9 +10,9 @@ use App\Models\Client;
 use App\Rules\NomEntrepriseLibre;
 use App\Support\NomEntreprise;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use App\Services\AlertService;
+use App\Services\RenvoiAcces;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -561,60 +561,28 @@ class ClientController extends Controller
             return $this->accountResponse(false, "Ce client n'a pas d'email. Ajoutez-en un d'abord.");
         }
 
-        $motDePasse = $this->generateReadablePassword();
+        // Tirage, empreinte, mail et trace : App\Services\RenvoiAcces,
+        // partagé avec le renvoi d'accès et avec le personnel (2026-11-02).
+        $resultat = app(RenvoiAcces::class)->creationPourClient($client, auth()->id());
 
-        $client->update([
-            'password' => Hash::make($motDePasse),
-            'must_change_password' => true,
-            'password_changed_at' => null,
-        ]);
-
-        try {
-            \Mail::to($client->email)->send(new \App\Mail\ClientAccountMail($client, $motDePasse));
-            $msg = "✅ Compte créé. Identifiants envoyés à {$client->email}.";
-        } catch (\Exception $e) {
-            $msg = "✅ Compte créé. Erreur email. Mot de passe initial : {$motDePasse}";
-        }
-
-        Log::info('client.account_created', ['client_id' => $client->id, 'user_id' => auth()->id()]);
-
-        return $this->accountResponse(true, $msg);
+        return $this->accountResponse($resultat->ok, $resultat->message);
     }
 
     // ══════════════════════════════════════════════════════════════
-    // COMPTE CLIENT — RESET MOT DE PASSE
+    // COMPTE CLIENT — RENVOYER LES ACCÈS
     // ══════════════════════════════════════════════════════════════
 
+    /**
+     * « Renvoyer les accès » (2026-11-02). Le mot de passe en place n'est
+     * pas relisible : le service en tire un nouveau et l'envoie. Les
+     * garde-fous (compte existant, email présent) vivent dans le service,
+     * pour que le personnel et le client reçoivent les mêmes refus.
+     */
     public function resetPassword(Client $client)
     {
-        if (!$client->hasAccount()) {
-            return $this->accountResponse(false, "Ce client n'a pas encore de compte.");
-        }
+        $resultat = app(RenvoiAcces::class)->pourClient($client, auth()->id());
 
-        if (empty($client->email)) {
-            return $this->accountResponse(false, "Ce client n'a pas d'email.");
-        }
-
-        $motDePasse = $this->generateReadablePassword();
-
-        $client->update([
-            'password' => Hash::make($motDePasse),
-            'must_change_password' => true,
-            'password_changed_at' => null,
-        ]);
-
-        try {
-            \Mail::to($client->email)->send(
-                new \App\Mail\ClientAccountMail($client, $motDePasse, true)
-            );
-            $msg = "🔑 Mot de passe réinitialisé. Envoyé à {$client->email}.";
-        } catch (\Exception $e) {
-            $msg = "🔑 Mot de passe réinitialisé. Erreur email. MDP : {$motDePasse}";
-        }
-
-        Log::info('client.password_reset', ['client_id' => $client->id, 'user_id' => auth()->id()]);
-
-        return $this->accountResponse(true, $msg);
+        return $this->accountResponse($resultat->ok, $resultat->message);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -665,18 +633,10 @@ class ClientController extends Controller
         return back()->with($success ? 'success' : 'error', $message);
     }
 
-    /**
-     * Mot de passe temporaire lisible, du type « Bleu-Soleil-4821 ».
-     *
-     * 2026-11-02 — Cette méthode renvoyait la chaîne « password », pour
-     * tous les comptes clients, à la création comme à la réinitialisation
-     * (depuis le 2026-04-24). Elle délègue désormais au support partagé,
-     * qui tire un vrai mot de passe.
-     */
-    private function generateReadablePassword(): string
-    {
-        return \App\Support\MotDePasseTemporaire::generer();
-    }
+    // generateReadablePassword() a disparu le 2026-11-02 : elle renvoyait
+    // la chaîne « password » pour TOUS les comptes clients. Le tirage vit
+    // désormais dans App\Support\MotDePasseTemporaire, appelé par
+    // App\Services\RenvoiAcces.
 
 
 

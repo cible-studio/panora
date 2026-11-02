@@ -115,14 +115,21 @@ class MotDePasseTemporaireTest extends TestCase
         }
     }
 
-    public function test_le_client_passe_par_le_support_partage(): void
+    public function test_les_comptes_passent_par_le_support_partage(): void
     {
-        $source = $this->source('app/Http/Controllers/Admin/ClientController.php');
+        // Le tirage a quitté ClientController le 2026-11-02 : il vit dans
+        // App\Services\RenvoiAcces, qui sert le personnel ET les clients.
+        $source = $this->source('app/Services/RenvoiAcces.php');
 
         $this->assertStringContainsString(
             'MotDePasseTemporaire::generer()',
             $source,
-            'La création et la réinitialisation du compte client doivent tirer par le support partagé.'
+            'Création, renvoi client et renvoi personnel doivent tirer par le support partagé.'
+        );
+        $this->assertSame(
+            2,
+            substr_count($source, 'MotDePasseTemporaire::generer()'),
+            'Un tirage pour le personnel, un pour les clients (appliquerAuClient) : pas davantage.'
         );
     }
 
@@ -130,12 +137,13 @@ class MotDePasseTemporaireTest extends TestCase
     {
         // Le tirage ne vaut que pour une connexion : sans ce drapeau, un
         // mot de passe envoyé par mail resterait valable indéfiniment.
-        $source = $this->source('app/Http/Controllers/Admin/ClientController.php');
+        // Côté client, il est posé avec le tirage, en un seul endroit.
+        $source = $this->source('app/Services/RenvoiAcces.php');
 
         $this->assertSame(
-            2,
+            1,
             substr_count($source, "'must_change_password' => true"),
-            'Création ET réinitialisation du compte client doivent forcer le changement.'
+            'Le drapeau doit être indissociable du tirage, écrit une seule fois.'
         );
     }
 }

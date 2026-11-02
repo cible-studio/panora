@@ -969,8 +969,8 @@
                 ✅ Ce client peut accéder à son espace client
             </div>
             <button onclick="_doResetPassword()" class="am-option" style="border:1px solid var(--border)">
-                <div class="am-icon" style="background:rgba(59,130,246,.1)">🔑</div>
-                <div><div class="am-title">Réinitialiser le mot de passe</div><div class="am-sub">Un nouveau MDP temporaire sera envoyé par email</div></div>
+                <div class="am-icon" style="background:rgba(59,130,246,.1)">📧</div>
+                <div><div class="am-title">Renvoyer les accès</div><div class="am-sub">Un NOUVEAU mot de passe temporaire part par email — l'actuel cessera de fonctionner</div></div>
             </button>
             <button onclick="_doRevokeAccount()" class="am-option danger" style="border:1px solid rgba(239,68,68,.15)">
                 <div class="am-icon" style="background:rgba(239,68,68,.1)">🚫</div>
@@ -1007,13 +1007,16 @@
             }
 
             async function _doResetPassword() {
-                if (!confirm('Envoyer un nouveau mot de passe temporaire à ce client ?')) return;
+                // On ne peut pas renvoyer le mot de passe en place : il n'est
+                // pas conservé, seule son empreinte l'est. On en tire un
+                // nouveau, et l'admin doit le savoir avant de cliquer.
+                if (!confirm('Renvoyer les accès à ce client ?\n\nUn NOUVEAU mot de passe temporaire part par email.\nSon mot de passe actuel cessera de fonctionner.')) return;
                 try {
                     const data = await CI.fetchPost(`/admin/clients/${_currentClientId}/account/reset`);
                     CI.modal.close('modal-account');
-                    CI.toast(data.message ?? 'Mot de passe réinitialisé', data.success ? 'success' : 'error');
+                    CI.toast(data.message ?? 'Accès renvoyés', data.success ? 'success' : 'error');
                 } catch {
-                    CI.toast('Erreur lors de la réinitialisation', 'error');
+                    CI.toast('Erreur lors du renvoi des accès', 'error');
                 }
             }
 
