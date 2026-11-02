@@ -155,9 +155,9 @@
                         style="border-bottom:1px solid var(--border);transition:background .1s;cursor:pointer"
                         onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
                         <td style="padding:10px 16px">
-                            <a href="{{ route('admin.clients.show', $client['id']) }}"
+                            <x-lien-client :client="$client['id']"
                                onclick="event.stopPropagation()"
-                               style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:none">{{ $client['name'] }}</a>
+                               style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:none">{{ $client['name'] }}</x-lien-client>
                             <span style="font-size:11px;color:var(--text3);margin-left:6px;opacity:.6">↗</span>
                         </td>
                         <td style="padding:10px 16px;font-size:12px;color:var(--text2)">

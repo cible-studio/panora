@@ -463,12 +463,12 @@ Route::prefix('admin')
             ->middleware('role:admin,mediaplanner')
             ->whereNumber('panel')->name('panels.status');
 
-        // Édition ciblée du tarif catalogue (monthly_rate) — ouverte au
-        // comptable en plus d'admin/MP pour qu'il puisse coordonner les
-        // futures factures sans devoir passer par le MP. Sécurisation fine
-        // via PanelPolicy::updatePrice + validation Request restrictive.
+        // Édition ciblée du tarif catalogue (monthly_rate) — module
+        // « prix_panneaux » (config/acces.php). 2026-11-02 : plus le
+        // comptable (lecture seule). Sécurisation fine via
+        // PanelPolicy::updatePrice + validation Request restrictive.
         Route::post('panels/{panel}/price', [PanelController::class, 'updatePrice'])
-            ->middleware('role:admin,mediaplanner,comptable')
+            ->middleware(\App\Support\Acces::middleware('prix_panneaux'))
             ->whereNumber('panel')->name('panels.price');
 
         // Création / modif / suppression / photos = admin + MP
@@ -599,7 +599,8 @@ Route::prefix('admin')
         });
 
         // ── Messages clients (formulaire « Contacter la régie ») ──
-        Route::prefix('messages')->name('messages.')->group(function () {
+        // Rôles du module « messages » (config/acces.php) — plus le MP.
+        Route::middleware(\App\Support\Acces::middleware('messages'))->prefix('messages')->name('messages.')->group(function () {
             Route::get('/',                  [\App\Http\Controllers\Admin\ClientMessageController::class, 'index'])  ->name('index');
             Route::get('{message}',          [\App\Http\Controllers\Admin\ClientMessageController::class, 'show'])   ->name('show');
             Route::post('{message}/reply',   [\App\Http\Controllers\Admin\ClientMessageController::class, 'reply'])  ->name('reply');
@@ -975,11 +976,12 @@ Route::prefix('admin')
         Route::post('clients/bulk-destroy', [ClientController::class, 'bulkDestroy'])
             ->middleware('role:admin')
             ->name('clients.bulk-destroy');
-        // Import Excel — admin + commercial + MP
+        // Import Excel — admin + commercial (2026-11-02 : plus le MP).
         Route::get('clients/import/template', [ClientController::class, 'importTemplate'])
+            ->middleware(\App\Support\Acces::middleware('clients'))
             ->name('clients.import.template');
         Route::post('clients/import',         [ClientController::class, 'import'])
-            ->middleware('role:admin,commercial,mediaplanner')
+            ->middleware('role:admin,commercial')
             ->name('clients.import');
         // Outil d'urgence (2026-06-26) — vider tous les caches en prod.
         // Utile quand un déploiement passe (commit présent sur le serveur)
@@ -1016,26 +1018,29 @@ Route::prefix('admin')
             ->name('clients.clear-auto-ncc.apply');
         // Exports liste clients (5.2) — placés AVANT /clients/{client} pour
         // ne pas être avalés par le route model binding.
-        Route::get('clients/export/csv', [ClientController::class, 'exportCsv'])
-            ->name('clients.export.csv');
-        Route::get('clients/export/pdf', [ClientController::class, 'exportPdf'])
-            ->name('clients.export.pdf');
-        Route::get('clients/export/excel', [ClientController::class, 'exportExcel'])
-            ->name('clients.export.excel');
+        // 2026-11-02 : pages Clients = module « clients » (config/acces.php),
+        // plus le MP. Il garde quick-store, verifier-nom, contacts.index et
+        // contacts.rapide, appelés par ses formulaires.
+        Route::middleware(\App\Support\Acces::middleware('clients'))->group(function () {
+            Route::get('clients/export/csv', [ClientController::class, 'exportCsv'])
+                ->name('clients.export.csv');
+            Route::get('clients/export/pdf', [ClientController::class, 'exportPdf'])
+                ->name('clients.export.pdf');
+            Route::get('clients/export/excel', [ClientController::class, 'exportExcel'])
+                ->name('clients.export.excel');
+        });
         // Journal des envois du Google Sheets (2026-10-28) — admin uniquement.
         Route::get('clients/envois-gmail', [\App\Http\Controllers\Admin\EnvoisContactsGmailController::class, 'index'])
             ->middleware('role:admin')
             ->name('clients.envois-gmail');
-        // Lecture clients : tous les staff
-        Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
-        Route::get('clients/create', [ClientController::class, 'create'])
-            ->middleware('role:admin,commercial,mediaplanner,comptable')->name('clients.create');
-        Route::get('clients/{client}/edit', [ClientController::class, 'edit'])
-            ->middleware('role:admin,commercial,mediaplanner,comptable')->name('clients.edit');
-        Route::post('clients', [ClientController::class, 'store'])
-            ->middleware('role:admin,commercial,mediaplanner,comptable')->name('clients.store');
-        Route::put('clients/{client}', [ClientController::class, 'update'])
-            ->middleware('role:admin,commercial,mediaplanner,comptable')->name('clients.update');
+        // Pages Clients : rôles du module « clients » (config/acces.php).
+        Route::middleware(\App\Support\Acces::middleware('clients'))->group(function () {
+            Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
+            Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
+            Route::get('clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');
+            Route::post('clients', [ClientController::class, 'store'])->name('clients.store');
+            Route::put('clients/{client}', [ClientController::class, 'update'])->name('clients.update');
+        });
         Route::delete('clients/{client}', [ClientController::class, 'destroy'])
             ->middleware('role:admin')->name('clients.destroy');
         // Regrouper deux fiches (2026-10-30) : Direction seulement.
@@ -1047,6 +1052,7 @@ Route::prefix('admin')
         // Une fiche regroupée avec une autre ouvre la fiche gardée (anciens liens :
         // alertes, journal des mails, historique du Sheet).
         Route::get('clients/{client}', [ClientController::class, 'show'])->name('clients.show')
+            ->middleware(\App\Support\Acces::middleware('clients'))
             ->missing(function (\Illuminate\Http\Request $request) {
                 $gardee = \App\Models\ClientRegroupement::ficheGardee((int) $request->route('client'));
                 abort_unless($gardee, 404);
@@ -1083,13 +1089,15 @@ Route::prefix('admin')
             ->whereIn('type', ['campagne', 'devis', 'proposition'])->whereNumber('id')
             ->middleware('throttle:60,1')->name('apercu-envoi');
 
-        // Multi-interlocuteurs (T4) — édition = admin + commercial + MP
-        // (cohérent avec édition client : qui peut éditer la fiche peut
-        // éditer les interlocuteurs).
-        Route::middleware('role:admin,commercial,mediaplanner')->group(function () {
+        // Ajout rapide d'un interlocuteur depuis un dossier (2026-10-29) :
+        // admin + commercial + MP — le MP le garde dans ses formulaires.
+        Route::post('clients/{client}/contacts/rapide', [\App\Http\Controllers\Admin\ClientContactController::class, 'storeRapide'])
+            ->middleware('role:admin,commercial,mediaplanner')->name('clients.contacts.rapide');
+
+        // Multi-interlocuteurs (T4), depuis la fiche client — admin +
+        // commercial (2026-11-02 : plus le MP, qui n'a plus la fiche).
+        Route::middleware('role:admin,commercial')->group(function () {
             Route::post  ('clients/{client}/contacts',                [\App\Http\Controllers\Admin\ClientContactController::class, 'store'])     ->name('clients.contacts.store');
-            // Ajout rapide depuis un dossier (2026-10-29)
-            Route::post  ('clients/{client}/contacts/rapide',         [\App\Http\Controllers\Admin\ClientContactController::class, 'storeRapide'])->name('clients.contacts.rapide');
             Route::put   ('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'update'])    ->name('clients.contacts.update');
             Route::delete('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'destroy'])   ->name('clients.contacts.destroy');
             Route::patch ('clients/{client}/contacts/{contact}/primary', [\App\Http\Controllers\Admin\ClientContactController::class, 'setPrimary'])->name('clients.contacts.primary');
@@ -1134,14 +1142,13 @@ Route::prefix('admin')
         // ══════════════════════════════════════════════════════════
 
         // Prix panneaux dans une réservation (internes + externes) :
-        // admin + MP + commercial + comptable. Le commercial est limité
-        // à SES résas via la policy updatePrice() (vérifie
-        // commercial_user_id). Le comptable est ajouté pour coordonner
-        // les futures factures (cf. User::canEditPrices()). L'autorisation
+        // admin + MP + commercial. Le commercial est limité à SES résas
+        // via la policy updatePrice() (vérifie commercial_user_id).
+        // 2026-11-02 : plus le comptable (lecture seule). L'autorisation
         // fine passe par ReservationPolicy::updatePrice — les 4 méthodes
         // (updatePanelPrice, resetPanelPrice, update/resetExternalPanelPrice)
         // appellent authorize('updatePrice', $reservation).
-        Route::middleware('role:admin,mediaplanner,commercial,comptable')->group(function () {
+        Route::middleware('role:admin,mediaplanner,commercial')->group(function () {
             Route::patch('reservations/{reservation}/panels/{panel}/price',
                 [ReservationController::class, 'updatePanelPrice'])->name('reservations.panels.price');
             Route::post('reservations/{reservation}/panels/{panel}/price/reset',
@@ -1553,11 +1560,10 @@ Route::prefix('admin')
                 ->whereNumber('campaign')->name('campaigns.rechange');
         });
 
-        // Prix négocié panneau dans campagne : admin + MP + comptable.
-        // Le Comptable coordonne les futures factures sans avoir accès
-        // à l'ajout/retrait de panneaux ni au changement de statut.
+        // Prix négocié panneau dans campagne : module « prix_panneaux »
+        // (config/acces.php). 2026-11-02 : plus le comptable (lecture seule).
         // Autorisation fine via CampaignPolicy::updatePrice (User::canEditPrices()).
-        Route::middleware('role:admin,mediaplanner,comptable')->group(function () {
+        Route::middleware(\App\Support\Acces::middleware('prix_panneaux'))->group(function () {
             Route::patch('campaigns/{campaign}/panels/{panel}/price', [CampaignController::class, 'updatePanelPrice'])
                 ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.price');
             Route::post('campaigns/{campaign}/panels/{panel}/price/reset', [CampaignController::class, 'resetPanelPrice'])

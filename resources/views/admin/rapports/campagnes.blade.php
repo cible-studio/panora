@@ -449,9 +449,9 @@
                                     </td>
                                     <td style="padding:10px">
                                         @if($c->client)
-                                            <a href="{{ route('admin.clients.show', $c->client) }}" style="color:var(--text2);text-decoration:none">
+                                            <x-lien-client :client="$c->client" style="color:var(--text2);text-decoration:none">
                                                 {{ $c->client->name }}
-                                            </a>
+                                            </x-lien-client>
                                         @else
                                             <span style="color:var(--text3)">—</span>
                                         @endif

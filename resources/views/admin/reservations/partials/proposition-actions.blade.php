@@ -138,9 +138,11 @@
             <strong>Email client manquant</strong>
             <p>Le client <strong>{{ $reservation->client?->name }}</strong> n'a pas d'adresse email enregistrée.</p>
         </div>
+        @if(\App\Support\Acces::peut('clients'))
         <a href="{{ route('admin.clients.edit', $reservation->client_id) }}" class="alert-link">
             Mettre à jour →
         </a>
+        @endif
     </div>
     @endif
 

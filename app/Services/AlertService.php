@@ -757,8 +757,10 @@ class AlertService
                 'pose_planifiee', 'pose_terminee', 'pose_en_cours',
                 // Maintenances — visibilité production
                 'maintenance_signalee', 'maintenance_rouverte',
-                // Espace client
-                'satisfaction_recue', 'client_message',
+                // Espace client. 2026-11-02 : plus « client_message » — le MP
+                // n'a plus les Messages clients (config/acces.php), le lien de
+                // l'alerte le mènerait à une page interdite.
+                'satisfaction_recue',
             ],
 
             // Commercial : visibilité ECHEANCIER FACTURE (J-7 / J-3 / dépassée).

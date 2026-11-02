@@ -156,8 +156,8 @@
                         </td>
                         <td style="padding:11px 14px;font-size:13px;color:var(--text2);">
                             @if($c->client)
-                                <a href="{{ route('admin.clients.show', $c->client) }}"
-                                   style="color:var(--text2);text-decoration:none;border-bottom:1px dashed var(--border)">{{ $c->client->name }}</a>
+                                <x-lien-client :client="$c->client"
+                                   style="color:var(--text2);text-decoration:none;border-bottom:1px dashed var(--border)">{{ $c->client->name }}</x-lien-client>
                             @else
                                 —
                             @endif

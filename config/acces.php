@@ -32,10 +32,14 @@ return [
         // ── Principal ─────────────────────────────────────────────
         'tableau_de_bord' => ['roles' => $tous, 'route' => 'dashboard'],
         'alertes'         => ['roles' => $tous, 'route' => 'admin.alerts.index'],
-        'messages'        => ['roles' => $tous, 'route' => 'admin.messages.index'],
+        // 2026-11-02 (2ᵉ série) : plus le MP.
+        'messages'        => ['roles' => ['admin', 'commercial', 'comptable'], 'route' => 'admin.messages.index'],
 
         // ── Commercial ────────────────────────────────────────────
-        'clients'         => ['roles' => $tous, 'route' => 'admin.clients.index'],
+        // Pages Clients (liste, fiche, modification, exports, import).
+        // 2026-11-02 : plus le MP — il garde dans ses formulaires la création
+        // d'un client, la vérification du nom et le choix de l'interlocuteur.
+        'clients'         => ['roles' => ['admin', 'commercial', 'comptable'], 'route' => 'admin.clients.index'],
         'disponibilites'  => ['roles' => ['admin', 'commercial', 'mediaplanner'], 'route' => 'admin.reservations.disponibilites'],
         // Commercial : ses devis. MP : lecture seule (des devis bloquent des
         // panneaux). Comptable : plus d'accès (2026-11-02).
@@ -79,6 +83,12 @@ return [
         'parametres'      => ['roles' => ['admin'], 'route' => 'admin.settings.index'],
 
         // ── Sans page propre ──────────────────────────────────────
+        // Modifier le prix d'un panneau : inventaire, campagne, réservation
+        // (le commercial, ses réservations, via ReservationPolicy).
+        // 2026-11-02 : le comptable passe en lecture seule. Ne couvre pas les
+        // tarifs des communes (module « tarifs_communes »).
+        'prix_panneaux' => ['roles' => ['admin', 'mediaplanner'], 'route' => null],
+
         // Chiffres financiers du tableau de bord : CA, encaissements,
         // factures en retard, à recouvrer, prévision, top clients et
         // communes. Le MP ne les voit plus (2026-11-02), le comptable oui.
