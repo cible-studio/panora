@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 
 use App\Mail\UserWelcomeMail;
+use App\Services\RenvoiAcces;
 use App\Models\User;
 use App\Models\AuditLog;
 
@@ -325,6 +326,46 @@ class UserController extends Controller
         );
         
         return back()->with('success', "Compte {$statusText} !");
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // RENVOYER LES ACCÈS (2026-11-02)
+    //
+    // Demandé par la direction : un bouton, sur la ligne de la personne,
+    // quand elle a perdu ses identifiants. Jusqu'ici il fallait ouvrir
+    // « Modifier » et inventer un mot de passe à la main.
+    //
+    // ⚠ Le mot de passe en place n'est PAS renvoyé : il n'est pas
+    // conservé, seule son empreinte l'est. Le service en tire un nouveau
+    // et l'envoie ; l'ancien cesse de marcher au clic. Le libellé du
+    // bouton et sa confirmation le disent.
+    // ══════════════════════════════════════════════════════════════
+    public function renvoyerAcces(User $user)
+    {
+        // Changer son propre mot de passe depuis cette liste couperait la
+        // session en cours : on renvoie l'admin vers « Modifier ».
+        if ($user->id === auth()->id()) {
+            return back()->with('error',
+                "Pour ton propre compte, passe par « Modifier » : tu y choisis ton mot de passe."
+            );
+        }
+
+        $resultat = app(RenvoiAcces::class)->pourUtilisateur($user, auth()->id());
+
+        if (! $resultat->ok) {
+            return back()->with('error', $resultat->message);
+        }
+
+        AlertService::create(
+            'utilisateur',
+            'warning',
+            '📧 Accès renvoyés — ' . $user->name,
+            auth()->user()->name . ' a renvoyé les accès de ' . $user->name
+                . ' (' . UserRole::labelFor($user->role) . ') : son ancien mot de passe ne fonctionne plus.',
+            $user
+        );
+
+        return back()->with($resultat->motDePasse ? 'warning' : 'success', $resultat->message);
     }
 
     // ══════════════════════════════════════════════════════════════

@@ -713,6 +713,13 @@ Route::prefix('admin')
 
             Route::resource('users', UserController::class);
             Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle');
+            // « Renvoyer les accès » (2026-11-02) : tire un NOUVEAU mot de
+            // passe temporaire et l'envoie. L'ancien n'est pas relisible.
+            // Bridé : un clic répété sur une liste ne doit pas réinitialiser
+            // dix comptes par mégarde.
+            Route::post('users/{user}/renvoyer-acces', [UserController::class, 'renvoyerAcces'])
+                ->middleware('throttle:10,1')
+                ->name('users.acces.renvoyer');
             // Actions groupées : 'activate', 'deactivate'.
             // GARDE-FOU : ne peut JAMAIS désactiver le dernier admin actif
             // ni se désactiver soi-même.

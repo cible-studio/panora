@@ -80,6 +80,21 @@
                             <a href="{{ route('admin.users.edit', $user) }}"
                                class="btn btn-ghost btn-sm">✏️</a>
 
+                            {{-- Renvoyer les accès (2026-11-02) --}}
+                            {{-- Le mot de passe en place n'est pas relisible : --}}
+                            {{-- le bouton en tire un NOUVEAU et l'envoie. La --}}
+                            {{-- confirmation le dit, pour qu'on ne clique pas --}}
+                            {{-- en croyant que rien ne change. --}}
+                            @if($user->id !== auth()->id() && $user->is_active && $user->email)
+                            <form method="POST"
+                                  action="{{ route('admin.users.acces.renvoyer', $user) }}"
+                                  onsubmit="return confirm('Renvoyer les accès de ' + {{ \Illuminate\Support\Js::from($user->name) }} + ' ?\n\nUn NOUVEAU mot de passe temporaire part à ' + {{ \Illuminate\Support\Js::from($user->email) }} + '.\nSon mot de passe actuel cessera de fonctionner.')">
+                                @csrf
+                                <button class="btn btn-ghost btn-sm"
+                                        title="Renvoyer les accès par email (nouveau mot de passe)">📧</button>
+                            </form>
+                            @endif
+
                             {{-- Toggle actif --}}
                             @if($user->id !== auth()->id())
                             <form method="POST"
