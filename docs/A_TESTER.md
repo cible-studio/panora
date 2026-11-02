@@ -446,3 +446,19 @@ repérés dans le Sheet, ex. cocan2023.ci).
       (décision revue le 2/11). Renouvellements : inchangé, il confirme.
 - [ ] **Comptable** : les prix des panneaux (inventaire, campagne,
       réservation) ne sont plus modifiables ; Tarifs communes inchangé.
+
+### 10 ter. Adresses trop anciennes écartées *(décision du 2026-11-02)*
+
+Règle : une adresse dont le **dernier mail échangé** est antérieur au
+**01/01/2025** ne reçoit plus le catalogue (date inconnue = reçoit). Si tous
+les interlocuteurs clients d'une entreprise sont anciens, elle ne reçoit
+rien. Réglage : `DIFFUSION_DERNIER_ECHANGE_MIN` (défaut 2025-01-01).
+La date vient du Google Sheets : tant qu'il n'a pas été renvoyé, personne
+n'est écarté.
+
+- [ ] Après déploiement : coller `docs/outils/panora-contacts.gs` dans le
+      script du Sheets (Extensions → Apps Script), enregistrer
+- [ ] Menu 📇 Panora → **Envoyer à Panora** (toutes les lignes repartent
+      une fois : leur empreinte inclut maintenant la date)
+- [ ] Diffusion dispos : le nombre de destinataires baisse (≈ 500 attendus,
+      759 avant)

@@ -191,9 +191,9 @@ class DiffusionDisponibilitesService
         // aucun prospect (2026-10-28, cf. Client::destinatairesDiffusion).
         return Client::query()
             ->clients()
-            ->with(['contacts' => fn($q) => $q->select('id', 'client_id', 'name', 'email', 'is_primary', 'statut')])
+            ->with(['contacts' => fn($q) => $q->select('id', 'client_id', 'name', 'email', 'is_primary', 'statut', 'dernier_echange')])
             ->orderBy('name')
-            ->get(['id', 'name', 'contact_name', 'email', 'statut_commercial'])
+            ->get(['id', 'name', 'contact_name', 'email', 'statut_commercial', 'email_dernier_echange'])
             ->flatMap(fn(Client $c) => array_map(fn($d) => $d + [
                 'societe'   => $c->name,
                 'client_id' => $c->id,

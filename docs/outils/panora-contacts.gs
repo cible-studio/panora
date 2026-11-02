@@ -326,9 +326,15 @@ function texteBilan(b) {
 // ENVOI À PANORA (cœur sans Google)
 // ══════════════════════════════════════════════════════════════
 
-/** Ce qui est envoyé : une ligne modifiée après son envoi repart. */
+/**
+ * Ce qui est envoyé : une ligne modifiée après son envoi repart.
+ * 2026-11-02 : le dernier échange en fait partie — Panora écarte de la
+ * diffusion les adresses trop anciennes, et un contact qui réécrit doit
+ * repartir pour y revenir.
+ */
 function empreinte(x) {
-  return [email_(x['E-mail']), x['Nom'], x['Poste'], x['Téléphones'], x['Entreprise'], x['Secteur'], statut_(x['Statut'])]
+  return [email_(x['E-mail']), x['Nom'], x['Poste'], x['Téléphones'], x['Entreprise'], x['Secteur'], statut_(x['Statut']),
+    dateIso_(x['Dernier échange'])]
     .map(function (v) { return texte_(v); }).join('|');
 }
 
@@ -349,7 +355,18 @@ function versPanora(x) {
     entreprise: texte_(x['Entreprise']),
     secteur: texte_(x['Secteur']),
     relation: statut_(x['Statut']),
+    dernier_echange: dateIso_(x['Dernier échange']),
   };
+}
+
+/** Cellule date (ou texte « 28/10/2026 ») → « 2026-10-28 » ; vide sinon. */
+function dateIso_(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return Utilities.formatDate(v, SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  }
+  var m = texte_(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return '';
+  return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
 }
 
 function texteVerdict(r, simulation, le) {

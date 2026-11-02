@@ -116,6 +116,10 @@ class ContactsGmailService
         $entreprise = mb_strtoupper(self::texte($l['entreprise'] ?? '', 150));
         $secteur    = trim((string) ($l['secteur'] ?? ''));
         $secteurValide = in_array($secteur, Client::SECTORS, true) ? $secteur : null;
+        // Dernier mail échangé (2026-11-02) : la diffusion écarte les adresses
+        // trop anciennes. Mis à jour sans note — ce n'est pas une donnée que
+        // la direction relit, et chaque envoi du Sheets la rafraîchit.
+        $dernierEchange = self::date($l['dernier_echange'] ?? null);
         $notes = [];  // ce qui a changé
         $avert = [];  // à savoir, rien de modifié
         if ($secteur !== '' && !$secteurValide) {
@@ -147,6 +151,9 @@ class ContactsGmailService
                 $maj['statut'] = Client::STATUT_CLIENT; // la case « reçoit les mails » ne bouge pas (2026-10-29)
                 $notes[] = 'passé client';
             }
+            if ($dernierEchange && $contact->dernier_echange?->toDateString() !== $dernierEchange) {
+                $maj['dernier_echange'] = $dernierEchange;
+            }
             if ($maj) {
                 $contact->update($maj);
             }
@@ -172,6 +179,9 @@ class ContactsGmailService
             if (trim((string) $client->phone) === '' && $telephone !== '' && mb_strlen($telephone) <= 20) {
                 $maj['phone'] = $telephone;
                 $notes[] = 'téléphone ajouté';
+            }
+            if ($dernierEchange && $client->email_dernier_echange?->toDateString() !== $dernierEchange) {
+                $maj['email_dernier_echange'] = $dernierEchange;
             }
             if ($maj) {
                 $client->update($maj);
@@ -253,6 +263,7 @@ class ContactsGmailService
             'receives_notifications' => false,
             'statut'                 => $statut,
             'source'                 => self::SOURCE,
+            'dernier_echange'        => $dernierEchange,
         ]);
 
         $resultat = self::resultat('cree', 'Ajouté chez ' . $client->name, $notes, $avert, $client);
@@ -315,6 +326,20 @@ class ContactsGmailService
             str_starts_with($v, 'prospect') => Client::STATUT_PROSPECT,
             default                         => null,
         };
+    }
+
+    /** « 2026-10-28 » (envoi du Sheets) ou « 28/10/2026 » → « 2026-10-28 » ; sinon null. */
+    private static function date(mixed $v): ?string
+    {
+        $v = trim((string) $v);
+        foreach (['Y-m-d', 'd/m/Y'] as $format) {
+            $d = \DateTimeImmutable::createFromFormat('!' . $format, $v);
+            if ($d && $d->format($format) === $v) {
+                return $d->format('Y-m-d');
+            }
+        }
+
+        return null;
     }
 
     private static function texte(mixed $v, int $max): string

@@ -29,6 +29,12 @@ return [
     // validé à la main.
     'auto' => (bool) env('DIFFUSION_AUTO', false),
 
+    // Fraîcheur des adresses (2026-11-02, direction) : une adresse dont le
+    // dernier mail échangé (reçu du Google Sheets) est antérieur à cette date
+    // ne reçoit plus le catalogue — ce sont elles qui rebondissent. Date
+    // inconnue = reçoit. Vide = règle désactivée. Cf. Client::destinatairesDiffusion.
+    'dernier_echange_min' => env('DIFFUSION_DERNIER_ECHANGE_MIN', '2025-01-01'),
+
     // Heure d'envoi (le serveur tourne en UTC = heure d'Abidjan).
     'heure_envoi'       => env('DIFFUSION_HEURE', '10:00'),
     // Préparation du PDF : tout le parc avec photos prend plusieurs

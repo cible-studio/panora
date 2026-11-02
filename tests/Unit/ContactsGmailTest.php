@@ -44,6 +44,7 @@ class ContactsGmailTest extends TestCase
         });
         (require base_path('database/migrations/2026_10_28_120000_add_statut_commercial_to_clients.php'))->up();
         (require base_path('database/migrations/2026_10_28_160000_create_envois_contacts_gmail_table.php'))->up();
+        (require base_path('database/migrations/2026_11_02_100000_add_dernier_echange_to_contacts.php'))->up();
 
         config([
             'contacts.gmail.token'     => self::JETON,
@@ -360,5 +361,27 @@ class ContactsGmailTest extends TestCase
         $res = app(ContactsGmailService::class)->traiter([['email' => 'jean@orange.ci', 'relation' => 'client']], 'studio@cible-ci.com');
 
         $this->assertSame(1, $res['resume']['crees']);
+    }
+
+    // ── Dernier échange (2026-11-02) ──────────────────────────────
+
+    public function test_le_dernier_echange_est_enregistre_et_rafraichi(): void
+    {
+        // Nouveau contact : la date du Sheets est gardée.
+        $this->assertSame('cree', $this->une(['email' => 'jean@orange.ci', 'nom' => 'Jean', 'dernier_echange' => '2023-04-12'])['resultat']);
+        $this->assertSame('2023-04-12', ClientContact::where('email', 'jean@orange.ci')->first()->dernier_echange->toDateString());
+
+        // Contact connu : la date est rafraîchie sans changer le verdict
+        // (ce n'est pas une donnée relue par la direction).
+        $this->assertSame('a_jour', $this->une(['email' => 'awa@orange.ci', 'dernier_echange' => '28/10/2026'])['resultat']);
+        $this->assertSame('2026-10-28', ClientContact::where('email', 'awa@orange.ci')->first()->dernier_echange->toDateString());
+
+        // Adresse de la fiche entreprise : même chose.
+        $this->une(['email' => 'contact@orange.ci', 'dernier_echange' => '2024-02-01']);
+        $this->assertSame('2024-02-01', Client::find(10)->email_dernier_echange->toDateString());
+
+        // Date illisible : ignorée, l'existante reste.
+        $this->une(['email' => 'awa@orange.ci', 'dernier_echange' => 'hier']);
+        $this->assertSame('2026-10-28', ClientContact::where('email', 'awa@orange.ci')->first()->dernier_echange->toDateString());
     }
 }

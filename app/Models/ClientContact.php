@@ -20,6 +20,7 @@ class ClientContact extends Model
         'client_id', 'name', 'email', 'phone',
         'role', 'position', 'is_primary',
         'receives_notifications', 'notes', 'statut', 'source',
+        'dernier_echange',
     ];
 
     /** Statut propre à chaque adresse (2026-10-28) : mêmes valeurs que Client::STATUTS. */
@@ -28,6 +29,8 @@ class ClientContact extends Model
     protected $casts = [
         'is_primary'             => 'boolean',
         'receives_notifications' => 'boolean',
+        // Dernier mail échangé, reçu du Google Sheets (2026-11-02).
+        'dernier_echange'        => 'date',
     ];
 
     /**
