@@ -558,6 +558,19 @@ class PoseTask extends Model
     }
 
     /**
+     * Poses à afficher dans les listes de travail : tout sauf les annulées
+     * (2026-11-02, demande MP — « je veux que la liste soit propre »).
+     * Une pose annulée (panneau retiré de la campagne…) reste en base pour
+     * l'historique. Gestion des poses la montre seulement via la carte
+     * « Annulées ». Utilisé par la liste, la page Poses d'une campagne,
+     * le calendrier et la carte.
+     */
+    public function scopeSansAnnulees(\Illuminate\Database\Eloquent\Builder $q): \Illuminate\Database\Eloquent\Builder
+    {
+        return $q->where($q->getModel()->getTable() . '.status', '!=', PoseTaskStatus::CANCELLED->value);
+    }
+
+    /**
      * Restreint aux poses dont la campagne est "opérable" — c'est-à-dire
      * ni terminée, ni annulée, ni soft-deleted.
      *

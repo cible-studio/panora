@@ -465,7 +465,9 @@ class CampaignController extends Controller
     {
         $this->authorize('view', $campaign);
 
+        // 2026-11-02 — poses annulées (panneau retiré…) masquées : liste propre.
         $poseTasks = \App\Models\PoseTask::where('campaign_id', $campaign->id)
+            ->sansAnnulees()
             ->with([
                 'panel:id,reference,name,commune_id',
                 'panel.commune:id,name',
@@ -484,7 +486,7 @@ class CampaignController extends Controller
 
         // Compteurs spécifiques à cette campagne uniquement
         $stats = [
-            'total'     => \App\Models\PoseTask::where('campaign_id', $campaign->id)->count(),
+            'total'     => \App\Models\PoseTask::where('campaign_id', $campaign->id)->sansAnnulees()->count(),
             'planifiee' => \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'planifiee')->count(),
             'en_cours'  => \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'en_cours')->count(),
             'realisee'  => \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'realisee')->count(),

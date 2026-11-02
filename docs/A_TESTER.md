@@ -356,3 +356,20 @@ test.
 - [ ] Le total de l'aperçu est **le même** que celui du devis une fois
       enregistré — c'est le contrôle qui compte
 - [ ] Sur un écran étroit (< 1280 px), la colonne passe sous le formulaire
+
+---
+
+## 8. Poses annulées masquées des listes *(ajouté le 2026-11-02)*
+
+Une pose annulée (panneau retiré d'une campagne…) reste en base mais ne
+s'affiche plus. Règle unique : `PoseTask::sansAnnulees()`.
+
+- [ ] Gestion des poses : plus aucune ligne « Annulée » à l'ouverture ;
+      la carte « Total » (« hors annulées ») baisse d'autant.
+- [ ] Clic sur la carte « Annulées » → seules les annulées s'affichent,
+      autant que le compteur de la carte. « Total » ramène la liste propre.
+- [ ] Campagne RHINO/IVOIRE → page « Poses » : ABO-CH002, KSS-CH002,
+      MRY-CH003, YOP-CH002 n'apparaissent plus ; « Total » ne les compte plus.
+- [ ] Calendrier des poses (semaine du 15/10) : plus de cases rouges
+      « Annulée ».
+- [ ] Carte des poses : plus de points rouges en vue « Total ».

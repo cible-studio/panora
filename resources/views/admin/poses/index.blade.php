@@ -244,7 +244,7 @@
      du filtre KPI courant). ════ --}}
 @php
 $kpis = [
-    ['s'=>'total',     'l'=>'Total',      'c'=>'var(--accent)', 'sub'=>'toutes les tâches', 'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>'],
+    ['s'=>'total',     'l'=>'Total',      'c'=>'var(--accent)', 'sub'=>'hors annulées', 'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>'],
     ['s'=>'planifiee', 'l'=>'Planifiées', 'c'=>'#f97316',       'sub'=>'à venir',           'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'],
     ['s'=>'en_cours',  'l'=>'En cours',   'c'=>'#3b82f6',       'sub'=>'sur le terrain',    'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'],
     ['s'=>'realisee',  'l'=>'Réalisées',  'c'=>'#22c55e',       'sub'=>'poses terminées',   'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'],
