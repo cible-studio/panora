@@ -1,5 +1,14 @@
 <x-admin-layout>
     <x-slot name="title">Textes des mails clients</x-slot>
+    <x-slot:topbarLeft>
+        {{-- Un seul retour (2026-11-02) : provenance, sinon page précédente,
+             sinon « Renouvellements ». Avant, un second « Retour » écrit en dur
+             s'ajoutait à celui-ci. --}}
+        @include('admin.partials._smart_back', ['defaut' => [
+            'url'   => route('admin.renouvellements.index'),
+            'label' => 'Renouvellements',
+        ]])
+    </x-slot:topbarLeft>
 
     {{--
       Éditeur des textes des mails clients avant échéance (refonte 2026-10-23).
@@ -50,7 +59,6 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     Comment écrire
                 </button>
-                <a href="{{ route('admin.renouvellements.index') }}" class="rn-btn">← Renouvellements</a>
             </div>
         </div>
 

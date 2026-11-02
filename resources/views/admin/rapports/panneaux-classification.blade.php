@@ -1,4 +1,13 @@
 <x-admin-layout>
+    <x-slot:topbarLeft>
+        {{-- Un seul retour (2026-11-02) : provenance, sinon page précédente,
+             sinon « Rapports ». Avant, le lien vers les rapports écrit dans la
+             page s'ajoutait au « Retour » posé par le layout. --}}
+        @include('admin.partials._smart_back', ['defaut' => [
+            'url'   => route('admin.rapports.index'),
+            'label' => 'Rapports',
+        ]])
+    </x-slot:topbarLeft>
     @php
         $meta = [
             'a_lannee' => [
@@ -32,10 +41,7 @@
         {{-- ── En-tête + navigation retour ─────────────────────── --}}
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
             <div>
-                <a href="{{ route('admin.rapports.index') }}" style="font-size:12px;color:var(--text3);text-decoration:none">
-                    ← Retour aux rapports
-                </a>
-                <h1 style="margin:6px 0 4px;font-size:22px;font-weight:800">
+                <h1 style="margin:0 0 4px;font-size:22px;font-weight:800">
                     🎯 Classification des panneaux par occupation
                 </h1>
                 <div style="font-size:12px;color:var(--text2)">

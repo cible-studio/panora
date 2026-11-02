@@ -3,6 +3,15 @@
        - $team (PoseTeam) résolu par route model binding {poseTeam}. --}}
 <x-admin-layout>
     <x-slot name="title">Équipe {{ $team->name }} — Live</x-slot>
+    <x-slot:topbarLeft>
+        {{-- Un seul retour (2026-11-02) : provenance, sinon page précédente,
+             sinon « Pilotage ». Avant, un second « Retour » écrit en dur
+             s'ajoutait à celui-ci. --}}
+        @include('admin.partials._smart_back', ['defaut' => [
+            'url'   => route('admin.pilotage'),
+            'label' => 'Pilotage',
+        ]])
+    </x-slot:topbarLeft>
 
     @push('styles')
         <link rel="stylesheet" href="{{ asset('css/admin/live-dashboard.css') }}?v={{ config('app.version', '1') }}">
@@ -12,7 +21,6 @@
     <div class="live-dashboard" data-team-live data-team-id="{{ $team->id }}">
 
         <header class="team-live-head" style="background:{{ $team->colorBgHex() }};border-color:{{ $team->colorHex() }}">
-            <a href="{{ route('admin.pilotage') }}" class="tech-live-back">← Retour pilotage</a>
             <div class="team-live-icon" style="background:{{ $team->colorHex() }}">👥</div>
             <div class="team-live-meta">
                 <h1 class="team-live-name">{{ $team->name }}</h1>

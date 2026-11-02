@@ -1,11 +1,15 @@
 <x-admin-layout>
 <x-slot name="title">Piges archivées</x-slot>
 
-<x-slot name="topbarActions">
-    <a href="{{ route('admin.piges.index') }}" class="btn btn-ghost btn-sm">
-        ← Retour aux piges actives
-    </a>
-</x-slot>
+    <x-slot:topbarLeft>
+        {{-- Un seul retour (2026-11-02) : provenance, sinon page précédente,
+             sinon « Piges actives ». Avant, un second « Retour » écrit en dur
+             s'ajoutait à celui-ci. --}}
+        @include('admin.partials._smart_back', ['defaut' => [
+            'url'   => route('admin.piges.index'),
+            'label' => 'Piges actives',
+        ]])
+    </x-slot:topbarLeft>
 
 @if(session('success'))
     <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);color:#16a34a;padding:10px 14px;border-radius:10px;margin-bottom:14px;font-size:13px">

@@ -2,16 +2,13 @@
 <x-slot name="title">Performance — {{ $user->name }}</x-slot>
 
 <x-slot:topbarLeft>
-    {{-- Smart back en priorité : si ?back= présent, affiche le retour vers
-         la page source (Performance équipes, Tableau financier, etc.).
-         Si pas de back valide, on retombe sur le retour standard "Classement". --}}
-    @include('admin.performance.partials._smart_back')
-    @if(!request()->query('back') && in_array(auth()->user()?->role?->value, ['admin','mediaplanner'], true))
-        <a href="{{ route('admin.performance.commercial.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            Classement
-        </a>
-    @endif
+    {{-- Un seul retour (2026-11-02) : avant, « Classement » s'ajoutait au
+         « Retour » déduit de la page précédente. Il devient le repli. --}}
+    @include('admin.partials._smart_back', [
+        'defaut' => in_array(auth()->user()?->role?->value, ['admin', 'mediaplanner'], true)
+            ? ['url' => route('admin.performance.commercial.index'), 'label' => 'Classement']
+            : null,
+    ])
 </x-slot:topbarLeft>
 
 <x-slot name="topbarActions">

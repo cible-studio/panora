@@ -3,6 +3,15 @@
      recharger la carte. Marqueurs custom avec initiales du tech. --}}
 <x-admin-layout>
     <x-slot name="title">Carte live des techs</x-slot>
+    <x-slot:topbarLeft>
+        {{-- Un seul retour (2026-11-02) : provenance, sinon page précédente,
+             sinon « Pilotage ». Avant, un second « Retour » écrit en dur
+             s'ajoutait à celui-ci. --}}
+        @include('admin.partials._smart_back', ['defaut' => [
+            'url'   => route('admin.pilotage'),
+            'label' => 'Pilotage',
+        ]])
+    </x-slot:topbarLeft>
 
     @push('styles')
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -14,7 +23,6 @@
 
     <div class="map-live-page" data-map-live>
         <header class="map-live-head">
-            <a href="{{ route('admin.pilotage') }}" class="tech-live-back">← Retour pilotage</a>
             <h1 class="map-live-title">🗺️ Carte live</h1>
             <span class="map-live-badge">
                 <span class="live-status-pulse" aria-hidden="true"></span>

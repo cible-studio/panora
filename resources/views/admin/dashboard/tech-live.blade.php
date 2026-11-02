@@ -8,6 +8,15 @@
        - $tech (User) — résolu par route model binding {user}. --}}
 <x-admin-layout>
     <x-slot name="title">{{ $tech->name }} — Live</x-slot>
+    <x-slot:topbarLeft>
+        {{-- Un seul retour (2026-11-02) : provenance, sinon page précédente,
+             sinon « Pilotage ». Avant, un second « Retour » écrit en dur
+             s'ajoutait à celui-ci. --}}
+        @include('admin.partials._smart_back', ['defaut' => [
+            'url'   => route('admin.pilotage'),
+            'label' => 'Pilotage',
+        ]])
+    </x-slot:topbarLeft>
 
     @push('styles')
         <link rel="stylesheet" href="{{ asset('css/admin/live-dashboard.css') }}?v={{ config('app.version', '1') }}">
@@ -19,7 +28,6 @@
 
         {{-- ════ Header tech + retour + statut Live ════ --}}
         <header class="tech-live-head">
-            <a href="{{ route('admin.pilotage') }}" class="tech-live-back" aria-label="Retour pilotage">← Retour</a>
             <div class="tech-live-avatar">{{ mb_substr($tech->name, 0, 2) }}</div>
             <div class="tech-live-meta">
                 <h1 class="tech-live-name">{{ $tech->name }}</h1>
