@@ -37,9 +37,9 @@ return [
 
         // ── Commercial ────────────────────────────────────────────
         // Pages Clients (liste, fiche, modification, exports, import).
-        // 2026-11-02 : plus le MP — il garde dans ses formulaires la création
-        // d'un client, la vérification du nom et le choix de l'interlocuteur.
-        'clients'         => ['roles' => ['admin', 'commercial', 'comptable'], 'route' => 'admin.clients.index'],
+        // 2026-11-02 : le MP les garde — « le MP gère tout ce qui concerne
+        // le client » (décision revue le même jour).
+        'clients'         => ['roles' => $tous, 'route' => 'admin.clients.index'],
         'disponibilites'  => ['roles' => ['admin', 'commercial', 'mediaplanner'], 'route' => 'admin.reservations.disponibilites'],
         // Commercial : ses devis. MP : lecture seule (des devis bloquent des
         // panneaux). Comptable : plus d'accès (2026-11-02).

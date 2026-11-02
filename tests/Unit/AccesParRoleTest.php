@@ -114,15 +114,15 @@ class AccesParRoleTest extends TestCase
 
     public function test_decisions_du_2026_11_02_deuxieme_serie(): void
     {
-        // Le MP perd les pages Clients et les Messages clients…
-        foreach (['admin.clients.index', 'admin.clients.show', 'admin.clients.edit', 'admin.clients.create',
-                  'admin.clients.export.csv', 'admin.clients.import', 'admin.clients.contacts.store',
-                  'admin.messages.index', 'admin.messages.show'] as $r) {
+        // Le MP perd les Messages clients…
+        foreach (['admin.messages.index', 'admin.messages.show'] as $r) {
             $this->assertNotContains('mediaplanner', $this->rolesDeLaRoute($r), $r);
         }
-        // … mais garde dans ses formulaires la création d'un client, la
-        // vérification du nom et le choix de l'interlocuteur.
-        foreach (['admin.clients.quick-store', 'admin.clients.verifier-nom',
+        // … mais garde tout ce qui concerne le client (décision revue le
+        // 2026-11-02 : « le MP gère tout ce qui concerne le client »).
+        foreach (['admin.clients.index', 'admin.clients.show', 'admin.clients.edit', 'admin.clients.create',
+                  'admin.clients.export.csv', 'admin.clients.import', 'admin.clients.contacts.store',
+                  'admin.clients.quick-store', 'admin.clients.verifier-nom',
                   'admin.clients.contacts.index', 'admin.clients.contacts.rapide'] as $r) {
             $this->assertContains('mediaplanner', $this->rolesDeLaRoute($r), $r);
         }

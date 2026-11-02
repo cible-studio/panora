@@ -441,10 +441,8 @@ repérés dans le Sheet, ex. cocan2023.ci).
 
 ## 9 bis. Droits — 2ᵉ série *(2026-11-02)*
 
-- [ ] **MP** : plus de « Clients » ni de « Messages » dans le menu ; les
-      adresses tapées à la main → page interdite. Il crée toujours un client
-      et choisit l'interlocuteur depuis Disponibilités / nouvelle campagne.
-      Les noms de clients ne sont plus cliquables pour lui. Renouvellements :
-      inchangé, il confirme toujours.
+- [ ] **MP** : plus de « Messages » dans le menu ; `/admin/messages` tapé
+      à la main → page interdite. Clients : inchangé, il garde tout
+      (décision revue le 2/11). Renouvellements : inchangé, il confirme.
 - [ ] **Comptable** : les prix des panneaux (inventaire, campagne,
       réservation) ne sont plus modifiables ; Tarifs communes inchangé.

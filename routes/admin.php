@@ -976,12 +976,12 @@ Route::prefix('admin')
         Route::post('clients/bulk-destroy', [ClientController::class, 'bulkDestroy'])
             ->middleware('role:admin')
             ->name('clients.bulk-destroy');
-        // Import Excel — admin + commercial (2026-11-02 : plus le MP).
+        // Import Excel — admin + commercial + MP
         Route::get('clients/import/template', [ClientController::class, 'importTemplate'])
             ->middleware(\App\Support\Acces::middleware('clients'))
             ->name('clients.import.template');
         Route::post('clients/import',         [ClientController::class, 'import'])
-            ->middleware('role:admin,commercial')
+            ->middleware('role:admin,commercial,mediaplanner')
             ->name('clients.import');
         // Outil d'urgence (2026-06-26) — vider tous les caches en prod.
         // Utile quand un déploiement passe (commit présent sur le serveur)
@@ -1018,9 +1018,7 @@ Route::prefix('admin')
             ->name('clients.clear-auto-ncc.apply');
         // Exports liste clients (5.2) — placés AVANT /clients/{client} pour
         // ne pas être avalés par le route model binding.
-        // 2026-11-02 : pages Clients = module « clients » (config/acces.php),
-        // plus le MP. Il garde quick-store, verifier-nom, contacts.index et
-        // contacts.rapide, appelés par ses formulaires.
+        // 2026-11-02 : pages Clients = module « clients » (config/acces.php).
         Route::middleware(\App\Support\Acces::middleware('clients'))->group(function () {
             Route::get('clients/export/csv', [ClientController::class, 'exportCsv'])
                 ->name('clients.export.csv');
@@ -1089,15 +1087,13 @@ Route::prefix('admin')
             ->whereIn('type', ['campagne', 'devis', 'proposition'])->whereNumber('id')
             ->middleware('throttle:60,1')->name('apercu-envoi');
 
-        // Ajout rapide d'un interlocuteur depuis un dossier (2026-10-29) :
-        // admin + commercial + MP — le MP le garde dans ses formulaires.
-        Route::post('clients/{client}/contacts/rapide', [\App\Http\Controllers\Admin\ClientContactController::class, 'storeRapide'])
-            ->middleware('role:admin,commercial,mediaplanner')->name('clients.contacts.rapide');
-
-        // Multi-interlocuteurs (T4), depuis la fiche client — admin +
-        // commercial (2026-11-02 : plus le MP, qui n'a plus la fiche).
-        Route::middleware('role:admin,commercial')->group(function () {
+        // Multi-interlocuteurs (T4) — édition = admin + commercial + MP
+        // (cohérent avec édition client : qui peut éditer la fiche peut
+        // éditer les interlocuteurs).
+        Route::middleware('role:admin,commercial,mediaplanner')->group(function () {
             Route::post  ('clients/{client}/contacts',                [\App\Http\Controllers\Admin\ClientContactController::class, 'store'])     ->name('clients.contacts.store');
+            // Ajout rapide depuis un dossier (2026-10-29)
+            Route::post  ('clients/{client}/contacts/rapide',         [\App\Http\Controllers\Admin\ClientContactController::class, 'storeRapide'])->name('clients.contacts.rapide');
             Route::put   ('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'update'])    ->name('clients.contacts.update');
             Route::delete('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'destroy'])   ->name('clients.contacts.destroy');
             Route::patch ('clients/{client}/contacts/{contact}/primary', [\App\Http\Controllers\Admin\ClientContactController::class, 'setPrimary'])->name('clients.contacts.primary');
