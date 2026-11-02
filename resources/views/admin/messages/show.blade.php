@@ -1,9 +1,15 @@
 <x-admin-layout>
 <x-slot name="title">Message #{{ $message->id }} — {{ $message->from_name }}</x-slot>
 
-<div style="margin-bottom:14px;">
-    <a href="{{ route('admin.messages.index') }}" class="btn btn-ghost btn-sm">← Tous les messages</a>
-</div>
+    <x-slot:topbarLeft>
+        {{-- Un seul retour (2026-11-02) : provenance, sinon page précédente,
+             sinon « Tous les messages ». Avant, un second « Retour » écrit en dur
+             s'ajoutait à celui-ci. --}}
+        @include('admin.partials._smart_back', ['defaut' => [
+            'url'   => route('admin.messages.index'),
+            'label' => 'Tous les messages',
+        ]])
+    </x-slot:topbarLeft>
 
 @if(session('success'))
     <div class="flash flash-success" style="margin-bottom:16px;">✓ {{ session('success') }}</div>

@@ -2,13 +2,12 @@
 <x-slot name="title">Équipe — {{ $team->name }}</x-slot>
 
 <x-slot:topbarLeft>
-    @include('admin.performance.partials._smart_back')
-    @if(!request()->query('back'))
-        <a href="{{ route('admin.performance.team.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            Classement équipes
-        </a>
-    @endif
+    {{-- Un seul retour (2026-11-02) : « Classement équipes » s'ajoutait au
+         « Retour » déduit de la page précédente. Il devient le repli. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.performance.team.index'),
+        'label' => 'Classement équipes',
+    ]])
 </x-slot:topbarLeft>
 
 <x-slot name="topbarActions">
