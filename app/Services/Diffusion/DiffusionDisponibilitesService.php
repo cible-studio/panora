@@ -503,18 +503,49 @@ class DiffusionDisponibilitesService
 
             $this->verifierQuota($nbDestinataires);
 
-            $campagneId = $this->brevo->creerCampagne($this->contenuCampagne($envoi, $listeId));
-            $this->brevo->envoyerCampagne($campagneId);
+            $contenu = $this->contenuCampagne($envoi, $listeId);
+            try {
+                $campagneId = $this->brevo->creerCampagne($contenu);
+            } catch (\Throwable $e) {
+                if (!BrevoClient::sansReponse($e)) {
+                    throw $e;
+                }
+                // 2026-11-03 : Brevo a créé la campagne (deux fois) sans
+                // répondre à temps. Rien n'est parti, mais un brouillon traîne.
+                throw new BrevoException(
+                    "Brevo n'a pas répondu à temps à la création de la campagne : rien n'est parti. "
+                    . "Brevo a pu créer quand même le brouillon « {$contenu['name']} » : le supprimer dans Brevo, puis relancer."
+                );
+            }
             $lienApercu = BrevoClient::lienRapportCampagne($campagneId);
 
+            // Ordre d'envoi sans réponse (2026-11-03) : la campagne a pu
+            // partir. Surtout pas d'« Échec », qui inviterait à relancer et
+            // ferait recevoir le catalogue deux fois : l'envoi est « à
+            // vérifier », et dispos:verifier-envois lit chez Brevo ce qu'il
+            // en est.
+            $statut = DiffusionEnvoi::STATUT_ENVOYE;
+            $doute  = null;
+            try {
+                $this->brevo->envoyerCampagne($campagneId);
+            } catch (\Throwable $e) {
+                if (!BrevoClient::sansReponse($e)) {
+                    throw $e;
+                }
+                $statut = DiffusionEnvoi::STATUT_A_VERIFIER;
+                $doute  = "Brevo n'a pas répondu à l'ordre d'envoi : la campagne est peut-être partie. "
+                    . 'Ne pas relancer : Panora vérifie chez Brevo toutes les 15 minutes.';
+            }
+
             $envoi->update([
-                'statut'            => DiffusionEnvoi::STATUT_ENVOYE,
+                'statut'            => $statut,
                 'nb_destinataires'  => $nbDestinataires,
                 'brevo_campaign_id' => $campagneId,
                 'envoye_at'         => now(),
+                'erreur'            => $doute,
             ]);
 
-            Log::info('diffusion.envoyee', [
+            Log::log($doute ? 'warning' : 'info', $doute ? 'diffusion.a-verifier' : 'diffusion.envoyee', [
                 'envoi_id' => $envoi->id,
                 'mode'     => $envoi->mode,
                 'creneau'  => $envoi->creneau->toDateString(),
@@ -610,14 +641,22 @@ class DiffusionDisponibilitesService
         ]);
     }
 
-    /** Une demande manuelle attend-elle déjà d'être traitée ? */
+    /**
+     * Une demande manuelle attend-elle déjà d'être traitée ? Un envoi « à
+     * vérifier » bloque aussi (2026-11-03), quel qu'en soit le type, tant
+     * que dispos:verifier-envois le relit (24 h) : il est peut-être parti.
+     */
     public function demandeEnAttente(): ?DiffusionEnvoi
     {
         return DiffusionEnvoi::whereIn('statut', [DiffusionEnvoi::STATUT_DEMANDE, DiffusionEnvoi::STATUT_EN_COURS])
             ->whereIn('mode', [DiffusionEnvoi::MODE_MANUEL, DiffusionEnvoi::MODE_TEST])
             ->where('created_at', '>', now()->subHour())
             ->latest('id')
-            ->first();
+            ->first()
+            ?? DiffusionEnvoi::where('statut', DiffusionEnvoi::STATUT_A_VERIFIER)
+                ->where('envoye_at', '>', now()->subDay())
+                ->latest('id')
+                ->first();
     }
 
     /**
@@ -735,11 +774,14 @@ class DiffusionDisponibilitesService
      * Une campagne terminée chez Brevo n'est plus relue. Si Brevo ne
      * répond pas, l'envoi sera relu au passage suivant.
      *
+     * Les envois « à vérifier » (2026-11-03, ordre d'envoi resté sans
+     * réponse) sont tranchés ici, cf. trancherEnvoiAVerifier().
+     *
      * @return int  nombre d'envois trouvés suspendus
      */
     public function verifierEnvoisRecents(int $heures = 24): int
     {
-        $envois = DiffusionEnvoi::where('statut', DiffusionEnvoi::STATUT_ENVOYE)
+        $envois = DiffusionEnvoi::whereIn('statut', [DiffusionEnvoi::STATUT_ENVOYE, DiffusionEnvoi::STATUT_A_VERIFIER])
             ->whereNotNull('brevo_campaign_id')
             ->where('envoye_at', '>=', now()->subHours($heures))
             ->orderBy('id')
@@ -757,6 +799,11 @@ class DiffusionDisponibilitesService
                 $campagne = $this->brevo->campagne((int) $envoi->brevo_campaign_id);
             } catch (\Throwable $e) {
                 Log::warning('diffusion.verification', ['envoi_id' => $envoi->id, 'erreur' => $e->getMessage()]);
+                continue;
+            }
+
+            if ($envoi->statut === DiffusionEnvoi::STATUT_A_VERIFIER && $campagne['statut'] !== 'suspended') {
+                $this->trancherEnvoiAVerifier($envoi, $campagne['statut']);
                 continue;
             }
 
@@ -780,6 +827,42 @@ class DiffusionDisponibilitesService
         }
 
         return $suspendus;
+    }
+
+    /**
+     * Ordre d'envoi resté sans réponse (2026-11-03) : l'état de la campagne
+     * chez Brevo dit s'il est parti. L'équipe reçoit le mail du résultat.
+     *   • en file, en cours, envoyée → « Envoyé » ;
+     *   • encore brouillon 15 min après → « Échec », rien n'est parti ;
+     *   • annulée dans Brevo → « Échec », à voir dans Brevo ;
+     *   • autre chose → relue au passage suivant.
+     * Une suspension suit le chemin commun de verifierEnvoisRecents().
+     */
+    private function trancherEnvoiAVerifier(DiffusionEnvoi $envoi, ?string $statutBrevo): void
+    {
+        $campagneId = (int) $envoi->brevo_campaign_id;
+
+        $conclusion = match (true) {
+            in_array($statutBrevo, ['queued', 'in_process', 'in_review', 'sent', 'archive'], true)
+                => [DiffusionEnvoi::STATUT_ENVOYE, null],
+            $statutBrevo === 'draft' && $envoi->envoye_at?->lte(now()->subMinutes(15))
+                => [DiffusionEnvoi::STATUT_ECHEC, "Brevo n'a pas lancé l'envoi : rien n'est parti. "
+                    . "Supprimer le brouillon n° {$campagneId} dans Brevo, puis relancer depuis Panora."],
+            in_array($statutBrevo, ['cancelling', 'cancelled'], true)
+                => [DiffusionEnvoi::STATUT_ECHEC, "La campagne n° {$campagneId} a été annulée dans Brevo. "
+                    . 'Vérifier dans Brevo combien de mails sont partis avant de relancer.'],
+            default => null,
+        };
+
+        if ($conclusion === null) {
+            return;
+        }
+
+        [$statut, $erreur] = $conclusion;
+        $envoi->update(['statut' => $statut, 'erreur' => $erreur]);
+        Log::info('diffusion.a-verifier.tranche', ['envoi_id' => $envoi->id, 'brevo' => $statutBrevo, 'statut' => $statut]);
+
+        $this->notifierEquipe($envoi->fresh(), BrevoClient::lienRapportCampagne($campagneId));
     }
 
     /**

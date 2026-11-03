@@ -139,6 +139,19 @@ class DiffusionJournalTest extends TestCase
             ->assertSee('marketing-reports/email/8/overview', false);
     }
 
+    public function test_un_envoi_a_verifier_s_affiche_avec_le_lien_brevo_hors_des_echecs(): void
+    {
+        // 2026-11-03 : ordre d'envoi resté sans réponse de Brevo.
+        $this->envoi('manuel', 'a_verifier', '2026-10-28 09:00:00', "Brevo n'a pas répondu à l'ordre d'envoi : la campagne est peut-être partie.");
+        DB::table('diffusion_envois')->update(['brevo_campaign_id' => 22]);
+        $admin = User::findOrFail(1);
+
+        $this->assertSame(0, DiffusionEnvoi::filtre('echecs')->count());
+        $this->withoutVite()->actingAs($admin)->get('/admin/diffusion-dispos')->assertOk()
+            ->assertSee('À vérifier dans Brevo')
+            ->assertSee('marketing-reports/email/22/overview', false);
+    }
+
     public function test_adresses_exclues_les_50_plus_recentes_et_recherche(): void
     {
         $lignes = [];

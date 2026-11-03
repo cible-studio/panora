@@ -39,6 +39,8 @@ par Brevo et se suit dans Brevo.
 - **Destinataire, réponse et copie** : mêmes règles que le mail J-7. Le mail va à
   l'interlocuteur principal du client. Les réponses vont au commercial de la campagne.
   commercial@ reçoit une copie.
+- **Brevo ne répond pas** (règle du 2026-11-03) : le mail a pu partir, il compte comme
+  envoyé et n'est jamais renvoyé. Seul un refus net de Brevo est retenté le lendemain.
 - Il n'y a **pas** de règle « autre campagne du client » ici : le mail porte sur les
   emplacements d'une seule campagne. Si le client a une autre campagne planifiée, la liste
   l'indique, pour vérification.

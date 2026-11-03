@@ -23,6 +23,11 @@ return [
 
     'timeout' => (int) env('BREVO_TIMEOUT', 30),
 
+    // Délai (secondes) des appels qui ENVOIENT : créer et lancer une
+    // campagne, envoyer un mail (2026-11-03 : Brevo a mis plus de 30 s à
+    // créer une campagne). Les lectures gardent BREVO_TIMEOUT.
+    'timeout_envoi' => (int) env('BREVO_TIMEOUT_ENVOI', 120),
+
     // Expéditeur — doit être validé dans Brevo (Expéditeurs) et appartenir
     // à un domaine authentifié, sinon les envois partent en spam.
     // Guillemets retirés : Coolify les garde tels quels si on écrit la

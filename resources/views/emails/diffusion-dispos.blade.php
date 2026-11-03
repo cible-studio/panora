@@ -15,45 +15,53 @@
     // Suspendu (2026-11-02) : Brevo a accepté l'envoi puis l'a arrêté ;
     // une partie des destinataires a pu le recevoir.
     $suspendu = $suspendu ?? false;
+    // À vérifier (2026-11-03) : Brevo n'a pas répondu à l'ordre d'envoi ;
+    // la campagne est peut-être partie. Panora relit Brevo toutes les 15 min.
+    $aVerifier = $aVerifier ?? false;
 
     $title = match (true) {
-        $succes   => 'Disponibilités envoyées aux clients',
-        $suspendu => "Brevo a suspendu l'envoi des disponibilités",
-        default   => "L'envoi des disponibilités a échoué",
+        $succes    => 'Disponibilités envoyées aux clients',
+        $suspendu  => "Brevo a suspendu l'envoi des disponibilités",
+        $aVerifier => "Envoi des disponibilités non confirmé par Brevo",
+        default    => "L'envoi des disponibilités a échoué",
     };
     $preheader = match (true) {
         $succes && $test => "Test réussi — les disponibilités {$periode} sont arrivées dans la liste Tests internes.",
         $succes          => "{$envoi->nb_destinataires} client(s) ont reçu les disponibilités {$periode}.",
         $suspendu        => "Brevo a arrêté l'envoi des disponibilités {$periode} après son départ. Voir la cause.",
+        $aVerifier       => "Brevo n'a pas confirmé l'envoi des disponibilités {$periode}. Ne pas relancer : Panora vérifie.",
         default          => "Les disponibilités {$periode} ne sont pas parties. Aucun client ne les a reçues.",
     };
 
-    // Couleur du statut : vert = parti, jaune = test parti, rouge = échec ou suspendu.
-    $couleur  = ! $succes ? '#E20613' : ($test ? '#FAB80B' : '#3AA835');
+    // Couleur du statut : vert = parti, jaune = test parti ou à vérifier,
+    // rouge = échec ou suspendu.
+    $couleur  = $aVerifier ? '#FAB80B' : (! $succes ? '#E20613' : ($test ? '#FAB80B' : '#3AA835'));
     $surtitre = match (true) {
-        $succes   => $test ? 'Envoi de test réussi' : 'Envoi réussi',
-        $suspendu => 'Envoi suspendu par Brevo',
-        default   => "Échec de l'envoi",
+        $succes    => $test ? 'Envoi de test réussi' : 'Envoi réussi',
+        $suspendu  => 'Envoi suspendu par Brevo',
+        $aVerifier => 'Envoi non confirmé',
+        default    => "Échec de l'envoi",
     };
     $titre = match (true) {
-        $succes   => $test ? 'Le test est bien parti' : 'Les clients ont reçu les disponibilités',
-        $suspendu => "Brevo a arrêté l'envoi en cours de route",
-        default   => 'Les disponibilités ne sont pas parties',
+        $succes    => $test ? 'Le test est bien parti' : 'Les clients ont reçu les disponibilités',
+        $suspendu  => "Brevo a arrêté l'envoi en cours de route",
+        $aVerifier => "Brevo n'a pas confirmé le départ",
+        default    => 'Les disponibilités ne sont pas parties',
     };
 
     $type = ucfirst($envoi->libelleMode()) . ($envoi->auteur ? ' — ' . $envoi->auteur->name : '');
 
     $chiffres = [
         match (true) {
-            $succes   => ['valeur' => $envoi->nb_destinataires ?? 0, 'libelle' => $test ? 'Destinataires de test' : 'Clients destinataires'],
-            $suspendu => ['valeur' => $envoi->nb_destinataires ?? 0, 'libelle' => 'Destinataires prévus'],
-            default   => ['valeur' => '—', 'libelle' => 'Aucun client contacté'],
+            $succes                => ['valeur' => $envoi->nb_destinataires ?? 0, 'libelle' => $test ? 'Destinataires de test' : 'Clients destinataires'],
+            $suspendu || $aVerifier => ['valeur' => $envoi->nb_destinataires ?? 0, 'libelle' => 'Destinataires prévus'],
+            default                => ['valeur' => '—', 'libelle' => 'Aucun client contacté'],
         },
         ['valeur' => $envoi->nb_panneaux ?? 0, 'libelle' => 'Panneaux présentés'],
         match (true) {
-            $succes   => ['valeur' => $envoi->envoye_at?->format('H\hi') ?? '—', 'libelle' => 'Envoyé le ' . ($envoi->envoye_at?->format('d/m') ?? '')],
-            $suspendu => ['valeur' => $envoi->envoye_at?->format('H\hi') ?? '—', 'libelle' => 'Lancé le ' . ($envoi->envoye_at?->format('d/m') ?? '')],
-            default   => ['valeur' => '—', 'libelle' => 'Non envoyé'],
+            $succes                => ['valeur' => $envoi->envoye_at?->format('H\hi') ?? '—', 'libelle' => 'Envoyé le ' . ($envoi->envoye_at?->format('d/m') ?? '')],
+            $suspendu || $aVerifier => ['valeur' => $envoi->envoye_at?->format('H\hi') ?? '—', 'libelle' => 'Lancé le ' . ($envoi->envoye_at?->format('d/m') ?? '')],
+            default                => ['valeur' => '—', 'libelle' => 'Non envoyé'],
         },
     ];
 
@@ -149,25 +157,33 @@
 
     {{-- Cause et marche à suivre (échec) --}}
     @unless($succes)
-        <div style="{{ $petit }}color:#E20613;margin-top:26px;">Cause</div>
+        <div style="{{ $petit }}color:{{ $couleur }};margin-top:26px;">{{ $aVerifier ? 'Ce qui se passe' : 'Cause' }}</div>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:8px;"><tr>
-            <td style="border-left:4px solid #E20613;padding:4px 0 4px 14px;{{ $texte }}font-size:14px;line-height:21px;color:#111111;">
+            <td style="border-left:4px solid {{ $couleur }};padding:4px 0 4px 14px;{{ $texte }}font-size:14px;line-height:21px;color:#111111;">
                 {{ $envoi->erreur ?: 'Inconnue — voir le journal du serveur.' }}
             </td>
         </tr></table>
         <div style="{{ $petit }}color:#111111;margin-top:22px;">Que faire</div>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px;">
-            @foreach($suspendu ? [
-                "Corriger la cause ci-dessus : quota épuisé, attendre son renouvellement ou changer d'offre Brevo ; adresses invalides, les exclure dans Panora.",
-                "Vérifier dans Brevo combien de mails sont partis : relancer depuis Panora renvoie le mail à tous les destinataires.",
-                "Ouvrir l'écran de diffusion dans Panora pour décider de la suite.",
-            ] : [
-                "Corriger la cause ci-dessus, ou la transmettre à l'administrateur.",
-                "Ouvrir l'écran de diffusion dans Panora.",
-                'Cliquer sur « Envoyer maintenant ».',
-            ] as $n => $etape)
+            @foreach(match (true) {
+                $suspendu => [
+                    "Corriger la cause ci-dessus : quota épuisé, attendre son renouvellement ou changer d'offre Brevo ; adresses invalides, les exclure dans Panora.",
+                    "Vérifier dans Brevo combien de mails sont partis : relancer depuis Panora renvoie le mail à tous les destinataires.",
+                    "Ouvrir l'écran de diffusion dans Panora pour décider de la suite.",
+                ],
+                $aVerifier => [
+                    'Ne pas relancer : si la campagne est partie, les destinataires recevraient le catalogue deux fois.',
+                    "Attendre le mail suivant : Panora vérifie chez Brevo toutes les 15 minutes et écrit dès qu'il sait (envoyé, suspendu ou pas parti).",
+                    'Pour savoir tout de suite : ouvrir la campagne dans Brevo.',
+                ],
+                default => [
+                    "Corriger la cause ci-dessus, ou la transmettre à l'administrateur.",
+                    "Ouvrir l'écran de diffusion dans Panora.",
+                    'Cliquer sur « Envoyer maintenant ».',
+                ],
+            } as $n => $etape)
                 <tr>
-                    <td width="30" valign="top" style="width:30px;padding:5px 0;{{ $titres }}font-size:13px;line-height:20px;font-weight:800;color:#E20613;">0{{ $n + 1 }}</td>
+                    <td width="30" valign="top" style="width:30px;padding:5px 0;{{ $titres }}font-size:13px;line-height:20px;font-weight:800;color:{{ $couleur }};">0{{ $n + 1 }}</td>
                     <td valign="top" style="padding:5px 0;{{ $texte }}font-size:14px;line-height:20px;color:#111111;">{{ $etape }}</td>
                 </tr>
             @endforeach
@@ -189,7 +205,7 @@
                 </td>
             </tr>
         @endforeach
-        @if($succes || $suspendu)
+        @if($succes || $suspendu || $aVerifier)
             <tr><td style="{{ $lbl }}">{{ $succes ? 'Envoyé le' : 'Lancé le' }}</td><td style="{{ $val }}">{{ $envoi->envoye_at?->format('d/m/Y à H\hi') ?? '—' }}</td></tr>
         @endif
         @if($envoi->brevo_campaign_id)
@@ -203,7 +219,7 @@
             @if($succes && $lienApercu)
                 <a href="{{ $lienApercu }}" class="bouton" style="{{ $bouton }}background-color:#E20613;color:#FFFFFF;">Voir les statistiques Brevo</a>
             @endif
-            @if($suspendu && $lienApercu)
+            @if(($suspendu || $aVerifier) && $lienApercu)
                 <a href="{{ $lienApercu }}" class="bouton" style="{{ $bouton }}background-color:#111111;color:#FFFFFF;">Voir la campagne dans Brevo</a>
             @endif
             @unless($succes)

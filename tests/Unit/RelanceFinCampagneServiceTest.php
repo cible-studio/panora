@@ -32,6 +32,8 @@ class RelanceFinCampagneServiceTest extends TestCase
     private array $reponseBrevo = ['messageId' => '<abc@smtp-relay.brevo.com>'];
     /** Adresses que Brevo refuse (test d'un refus partiel). */
     private array $refusPour = [];
+    /** Adresses pour lesquelles Brevo ne répond pas (délai dépassé). */
+    private array $sansReponsePour = [];
 
     protected function setUp(): void
     {
@@ -76,9 +78,13 @@ class RelanceFinCampagneServiceTest extends TestCase
         ]);
 
         Mail::fake();
-        Http::fake(fn($r) => in_array($r->data()['to'][0]['email'] ?? null, $this->refusPour, true)
-            ? Http::response(['message' => 'email is blocked'], 400)
-            : Http::response($this->reponseBrevo, $this->statutBrevo));
+        Http::fake(fn($r) => match (true) {
+            in_array($r->data()['to'][0]['email'] ?? null, $this->sansReponsePour, true)
+                => (Http::failedConnection('cURL error 28: Operation timed out after 120001 milliseconds with 0 bytes received'))($r),
+            in_array($r->data()['to'][0]['email'] ?? null, $this->refusPour, true)
+                => Http::response(['message' => 'email is blocked'], 400),
+            default => Http::response($this->reponseBrevo, $this->statutBrevo),
+        });
 
         DB::table('users')->insert([
             ['id' => 1, 'name' => 'Créateur', 'email' => 'createur@cible-ci.com'],
@@ -382,5 +388,50 @@ class RelanceFinCampagneServiceTest extends TestCase
 
         $this->assertSame('echec', $ligne->statut);
         $this->assertStringContainsString('email is blocked', $ligne->motif);
+    }
+
+    // ── Brevo ne répond pas (règle validée le 2026-11-03) ───────────
+
+    public function test_brevo_ne_repond_pas_le_mail_compte_parti_et_n_est_jamais_renvoye(): void
+    {
+        (require base_path('database/migrations/2026_10_29_120000_create_journal_mails_table.php'))->up();
+        $this->sansReponsePour = ['awa@orange.ci'];
+        $campagne = $this->campagne();
+
+        $ligne = $this->service()->traiter($campagne);
+
+        $this->assertSame('envoye', $ligne->statut);
+        $this->assertSame(
+            "Brevo n'a pas répondu pour awa@orange.ci : le mail est peut-être parti, il ne sera pas renvoyé.",
+            $ligne->motif
+        );
+        $this->assertNull($ligne->brevo_message_id);
+
+        // Journal des mails : envoyé, avec la réserve.
+        $journal = \App\Models\JournalMail::sole();
+        $this->assertSame('envoye', $journal->statut);
+        $this->assertStringStartsWith("Brevo n'a pas répondu : le mail est peut-être parti", $journal->erreur);
+
+        // Le lendemain, Brevo répond de nouveau : le mail ne repart pas.
+        Carbon::setTestNow('2026-10-22 10:00:00');
+        $this->sansReponsePour = [];
+        $tentatives = Http::recorded()->count();
+        $this->assertSame([], $this->service()->campagnesDuJour()->pluck('id')->all());
+        $this->service()->traiter($campagne->fresh());
+        $this->assertSame($tentatives, Http::recorded()->count());
+    }
+
+    public function test_sans_reponse_pour_l_un_refus_pour_l_autre(): void
+    {
+        $this->ajouterInterlocuteurs();
+        $this->sansReponsePour = ['awa@orange.ci'];
+        $this->refusPour = ['jean@orange.ci'];
+
+        $ligne = $this->service()->traiter($this->campagne());
+
+        // Awa a peut-être reçu le mail : la ligne est close, Jean n'est pas retenté.
+        $this->assertSame('envoye', $ligne->statut);
+        $this->assertStringContainsString("Brevo n'a pas répondu pour awa@orange.ci", $ligne->motif);
+        $this->assertStringContainsString('Non parvenu à jean@orange.ci : ', $ligne->motif);
     }
 }

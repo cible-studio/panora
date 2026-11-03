@@ -148,9 +148,11 @@ class DiffusionDisponibilitesController extends Controller
 
         // Anti double envoi : une demande déjà en file d'attente suffit.
         if ($enAttente = $this->diffusion->demandeEnAttente()) {
-            return back()->with('error',
-                'Un envoi est déjà en cours de préparation (demandé le '
-                . $enAttente->created_at->format('d/m/Y à H\hi') . '). Attendez sa confirmation par mail.');
+            return back()->with('error', $enAttente->statut === \App\Models\DiffusionEnvoi::STATUT_A_VERIFIER
+                ? 'Brevo n\'a pas confirmé l\'envoi lancé le ' . $enAttente->envoye_at->format('d/m/Y à H\hi')
+                    . ' : il est peut-être parti. Panora vérifie toutes les 15 minutes ; attendez son résultat par mail avant de relancer.'
+                : 'Un envoi est déjà en cours de préparation (demandé le '
+                    . $enAttente->created_at->format('d/m/Y à H\hi') . '). Attendez sa confirmation par mail.');
         }
 
         // Le PDF de tout le parc prend plusieurs minutes : on enregistre la

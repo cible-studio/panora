@@ -91,6 +91,29 @@ class JournalMailsTest extends TestCase
         $this->assertStringStartsWith('Brevo · ', $ligne->type);
     }
 
+    public function test_un_mail_brevo_sans_reponse_est_note_envoye_sous_reserve(): void
+    {
+        // 2026-11-03 : Brevo n'a pas répondu ; le mail compte comme parti.
+        JournalMails::brevo('fin-campagne', 'Votre campagne se termine', 'awa@orange.ci', [], $this->campagne(),
+            reserve: "Brevo n'a pas répondu : le mail est peut-être parti, il ne sera pas renvoyé. (cURL error 28)");
+
+        $ligne = JournalMail::sole();
+        $this->assertSame('envoye', $ligne->statut);
+        $this->assertStringStartsWith("Brevo n'a pas répondu", $ligne->erreur);
+
+        // À l'écran : « Envoyé ⚠ », la réserve au survol.
+        $this->withoutMiddleware(\App\Http\Middleware\SyncReactiveState::class);
+        \Illuminate\Support\Facades\Schema::create('alerts', function (\Illuminate\Database\Schema\Blueprint $t) {
+            $t->id(); $t->boolean('is_read')->default(false); $t->timestamp('archived_at')->nullable(); $t->timestamps();
+        });
+        foreach (['admin.conflicts.count', 'admin.messages.new_count', 'admin.signalements.pending_count'] as $cle) {
+            \Illuminate\Support\Facades\Cache::put($cle, 0, 600);
+        }
+        $this->withoutVite()->actingAs(\App\Models\User::findOrFail(1))->get('/admin/journal-mails')->assertOk()
+            ->assertSee('Envoyé ⚠')
+            ->assertSee('le mail est peut-être parti, il ne sera pas renvoyé.');
+    }
+
     public function test_un_journal_en_panne_ne_bloque_pas_l_envoi(): void
     {
         \Illuminate\Support\Facades\Schema::drop('journal_mails');

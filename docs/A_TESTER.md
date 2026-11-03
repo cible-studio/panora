@@ -479,16 +479,38 @@ d'adresses invalides. Désormais, Panora :
 
 Sur le serveur de production (terminal Coolify), après la mise en ligne :
 
-- [ ] `php artisan dispos:verifier-envois --heures=48` → les deux tests du
+- [x] `php artisan dispos:verifier-envois --heures=48` → les deux tests du
       2/11 (« test #8 » et celui de 16h10) passent « Suspendu par Brevo »
       dans le journal, avec leur cause. Une alerte arrive à la personne qui
-      les a lancés.
+      les a lancés. *(constaté le 2026-11-03 : les deux lignes affichent la
+      bonne cause et le lien Brevo)*
 - [ ] `php artisan tinker --execute="echo app(App\Services\Brevo\BrevoClient::class)->envoisRestants();"`
       → doit donner le même nombre que « email restant » dans Brevo. Si
       c'est faux : me le signaler et, en attendant, poser
       `DIFFUSION_CONTROLE_QUOTA=false` dans Coolify.
 - [ ] Le 3/11, « Envoyer un test » : un quart d'heure plus tard, la ligne du
       journal est toujours « Envoyé » (Brevo l'a bien envoyée).
+      *(3/11 15h05 : « Échec — cURL error 28 », Brevo n'a pas répondu en
+      30 s à la création de la campagne, mais l'a créée deux fois :
+      brouillons #21 et #22, rien n'est parti. Corrigé, cf. 10 quinquies.
+      Refaire le test après la mise en ligne.)*
+
+### 10 quinquies. Brevo qui ne répond pas à temps *(livré le 2026-11-03)*
+
+Les appels qui envoient attendent désormais 120 s. Une création sans
+réponse donne un échec clair (« rien n'est parti », brouillon à
+supprimer). Un ordre d'envoi sans réponse donne « À vérifier dans
+Brevo » : les boutons sont bloqués et Panora tranche dans les 15 min.
+Relances J-7 et renouvellement : un mail sans réponse compte comme
+envoyé et n'est jamais renvoyé (règle du 3/11).
+
+- [ ] Dans Brevo : supprimer les brouillons **#21 et #22** (« test #10 »)
+- [ ] Après la mise en ligne : « Envoyer un test » → « Envoyé », 2
+      destinataires, mail ✅ ; les 2 adresses de test reçoivent le
+      catalogue (nom de l'interlocuteur, liens Abidjan et intérieur)
+- [ ] Si un jour une ligne « À vérifier dans Brevo » apparaît : ne pas
+      relancer ; dans les 15 min elle doit passer « Envoyé », « Suspendu »
+      ou « Échec », et un mail suit
 
 ---
 

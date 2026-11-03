@@ -67,9 +67,17 @@ class JournalMails
         }
     }
 
-    /** Mail envoyé (ou refusé) par l'API Brevo. */
-    public static function brevo(string $etape, ?string $sujet, string $destinataire, array $copie, ?Campaign $campagne, ?string $erreur = null): void
+    /**
+     * Mail envoyé (ou refusé) par l'API Brevo.
+     *
+     * @param ?string $reserve  envoyé sous réserve (2026-11-03) : Brevo n'a pas
+     *        répondu, le mail compte comme parti ; la réserve est gardée dans
+     *        la colonne « erreur » et s'affiche au survol du statut.
+     */
+    public static function brevo(string $etape, ?string $sujet, string $destinataire, array $copie, ?Campaign $campagne, ?string $erreur = null, ?string $reserve = null): void
     {
+        $erreur = $erreur ?: null;
+
         try {
             self::noter([
                 'statut'        => $erreur ? JournalMail::STATUT_ECHEC : JournalMail::STATUT_ENVOYE,
@@ -80,7 +88,7 @@ class JournalMails
                 'copie'         => $copie ? implode(', ', $copie) : null,
                 'dossier_type'  => $campagne ? 'campagne' : null,
                 'dossier_id'    => $campagne?->id,
-                'erreur'        => $erreur ? mb_substr($erreur, 0, 2000) : null,
+                'erreur'        => ($erreur ?? $reserve) ? mb_substr($erreur ?? $reserve, 0, 2000) : null,
             ]);
         } catch (Throwable $e) {
             Log::warning('journal_mails.echec_ecriture', ['erreur' => $e->getMessage()]);
