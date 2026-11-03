@@ -345,6 +345,7 @@ class RelanceFinCampagneService
         // le mail une seconde fois quand l'échec des autres est retenté.
         $ids = [];
         $rates = [];
+        $sansReponse = [];
         foreach ($destinataires as $email) {
             try {
                 // Chacun est salué par son nom ; la copie au commercial ne part
@@ -352,6 +353,24 @@ class RelanceFinCampagneService
                 $pour = empty($noms[$email]) ? $a : ['contact' => $noms[$email]] + $a;
                 $ids[] = $this->envoyerParBrevo($fabrique($email, $note, $ids === [] ? $copie : [], $pour, $jours), $email);
             } catch (\Throwable $e) {
+                // Règle validée le 2026-11-03 : un mail resté sans réponse de
+                // Brevo a pu partir. Il compte comme envoyé et n'est JAMAIS
+                // renvoyé. Seul un refus net de Brevo est retenté.
+                if (BrevoClient::sansReponse($e)) {
+                    $ids[] = null;
+                    $sansReponse[] = $email;
+
+                    Log::warning('fin_campagne.sans_reponse', [
+                        'campaign_id'  => $campagne->id,
+                        'etape'        => $etape,
+                        'mode'         => $mode,
+                        'destinataire' => $email,
+                        'erreur'       => $e->getMessage(),
+                    ]);
+
+                    continue;
+                }
+
                 $rates[$email] = $e->getMessage();
 
                 Log::error('fin_campagne.echec', [
@@ -370,12 +389,14 @@ class RelanceFinCampagneService
                 'motif'  => mb_substr((string) reset($rates), 0, 1000),
             ]);
         } else {
-            $servis = array_values(array_diff($destinataires, array_keys($rates)));
+            $servis = array_values(array_diff($destinataires, array_keys($rates), $sansReponse));
             $ligne->fill([
                 'statut'           => RelanceFinCampagne::STATUT_ENVOYE,
                 'canal'            => 'brevo',
                 'motif'            => mb_substr(trim(
-                    ($note ? 'Envoyé en test à ' . implode(', ', $servis) . '. ' : '')
+                    ($note && $servis ? 'Envoyé en test à ' . implode(', ', $servis) . '. ' : '')
+                    . ($sansReponse ? 'Brevo n\'a pas répondu pour ' . implode(', ', $sansReponse)
+                        . ' : le mail est peut-être parti, il ne sera pas renvoyé. ' : '')
                     . ($rates ? 'Non parvenu à ' . implode(', ', array_keys($rates)) . ' : ' . reset($rates) : '')
                 ), 0, 1000) ?: null,
                 'brevo_message_id' => mb_substr(implode(', ', array_filter($ids)), 0, 191) ?: null, // colonne VARCHAR(191)
@@ -464,7 +485,12 @@ class RelanceFinCampagneService
         try {
             $id = $this->brevo->envoyerEmail(self::payloadBrevo($mail, $to));
         } catch (\Throwable $e) {
-            \App\Services\JournalMails::brevo($mail->tagBrevo(), $mail->sujet(), $to, $mail->copie, $mail->campaign, $e->getMessage());
+            // Sans réponse (2026-11-03) : compté comme envoyé, jamais renvoyé ;
+            // le journal le dit envoyé, avec la réserve.
+            BrevoClient::sansReponse($e)
+                ? \App\Services\JournalMails::brevo($mail->tagBrevo(), $mail->sujet(), $to, $mail->copie, $mail->campaign,
+                    reserve: 'Brevo n\'a pas répondu : le mail est peut-être parti, il ne sera pas renvoyé. (' . $e->getMessage() . ')')
+                : \App\Services\JournalMails::brevo($mail->tagBrevo(), $mail->sujet(), $to, $mail->copie, $mail->campaign, $e->getMessage());
             throw $e;
         }
         \App\Services\JournalMails::brevo($mail->tagBrevo(), $mail->sujet(), $to, $mail->copie, $mail->campaign);

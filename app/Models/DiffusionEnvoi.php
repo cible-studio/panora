@@ -13,7 +13,9 @@ use Illuminate\Support\Carbon;
  * mode   : auto | manuel | test
  * statut : demande (envoi manuel en attente du planificateur) | prepare
  *          (PDF prêt, pas encore envoyé) | en_cours | envoye | echec |
- *          suspendu (accepté par Brevo puis suspendu, cf. dispos:verifier-envois)
+ *          suspendu (accepté par Brevo puis suspendu, cf. dispos:verifier-envois) |
+ *          a_verifier (Brevo n'a pas répondu à l'ordre d'envoi : dispos:verifier-envois
+ *          lit chez Brevo s'il est parti)
  */
 class DiffusionEnvoi extends Model
 {
@@ -29,13 +31,16 @@ class DiffusionEnvoi extends Model
     public const STATUT_ENVOYE   = 'envoye';
     public const STATUT_ECHEC    = 'echec';
     public const STATUT_SUSPENDU = 'suspendu';
+    public const STATUT_A_VERIFIER = 'a_verifier';
 
     /**
      * Envois partis chez Brevo, au moins en partie (2026-11-02) : une
      * campagne suspendue a pu atteindre une partie des destinataires. Ils
      * comptent pour l'alerte anti-double envoi, et leurs PDF restent servis.
+     * Un envoi « à vérifier » a pu partir aussi (2026-11-03) : même traitement
+     * tant que Brevo n'a pas dit le contraire.
      */
-    public const STATUTS_PARTIS = [self::STATUT_ENVOYE, self::STATUT_SUSPENDU];
+    public const STATUTS_PARTIS = [self::STATUT_ENVOYE, self::STATUT_SUSPENDU, self::STATUT_A_VERIFIER];
 
     /**
      * Zones du catalogue (2026-10-29) : le mail client porte un lien par

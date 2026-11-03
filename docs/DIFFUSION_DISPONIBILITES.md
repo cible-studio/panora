@@ -205,6 +205,7 @@ BREVO_LIST_TESTS=                     # étape 5 — identifiant de « Tests int
 BREVO_TEMPLATE_DISPOS=                # étape 7 — vide = gabarit Panora
 BREVO_UNSUBSCRIBE_PAGE_ID=            # étape 7 bis — vide = page Brevo par défaut
 BREVO_WEBHOOK_TOKEN=                  # longue chaîne aléatoire (48 caractères)
+BREVO_TIMEOUT_ENVOI=120               # secondes d'attente pour créer/lancer une campagne ou envoyer un mail (lectures : BREVO_TIMEOUT=30)
 
 DIFFUSION_MODE=test                   # test = tout part vers « Tests internes »
 DIFFUSION_AUTO=false                  # true = envois automatiques du 1er et du 15
@@ -279,6 +280,26 @@ Panora affichait « Envoyé » pour deux campagnes suspendues.
 
 Pour relire des envois plus anciens, une fois : `php artisan dispos:verifier-envois --heures=48`.
 
+**Brevo ne répond pas à temps** (2026-11-03). Ce jour-là, Brevo a mis plus
+de 30 s à créer la campagne d'un test, l'a créée quand même (deux
+brouillons), et Panora avait abandonné. Désormais :
+
+- Les appels qui **envoient** (créer, lancer une campagne, envoyer un mail)
+  attendent 120 s (`BREVO_TIMEOUT_ENVOI`) ; les lectures gardent 30 s.
+- **Création sans réponse** → « Échec », rien n'est parti. Le message
+  nomme le brouillon que Brevo a pu créer : le supprimer dans Brevo, puis
+  relancer.
+- **Ordre d'envoi sans réponse** → « À vérifier dans Brevo » (pas en
+  « Échecs ») : la campagne est peut-être partie. Les boutons d'envoi
+  sont bloqués 24 h et l'équipe reçoit « ⏳ … non confirmé par Brevo — ne
+  pas relancer ». `dispos:verifier-envois` tranche dans les 15 min :
+  Brevo dit en file / en cours / envoyée → « Envoyé » (mail ✅) ; suspendue
+  → « Suspendu par Brevo » ; encore brouillon 15 min après → « Échec, rien
+  n'est parti » ; annulée → « Échec, voir Brevo ». Si Brevo reste muet
+  24 h, la ligne reste « À vérifier » : regarder la campagne dans Brevo.
+- Un envoi « à vérifier » compte comme parti (anti-double envoi, PDF
+  servis), comme un envoi suspendu.
+
 ---
 
 ## 5. Lire le suivi dans Brevo
@@ -317,7 +338,7 @@ l'écran de diffusion. Un bandeau le rappelle tant qu'elles manquent.
 | `app/Services/DisponibilitesPdfBuilder.php` | PDF images — partagé avec l'export manuel |
 | `app/Services/Brevo/BrevoClient.php` | Seul point de contact avec l'API Brevo |
 | `app/Console/Commands/DiffuserDisponibilites.php` | `dispos:diffuser` : 9h préparation du PDF, 10h envoi, chaque minute les demandes manuelles |
-| `app/Console/Commands/VerifierEnvoisDiffusion.php` | `dispos:verifier-envois` : toutes les 15 min, repère les envois suspendus par Brevo |
+| `app/Console/Commands/VerifierEnvoisDiffusion.php` | `dispos:verifier-envois` : toutes les 15 min, repère les envois suspendus par Brevo et tranche les envois « à vérifier » |
 | `app/Http/Controllers/Admin/DiffusionDisponibilitesController.php` | Écran admin |
 | `app/Http/Controllers/Webhooks/BrevoWebhookController.php` | Désinscriptions, rebonds, spam |
 | `app/Http/Controllers/PublicDiffusionController.php` | Lien public du PDF |
@@ -351,6 +372,7 @@ L'écran *Diffusion dispos* n'en garde qu'un résumé.
 | Contenu | Format léger, comme le modèle Brevo léger : aucune image, aucun bouton, réponse par retour de mail. Il propose une reconduction, les emplacements libres ou une recommandation. Plus d'« offre de fidélité » |
 | Canal | **Brevo uniquement** (API transactionnelle), pour que chaque mail se suive dans Brevo. Pas d'envoi de secours par le serveur de mail de Panora, qui serait invisible dans Brevo (décision du 2026-10-22) |
 | Échec | Si le mail n'a pas pu partir (pas d'adresse, Brevo indisponible ou qui refuse le mail), il est **retenté chaque jour** jusqu'à la veille de la fin. Une exclusion, elle, est définitive |
+| Brevo ne répond pas | Règle validée le 2026-11-03 : le mail a pu partir, il compte comme **envoyé** et n'est **jamais renvoyé**, même si Brevo n'a pas confirmé. La ligne le dit (« Brevo n'a pas répondu pour … ») et le journal des mails affiche « Envoyé ⚠ ». Vaut aussi pour les mails de renouvellement. Seul un refus net de Brevo est retenté |
 
 **Désinscription** : le mail contient son propre lien, signé. Ce lien
 fonctionne aussi pour la désinscription en un clic de Gmail et Yahoo.

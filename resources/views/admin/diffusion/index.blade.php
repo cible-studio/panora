@@ -12,6 +12,7 @@
             'envoye'   => ['#dcfce7', '#166534', 'Envoyé'],
             'echec'    => ['#fee2e2', '#991b1b', 'Échec'],
             'suspendu' => ['#fee2e2', '#991b1b', 'Suspendu par Brevo'],
+            'a_verifier' => ['#ffedd5', '#9a3412', 'À vérifier dans Brevo'],
             'en_cours' => ['#fef3c7', '#92400e', 'En cours'],
             'prepare'  => ['#e0e7ff', '#3730a3', 'PDF en préparation'],
             'demande'  => ['#f3e8ff', '#6b21a8', 'Demandé — en file d\'attente'],
@@ -201,17 +202,20 @@
                                 <td style="padding:9px 6px;">
                                     <span style="padding:3px 9px;border-radius:999px;background:{{ $bg }};color:{{ $fg }};font-size:11px;font-weight:700;">{{ $lib }}</span>
                                     @if($e->erreur)
+                                        @php $couleurMessage = $e->statut === \App\Models\DiffusionEnvoi::STATUT_A_VERIFIER ? '#9a3412' : '#991b1b'; @endphp
                                         @if(mb_strlen($e->erreur) <= 70)
-                                            <div style="font-size:11px;color:#991b1b;margin-top:4px;max-width:340px;">{{ $e->erreur }}</div>
+                                            <div style="font-size:11px;color:{{ $couleurMessage }};margin-top:4px;max-width:340px;">{{ $e->erreur }}</div>
                                         @else
                                             {{-- Message long replié : la ligne reste compacte. --}}
-                                            <details style="font-size:11px;color:#991b1b;margin-top:4px;max-width:340px;">
+                                            <details style="font-size:11px;color:{{ $couleurMessage }};margin-top:4px;max-width:340px;">
                                                 <summary style="cursor:pointer;">{{ \Illuminate\Support\Str::limit($e->erreur, 60) }}</summary>
                                                 <div style="margin-top:4px;line-height:1.45;">{{ $e->erreur }}</div>
                                             </details>
                                         @endif
                                     @endif
-                                    @if($e->statut === \App\Models\DiffusionEnvoi::STATUT_SUSPENDU && $e->brevo_campaign_id)
+                                    {{-- Tout envoi parvenu chez Brevo mais pas « Envoyé » : suspendu,
+                                         à vérifier, ou brouillon jamais lancé (2026-11-03). --}}
+                                    @if($e->statut !== \App\Models\DiffusionEnvoi::STATUT_ENVOYE && $e->brevo_campaign_id)
                                         <a href="{{ \App\Services\Brevo\BrevoClient::lienRapportCampagne((int) $e->brevo_campaign_id) }}" target="_blank" rel="noopener"
                                            style="display:inline-block;font-size:11px;color:var(--accent);margin-top:4px;">Voir la campagne dans Brevo ↗</a>
                                     @endif

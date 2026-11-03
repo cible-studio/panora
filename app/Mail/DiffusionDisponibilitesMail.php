@@ -13,7 +13,8 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Confirmation interne après une diffusion des disponibilités — ou alerte
  * si elle a échoué (2026-09-29), ou si Brevo l'a suspendue après son
- * départ (2026-11-02).
+ * départ (2026-11-02), ou si Brevo n'a pas répondu à l'ordre d'envoi
+ * (2026-11-03, « à vérifier » : surtout ne pas relancer).
  *
  * Destinataires : commercial@ + tous les Media Planners actifs (cf.
  * DiffusionDisponibilitesService::destinatairesInternes). Ne passe PAS par
@@ -35,6 +36,7 @@ class DiffusionDisponibilitesMail extends Mailable
 
         $sujet = match (true) {
             $this->envoi->statut === DiffusionEnvoi::STATUT_SUSPENDU => "⚠️ Brevo a suspendu l'envoi des disponibilités — {$periode}",
+            $this->envoi->statut === DiffusionEnvoi::STATUT_A_VERIFIER => "⏳ Envoi des disponibilités non confirmé par Brevo — {$periode}",
             $this->envoi->statut !== DiffusionEnvoi::STATUT_ENVOYE => "⚠️ Échec de l'envoi des disponibilités — {$periode}",
             $test  => "✅ Test réussi — disponibilités {$periode}",
             default => "✅ Disponibilités envoyées aux clients — {$periode}",
@@ -57,6 +59,9 @@ class DiffusionDisponibilitesMail extends Mailable
                 // Accepté par Brevo puis suspendu (2026-11-02) : la cause
                 // probable est dans « erreur », cf. dispos:verifier-envois.
                 'suspendu'   => $this->envoi->statut === DiffusionEnvoi::STATUT_SUSPENDU,
+                // Ordre d'envoi sans réponse de Brevo (2026-11-03) : peut-être
+                // parti, Panora vérifie toutes les 15 minutes.
+                'aVerifier'  => $this->envoi->statut === DiffusionEnvoi::STATUT_A_VERIFIER,
                 'periode'    => DiffusionCalendrier::libellePeriode($this->envoi->periode_debut, $this->envoi->periode_fin),
                 'lienPdf'    => $this->envoi->lienPdf(),
                 // Les deux catalogues par zone envoyés aux clients

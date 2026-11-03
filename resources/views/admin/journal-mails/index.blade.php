@@ -81,6 +81,9 @@
                             <td style="padding:9px 12px;white-space:nowrap">
                                 @if($m->statut === \App\Models\JournalMail::STATUT_ECHEC)
                                     <span title="{{ $m->erreur }}" style="cursor:help;font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;background:rgba(239,68,68,.12);color:#ef4444">Échec</span>
+                                @elseif($m->erreur)
+                                    {{-- Envoyé sous réserve (2026-11-03) : Brevo n'a pas répondu ; compté parti, jamais renvoyé. --}}
+                                    <span title="{{ $m->erreur }}" style="cursor:help;font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;background:rgba(245,158,11,.14);color:#b45309">Envoyé ⚠</span>
                                 @else
                                     <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;background:rgba(34,197,94,.12);color:#16a34a">Envoyé</span>
                                 @endif

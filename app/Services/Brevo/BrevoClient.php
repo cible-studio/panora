@@ -2,6 +2,7 @@
 
 namespace App\Services\Brevo;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -19,6 +20,9 @@ use Illuminate\Support\Facades\Log;
  *     chez les clients. On préfère un échec franc, signalé à l'équipe.
  *   • Chaque erreur remonte le message exact de Brevo, pour que l'admin
  *     sache quoi corriger (attribut manquant, expéditeur non validé…).
+ *   • Délai plus long pour les appels qui envoient (2026-11-03) : ce
+ *     jour-là, Brevo a mis plus de 30 s à créer une campagne, l'a créée
+ *     quand même, et Panora avait abandonné. Les lectures gardent 30 s.
  */
 class BrevoClient
 {
@@ -126,7 +130,7 @@ class BrevoClient
      */
     public function creerCampagne(array $payload): int
     {
-        $r = $this->reponse($this->client()->post('/emailCampaigns', $payload), 'création de la campagne');
+        $r = $this->reponse($this->client(envoi: true)->post('/emailCampaigns', $payload), 'création de la campagne');
 
         $id = (int) $r->json('id');
         if ($id <= 0) {
@@ -143,7 +147,7 @@ class BrevoClient
     public function envoyerCampagne(int $campaignId): void
     {
         $this->reponse(
-            $this->client()->post("/emailCampaigns/{$campaignId}/sendNow"),
+            $this->client(envoi: true)->post("/emailCampaigns/{$campaignId}/sendNow"),
             "envoi de la campagne {$campaignId}"
         );
     }
@@ -202,9 +206,19 @@ class BrevoClient
      */
     public function envoyerEmail(array $payload): ?string
     {
-        $r = $this->reponse($this->client()->post('/smtp/email', $payload), 'envoi du mail');
+        $r = $this->reponse($this->client(envoi: true)->post('/smtp/email', $payload), 'envoi du mail');
 
         return $r->json('messageId') ?: null;
+    }
+
+    /**
+     * Brevo n'a rien répondu : délai dépassé ou connexion coupée
+     * (2026-11-03). Contrairement à un refus, la demande a pu être
+     * exécutée quand même : un envoi dans ce cas n'est JAMAIS rejoué.
+     */
+    public static function sansReponse(\Throwable $e): bool
+    {
+        return $e instanceof ConnectionException;
     }
 
     /**
@@ -222,7 +236,8 @@ class BrevoClient
 
     // ══════════════════════════════════════════════════════════════
 
-    private function client(): PendingRequest
+    /** @param bool $envoi  appel qui envoie : délai brevo.timeout_envoi */
+    private function client(bool $envoi = false): PendingRequest
     {
         if (!$this->estConfigure()) {
             throw new BrevoException(
@@ -236,7 +251,9 @@ class BrevoClient
                 'accept'  => 'application/json',
             ])
             ->asJson()
-            ->timeout((int) config('brevo.timeout', 30));
+            ->timeout($envoi
+                ? (int) config('brevo.timeout_envoi', 120)
+                : (int) config('brevo.timeout', 30));
     }
 
     /** Transforme une réponse en erreur lisible si Brevo refuse. */
