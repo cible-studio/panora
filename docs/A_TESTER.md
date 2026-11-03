@@ -488,12 +488,14 @@ Sur le serveur de production (terminal Coolify), après la mise en ligne :
       → doit donner le même nombre que « email restant » dans Brevo. Si
       c'est faux : me le signaler et, en attendant, poser
       `DIFFUSION_CONTROLE_QUOTA=false` dans Coolify.
-- [ ] Le 3/11, « Envoyer un test » : un quart d'heure plus tard, la ligne du
+- [x] Le 3/11, « Envoyer un test » : un quart d'heure plus tard, la ligne du
       journal est toujours « Envoyé » (Brevo l'a bien envoyée).
       *(3/11 15h05 : « Échec — cURL error 28 », Brevo n'a pas répondu en
       30 s à la création de la campagne, mais l'a créée deux fois :
       brouillons #21 et #22, rien n'est parti. Corrigé, cf. 10 quinquies.
-      Refaire le test après la mise en ligne.)*
+      Refait à 16h42 après la mise en ligne : « Envoyé », 2 destinataires,
+      260 panneaux (99 Abidjan · 161 intérieur), campagne Brevo #23
+      « test #11 » « Envoyée », non suspendue.)*
 
 ### 10 quinquies. Brevo qui ne répond pas à temps *(livré le 2026-11-03)*
 
@@ -505,9 +507,13 @@ Relances J-7 et renouvellement : un mail sans réponse compte comme
 envoyé et n'est jamais renvoyé (règle du 3/11).
 
 - [ ] Dans Brevo : supprimer les brouillons **#21 et #22** (« test #10 »)
-- [ ] Après la mise en ligne : « Envoyer un test » → « Envoyé », 2
-      destinataires, mail ✅ ; les 2 adresses de test reçoivent le
-      catalogue (nom de l'interlocuteur, liens Abidjan et intérieur)
+- [x] Après la mise en ligne : « Envoyer un test » → « Envoyé », 2
+      destinataires *(constaté le 3/11 16h42 : Panora « Envoyé », Brevo #23
+      « Envoyée » à 2 destinataires)*
+- [ ] Reste de ce test : mail ✅ reçu par l'équipe ; les 2 adresses de test
+      reçoivent le catalogue (nom de l'interlocuteur, liens Abidjan et
+      intérieur qui ouvrent les bons PDF). Ce point vaut aussi pour la case
+      « reçu par les 2 adresses » du § 10.
 - [ ] Si un jour une ligne « À vérifier dans Brevo » apparaît : ne pas
       relancer ; dans les 15 min elle doit passer « Envoyé », « Suspendu »
       ou « Échec », et un mail suit
