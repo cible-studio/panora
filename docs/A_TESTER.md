@@ -399,10 +399,9 @@ tableau de bord). Garde-fou : `tests/Unit/AccesParRoleTest`.
       Tout le reste inchangé (factures, finance, CA du tableau de bord).
 - [ ] **Commercial** et **admin** : rien ne change.
 
-Restent à trancher (laissés tels quels faute de réponse) : le comptable
-peut-il modifier les prix des panneaux (campagnes, inventaire) ? Doit-il
-voir Réservations, Inventaire, Régies, Carte ? Le MP doit-il perdre
-d'autres onglets (Messages clients, Clients, Renouvellements, Rapports) ?
+Tranché le 2026-11-02 (cf. 9 bis) : le comptable voit Réservations,
+Inventaire, Régies et Carte, sans pouvoir modifier les prix des panneaux ;
+le MP perd seulement « Messages », il garde Clients et Renouvellements.
 
 ---
 
