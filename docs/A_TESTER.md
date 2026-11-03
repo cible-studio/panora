@@ -311,8 +311,9 @@ php artisan dispos:diffuser --simuler=2026-11-10   # → rien ce jour-là
 fenêtre (20-25 octobre) était passée au moment de la livraison, et il n'y
 a pas de rattrapage automatique — règle validée le 2026-10-30.
 
-- [ ] Envoyer le catalogue de novembre **à la main**, depuis *Diffusion
-      dispos → Envoi manuel*. Fait le : ______
+- [x] ~~Envoyer le catalogue de novembre à la main~~ *(sans objet depuis le
+      2/11 : le bouton envoie désormais le catalogue du 15 au 30 novembre,
+      à faire dès que l'offre Brevo est payée, cf. § 10)*
 
 ---
 
@@ -423,8 +424,8 @@ sont réglées sur le même numéro, le test est refusé.
       a été épuisé par « test #8 ». Panora l'affiche pourtant « envoyé », car
       il ne voit pas cette suspension (corrigé, cf. 10 quater). Refaire le
       test le 3/11 pour vérifier la réception.)*
-- [ ] Avant le premier vrai envoi : nettoyer les adresses en rebond (15 %
-      sur les 300 premiers — Brevo exige < 2 %)
+- [x] Avant le premier vrai envoi : nettoyer les adresses en rebond (15 %
+      sur les 300 premiers — Brevo exige < 2 %) *(fait le 2/11, cf. 10 bis et 10 ter : 465 destinataires)*
 
 ### 10 bis. Nettoyage des adresses — commande livrée le 2026-11-02
 
