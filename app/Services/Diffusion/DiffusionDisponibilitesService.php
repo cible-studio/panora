@@ -1017,12 +1017,12 @@ class DiffusionDisponibilitesService
         }
 
         // Copie interne (2026-11-03) : reçoit le catalogue comme un client,
-        // sans compter parmi eux.
+        // sans compter parmi eux. Pas de SOCIETE : le mail dirait « pour
+        // CIBLE » ; la copie lit la phrase sans entreprise.
         $copies = array_values(array_diff($this->copiesCatalogue(), $destinataires->pluck('email')->all()));
         foreach ($copies as $email) {
             $this->brevo->enregistrerContact($email, [
                 'CONTACT' => User::where('email', $email)->value('name'),
-                'SOCIETE' => config('charte.nom'),
             ], [$listeId]);
         }
 

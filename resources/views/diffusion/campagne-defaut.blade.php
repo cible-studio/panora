@@ -10,6 +10,7 @@
     BREVO, pas à Blade : Brevo les remplace au moment de l'envoi, pour
     chaque destinataire.
         @{{ contact.CONTACT }}   nom du contact (attribut Brevo)
+        @{{ contact.SOCIETE }}   entreprise cliente (attribut Brevo)
         @{{ mirror }}            lien « Consulter la version en ligne »
         @{{ unsubscribe }}       lien de désinscription — OBLIGATOIRE
 
@@ -85,7 +86,8 @@
                                             Bonjour @{{ contact.CONTACT | default : "Madame, Monsieur" }},
                                         </p>
                                         <p style="margin:0 0 12px;">
-                                            Voici les emplacements publicitaires disponibles
+                                            {{-- L'entreprise cliente (2026-11-03) : l'interlocuteur sait pourquoi il reçoit le mail. --}}
+                                            Voici{% if contact.SOCIETE %}, pour <strong>@{{ contact.SOCIETE }}</strong>,{% endif %} les emplacements publicitaires disponibles
                                             <strong>{{ $valeurs['PERIODE'] }}</strong> sur notre réseau.
                                         </p>
                                         <p style="margin:0;">
