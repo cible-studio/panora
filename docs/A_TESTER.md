@@ -415,7 +415,7 @@ vise que « Tests internes » (#4) et n'y écrit jamais ; si les deux listes
 sont réglées sur le même numéro, le test est refusé.
 
 - [ ] Campagne « test #8 » laissée suspendue (ne pas la reprendre)
-- [ ] Après déploiement : « Envoyer un test » → reçu par les 2 adresses de
+- [x] Après déploiement : « Envoyer un test » → reçu par les 2 adresses de
       « Tests internes » seulement ; le mail de confirmation annonce 2
       destinataires
       *(2026-11-02 : la campagne Brevo #20 vise bien 2 destinataires, mais
@@ -508,14 +508,14 @@ Brevo » : les boutons sont bloqués et Panora tranche dans les 15 min.
 Relances J-7 et renouvellement : un mail sans réponse compte comme
 envoyé et n'est jamais renvoyé (règle du 3/11).
 
-- [ ] Dans Brevo : supprimer les brouillons **#21 et #22** (« test #10 »)
+- [x] Dans Brevo : supprimer les brouillons **#21 et #22** (« test #10 ») *(fait le 3/11)*
 - [x] Après la mise en ligne : « Envoyer un test » → « Envoyé », 2
       destinataires *(constaté le 3/11 16h42 : Panora « Envoyé », Brevo #23
       « Envoyée » à 2 destinataires)*
-- [ ] Reste de ce test : mail ✅ reçu par l'équipe ; les 2 adresses de test
+- [x] Reste de ce test : mail ✅ reçu par l'équipe ; les 2 adresses de test
       reçoivent le catalogue (nom de l'interlocuteur, liens Abidjan et
       intérieur qui ouvrent les bons PDF). Ce point vaut aussi pour la case
-      « reçu par les 2 adresses » du § 10.
+      « reçu par les 2 adresses » du § 10. *(confirmé le 3/11 : catalogue reçu au nom de l'interlocuteur, les deux PDF s'ouvrent)*
 - [ ] Si un jour une ligne « À vérifier dans Brevo » apparaît : ne pas
       relancer ; dans les 15 min elle doit passer « Envoyé », « Suspendu »
       ou « Échec », et un mail suit
