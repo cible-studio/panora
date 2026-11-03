@@ -520,6 +520,27 @@ envoyé et n'est jamais renvoyé (règle du 3/11).
       relancer ; dans les 15 min elle doit passer « Envoyé », « Suspendu »
       ou « Échec », et un mail suit
 
+### 10 sexies. Signature du catalogue et copie à Stéphane *(livré le 2026-11-03)*
+
+Le test #11 n'avait que 2 numéros (modèle Brevo n° 14 collé avant le
+30/10), pas de logo, et Stéphane ne le recevait pas. Désormais Panora
+envoie au modèle les numéros (`CHARTE_TELEPHONES`) et le logo ; Stéphane
+(`MAIL_COPIE_COMMERCIALE`) reçoit chaque vrai catalogue comme un client.
+
+Dans cet ordre, après la mise en ligne :
+
+- [ ] Brevo → Modèles → n° 14 → Modifier → coller **tout**
+      `docs/diffusion/modele-brevo-disponibilites-leger.html` → Enregistrer,
+      modèle **Actif**
+- [ ] Brevo → Contacts → liste « Tests internes » (#4) : ajouter
+      `stephane.oponou@cible-ci.com` (les tests ne l'ajoutent pas seuls)
+- [ ] Diffusion dispos : la ligne « Copie du catalogue » affiche son adresse
+- [ ] « Envoyer un test » → 3 destinataires ; le mail reçu porte le logo en
+      haut et dans la signature, et les **3** numéros, sans coupure au milieu
+      d'un numéro sur téléphone
+- [ ] Au premier vrai envoi : Brevo affiche un destinataire de plus que
+      Panora (la copie) — c'est normal
+
 ---
 
 ## 11. Renvoyer les accès — personnel et clients *(ajouté le 2026-11-02)*

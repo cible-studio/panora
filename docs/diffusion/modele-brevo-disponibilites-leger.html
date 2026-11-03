@@ -1,26 +1,31 @@
 <!DOCTYPE html>
 <!--
-  Modèle Brevo LÉGER — envoi des disponibilités (2026-10-13).
+  Modèle Brevo LÉGER — envoi des disponibilités (2026-10-13 ; logo et
+  numéros fournis par Panora depuis le 2026-11-03).
 
   Objectif : arriver dans la boîte de réception (onglet « Principale » de
   Gmail) plutôt que dans « Promotions ». Gmail classe en promotion les mails
   qui ressemblent à une newsletter : grandes images, gros boutons colorés,
   blocs de couleur, nombreux liens. Ce modèle ressemble à un mail écrit par
   un commercial :
-    · aucune image (pas de logo image, pas de photo) ;
+    · une seule image, le logo, en haut et dans la signature (demande du
+      2026-11-03 ; avant, aucune image). Pas de photo ;
     · deux liens utiles, en texte : le catalogue d'Abidjan et celui de
       l'intérieur du pays (2026-10-29) ;
     · texte court, mise en forme sobre, police système ;
     · invitation à RÉPONDRE au mail (les réponses améliorent le classement
       des envois suivants) ;
-    · marque discrète : signature + liseré aux 5 couleurs en CSS (pas une image).
+    · marque discrète : signature avec le logo (liseré aux 5 couleurs en
+      CSS si Panora n'envoie pas de logo).
   Le lien de désinscription reste obligatoire (pied de page).
 
   Valeurs remplies par Panora : params.PERIODE, params.MOIS,
   params.NB_PANNEAUX (total), params.NB_ABIDJAN, params.LIEN_ABIDJAN,
   params.NB_INTERIEUR, params.LIEN_INTERIEUR, params.LIEN_PDF (catalogue
-  complet, conservé pour compatibilité). Par Brevo : contact.CONTACT et
-  unsubscribe. (Écrites ici sans accolades pour que Brevo ne les interprète
+  complet, conservé pour compatibilité), params.TELEPHONES et params.LOGO
+  (charte : CHARTE_TELEPHONES et CHARTE_LOGO_CLAIR du .env ; changer un
+  numéro ne demande plus de recoller ce modèle). Par Brevo : contact.CONTACT
+  et unsubscribe. (Écrites ici sans accolades pour que Brevo ne les interprète
   pas dans ce commentaire.)
 
   Une zone sans aucun emplacement disponible ce mois-là n'est PAS envoyée
@@ -45,6 +50,13 @@
 <tr><td style="padding:24px 16px;">
 <!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:23px; color:#111111;">
+
+<!-- Logo (2026-11-03). Sans lien : moins de liens, moins « publicité ». -->
+{% if params.LOGO %}
+<tr><td style="padding:0 0 20px 0;">
+  <img src="{{ params.LOGO }}" width="120" alt="CIBLE" border="0" style="display:block; width:120px; height:auto; border:0; font-family:Arial, Helvetica, sans-serif; font-size:18px; font-weight:bold; color:#111111;">
+</td></tr>
+{% endif %}
 
 <tr><td style="padding:0 0 16px 0;">
   Bonjour {{ contact.CONTACT | default : "Madame, Monsieur" }},
@@ -80,8 +92,11 @@
   Bien cordialement,
 </td></tr>
 
-<!-- Signature : la marque, sans image. -->
+<!-- Signature : le logo (à défaut, le liseré aux 5 couleurs). -->
 <tr><td style="padding:0 0 26px 0;">
+  {% if params.LOGO %}
+  <img src="{{ params.LOGO }}" width="80" alt="CIBLE" border="0" style="display:block; width:80px; height:auto; border:0; margin:0 0 10px 0; font-family:Arial, Helvetica, sans-serif; font-size:14px; font-weight:bold; color:#111111;">
+  {% else %}
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px 0;"><tr>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#E20613; font-size:0; line-height:0;">&nbsp;</td>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#FAB80B; font-size:0; line-height:0;">&nbsp;</td>
@@ -89,10 +104,11 @@
     <td width="12" height="3" style="width:12px; height:3px; background-color:#3F7FC0; font-size:0; line-height:0;">&nbsp;</td>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#81358A; font-size:0; line-height:0;">&nbsp;</td>
   </tr></table>
+  {% endif %}
   <strong>Le service Commercial de CIBLE</strong><br>
   <span style="font-size:13px; line-height:20px; color:#555555;">
     Régie publicitaire · Côte d'Ivoire · depuis 1994<br>
-    <span style="white-space:nowrap;">+225 07 98 49 66 74</span> · <span style="white-space:nowrap;">+225 07 00 78 06 27</span> · <span style="white-space:nowrap;">+225 27 22 20 80 08</span><br>
+    {% if params.TELEPHONES %}{{ params.TELEPHONES }}<br>{% endif %}
     commercial@cible-ci.com · cible-ci.com
   </span>
 </td></tr>

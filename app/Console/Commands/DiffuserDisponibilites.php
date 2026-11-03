@@ -90,7 +90,8 @@ class DiffuserDisponibilites extends Command
             . ', période ' . DiffusionCalendrier::libellePeriode($debut, $fin));
         $this->line('  Destinataires: ' . ($diffusion->estModeTest()
             ? 'la liste Tests internes de Brevo'
-            : $diffusion->destinataires()->count() . ' client(s)'));
+            : $diffusion->destinataires()->count() . ' client(s)'
+                . ($diffusion->copiesCatalogue() ? ' + copie à ' . implode(', ', $diffusion->copiesCatalogue()) : '')));
 
         return self::SUCCESS;
     }

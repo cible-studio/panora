@@ -79,6 +79,10 @@
                 Destinataires : <strong>{{ $modeTest ? 'liste « Tests internes »' : $nbDestinataires . ' client(s)' }}</strong>
                 @if($modeTest)<span style="{{ $muted }}"> ({{ $nbDestinataires }} client(s) en production)</span>@endif
                 <br>
+                @if($copiesCatalogue)
+                    {{-- 2026-11-03 : reçoit chaque vrai catalogue, comme un client. --}}
+                    Copie du catalogue : <span style="{{ $muted }}">{{ implode(', ', $copiesCatalogue) }}@if($modeTest) (en production)@endif</span><br>
+                @endif
                 Confirmation envoyée à : <span style="{{ $muted }}">{{ $confirmation ? implode(', ', $confirmation) : '— aucune adresse —' }}</span>
             </div>
             @unless($autoActif)

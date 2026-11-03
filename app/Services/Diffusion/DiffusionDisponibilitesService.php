@@ -183,9 +183,7 @@ class DiffusionDisponibilitesService
      */
     public function destinataires(): Collection
     {
-        $exclues = DiffusionDesinscription::pluck('email')
-            ->map(fn($e) => mb_strtolower(trim($e)))
-            ->flip();
+        $exclues = $this->adressesExclues();
 
         // Chaque adresse au statut client, plus seulement une par entreprise ;
         // aucun prospect (2026-10-28, cf. Client::destinatairesDiffusion).
@@ -202,6 +200,34 @@ class DiffusionDisponibilitesService
             ->reject(fn($d) => $exclues->has($d['email']))
             ->unique('email')
             ->values();
+    }
+
+    /**
+     * Copie interne du catalogue (règle du 2026-11-03) : l'adresse de
+     * MAIL_COPIE_COMMERCIALE reçoit chaque vrai catalogue, comme un client,
+     * sans compter parmi eux. Brevo n'a pas de « copie » pour une campagne :
+     * chaque adresse de la liste reçoit son propre mail. Une adresse
+     * désinscrite n'est pas remise dans la liste. Les tests n'en ont pas :
+     * la liste « Tests internes » se gère à la main dans Brevo.
+     *
+     * @return string[]
+     */
+    public function copiesCatalogue(): array
+    {
+        $exclues = $this->adressesExclues();
+
+        return array_values(array_filter(
+            self::adresses(config('mails.copie_commerciale')),
+            fn($e) => !$exclues->has($e)
+        ));
+    }
+
+    /** Adresses désinscrites ou écartées, en minuscules, en clés. */
+    private function adressesExclues(): Collection
+    {
+        return DiffusionDesinscription::pluck('email')
+            ->map(fn($e) => mb_strtolower(trim($e)))
+            ->flip();
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -501,7 +527,8 @@ class DiffusionDisponibilitesService
                 );
             }
 
-            $this->verifierQuota($nbDestinataires);
+            // La copie interne part aussi : elle consomme le quota.
+            $this->verifierQuota($nbDestinataires + ($test ? 0 : count($this->copiesCatalogue())));
 
             $contenu = $this->contenuCampagne($envoi, $listeId);
             try {
@@ -989,9 +1016,19 @@ class DiffusionDisponibilitesService
             ], [$listeId]);
         }
 
+        // Copie interne (2026-11-03) : reçoit le catalogue comme un client,
+        // sans compter parmi eux.
+        $copies = array_values(array_diff($this->copiesCatalogue(), $destinataires->pluck('email')->all()));
+        foreach ($copies as $email) {
+            $this->brevo->enregistrerContact($email, [
+                'CONTACT' => User::where('email', $email)->value('name'),
+                'SOCIETE' => config('charte.nom'),
+            ], [$listeId]);
+        }
+
         // Retire de la liste ceux qui ne sont plus destinataires dans
         // Panora (client supprimé, adresse changée, exclu à la main).
-        $voulus = $destinataires->pluck('email')->flip();
+        $voulus = $destinataires->pluck('email')->merge($copies)->flip();
         $enTrop = array_values(array_filter(
             $this->brevo->emailsDeLaListe($listeId),
             fn($e) => !$voulus->has($e)
@@ -1028,6 +1065,18 @@ class DiffusionDisponibilitesService
                 $valeurs[$cleLien]   = $lien;
                 $valeurs[$cleNombre] = $envoi->nbPanneauxZone($zone);
             }
+        }
+
+        // Signature (2026-11-03) : numéros et logo viennent de la charte,
+        // donc du .env. Le modèle Brevo ne les écrit plus en dur : changer
+        // un numéro ne demande plus de le recoller.
+        if ($telephones = trim((string) config('charte.coordonnees.telephones'))) {
+            // Espaces insécables DANS chaque numéro : un téléphone ne le
+            // coupe jamais en fin de ligne, seuls les « · » séparent.
+            $valeurs['TELEPHONES'] = preg_replace('/(?<=[\d+])\s+(?=\d)/u', "\u{00A0}", $telephones);
+        }
+        if ($logo = config('charte.logos.clair')) {
+            $valeurs['LOGO'] = asset($logo);
         }
 
         $objet = str_replace('{periode}', $periode, (string) config('diffusion.objet'));

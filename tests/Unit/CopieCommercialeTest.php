@@ -161,9 +161,13 @@ class CopieCommercialeTest extends TestCase
 
     public function test_le_numero_commercial_est_dans_les_modeles_brevo(): void
     {
-        // Brevo ne lit pas la charte : ses modèles portent les numéros en dur.
+        // Le modèle en service reçoit les numéros de Panora depuis le
+        // 2026-11-03 (cf. DiffusionSignatureCatalogueTest).
+        $this->assertStringContainsString('{{ params.TELEPHONES }}',
+            file_get_contents(base_path('docs/diffusion/modele-brevo-disponibilites-leger.html')));
+
+        // Les autres modèles n'utilisent pas ces valeurs : numéros en dur.
         foreach ([
-            'docs/diffusion/modele-brevo-disponibilites-leger.html',
             'docs/diffusion/modele-brevo-disponibilites.html',
             'docs/brevo/modele-relance-campagne-terminee.html',
         ] as $modele) {
