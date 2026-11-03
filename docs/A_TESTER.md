@@ -484,10 +484,12 @@ Sur le serveur de production (terminal Coolify), après la mise en ligne :
       dans le journal, avec leur cause. Une alerte arrive à la personne qui
       les a lancés. *(constaté le 2026-11-03 : les deux lignes affichent la
       bonne cause et le lien Brevo)*
-- [ ] `php artisan tinker --execute="echo app(App\Services\Brevo\BrevoClient::class)->envoisRestants();"`
+- [x] `php artisan tinker --execute="echo app(App\Services\Brevo\BrevoClient::class)->envoisRestants();"`
       → doit donner le même nombre que « email restant » dans Brevo. Si
       c'est faux : me le signaler et, en attendant, poser
       `DIFFUSION_CONTROLE_QUOTA=false` dans Coolify.
+      *(3/11 après le test #11 : **298**, soit les 300 envois gratuits du
+      jour moins les 2 du test : le chiffre est cohérent)*
 - [x] Le 3/11, « Envoyer un test » : un quart d'heure plus tard, la ligne du
       journal est toujours « Envoyé » (Brevo l'a bien envoyée).
       *(3/11 15h05 : « Échec — cURL error 28 », Brevo n'a pas répondu en
