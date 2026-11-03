@@ -122,6 +122,23 @@ class DiffusionSignatureCatalogueTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/\d{2} \d{2} \d{2} \d{2} \d{2}/', $modele);
     }
 
+    public function test_le_mail_nomme_l_entreprise_du_destinataire(): void
+    {
+        // Validé le 2026-11-03 : « Voici, pour ORANGE CI, nos emplacements… ».
+        // Sans entreprise (copie, contact de test), la phrase reste entière.
+        $phrase = 'Voici{% if contact.SOCIETE %}, pour <strong>{{ contact.SOCIETE }}</strong>,{% endif %}';
+
+        $this->assertStringContainsString(
+            $phrase . ' nos emplacements disponibles',
+            file_get_contents(base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'))
+        );
+
+        // Le gabarit de secours (sans modèle Brevo) dit la même chose.
+        config(['brevo.template_id' => null]);
+        $html = $this->prive(app(DiffusionDisponibilitesService::class), 'contenuCampagne', $this->envoi(), self::CLIENTS)['htmlContent'];
+        $this->assertStringContainsString($phrase . ' les emplacements publicitaires disponibles', $html);
+    }
+
     // ── Copie à Stéphane ────────────────────────────────────────────
 
     public function test_stephane_recoit_le_catalogue_sans_compter_parmi_les_clients(): void
@@ -145,7 +162,10 @@ class DiffusionSignatureCatalogueTest extends TestCase
 
         $this->assertSame([self::STEPHANE], $s->copiesCatalogue());
         $this->assertSame(count($clients), $this->prive($s, 'synchroniserDestinataires', self::CLIENTS, false));
-        $this->assertSame([['CONTACT' => 'Stéphane Oponou', 'SOCIETE' => 'CIBLE'], [self::CLIENTS]], $inscrits[self::STEPHANE]);
+        // Pas d'entreprise pour la copie : elle lit la phrase sans « pour … ».
+        $this->assertSame([['CONTACT' => 'Stéphane Oponou'], [self::CLIENTS]], $inscrits[self::STEPHANE]);
+        // Un client, lui, porte son entreprise.
+        $this->assertSame('ORANGE CI', $inscrits[$clients[0]][0]['SOCIETE']);
         // Stéphane reste dans la liste ; seul l'ancien client en sort.
         $this->assertSame(['ancien@client.ci'], $retires->getArrayCopy());
     }
