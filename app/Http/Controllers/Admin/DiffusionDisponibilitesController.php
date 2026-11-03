@@ -76,6 +76,7 @@ class DiffusionDisponibilitesController extends Controller
                 'webhook'      => (bool) config('brevo.webhook_token'),
             ],
             'nbDestinataires'  => $this->diffusion->destinataires()->count(),
+            'copiesCatalogue'  => $this->diffusion->copiesCatalogue(),
             'confirmation'     => $this->diffusion->destinatairesInternes(
                 new DiffusionEnvoi(['mode' => DiffusionEnvoi::MODE_MANUEL])
             ),

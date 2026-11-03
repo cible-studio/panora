@@ -20,6 +20,7 @@ page par panneau, avec photo) : un pour Abidjan, un pour l'intérieur du pays.
 | **Prix** | Aucun |
 | **Expéditeur** | `commercial@cible-ci.com` |
 | **Destinataires** | Tous les clients d'office (contact principal, à défaut l'adresse de la fiche client). Désinscription possible à chaque mail |
+| **Copie** *(2026-11-03)* | L'adresse de `MAIL_COPIE_COMMERCIALE` (Stéphane) reçoit chaque vrai catalogue, comme un client : une campagne Brevo n'a pas de copie, chaque adresse de la liste reçoit son propre mail. Elle n'est pas comptée parmi les clients (Brevo affiche donc un destinataire de plus que Panora) mais compte dans le contrôle du quota. Désinscrite, elle n'est pas remise dans la liste. Les tests n'en ont pas : ajouter son adresse à la main dans la liste « Tests internes » de Brevo |
 | **Confirmation interne** | `commercial@cible-ci.com` + `studio@cible-ci.com` (admin) + tous les Media Planners actifs, après chaque envoi, et alerte en cas d'échec |
 | **Envoi manuel** | Admin seul. N'annule pas l'automatique. Rappelle le dernier envoi ; si le dernier date de moins de 24 h, il faut taper ENVOYER. Le bouton enregistre une demande, traitée par le planificateur dans la minute (le PDF est trop long à générer pendant une requête web) |
 
@@ -146,6 +147,8 @@ Placez dans le modèle :
 | `{{ params.LIEN_INTERIEUR }}` | Lien du catalogue **intérieur du pays** — 2e bouton |
 | `{{ params.NB_INTERIEUR }}` | Nombre d'emplacements à l'intérieur |
 | `{{ params.LIEN_PDF }}` | Lien du catalogue complet — conservé pour compatibilité, plus affiché |
+| `{{ params.TELEPHONES }}` | Numéros de la signature, depuis `CHARTE_TELEPHONES` *(2026-11-03)* |
+| `{{ params.LOGO }}` | Adresse du logo, depuis `CHARTE_LOGO_CLAIR` *(2026-11-03)* |
 | `{{ unsubscribe }}` | Lien de désinscription — **obligatoire** |
 | `{{ mirror }}` | Lien « Consulter la version en ligne » |
 
@@ -179,6 +182,16 @@ un test, sans quoi un bouton partirait vers une adresse vide :
 d'utiliser `params.LIEN_PDF`. Panora le fournit toujours (il pointe sur le
 catalogue complet, tout le parc) : l'envoi reste donc valide, mais il ne
 montre qu'un seul lien. Remplacez le modèle pour voir les deux.
+
+#### Numéros et logo fournis par Panora *(2026-11-03)*
+
+Le modèle en service (n° 14, `docs/diffusion/modele-brevo-disponibilites-leger.html`)
+n'écrit plus les numéros en dur : il affiche `params.TELEPHONES`, et le logo
+`params.LOGO` en haut et dans la signature. Raison : le modèle collé le 30/10
+datait d'avant l'ajout du 2e numéro commercial, et le test du 3/11 n'en
+montrait que deux. Désormais, un changement de numéro se fait dans le `.env`
+seul. Chaque valeur est testée dans le modèle : sans elle, la ligne disparaît
+(et le liseré aux 5 couleurs remplace le logo de la signature).
 
 Notez l'identifiant du modèle, et **activez-le** : Brevo ne copie dans
 une campagne que le contenu d'un modèle au statut « Actif ».
