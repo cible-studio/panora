@@ -166,7 +166,7 @@
     <div class="header-inner">
         <div>
             <div class="brand-logo">CIBLE <span class="accent">CI</span></div>
-            <div class="brand-sub">Régie &amp; Studio</div>
+            <div class="brand-sub">{{ config('charte.coordonnees.metier') }}</div>
         </div>
         <div class="header-meta">
             Réf. <span class="ref">{{ $reservation->reference }}</span>

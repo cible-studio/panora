@@ -1071,7 +1071,7 @@ class DiffusionDisponibilitesService
         // charte, donc du .env. Le modèle Brevo ne les écrit plus en dur :
         // les changer ne demande plus de le recoller.
         if ($activite = trim((string) config('charte.coordonnees.activite'))) {
-            $valeurs['ACTIVITE'] = $activite;   // « Régie & Studio · Côte d'Ivoire · depuis 1994 » (2026-11-04)
+            $valeurs['ACTIVITE'] = $activite;   // « Régie & Studio Créatif · Côte d'Ivoire · depuis 1994 » (2026-11-04)
         }
         if ($telephones = trim((string) config('charte.coordonnees.telephones'))) {
             // Espaces insécables DANS chaque numéro : un téléphone ne le

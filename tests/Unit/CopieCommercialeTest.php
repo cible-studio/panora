@@ -182,10 +182,10 @@ class CopieCommercialeTest extends TestCase
 
     public function test_regie_et_studio_partout_chez_les_clients(): void
     {
-        // 2026-11-04 : « Régie & Studio · Côte d'Ivoire · depuis 1994 »,
+        // 2026-11-04 : « Régie & Studio Créatif · Côte d'Ivoire · depuis 1994 »,
         // une seule source (la charte), dans les mails, le catalogue, les PDF
         // et les pages que reçoit ou ouvre le client.
-        $this->assertSame("Régie & Studio · Côte d'Ivoire · depuis 1994", config('charte.coordonnees.activite'));
+        $this->assertSame("Régie & Studio Créatif · Côte d'Ivoire · depuis 1994", config('charte.coordonnees.activite'));
 
         foreach ([
             'docs/diffusion/modele-brevo-disponibilites-leger.html',
@@ -207,6 +207,24 @@ class CopieCommercialeTest extends TestCase
             'resources/views/public/satisfaction-thanks.blade.php',
         ] as $fichier) {
             $this->assertDoesNotMatchRegularExpression('/régie publicitaire/iu', file_get_contents(base_path($fichier)), $fichier);
+        }
+
+        // « Créatif » (2026-11-04) : les en-têtes courts lisent le début de la
+        // même ligne, et plus aucun « Régie & Studio » seul n'est écrit en dur.
+        $this->assertSame('Régie & Studio Créatif', config('charte.coordonnees.metier'));
+        foreach ([
+            'resources/views/admin/propositions/show.blade.php',
+            'resources/views/admin/propositions/refused.blade.php',
+            'resources/views/admin/propositions/error.blade.php',
+            'resources/views/public/quote-show.blade.php',
+        ] as $fichier) {
+            $this->assertStringContainsString("config('charte.coordonnees.metier')", file_get_contents(base_path($fichier)), $fichier);
+        }
+        foreach ([
+            'docs/diffusion/modele-brevo-disponibilites.html',
+            'docs/brevo/modele-relance-campagne-terminee.html',
+        ] as $modele) {
+            $this->assertDoesNotMatchRegularExpression('/Régie (&amp;|&) Studio(?! Créatif)/u', file_get_contents(base_path($modele)), $modele);
         }
 
         // Versions texte : sans échappement, sinon « Régie &amp; Studio ».
