@@ -117,7 +117,7 @@ class DiffusionSignatureCatalogueTest extends TestCase
         $modele = file_get_contents(base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'));
 
         $this->assertStringContainsString('{{ params.TELEPHONES }}', $modele);
-        $this->assertSame(2, substr_count($modele, '<img src="{{ params.LOGO }}"'), 'Logo en haut et dans la signature.');
+        $this->assertSame(1, substr_count($modele, '<img src="{{ params.LOGO }}"'), 'Logo en haut seulement (retiré de la signature le 2026-11-04).');
         // Plus aucun numéro en dur : un changement de numéro ne passe que par le .env.
         $this->assertDoesNotMatchRegularExpression('/\d{2} \d{2} \d{2} \d{2} \d{2}/', $modele);
     }
@@ -197,6 +197,21 @@ class DiffusionSignatureCatalogueTest extends TestCase
         });
 
         $this->assertSame(2, $this->prive(app(DiffusionDisponibilitesService::class), 'synchroniserDestinataires', self::TESTS, true));
+    }
+
+    public function test_stephane_recoit_aussi_la_confirmation_d_un_vrai_envoi(): void
+    {
+        // 2026-11-04. Par la copie commerciale, pas par DIFFUSION_CONFIRMATION_EMAIL,
+        // qui sert aussi d'adresses de test aux mails clients.
+        $s = app(DiffusionDisponibilitesService::class);
+
+        $this->assertSame(['studio@cible-ci.com', self::STEPHANE, 'mp@cible-ci.com'], $s->destinatairesConfirmation());
+        $this->assertSame($s->destinatairesConfirmation(), $s->destinatairesInternes($this->envoi()));
+
+        // Un test : seulement son auteur.
+        $test = $this->envoi(DiffusionEnvoi::MODE_TEST);
+        $test->update(['declenche_par' => 2]);
+        $this->assertSame(['k.yao@cible-ci.com'], $s->destinatairesInternes($test->fresh()));
     }
 
     public function test_le_quota_compte_la_copie(): void

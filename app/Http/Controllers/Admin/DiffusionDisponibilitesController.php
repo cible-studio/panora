@@ -77,9 +77,8 @@ class DiffusionDisponibilitesController extends Controller
             ],
             'nbDestinataires'  => $this->diffusion->destinataires()->count(),
             'copiesCatalogue'  => $this->diffusion->copiesCatalogue(),
-            'confirmation'     => $this->diffusion->destinatairesInternes(
-                new DiffusionEnvoi(['mode' => DiffusionEnvoi::MODE_MANUEL])
-            ),
+            // Ceux d'un vrai envoi, même en mode test (un test : son auteur).
+            'confirmation'     => $this->diffusion->destinatairesConfirmation(),
             'envois'           => DiffusionEnvoi::with('auteur:id,name')->duMois($mois)->filtre($filtre)
                                     ->latest('id')->paginate(10)->withQueryString()->fragment('journal'),
             'journalEnvois'    => [

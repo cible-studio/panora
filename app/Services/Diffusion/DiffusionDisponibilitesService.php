@@ -35,8 +35,8 @@ use Illuminate\Support\Str;
  *     maintenance, options, occupés jusqu'à la fin de la période.
  *   • Pas de prix. Un seul PDF « images » par envoi, en lien dans le mail.
  *   • Tous les clients d'office, désinscription possible (gérée par Brevo).
- *   • Confirmation interne à commercial@ + tous les Media Planners
- *     après chaque envoi, et alerte en cas d'échec.
+ *   • Confirmation interne à commercial@ + la copie commerciale + tous
+ *     les Media Planners après chaque envoi, et alerte en cas d'échec.
  *
  * Garde-fou : en mode 'test' (défaut, cf. config/diffusion.php), TOUS
  * les envois partent vers la liste Brevo « Tests internes ».
@@ -1145,15 +1145,27 @@ class DiffusionDisponibilitesService
     /** @return string[] */
     public function destinatairesInternes(DiffusionEnvoi $envoi): array
     {
-        $confirmation = self::adresses(config('diffusion.confirmation_email'));
-
         if ($this->estEnvoiTest($envoi)) {
             $auteur = $envoi->auteur?->email;
 
-            return $auteur ? [mb_strtolower($auteur)] : $confirmation;
+            return $auteur ? [mb_strtolower($auteur)] : self::adresses(config('diffusion.confirmation_email'));
         }
 
-        return collect($confirmation)
+        return $this->destinatairesConfirmation();
+    }
+
+    /**
+     * Confirmation d'un vrai envoi : DIFFUSION_CONFIRMATION_EMAIL, la copie
+     * commerciale (Stéphane, 2026-11-04) et les Media Planners actifs.
+     * La copie n'entre pas dans DIFFUSION_CONFIRMATION_EMAIL : ce réglage
+     * sert aussi d'adresses de test aux mails clients (J-7, renouvellement).
+     *
+     * @return string[]
+     */
+    public function destinatairesConfirmation(): array
+    {
+        return collect(self::adresses(config('diffusion.confirmation_email')))
+            ->merge(self::adresses(config('mails.copie_commerciale')))
             ->merge(User::where('role', 'mediaplanner')->where('is_active', true)->pluck('email'))
             ->filter(fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL))
             ->map(fn($e) => mb_strtolower($e))

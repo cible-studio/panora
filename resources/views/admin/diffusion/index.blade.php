@@ -83,7 +83,7 @@
                     {{-- 2026-11-03 : reçoit chaque vrai catalogue, comme un client. --}}
                     Copie du catalogue : <span style="{{ $muted }}">{{ implode(', ', $copiesCatalogue) }}@if($modeTest) (en production)@endif</span><br>
                 @endif
-                Confirmation envoyée à : <span style="{{ $muted }}">{{ $confirmation ? implode(', ', $confirmation) : '— aucune adresse —' }}</span>
+                Confirmation envoyée à : <span style="{{ $muted }}">{{ $confirmation ? implode(', ', $confirmation) : '— aucune adresse —' }}@if($modeTest && $confirmation) (en production ; un test : à son auteur)@endif</span>
             </div>
             @unless($autoActif)
                 <div style="{{ $muted }}margin-top:10px;font-style:italic;">

@@ -1,22 +1,21 @@
 <!DOCTYPE html>
 <!--
   Modèle Brevo LÉGER — envoi des disponibilités (2026-10-13 ; logo et
-  numéros fournis par Panora depuis le 2026-11-03).
+  numéros fournis par Panora depuis le 2026-11-03 ; centré le 2026-11-04).
 
   Objectif : arriver dans la boîte de réception (onglet « Principale » de
   Gmail) plutôt que dans « Promotions ». Gmail classe en promotion les mails
   qui ressemblent à une newsletter : grandes images, gros boutons colorés,
-  blocs de couleur, nombreux liens. Ce modèle ressemble à un mail écrit par
-  un commercial :
-    · une seule image, le logo, en haut et dans la signature (demande du
-      2026-11-03 ; avant, aucune image). Pas de photo ;
+  blocs de couleur, nombreux liens. Ce modèle reste sobre :
+    · une seule image, le logo, en haut (demande du 2026-11-03 ; retiré de
+      la signature le 2026-11-04). Pas de photo ;
     · deux liens utiles, en texte : le catalogue d'Abidjan et celui de
       l'intérieur du pays (2026-10-29) ;
-    · texte court, mise en forme sobre, police système ;
+    · texte court, police système, colonne et texte centrés (demande du
+      2026-11-04 : « trop à gauche ») ;
     · invitation à RÉPONDRE au mail (les réponses améliorent le classement
       des envois suivants) ;
-    · marque discrète : signature avec le logo (liseré aux 5 couleurs en
-      CSS si Panora n'envoie pas de logo).
+    · marque discrète : signature + liseré aux 5 couleurs en CSS (pas une image).
   Le lien de désinscription reste obligatoire (pied de page).
 
   Valeurs remplies par Panora : params.PERIODE, params.MOIS,
@@ -49,31 +48,31 @@
 <body style="margin:0; padding:0; background-color:#FFFFFF;">
 <div style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">{{ params.NB_PANNEAUX }} emplacements disponibles {{ params.PERIODE }}, avec photo, format et localisation de chacun.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF;">
-<tr><td style="padding:24px 16px;">
-<!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:23px; color:#111111;">
+<tr><td align="center" style="padding:24px 16px;">
+<!--[if mso]><table role="presentation" width="560" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:23px; color:#111111; text-align:center;">
 
 <!-- Logo (2026-11-03). Sans lien : moins de liens, moins « publicité ». -->
 {% if params.LOGO %}
-<tr><td style="padding:0 0 20px 0;">
-  <img src="{{ params.LOGO }}" width="120" alt="CIBLE" border="0" style="display:block; width:120px; height:auto; border:0; font-family:Arial, Helvetica, sans-serif; font-size:18px; font-weight:bold; color:#111111;">
+<tr><td align="center" style="padding:0 0 22px 0;">
+  <img src="{{ params.LOGO }}" width="120" alt="CIBLE" border="0" style="display:block; width:120px; height:auto; margin:0 auto; border:0; font-family:Arial, Helvetica, sans-serif; font-size:18px; font-weight:bold; color:#111111;">
 </td></tr>
 {% endif %}
 
-<tr><td style="padding:0 0 16px 0;">
+<tr><td align="center" style="padding:0 0 16px 0;">
   Bonjour {{ contact.CONTACT | default : "Madame, Monsieur" }},
 </td></tr>
 
-<tr><td style="padding:0 0 16px 0;">
+<tr><td align="center" style="padding:0 0 18px 0;">
   Voici{% if contact.SOCIETE %}, pour <strong>{{ contact.SOCIETE }}</strong>,{% endif %} nos emplacements disponibles <strong>{{ params.PERIODE }}</strong>, à Abidjan et dans le reste du pays.
 </td></tr>
 
-<!-- L'essentiel : un encadré sobre (filet rouge), deux liens en texte.
-     Chaque bloc ne s'affiche que si Panora a envoyé son lien, c'est-à-dire
-     si la zone a au moins un emplacement disponible. -->
-<tr><td style="padding:0 0 16px 0;">
+<!-- L'essentiel : un encadré sobre (deux filets gris), deux liens en texte.
+     Chaque lien ne s'affiche que si Panora l'a envoyé, c'est-à-dire si la
+     zone a au moins un emplacement disponible. -->
+<tr><td style="padding:0 0 18px 0;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-  <tr><td style="border-left:3px solid #E20613; padding:4px 0 4px 14px;">
+  <tr><td align="center" style="border-top:1px solid #E6E6E6; border-bottom:1px solid #E6E6E6; padding:14px 0; text-align:center;">
     <strong>{{ params.NB_PANNEAUX }} emplacements disponibles</strong><br>
     {% if params.LIEN_ABIDJAN %}
     <a href="{{ params.LIEN_ABIDJAN }}" style="color:#E20613; font-weight:bold; text-decoration:underline;">Disponibilités à Abidjan ({{ params.NB_ABIDJAN }}) &mdash; PDF</a><br>
@@ -86,27 +85,23 @@
   </table>
 </td></tr>
 
-<tr><td style="padding:0 0 16px 0;">
+<tr><td align="center" style="padding:0 0 16px 0;">
   Un emplacement vous intéresse&nbsp;? <strong>Répondez simplement à ce mail</strong> en indiquant sa référence&nbsp;: nous vous confirmons sa disponibilité et revenons vers vous sous 24&nbsp;heures ouvrées.
 </td></tr>
 
-<tr><td style="padding:0 0 22px 0;">
+<tr><td align="center" style="padding:0 0 22px 0;">
   Bien cordialement,
 </td></tr>
 
-<!-- Signature : le logo (à défaut, le liseré aux 5 couleurs). -->
-<tr><td style="padding:0 0 26px 0;">
-  {% if params.LOGO %}
-  <img src="{{ params.LOGO }}" width="80" alt="CIBLE" border="0" style="display:block; width:80px; height:auto; border:0; margin:0 0 10px 0; font-family:Arial, Helvetica, sans-serif; font-size:14px; font-weight:bold; color:#111111;">
-  {% else %}
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px 0;"><tr>
+<!-- Signature : la marque, sans image (logo retiré le 2026-11-04). -->
+<tr><td align="center" style="padding:0 0 26px 0;">
+  <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 10px auto;"><tr>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#E20613; font-size:0; line-height:0;">&nbsp;</td>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#FAB80B; font-size:0; line-height:0;">&nbsp;</td>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#3AA835; font-size:0; line-height:0;">&nbsp;</td>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#3F7FC0; font-size:0; line-height:0;">&nbsp;</td>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#81358A; font-size:0; line-height:0;">&nbsp;</td>
   </tr></table>
-  {% endif %}
   <strong>Le service Commercial de CIBLE</strong><br>
   <span style="font-size:13px; line-height:20px; color:#555555;">
     Régie publicitaire · Côte d'Ivoire · depuis 1994<br>
@@ -116,7 +111,7 @@
 </td></tr>
 
 <!-- Pied : désinscription obligatoire, en petit et en gris. -->
-<tr><td style="border-top:1px solid #E6E6E6; padding:12px 0 0 0; font-size:12px; line-height:18px; color:#777777;">
+<tr><td align="center" style="border-top:1px solid #E6E6E6; padding:12px 0 0 0; font-size:12px; line-height:18px; color:#777777; text-align:center;">
   Vous recevez ce mail deux fois par mois en tant que client de CIBLE.
   <a href="{{ unsubscribe }}" style="color:#777777; text-decoration:underline;">Ne plus recevoir nos disponibilités</a>
 </td></tr>
