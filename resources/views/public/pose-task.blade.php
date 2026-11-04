@@ -944,11 +944,14 @@
         {{-- Case « Joindre ma position » (2026-11-04) : vaut pour la photo
              suivante, nouvelle ou remplacement ; recochée après chaque envoi. --}}
         <x-joindre-gps />
+        {{-- Sans l’attribut « capture » (2026-11-04) : le téléphone propose « Appareil
+             photo ou Galerie » — le tech qui a eu un souci de réseau envoie
+             plus tard une photo déjà prise (case GPS décochée). --}}
         <input type="file" id="photo-input"
-               accept="image/*" capture="environment"
+               accept="image/*"
                style="display:none;">
         <input type="file" id="photo-replace-input"
-               accept="image/*" capture="environment"
+               accept="image/*"
                style="display:none;">
         <div id="uploading" class="uploading" style="display:none;">
             <span class="spinner"></span>

@@ -265,4 +265,25 @@ class PositionGpsFacultativeTest extends TestCase
         $this->assertStringContainsString('if (avecPosition && currentGps.lat !== null) {', $collecte);
         $this->assertStringContainsString('window.PanoraGps?.recocher(modal);', $collecte);
     }
+
+    public function test_la_photo_de_pige_peut_venir_de_la_galerie(): void
+    {
+        // Décision du 2026-11-04 (option a) : plus de capture= sur les champs
+        // photo de pige — le téléphone propose « Appareil photo ou Galerie »,
+        // pour envoyer plus tard une photo déjà prise.
+        $champs = [
+            'views/public/tech/partials/_drawer_pose_detail.blade.php' => 1,
+            'views/public/pose-task.blade.php'                         => 2, // nouvelle + remplacement
+            'views/public/pige-collect.blade.php'                      => 1,
+        ];
+        foreach ($champs as $vue => $nombre) {
+            $source = file_get_contents(resource_path($vue));
+            $this->assertSame($nombre, substr_count($source, '<input type="file"'), $vue);
+            $this->assertStringNotContainsString('capture=', $source, $vue);
+        }
+
+        // La photo d'un SIGNALEMENT n'est pas une pige : inchangée.
+        $this->assertStringContainsString('capture="environment"',
+            file_get_contents(resource_path('views/public/tech/partials/_modal_report.blade.php')));
+    }
 }

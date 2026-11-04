@@ -644,7 +644,8 @@
 
         <div class="field">
             <label>Photo</label>
-            <input type="file" id="upload-photo" accept="image/*" capture="environment">
+            {{-- Sans l’attribut « capture » (2026-11-04) : appareil photo OU galerie. --}}
+            <input type="file" id="upload-photo" accept="image/*">
         </div>
         <div class="field">
             <label>Notes (optionnel)</label>
