@@ -10,7 +10,8 @@ use App\Models\Pige;
 use App\Models\User;
 use App\Services\AlertService;
 use App\Services\PigeService;
-use App\Enums\CampaignStatus;
+use App\Services\Piges\PigeFiltres;
+use App\Services\Piges\RapportPigesService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -41,23 +42,9 @@ class PigeController extends Controller
         ])->active();
 
         // ── Filtres "neutres" appliqués au périmètre + aux compteurs ──
-        if ($request->filled('campaign_id'))   $query->where('campaign_id', $request->campaign_id);
-        if ($request->filled('panel_id'))      $query->where('panel_id', $request->panel_id);
-        if ($request->filled('technicien_id')) $query->where('user_id', $request->technicien_id);
-        if ($request->filled('geo_check'))     $query->where('geo_check', $request->geo_check);
-        if ($request->filled('date_from'))     $query->whereDate('taken_at', '>=', $request->date_from);
-        if ($request->filled('date_to'))       $query->whereDate('taken_at', '<=', $request->date_to);
-        if ($request->filled('q')) {
-            $q = $request->q;
-            $query->where(fn($sq) =>
-                $sq->whereHas('panel', fn($p) =>
-                    $p->where('reference', 'like', "%{$q}%")
-                      ->orWhere('name', 'like', "%{$q}%")
-                )
-                ->orWhereHas('campaign', fn($c) => $c->where('name', 'like', "%{$q}%"))
-                ->orWhereHas('technicien', fn($u) => $u->where('name', 'like', "%{$q}%"))
-            );
-        }
+        // Source unique avec l'export PDF (2026-11-04) : cf. PigeFiltres.
+        $filtres = PigeFiltres::depuis($request);
+        PigeFiltres::appliquer($query, $filtres);
 
         // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
         // (chaque carte garde sa vraie valeur quand on en clique une)
@@ -83,8 +70,10 @@ class PigeController extends Controller
         $stats['total'] = $piges->total();
 
         $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
-        $campaigns   = Campaign::where('status', CampaignStatus::ACTIF->value)
-            ->orderBy('name')->get(['id', 'name', 'status']);
+
+        // Listes des filtres Client / Campagne / Commune (2026-11-04).
+        ['clients' => $clients, 'campaigns' => $campaigns, 'communes' => $communes]
+            = PigeFiltres::listes($filtres);
 
         // Panneau pré-filtré (depuis index poses)
         $filterPanel = $request->filled('panel_id')
@@ -96,10 +85,60 @@ class PigeController extends Controller
             ? Campaign::find($request->campaign_id)
             : null;
 
+        // Un filtre actif (statut compris) : messages de liste vide, bouton ↺.
+        $filtresActifs = $filtres !== [] || $request->filled('status');
+
         return view('admin.piges.index', compact(
-            'piges', 'stats', 'techniciens', 'campaigns',
-            'filterPanel', 'filterCampaign'
+            'piges', 'stats', 'techniciens', 'campaigns', 'clients', 'communes',
+            'filterPanel', 'filterCampaign', 'filtres', 'filtresActifs'
         ));
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // EXPORT PDF — rapport de piges prêt à envoyer (2026-11-04)
+    //
+    // 1. exportPreparer : toutes les piges VÉRIFIÉES des filtres de la
+    //    page, cochées ; le MP décoche, ajuste le titre.
+    // 2. exportPdf : le PDF des piges cochées (revérifiées côté serveur).
+    // Règles : RapportPigesService.
+    // ══════════════════════════════════════════════════════════════
+    public function exportPreparer(Request $request, RapportPigesService $rapport)
+    {
+        $filtres = PigeFiltres::depuis($request);
+        $total   = $rapport->selection($filtres)->count();
+        $trop    = $total > RapportPigesService::MAX_PHOTOS;
+
+        $groupes = $trop || $total === 0
+            ? collect()
+            : $rapport->grouper($rapport->selection($filtres)->with($rapport->relations())->get());
+
+        return view('admin.piges.export', [
+            'filtres' => $filtres,
+            'total'   => $total,
+            'trop'    => $trop,
+            'max'     => RapportPigesService::MAX_PHOTOS,
+            'groupes' => $groupes,
+            'titre'   => $rapport->titreParDefaut($filtres),
+        ]);
+    }
+
+    public function exportPdf(Request $request, RapportPigesService $rapport)
+    {
+        $data = $request->validate([
+            'pige_ids'   => 'required|array|min:1|max:' . RapportPigesService::MAX_PHOTOS,
+            'pige_ids.*' => 'integer',
+            'titre'      => 'nullable|string|max:120',
+        ], [
+            'pige_ids.required' => 'Cochez au moins une pige.',
+            'pige_ids.max'      => 'Au plus ' . RapportPigesService::MAX_PHOTOS . ' piges par PDF.',
+        ]);
+
+        $piges = $rapport->choisies($data['pige_ids']);
+        if ($piges->isEmpty()) {
+            return back()->with('error', 'Aucune des piges cochées n\'est vérifiée : rien à exporter.');
+        }
+
+        return $rapport->pdf($piges, trim((string) ($data['titre'] ?? '')) ?: 'Rapport de piges');
     }
 
     // ══════════════════════════════════════════════════════════════

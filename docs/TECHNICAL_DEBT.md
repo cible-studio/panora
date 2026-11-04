@@ -152,7 +152,9 @@ Aucun `Pdf::loadView()`, aucune route, aucun `@include` ne référence ces vues
 
 - `resources/views/pdf/panel-list.blade.php`
 - `resources/views/pdf/panel-sheet.blade.php`
-- `resources/views/pdf/piges-report.blade.php`
+- `resources/views/pdf/piges-report.blade.php` — remplacée le 2026-11-04 par
+  `pdf/rapport-piges.blade.php` (export PDF de la page Piges, à la charte) ;
+  l'ancienne reste supprimable
 - `resources/views/pdf/proposition.blade.php` (le PDF de proposition actif est
   `admin/propositions/pdf.blade.php`)
 - `resources/views/pdf/selection-images.blade.php`

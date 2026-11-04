@@ -129,14 +129,30 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
     <form method="GET" action="{{ route('admin.piges.index') }}" id="form-filters"
           style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
 
+        {{-- 2026-11-04 : recherche côté serveur, sur TOUTES les piges.
+             Avant, la frappe ne masquait que les 24 cartes de la page, et
+             Entrée ne lançait rien (formulaire sans bouton, trois champs). --}}
         <div style="flex:1;min-width:180px">
             <label class="flbl">Recherche</label>
             <div style="position:relative">
                 <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input type="text" name="q" value="{{ request('q') }}" placeholder="Panneau, campagne, technicien…"
-                       class="finp" style="padding-left:30px" autocomplete="off"
-                       id="search-input" oninput="filterLocal(this.value)">
+                <input type="text" name="q" value="{{ request('q') }}" placeholder="Panneau, client, campagne, commune… ↵"
+                       class="finp" style="padding-left:30px" autocomplete="off" id="search-input"
+                       onkeydown="if (event.key === 'Enter') { event.preventDefault(); this.form.submit(); }"
+                       onchange="this.form.submit()">
             </div>
+        </div>
+
+        <div>
+            <label class="flbl">Client</label>
+            {{-- Changer de client remet la campagne à « Toutes » : l'ancienne
+                 ne serait plus dans la liste. --}}
+            <select name="client_id" class="fsel" onchange="this.form.campaign_id.value='';this.form.submit()">
+                <option value="">Tous</option>
+                @foreach($clients as $cl)
+                <option value="{{ $cl->id }}" {{ request('client_id')==$cl->id?'selected':'' }}>{{ Str::limit($cl->name,24) }}</option>
+                @endforeach
+            </select>
         </div>
 
         <div>
@@ -154,7 +170,18 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
             <select name="campaign_id" class="fsel" onchange="this.form.submit()">
                 <option value="">Toutes</option>
                 @foreach($campaigns as $c)
-                <option value="{{ $c->id }}" {{ request('campaign_id')==$c->id?'selected':'' }}>{{ Str::limit($c->name,22) }}</option>
+                @php $etat = \App\Enums\CampaignStatus::tryFrom((string) $c->status); @endphp
+                <option value="{{ $c->id }}" title="{{ $c->name }}" {{ request('campaign_id')==$c->id?'selected':'' }}>{{ Str::limit($c->name,22) }}{{ $etat && $etat !== \App\Enums\CampaignStatus::ACTIF ? ' · ' . $etat->label() : '' }}</option>
+                @endforeach
+            </select>
+        </div>
+
+        <div>
+            <label class="flbl">Commune</label>
+            <select name="commune_id" class="fsel" onchange="this.form.submit()">
+                <option value="">Toutes</option>
+                @foreach($communes as $co)
+                <option value="{{ $co->id }}" {{ request('commune_id')==$co->id?'selected':'' }}>{{ $co->name }}</option>
                 @endforeach
             </select>
         </div>
@@ -180,15 +207,22 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
 
         <div style="align-self:flex-end;display:flex;gap:6px">
             <!-- <button type="submit" style="height:38px;padding:0 14px;background:var(--accent);color:#000;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">Filtrer</button> -->
-            @if(request()->hasAny(['q','status','campaign_id','technicien_id','date_from','date_to','panel_id']))
+            @if($filtresActifs)
             <a href="{{ route('admin.piges.index') }}" class="btn-reset" title="Réinitialiser">↺</a>
             @endif
         </div>
 
         @if($filterPanel)<input type="hidden" name="panel_id" value="{{ $filterPanel->id }}">@endif
 
-        <div style="margin-left:auto;align-self:flex-end;font-size:11px;color:var(--text3)">
-            <strong style="color:var(--text)">{{ number_format($piges->total()) }}</strong> pige(s)
+        <div style="margin-left:auto;align-self:flex-end;display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text3)">
+            <span><strong style="color:var(--text)">{{ number_format($piges->total()) }}</strong> pige(s)</span>
+            {{-- Rapport PDF des piges VÉRIFIÉES de ces filtres (2026-11-04). --}}
+            <a href="{{ route('admin.piges.export', $filtres) }}" class="btn btn-ghost btn-sm"
+               style="display:inline-flex;align-items:center;gap:6px"
+               title="Rapport PDF prêt à envoyer — piges vérifiées de ces filtres">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+                Exporter en PDF
+            </a>
         </div>
     </form>
 </div>
@@ -198,17 +232,17 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
 <div style="text-align:center;padding:60px 20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--text3)">
     <div style="font-size:48px;opacity:.2;margin-bottom:16px">📸</div>
     <div style="font-size:14px;font-weight:700;margin-bottom:6px">
-        @if(request()->hasAny(['q','status','campaign_id','technicien_id']))
+        @if($filtresActifs)
         Aucune pige trouvée avec ces filtres
         @else Aucune pige uploadée pour le moment
         @endif
     </div>
     <div style="font-size:12px;margin-bottom:18px">
-        @if(!request()->hasAny(['q','status','campaign_id','technicien_id']))
+        @if(!$filtresActifs)
         Les preuves photos d'affichage apparaîtront ici après upload.
         @endif
     </div>
-    @if(!request()->hasAny(['q','status','campaign_id','technicien_id']))
+    @if(!$filtresActifs)
     <a href="{{ route('admin.piges.create') }}" class="btn btn-primary">+ Uploader des piges</a>
     @endif
 </div>
@@ -854,25 +888,15 @@ window.PigeActions = {
     },
 };
 
-// ════════════════════════════════════════════════════════════
-// FILTRE LOCAL INSTANTANÉ
-// ════════════════════════════════════════════════════════════
-function filterLocal(q) {
-    const lq = q.trim().toLowerCase();
-    document.querySelectorAll('.pige-card').forEach(card => {
-        const match = !lq || (card.dataset.search || '').includes(lq);
-        card.classList.toggle('hidden', !match);
-    });
-}
+// 2026-11-04 : le « filtre local instantané » est retiré. Il ne masquait
+// que les cartes de la page affichée (24) et, au chargement, cachait des
+// piges trouvées par le serveur via le client ou la commune, absents de
+// data-search. La recherche est désormais serveur (cf. PigeFiltres).
 
 // Fermer modals
 document.getElementById('modal-reject').addEventListener('click', function(e) {
     if (e.target === this) PigeActions.closeRejectModal();
 });
-
-// Initialisation
-const initQ = document.getElementById('search-input')?.value;
-if (initQ) filterLocal(initQ);
 </script>
 @endpush
 </x-admin-layout>
