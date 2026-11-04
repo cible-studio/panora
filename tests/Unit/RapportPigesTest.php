@@ -167,13 +167,16 @@ class RapportPigesTest extends TestCase
         $this->assertSame([2], $rapport->choisies([2, 4])->pluck('id')->all());
     }
 
-    public function test_groupes_par_commune_puis_par_panneau(): void
+    public function test_groupes_dans_l_ordre_de_la_tournee(): void
     {
+        // Comme le document Word de l'équipe : les communes dans l'ordre de
+        // leur première photo (YOP-001 à 10:01, puis Cocody à 10:02), puis
+        // les photos par heure — pas l'ordre alphabétique.
         $rapport = app(RapportPigesService::class);
         $groupes = $rapport->grouper($rapport->choisies([1, 2, 3]));
 
-        $this->assertSame(['COCODY', 'YOPOUGON'], $groupes->keys()->all());
-        $this->assertSame(['COC-001', 'COC-002'], $groupes['COCODY']->map(fn ($p) => $p->panel->reference)->values()->all());
+        $this->assertSame(['YOPOUGON', 'COCODY'], $groupes->keys()->all());
+        $this->assertSame(['COC-002', 'COC-001'], $groupes['COCODY']->map(fn ($p) => $p->panel->reference)->values()->all());
     }
 
     public function test_titre_propose(): void
@@ -211,13 +214,19 @@ class RapportPigesTest extends TestCase
             'clients' => collect(['MOOV AFRICA']), 'campagnes' => collect(['MOOV 2026']),
         ])->render();
 
-        foreach (['Rapport de piges', 'Client : MOOV AFRICA', 'COCODY', 'YOPOUGON', '❖',
-                  'Pont du Lycée Technique', 'Réf. <strong>COC-001</strong>', 'Format 12 m²',
-                  'Photo du 07/09/2026 à 10:03', 'Position GPS de la photo', 'Photos prises le 07/09/2026'] as $attendu) {
+        // Identique au document Word (« pas identique », 2026-11-04) : titre,
+        // date des photos, communes, « ❖ emplacement », numéro de page.
+        foreach (['<div class="rp-titre">MOOV 2026</div>', '<div class="rp-date">07/09/2026</div>',
+                  '<div class="rp-commune">COCODY</div>', '<div class="rp-commune">YOPOUGON</div>',
+                  '❖</span> Pont du Lycée Technique', '❖</span> Carrefour Lokoua', 'class="rp-page"'] as $attendu) {
             $this->assertStringContainsString($attendu, $html, $attendu);
         }
-        // Cocody : 2 panneaux sur une page ; Yopougon sur la suivante.
-        $this->assertSame(2, substr_count($html, 'class="rp-saut"'), 'Saut après le récapitulatif et après Cocody.');
+        // Rien de ce que le modèle n'a pas : ni récapitulatif, ni référence, ni GPS.
+        foreach (['Rapport de piges', 'Réf.', 'Position GPS', 'Panneaux photographiés'] as $absent) {
+            $this->assertStringNotContainsString($absent, $html, $absent);
+        }
+        // Une légende par panneau (3 panneaux, 3 légendes).
+        $this->assertSame(3, substr_count($html, 'class="rp-lieu"'));
     }
 
     // ── La page Piges ───────────────────────────────────────────────
