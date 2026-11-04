@@ -941,6 +941,9 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             {{ $isDone ? ($hasPige ? '📸 Ajouter une autre pige' : '📸 Ajouter la pige photo') : ($hasPige ? 'Ajouter une autre photo' : 'Prendre une photo') }}
         </button>
+        {{-- Case « Joindre ma position » (2026-11-04) : vaut pour la photo
+             suivante, nouvelle ou remplacement ; recochée après chaque envoi. --}}
+        <x-joindre-gps />
         <input type="file" id="photo-input"
                accept="image/*" capture="environment"
                style="display:none;">
@@ -1212,10 +1215,21 @@
         return r || { lat: null, lng: null, acc: null };
     }
 
+    // Case « Joindre ma position » (composant x-joindre-gps, 2026-11-04).
+    // Décochée : aucune demande de position, la photo part sans GPS.
+    // Absente (page en cache d'avant la case) : on joint, comme avant.
+    function joindreGps() {
+        return window.PanoraGps ? window.PanoraGps.joindre() : true;
+    }
+    async function gpsSiCoche(avecPosition) {
+        return avecPosition ? await getGps() : { lat: null, lng: null, acc: null };
+    }
+
     photoInput?.addEventListener('change', async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
         photoInput.value = ''; // reset pour permettre re-upload même fichier
+        const avecPosition = joindreGps();
 
         photoBtn.disabled = true;
         upInfo.style.display = 'flex';
@@ -1224,14 +1238,16 @@
             upMsg.textContent = 'Compression de la photo…';
             const blob = await compressImage(file);
 
-            upMsg.textContent = '📍 Localisation GPS…';
-            const gps = await getGps();
-            if (gps.lat === null) {
-                upMsg.textContent = '⚠ GPS indisponible — envoi sans position…';
-            } else if (gps.acc) {
-                upMsg.textContent = `📍 GPS ±${Math.round(gps.acc)} m — envoi…`;
-            } else {
-                upMsg.textContent = 'Envoi vers le serveur…';
+            upMsg.textContent = avecPosition ? '📍 Localisation GPS…' : 'Envoi sans position…';
+            const gps = await gpsSiCoche(avecPosition);
+            if (avecPosition) {
+                if (gps.lat === null) {
+                    upMsg.textContent = '⚠ GPS indisponible — envoi sans position…';
+                } else if (gps.acc) {
+                    upMsg.textContent = `📍 GPS ±${Math.round(gps.acc)} m — envoi…`;
+                } else {
+                    upMsg.textContent = 'Envoi vers le serveur…';
+                }
             }
             const fd = new FormData();
             fd.append('photo', blob, 'photo.jpg');
@@ -1260,6 +1276,7 @@
         } finally {
             photoBtn.disabled = false;
             upInfo.style.display = 'none';
+            window.PanoraGps?.recocher(); // chaque photo repart cochée
         }
     });
 
@@ -1307,6 +1324,7 @@
         const thumb   = replaceInput._targetThumb;
         if (!file || !pigeId) return;
         replaceInput.value = '';
+        const avecPosition = joindreGps();
 
         photoBtn.disabled = true;
         upInfo.style.display = 'flex';
@@ -1315,8 +1333,8 @@
             upMsg.textContent = 'Compression de la photo…';
             const blob = await compressImage(file);
 
-            upMsg.textContent = 'Localisation GPS…';
-            const gps = await getGps();
+            if (avecPosition) upMsg.textContent = 'Localisation GPS…';
+            const gps = await gpsSiCoche(avecPosition);
 
             upMsg.textContent = 'Remplacement en cours…';
             const fd = new FormData();
@@ -1355,6 +1373,7 @@
         } finally {
             photoBtn.disabled = false;
             upInfo.style.display = 'none';
+            window.PanoraGps?.recocher(); // chaque photo repart cochée
         }
     });
 

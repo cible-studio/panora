@@ -766,3 +766,45 @@ d'année = vague en cours ; nom montré aux techniciens.
 - [ ] Technicien : carte de pose (badge 🌊), lien de pose (« Visuel à
       poser »), feuille de route, fiche de pose PDF (cartes et liste)
 - [ ] Une campagne sans changement de message : aucun bloc, aucun badge
+
+---
+
+## 15. Photo de pige : case « 📍 Joindre ma position » *(2026-11-04)*
+
+Demande : cochée par défaut, décochable (tech qui envoie depuis chez lui
+après un souci de réseau). Décochée : la photo part **sans** position ; la
+pige est classée « Sans GPS » (`geo_check = no_gps`), comme un GPS muet.
+Trois écrans : espace technicien (aperçu après la photo), lien de pose,
+lien de campagne. Chaque photo repart cochée.
+
+Corrigé au passage : dans l'espace technicien et le lien de campagne, une
+photo envoyée **sans** position finissait en **erreur 500** après création
+de la pige (le tech voyait un échec, la photo était pourtant reçue).
+
+**Sur un vrai téléphone (Android + iPhone)**
+- [ ] Espace tech → Photo : la case est cochée, le verdict GPS s'affiche
+      comme avant ; décocher → bloc gris « Position non jointe » ; recocher
+      → le verdict revient ; ⓘ montre une ligne d'aide
+- [ ] Envoyer décoché → succès (pas d'erreur) ; côté admin, la pige
+      affiche « Sans GPS » et aucune coordonnée
+- [ ] Envoyer coché devant un panneau → « OK » côté admin (inchangé)
+- [ ] Mode avion, photo décochée, puis réseau revenu : la photo rejouée
+      arrive sans position
+- [ ] Lien de pose (pose sans tech assigné) : case sous « Prendre une
+      photo » ; décochée → pas de demande de localisation, envoi OK ;
+      recochée après l'envoi ; idem « Remplacer » / « Refaire cette photo »
+- [ ] Lien de campagne : case dans la fenêtre d'envoi, recochée à chaque
+      ouverture
+
+**À trancher**
+- [ ] **Galerie** : tous les champs photo ont `capture="environment"`,
+      qui ouvre directement l'appareil photo sur la plupart des téléphones,
+      sans proposer la galerie. Vérifier sur les téléphones des techs si
+      une photo **déjà prise** peut être choisie. Sinon, le cas « j'envoie
+      de chez moi la photo de mon téléphone » reste impossible : retirer
+      `capture` (le téléphone propose alors appareil photo OU galerie) ou
+      ajouter un bouton « Depuis la galerie » — décision métier (une photo
+      de galerie peut être ancienne)
+- [ ] Faut-il tracer « position retirée par le technicien » (différent
+      d'un GPS en panne) pour le MP ? Proposition sans migration : une
+      mention dans `piges.notes`, comme « ⚠ CONTRADICTION SIGNALEMENT »

@@ -330,6 +330,23 @@ Tant que ce n'est pas fait, rien ne presse les équipes à changer le mot
 de passe reçu. `App\Services\RenvoiAcces` documente la limite à l'endroit
 exact où elle se joue.
 
+### Pige : `geo_check` non recalculé quand la position change (constaté 2026-11-04)
+
+`PigeObserver::creating` calcule `geo_check` / `geo_distance_m` à la
+**création** seulement. Deux chemins changent ensuite `gps_lat` / `gps_lng`
+sans recalcul :
+- `PoseTaskPublicController::replacePhoto` (lien de pose, « Remplacer » /
+  « Refaire cette photo ») : nouvelle photo + nouvelle position (ou aucune,
+  case « Joindre ma position » décochée), mais l'ancien verdict reste —
+  ex. « OK » affiché pour une pige désormais sans GPS ;
+- `Admin\PigeController::update` (édition manuelle des coordonnées).
+
+Correction possible : un hook `updating` qui rappelle
+`GeoService::pigePanelCheck` quand `gps_lat`/`gps_lng` changent (même
+source que la création et `geo:backfill`). Non fait le 2026-11-04 : cela
+change aussi l'écran admin d'édition, à valider avant. Rattrapage des
+données : `php artisan geo:backfill --all-piges`.
+
 ### `clients/partials/account-actions.blade.php` est du code mort (constaté 2026-11-02)
 
 Ce partial dessine tout le bloc « Espace Client » (créer / renvoyer /

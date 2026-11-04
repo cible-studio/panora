@@ -1710,7 +1710,11 @@ class TechSpaceController extends Controller
                 'Panneau : ' . ($task->panel?->reference ?? '—'),
                 'Technicien : ' . $tech->name,
                 'Date : ' . $pige->taken_at->format('d/m/Y H:i'),
-                $data['gps_lat'] ? "GPS : {$data['gps_lat']}, {$data['gps_lng']}" : null,
+                // !empty : photo sans position (case « Joindre ma position »
+                // décochée, ou GPS muet) → clé absente. L'accès direct levait
+                // « Undefined array key » = erreur 500 APRÈS la création de
+                // la pige (le tech voyait un échec et renvoyait). 2026-11-04.
+                !empty($data['gps_lat']) ? "GPS : {$data['gps_lat']}, {$data['gps_lng']}" : null,
             ]),
             ctaLabel: 'Valider la pige →',
             ctaUrl: url('/admin/piges/' . $pige->id),

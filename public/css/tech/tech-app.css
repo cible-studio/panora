@@ -1845,6 +1845,13 @@
             border-color: var(--c-yellow-border);
             color: var(--c-yellow-text);
         }
+        /* Case « Joindre ma position » décochée (2026-11-04) : neutre. */
+        .sm2-t3-verdict[data-verdict="off"] {
+            background: var(--surface2);
+            border-color: var(--border);
+            color: var(--text2);
+        }
+        .sm2-t3-body .sm2-t3-gps { margin: -4px 0 -2px; } /* le gap du corps espace déjà */
 
         .sm2-t3-actions {
             display: flex; gap: 8px;

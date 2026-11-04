@@ -254,7 +254,9 @@ class PublicPigeController extends Controller
                 'Panneau : ' . ($panel?->reference ?? '—'),
                 $data['tech_name'] ? 'Technicien : ' . $data['tech_name'] : null,
                 'Date : ' . $pige->taken_at->format('d/m/Y H:i'),
-                $data['gps_lat'] ? "GPS : {$data['gps_lat']}, {$data['gps_lng']}" : null,
+                // !empty : photo sans position → clé absente (erreur 500
+                // sinon, cf. TechSpaceController::uploadPhoto). 2026-11-04.
+                !empty($data['gps_lat']) ? "GPS : {$data['gps_lat']}, {$data['gps_lng']}" : null,
             ]),
             ctaLabel: 'Valider la pige →',
             ctaUrl: url('/admin/piges/'.$pige->id),

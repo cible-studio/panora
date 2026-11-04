@@ -8,9 +8,11 @@
            VERT  (< 100 m)   → "✓ Position bien enregistrée"
            ORANGE (< 500 m)  → "⚠ Tu es à X m du panneau, vérifie"
            ROUGE (≥ 500 m)   → "✗ Tu es à Y m du panneau, c'est pas le bon ?"
+       - la case « 📍 Joindre ma position » (cochée par défaut, 2026-11-04)
        - 2 boutons : Refaire (1/3) + Envoyer la photo (2/3)
 
-     Pas d'inline JS — piloté par features/upload.js qui remplit les
+     Pas d'inline JS (sauf le petit script commun du composant
+     x-joindre-gps) — piloté par features/upload.js qui remplit les
      data-field et écoute data-action="t3-redo"/"t3-send".
 
      Variables consommées : aucune. --}}
@@ -40,6 +42,11 @@
                     <span data-field="verdict-sub"></span>
                 </div>
             </div>
+
+            {{-- Case « Joindre ma position » (2026-11-04) : cochée à chaque
+                 photo ; décochée, la photo part sans position (envoi depuis
+                 chez soi). Lue par features/upload.js. --}}
+            <x-joindre-gps class="sm2-t3-gps" />
 
             <div class="sm2-t3-actions">
                 <button type="button" class="sm2-t3-btn sm2-t3-btn-redo" data-action="t3-redo">
