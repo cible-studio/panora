@@ -26,7 +26,7 @@
   </div>
   <h1>{{ $title }}</h1>
   <p>{{ $message }}</p>
-  <div class="logo">CIBLE CI · Régie &amp; Studio</div>
+  <div class="logo">CIBLE CI · {{ config('charte.coordonnees.metier') }}</div>
 </div>
 </body>
 </html>

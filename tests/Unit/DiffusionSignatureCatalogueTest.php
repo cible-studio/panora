@@ -101,7 +101,7 @@ class DiffusionSignatureCatalogueTest extends TestCase
         $this->assertStringStartsWith('http', $params['LOGO']);
         $this->assertStringEndsWith('/images/logol.png', $params['LOGO']);
         // 2026-11-04 : la ligne d'activité vient de la charte, comme les autres mails.
-        $this->assertSame("Régie & Studio · Côte d'Ivoire · depuis 1994", $params['ACTIVITE']);
+        $this->assertSame("Régie & Studio Créatif · Côte d'Ivoire · depuis 1994", $params['ACTIVITE']);
     }
 
     public function test_sans_numero_ni_logo_dans_la_charte_rien_n_est_envoye(): void

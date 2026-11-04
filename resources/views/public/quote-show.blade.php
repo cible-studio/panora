@@ -25,7 +25,7 @@
 </head>
 <body>
     <header class="public-hdr">
-        <h1>CIBLE CI · Régie &amp; Studio</h1>
+        <h1>CIBLE CI · {{ config('charte.coordonnees.metier') }}</h1>
         <small>Devis {{ $quote->reference }} adressé à {{ $quote->client?->name }}</small>
     </header>
 

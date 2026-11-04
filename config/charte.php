@@ -18,6 +18,9 @@
 |
 */
 
+// La ligne qui présente la régie à ses clients (cf. « coordonnees »).
+$activite = (string) env('CHARTE_ACTIVITE', 'Régie & Studio Créatif · Côte d\'Ivoire · depuis 1994');
+
 return [
 
     'nom' => env('CHARTE_NOM', 'CIBLE'),
@@ -62,10 +65,13 @@ return [
 
     // Coordonnées affichées en pied de mail / de PDF.
     // « activite » : la ligne qui présente la régie à ses clients, partout
-    // (mails, catalogue Brevo, PDF et pages clients) — « Régie & Studio »
-    // depuis le 2026-11-04, « Régie publicitaire » avant.
+    // (mails, catalogue Brevo, PDF et pages clients) — « Régie & Studio
+    // Créatif » depuis le 2026-11-04 (« Régie publicitaire » avant).
+    // « metier » : son début, avant le premier « · », pour les en-têtes
+    // courts (« CIBLE CI · Régie & Studio Créatif ») — jamais écrit à part.
     'coordonnees' => [
-        'activite'   => env('CHARTE_ACTIVITE', 'Régie & Studio · Côte d\'Ivoire · depuis 1994'),
+        'activite'   => $activite,
+        'metier'     => trim(explode('·', $activite)[0]),
         'adresse'    => env('CHARTE_ADRESSE', 'Rue des Ambassadeurs, Riviera M\'Badon · 10 BP 1029 Abidjan 10'),
         'telephones' => env('CHARTE_TELEPHONES', '+225 07 98 49 66 74 · +225 07 00 78 06 27 · +225 27 22 20 80 08'),
         'email'      => env('CHARTE_EMAIL', 'commercial@cible-ci.com'),

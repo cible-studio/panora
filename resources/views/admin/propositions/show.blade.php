@@ -598,7 +598,7 @@
         <div class="brand">
             <img src="{{ asset('images/logol.png') }}" alt="CIBLE CI"
                  style="height:42px;display:block;"
-                 onerror="this.outerHTML='<div class=&quot;brand-logo&quot;>CIBLE <span class=&quot;accent&quot;>CI</span></div><div class=&quot;brand-sub&quot;>Régie &amp; Studio</div>';">
+                 onerror="this.outerHTML='<div class=&quot;brand-logo&quot;>CIBLE <span class=&quot;accent&quot;>CI</span></div><div class=&quot;brand-sub&quot;>{{ addslashes(config('charte.coordonnees.metier')) }}</div>';">
         </div>
         <div class="header-meta">
             <div>Proposition <span class="ref">{{ $reservation->reference }}</span></div>
