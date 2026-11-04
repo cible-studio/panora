@@ -164,6 +164,10 @@
                  c'est une pose CRÉDITÉE À L'ÉQUIPE (mérite collectif) :
                  on affiche "Équipe X" comme porteur principal, sans le nom
                  du tech (même s'il est renseigné en interne). --}}
+            {{-- 2026-11-04 : la vague = le visuel à poser sur ce panneau. --}}
+            @if($pose && ($libelleVague = $pose->libelleVague()))
+                <div class="pose-info"><strong>Visuel à poser :</strong> {{ $libelleVague }}</div>
+            @endif
             @if($pose && $pose->pose_team_id)
                 <div class="pose-info">
                     <strong>Prise par : Équipe {{ $pose->poseTeam?->name ?? $pose->team_name ?? '—' }}</strong>

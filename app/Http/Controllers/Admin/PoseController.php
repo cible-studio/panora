@@ -51,7 +51,10 @@ class PoseController extends Controller
             'technicien:id,name,whatsapp_number',
             // 2026-08-10 : badge coloré équipe dans la colonne Technicien.
             'poseTeam:id,name,color_slug',
-        ])->withCount([
+        ])->when(\App\Services\Vagues\VagueService::disponible(),
+            // 2026-11-04 : badge de la vague sous la campagne.
+            fn ($q) => $q->with('vague:id,numero,nom')
+        )->withCount([
             'piges as pige_count',
             'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
         ]);
@@ -425,6 +428,8 @@ class PoseController extends Controller
             'pose_team_id'     => 'nullable|integer|exists:pose_teams,id',
             'notes'            => 'nullable|string|max:1000',
             'pose_kind'        => 'nullable|in:rechange,retouche',
+            // Vague (2026-11-04) : nouvelle (nom obligatoire) ou existante.
+            ...\App\Services\Vagues\VagueService::regles($request),
         ], [
             'scheduled_at.required'   => 'La date et heure du rechange sont obligatoires.',
             'scheduled_at.date'       => 'La date et heure du rechange sont invalides.',
@@ -432,6 +437,7 @@ class PoseController extends Controller
             'team_name.max'           => "Le nom d'équipe ne doit pas dépasser 100 caractères.",
             'notes.max'               => 'Les notes ne doivent pas dépasser 1000 caractères.',
             'pose_kind.in'            => 'Type invalide. Rechange ou retouche uniquement.',
+            ...\App\Services\Vagues\VagueService::MESSAGES,
         ]);
 
         $result = $this->poseService->createRechange($poseTask, $validated, auth()->user());
@@ -478,11 +484,14 @@ class PoseController extends Controller
             'pose_team_id'     => 'nullable|integer|exists:pose_teams,id',
             'notes'            => 'nullable|string|max:1000',
             'pose_kind'        => 'nullable|in:rechange,retouche',
+            // Vague (2026-11-04) : nouvelle (nom obligatoire) ou en cours.
+            ...\App\Services\Vagues\VagueService::regles($request),
         ], [
             'task_ids.required'       => 'Aucune pose sélectionnée.',
             'task_ids.max'            => 'Maximum 200 rechanges par lot.',
             'scheduled_at.required'   => 'La date et heure du rechange sont obligatoires.',
             'assigned_user_id.exists' => 'Le technicien sélectionné est introuvable.',
+            ...\App\Services\Vagues\VagueService::MESSAGES,
         ]);
 
         $data = collect($validated)->except('task_ids')->all();

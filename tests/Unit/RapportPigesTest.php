@@ -143,6 +143,18 @@ class RapportPigesTest extends TestCase
         $this->assertSame(['MOOV 2026'], PigeFiltres::listes(['client_id' => self::MOOV])['campaigns']->pluck('name')->all());
     }
 
+    public function test_libelle_du_filtre_campagne_avec_le_statut_en_enum(): void
+    {
+        // Régression du 2026-11-04 : la page Piges plantait (« Object of class
+        // CampaignStatus could not be converted to string ») — le modèle
+        // renvoie le statut en enum, la vue le convertissait en texte.
+        $listes = PigeFiltres::listes([]);
+        $libelles = $listes['campaigns']->map(fn ($c) => PigeFiltres::libelleCampagne($c))->all();
+
+        $this->assertInstanceOf(\App\Enums\CampaignStatus::class, $listes['campaigns']->first()->status);
+        $this->assertSame(['ORANGE NOËL', 'MOOV 2026 · Terminée'], $libelles);
+    }
+
     // ── Export : piges vérifiées seulement ──────────────────────────
 
     public function test_l_export_ne_prend_que_les_verifiees_non_archivees(): void

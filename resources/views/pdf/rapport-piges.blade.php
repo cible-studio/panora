@@ -11,7 +11,8 @@
      Uniquement des piges vérifiées (règle du 2026-11-04).
 
      Variables : $titre, $groupes (commune → [['pige', 'photo' => {src,w,h}|null]]),
-     $nbPhotos, $nbPanneaux, $debut, $fin, $clients, $campagnes.
+     $nbPhotos, $nbPanneaux, $debut, $fin, $clients, $campagnes, $vagues
+     (2026-11-04 : une seule → sous-titre ; plusieurs → chaque photo).
      ═══════════════════════════════════════════════════════════════════ --}}
 @php
     $ch = $charte ?? \App\Support\PdfCharte::data();
@@ -22,14 +23,19 @@
         default                                         => 'du ' . $debut->format('d/m/Y') . ' au ' . $fin->format('d/m/Y'),
     };
 
+    $vagues = $vagues ?? collect();
+
     $sousTitre = implode(' · ', array_filter([
         $clients->count() === 1 ? 'Client : ' . $clients->first() : null,
         $campagnes->count() === 1 && $campagnes->first() !== $titre ? 'Campagne : ' . $campagnes->first() : null,
         $campagnes->count() > 1 ? $campagnes->count() . ' campagnes' : null,
+        // Vague (2026-11-04) : le message photographié.
+        $vagues->count() === 1 ? $vagues->first()->libelle() : null,
     ]));
 
-    // Plusieurs campagnes dans le même rapport : chaque photo dit la sienne.
+    // Plusieurs campagnes ou vagues dans le même rapport : chaque photo dit la sienne.
     $afficherCampagne = $campagnes->count() > 1;
+    $afficherVague    = $vagues->count() > 1;
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
@@ -157,6 +163,7 @@
                         @if($pige->panel?->format) · Format {{ $pige->panel->format->name }}@endif
                         @if($prise) · Photo du {{ $prise->format('d/m/Y à H:i') }}@endif
                         @if($afficherCampagne && $pige->campaign) · {{ $pige->campaign->name }}@endif
+                        @if($afficherVague && $pige->poseTask?->vague) · <strong>{{ $pige->poseTask->vague->badge() }}</strong>@endif
                         @if($lien = $pige->getGoogleMapsUrl()) · <a href="{{ $lien }}">Position GPS de la photo</a>@endif
                     </div>
                     <div class="rp-photo">

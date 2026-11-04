@@ -1566,6 +1566,10 @@ Route::prefix('admin')
             // multi-poses 2026-08-08). Cf. `CampaignController::rechange`.
             Route::post('campaigns/{campaign}/rechange', [CampaignController::class, 'rechange'])
                 ->whereNumber('campaign')->name('campaigns.rechange');
+
+            // Renommer une vague de la campagne (2026-11-04).
+            Route::patch('campaigns/{campaign}/vagues/{vague}', [CampaignController::class, 'renommerVague'])
+                ->whereNumber(['campaign', 'vague'])->name('campaigns.vagues.update');
         });
 
         // Prix négocié panneau dans campagne : module « prix_panneaux »

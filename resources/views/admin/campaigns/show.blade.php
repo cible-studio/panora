@@ -944,6 +944,79 @@
         @endif
     </div>
 
+    {{-- ── VAGUES (2026-11-04) ──
+         Messages successifs d'une campagne annuelle. Absent tant que la
+         campagne n'a jamais changé de message. Règles : VagueService. --}}
+    @if($resumeVagues->isNotEmpty())
+    @php
+        // Page Piges et export : admin et média planner (routes piges.*).
+        $accesPiges = auth()->user()?->isAdmin() || auth()->user()?->isMediaPlanner();
+    @endphp
+    <div class="rounded-2xl border overflow-hidden shadow-xl mb-6"
+         style="background:var(--surface);border-color:var(--border)">
+        <div class="px-6 py-4 border-b flex justify-between items-center flex-wrap gap-3"
+             style="background:var(--surface2);border-color:var(--border)">
+            <h2 class="font-bold text-lg flex items-center gap-2" style="color:var(--text)">
+                <span class="text-2xl">🌊</span> Vagues
+                <span class="text-sm px-3 py-1 rounded-full" style="background:var(--surface3);color:var(--text3)">{{ $resumeVagues->count() }}</span>
+                <span title="Chaque changement de message du client est une vague. La campagne, son contrat et sa facture restent les mêmes."
+                      style="cursor:help;font-size:13px;color:var(--text3);font-weight:400">ⓘ</span>
+            </h2>
+        </div>
+        <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <thead>
+                    <tr style="text-align:left;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.4px">
+                        <th style="padding:10px 16px">N°</th>
+                        <th style="padding:10px 16px">Nom</th>
+                        <th style="padding:10px 16px">Début</th>
+                        <th style="padding:10px 16px;text-align:right">Panneaux</th>
+                        <th style="padding:10px 16px;text-align:right">Poses réalisées</th>
+                        <th style="padding:10px 16px;text-align:right">Piges vérifiées</th>
+                        <th style="padding:10px 16px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($resumeVagues as $ligne)
+                    @php $v = $ligne['vague']; @endphp
+                    <tr style="border-top:1px solid var(--border)">
+                        <td style="padding:10px 16px;font-weight:800;color:var(--accent)">V{{ $v->numero }}</td>
+                        <td style="padding:8px 16px">
+                            @if($can['update'])
+                            <form method="POST" action="{{ route('admin.campaigns.vagues.update', [$campaign, $v]) }}" style="display:flex;gap:6px;align-items:center">
+                                @csrf @method('PATCH')
+                                <input type="text" name="nom" value="{{ $v->nom }}" required maxlength="150"
+                                       style="flex:1;min-width:160px;height:32px;padding:0 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text)">
+                                <button type="submit" title="Renommer" style="height:32px;padding:0 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text2);cursor:pointer">✓</button>
+                            </form>
+                            @else
+                            <span style="color:var(--text)">{{ $v->nom }}</span>
+                            @endif
+                        </td>
+                        <td style="padding:10px 16px;color:var(--text2);white-space:nowrap">{{ $v->debut_le?->format('d/m/Y') ?? '—' }}</td>
+                        <td style="padding:10px 16px;text-align:right">{{ $ligne['panneaux'] }}</td>
+                        <td style="padding:10px 16px;text-align:right">{{ $ligne['realisees'] }} / {{ $ligne['poses'] }}</td>
+                        <td style="padding:10px 16px;text-align:right">
+                            @if($accesPiges)
+                            <a href="{{ route('admin.piges.index', ['campaign_id' => $campaign->id, 'vague_id' => $v->id]) }}" style="color:var(--text);text-decoration:none" title="Voir les piges de cette vague">{{ $ligne['piges'] }}</a>
+                            @else
+                            {{ $ligne['piges'] }}
+                            @endif
+                        </td>
+                        <td style="padding:10px 16px;text-align:right;white-space:nowrap">
+                            @if($accesPiges && $ligne['piges'] > 0)
+                            <a href="{{ route('admin.piges.export', ['campaign_id' => $campaign->id, 'vague_id' => $v->id]) }}"
+                               class="btn btn-ghost btn-sm" title="Rapport PDF des piges de cette vague">📄 PDF des piges</a>
+                            @endif
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
+
     {{-- ── PANNEAUX ── --}}
     <div class="rounded-2xl border overflow-hidden shadow-xl"
          style="background:var(--surface);border-color:var(--border)"
@@ -2524,6 +2597,13 @@
                             <option value="retouche">🔧 Retouche (réparation, nettoyage)</option>
                         </select>
                     </div>
+
+                    {{-- Vague (2026-11-04) : nouveau message = nouvelle vague. --}}
+                    @include('admin.poses.partials._champ_vague', [
+                        'prefixe'      => 'rechange-campaign',
+                        'campaignId'   => $campaign->id,
+                        'kindSelector' => '#rechange-modal select[name="pose_kind"]',
+                    ])
 
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
                         {{-- Date planifiée --}}

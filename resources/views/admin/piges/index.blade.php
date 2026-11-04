@@ -147,7 +147,7 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
             <label class="flbl">Client</label>
             {{-- Changer de client remet la campagne à « Toutes » : l'ancienne
                  ne serait plus dans la liste. --}}
-            <select name="client_id" class="fsel" onchange="this.form.campaign_id.value='';this.form.submit()">
+            <select name="client_id" class="fsel" onchange="this.form.campaign_id.value='';if(this.form.vague_id)this.form.vague_id.value='';this.form.submit()">
                 <option value="">Tous</option>
                 @foreach($clients as $cl)
                 <option value="{{ $cl->id }}" {{ request('client_id')==$cl->id?'selected':'' }}>{{ Str::limit($cl->name,24) }}</option>
@@ -167,14 +167,26 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
 
         <div>
             <label class="flbl">Campagne</label>
-            <select name="campaign_id" class="fsel" onchange="this.form.submit()">
+            <select name="campaign_id" class="fsel" onchange="if(this.form.vague_id)this.form.vague_id.value='';this.form.submit()">
                 <option value="">Toutes</option>
                 @foreach($campaigns as $c)
-                @php $etat = $c->status instanceof \App\Enums\CampaignStatus ? $c->status : \App\Enums\CampaignStatus::tryFrom((string) $c->status); @endphp
-                <option value="{{ $c->id }}" title="{{ $c->name }}" {{ request('campaign_id')==$c->id?'selected':'' }}>{{ Str::limit($c->name,22) }}{{ $etat && $etat !== \App\Enums\CampaignStatus::ACTIF ? ' · ' . $etat->label() : '' }}</option>
+                <option value="{{ $c->id }}" title="{{ $c->name }}" {{ request('campaign_id')==$c->id?'selected':'' }}>{{ \App\Services\Piges\PigeFiltres::libelleCampagne($c) }}</option>
                 @endforeach
             </select>
         </div>
+
+        {{-- Vague (2026-11-04) : seulement pour une campagne qui en a. --}}
+        @if($vagues->isNotEmpty())
+        <div>
+            <label class="flbl">Vague</label>
+            <select name="vague_id" class="fsel" onchange="this.form.submit()">
+                <option value="">Toutes</option>
+                @foreach($vagues as $vg)
+                <option value="{{ $vg->id }}" title="{{ $vg->nom }}" {{ request('vague_id')==$vg->id?'selected':'' }}>{{ Str::limit($vg->libelle(), 26) }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endif
 
         <div>
             <label class="flbl">Commune</label>

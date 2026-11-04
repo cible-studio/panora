@@ -299,9 +299,16 @@ class CampaignController extends Controller
             ->mapWithKeys(fn ($t) => [$t->id => $t->members->pluck('id')->all()])
             ->toArray();
 
+        // Vagues (2026-11-04) : bloc « Vagues » de la fiche et champ Vague
+        // du rechange. Vide pour une campagne qui n'a jamais changé de message.
+        $vagueService    = app(\App\Services\Vagues\VagueService::class);
+        $resumeVagues    = $vagueService->resume($campaign);
+        $nomVaguePropose = $vagueService->nomPropose($campaign->id);
+
         return view('admin.campaigns.show', compact(
             'campaign', 'can', 'allowed', 'commerciaux',
-            'amountConsistency', 'eligibleRechangeSources', 'technicians', 'poseTeams', 'membersByTeam'
+            'amountConsistency', 'eligibleRechangeSources', 'technicians', 'poseTeams', 'membersByTeam',
+            'resumeVagues', 'nomVaguePropose'
         ));
     }
 
@@ -334,10 +341,13 @@ class CampaignController extends Controller
             'pose_team_id'     => 'nullable|integer|exists:pose_teams,id',
             'notes'            => 'nullable|string|max:1000',
             'pose_kind'        => 'nullable|in:rechange,retouche',
+            // Vague (2026-11-04) : nouvelle (nom obligatoire) ou existante.
+            ...\App\Services\Vagues\VagueService::regles($request),
         ], [
             'source_ids.required'     => 'Sélectionne au moins un panneau à réafficher.',
             'source_ids.max'          => 'Maximum 200 rechanges par lot.',
             'scheduled_at.required'   => 'La date et heure du rechange sont obligatoires.',
+            ...\App\Services\Vagues\VagueService::MESSAGES,
         ]);
 
         // Défense en profondeur : toutes les poses doivent appartenir à
@@ -381,6 +391,25 @@ class CampaignController extends Controller
         return redirect()
             ->route('admin.campaigns.show', $campaign)
             ->with('success', $msg);
+    }
+
+    /**
+     * Renomme une vague de la campagne (2026-11-04). Le nom sert à retrouver
+     * les poses et les piges de ce message : obligatoire.
+     */
+    public function renommerVague(Request $request, Campaign $campaign, \App\Models\Vague $vague)
+    {
+        $this->authorize('update', $campaign);
+        abort_unless((int) $vague->campaign_id === (int) $campaign->id, 404);
+
+        $data = $request->validate(
+            ['nom' => 'required|string|max:150'],
+            ['nom.required' => 'Le nom de la vague est obligatoire.']
+        );
+
+        app(\App\Services\Vagues\VagueService::class)->renommer($vague, $data['nom']);
+
+        return back()->with('success', "Vague {$vague->numero} renommée « {$vague->nom} ».");
     }
 
     /**
@@ -2408,7 +2437,11 @@ class CampaignController extends Controller
             'panels' => fn ($q) => $q->orderBy('reference'),
             'panels.commune:id,name',
             'panels.format:id,name',
-            'poseTasks' => fn ($q) => $q->with('technicien:id,name'),
+            // 2026-11-04 : + la vague (visuel à poser), si la base la connaît.
+            'poseTasks' => fn ($q) => $q->with(array_merge(
+                ['technicien:id,name'],
+                \App\Services\Vagues\VagueService::disponible() ? ['vague:id,numero,nom'] : []
+            )),
         ];
         // On ne charge les photos que pour le mode cartes (gain perf en mode liste).
         if ($mode === 'cards') {

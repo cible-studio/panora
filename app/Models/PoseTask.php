@@ -94,6 +94,8 @@ class PoseTask extends Model
         'pose_kind',
         'replaces_pose_task_id',
         'replaced_at',
+        // Vague de la campagne (2026-11-04) — cf. VagueService.
+        'vague_id',
     ];
 
     protected $casts = [
@@ -213,6 +215,18 @@ class PoseTask extends Model
      */
     protected static function booted(): void
     {
+        // ═══ Vague de la campagne (2026-11-04) ═══
+        // Une pose créée sans vague précisée prend la vague en cours de sa
+        // campagne (panneau ajouté en cours d'année), une retouche celle de
+        // la pose réparée. Les rechanges arrivent avec leur vague choisie.
+        // Règles : App\Services\Vagues\VagueService.
+        static::creating(function (PoseTask $task) {
+            if (empty($task->vague_id)
+                && ($vagueId = app(\App\Services\Vagues\VagueService::class)->pourNouvellePose($task))) {
+                $task->vague_id = $vagueId;
+            }
+        });
+
         // ═══ Sync bidirectionnelle pose_team_id ↔ team_name (2026-08-10) ═══
         // Le nouveau `pose_team_id` (FK) est la source de vérité métier
         // pour la perf, mais on maintient `team_name` (VARCHAR) synchro
@@ -392,6 +406,26 @@ class PoseTask extends Model
     public function poseTeam(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(PoseTeam::class, 'pose_team_id');
+    }
+
+    /** Vague de la campagne (2026-11-04). NULL : campagne sans vagues. */
+    public function vague(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Vague::class);
+    }
+
+    /**
+     * « Vague 2 · Phase 2 » — le message à poser, montré aux techniciens
+     * (fiche de pose, espace tech, lien de pose). NULL sans vagues, ou tant
+     * que la migration n'est pas jouée.
+     */
+    public function libelleVague(): ?string
+    {
+        if (!$this->vague_id || !\App\Services\Vagues\VagueService::disponible()) {
+            return null;
+        }
+
+        return $this->vague?->libelle();
     }
 
     /**

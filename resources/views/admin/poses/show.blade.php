@@ -148,6 +148,8 @@ $sIconLg = match($poseTask->status) {
                             {{ $headKind->icon() }} {{ $headKind->label() }}
                         </span>
                     @endif
+                    {{-- Vague de la pose (2026-11-04) --}}
+                    @include('admin.poses.partials._badge_vague', ['task' => $poseTask])
                     {{-- Pill "remplacée" — pour signaler qu'une nouvelle pose a pris le relais --}}
                     @if($poseTask->isReplaced())
                         <span title="Remplacée le {{ $poseTask->replaced_at->format('d/m/Y') }}" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(107,114,128,.12);color:var(--text3);border:1px solid rgba(107,114,128,.3)">
@@ -700,6 +702,13 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') Confirm.cancel(
                     Rechange = ancienne affiche retirée. Retouche = ancienne affiche reste en place.
                 </small>
             </div>
+
+            {{-- Vague (2026-11-04) : nouveau message = nouvelle vague. --}}
+            @include('admin.poses.partials._champ_vague', [
+                'prefixe'      => 'rechange-pose',
+                'campaignId'   => $poseTask->campaign_id,
+                'kindSelector' => '#rechange-modal select[name="pose_kind"]',
+            ])
 
             <div style="margin-bottom:14px">
                 <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Date &amp; heure prévues <span style="color:#ef4444">*</span></label>

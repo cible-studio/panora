@@ -5,6 +5,8 @@ namespace App\Services\Piges;
 use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Pige;
+use App\Models\Vague;
+use App\Services\Vagues\VagueService;
 use App\Support\DownloadFilename;
 use App\Support\PdfAssets;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -60,20 +62,34 @@ final class RapportPigesService
 
     public function relations(): array
     {
-        return [
+        return array_merge([
             'panel:id,reference,name,commune_id,format_id',
             'panel.commune:id,name',
             'panel.format:id,name',
             'campaign:id,name,client_id',
             'campaign.client:id,name',
-        ];
+        ], VagueService::disponible() ? [
+            // Vague de la photo (2026-11-04), par sa pose.
+            'poseTask:id,vague_id',
+            'poseTask.vague:id,campaign_id,numero,nom',
+        ] : []);
     }
 
-    /** Titre proposé : la campagne filtrée, sinon le client, sinon générique. */
+    /**
+     * Titre proposé : la campagne filtrée (et sa vague : « MOOV 2026 —
+     * Phase 2 »), sinon le client, sinon générique.
+     */
     public function titreParDefaut(array $filtres): string
     {
         if (!empty($filtres['campaign_id']) && ($c = Campaign::find($filtres['campaign_id']))) {
-            return $c->name;
+            $vague = !empty($filtres['vague_id']) && VagueService::disponible()
+                ? Vague::where('campaign_id', $c->id)->find($filtres['vague_id'])
+                : null;
+
+            // La Vague 1 porte le nom de la campagne : pas de doublon.
+            return $vague && trim($vague->nom) !== trim($c->name)
+                ? $c->name . ' — ' . $vague->nom
+                : $c->name;
         }
         if (!empty($filtres['client_id']) && ($cl = Client::find($filtres['client_id']))) {
             return 'Piges ' . $cl->name;
@@ -117,6 +133,9 @@ final class RapportPigesService
         $dates = $piges->map(fn ($p) => $p->taken_at ?? $p->created_at)->filter();
         $clients = $piges->map(fn ($p) => $p->campaign?->client?->name)->filter()->unique()->values();
         $campagnes = $piges->map(fn ($p) => $p->campaign?->name)->filter()->unique()->values();
+        $vagues = VagueService::disponible()
+            ? $piges->map(fn ($p) => $p->poseTask?->vague)->filter()->unique('id')->values()
+            : collect();
 
         $donnees = [
             'titre'      => $titre,
@@ -127,6 +146,7 @@ final class RapportPigesService
             'fin'        => $dates->max(),
             'clients'    => $clients,
             'campagnes'  => $campagnes,
+            'vagues'     => $vagues,
         ];
 
         $fichier = DownloadFilename::sanitize(

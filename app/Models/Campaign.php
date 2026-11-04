@@ -196,6 +196,12 @@ class Campaign extends Model
         return $this->hasMany(Pige::class);
     }
 
+    /** Vagues (2026-11-04) : messages successifs d'une campagne annuelle. */
+    public function vagues()
+    {
+        return $this->hasMany(Vague::class)->orderBy('numero');
+    }
+
     public function invoices()
     {
         return $this->hasMany(Invoice::class);

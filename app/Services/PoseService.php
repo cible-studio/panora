@@ -212,8 +212,15 @@ class PoseService
                 ? ($data['team_name'] ?: null)
                 : $sourcePose->team_name;
 
+            // ── Vague (2026-11-04) : nouvelle, existante ou en cours ;
+            //    une retouche garde celle de la pose réparée. Un lot passe
+            //    la vague déjà résolue (une seule pour toute la campagne).
+            $vagueId = $kind->supersedesPrevious() && array_key_exists('vague_id', $data)
+                ? $data['vague_id']
+                : app(\App\Services\Vagues\VagueService::class)->pourRechange($sourcePose, $kind, $data, $creator);
+
             // 1. Créer la nouvelle pose (chaînée à la source)
-            $newTask = PoseTask::create([
+            $newTask = PoseTask::create(array_filter([
                 'panel_id'              => $sourcePose->panel_id,
                 'campaign_id'           => $sourcePose->campaign_id,
                 'assigned_user_id'      => $data['assigned_user_id'] ?? null,
@@ -224,7 +231,10 @@ class PoseService
                 'notes'                 => $data['notes'] ?? null,
                 'pose_kind'             => $kind->value,
                 'replaces_pose_task_id' => $sourcePose->id,
-            ]);
+                // Colonne absente tant que la migration n'est pas jouée :
+                // la clé n'est posée que si une vague existe.
+                'vague_id'              => $vagueId,
+            ], fn ($valeur, $cle) => $cle !== 'vague_id' || $valeur !== null, ARRAY_FILTER_USE_BOTH));
             $newTask->ensurePublicToken();
 
             // 2. Marquer l'ancienne comme remplacée SI le kind
@@ -296,6 +306,12 @@ class PoseService
         $created  = [];
         $warnings = [];
 
+        // Vague (2026-11-04) : UNE par campagne pour tout le lot. Le premier
+        // rechange réussi d'une campagne la résout (une « nouvelle vague »
+        // naît dans sa transaction : un lot sans succès ne laisse aucune
+        // vague vide) ; les suivants de la même campagne la reprennent.
+        $vaguesLot = [];
+
         foreach ($sourcePoseIds as $id) {
             $source = $sources->get($id);
             if (!$source) {
@@ -303,9 +319,17 @@ class PoseService
                 continue;
             }
 
-            $res = $this->createRechange($source, $data, $creator);
+            $donnees = $data;
+            if (array_key_exists((int) $source->campaign_id, $vaguesLot)) {
+                $donnees['vague_id'] = $vaguesLot[(int) $source->campaign_id];
+            }
+
+            $res = $this->createRechange($source, $donnees, $creator);
             if ($res['ok']) {
                 $created[] = $res['task']->id;
+                if (!array_key_exists((int) $source->campaign_id, $vaguesLot)) {
+                    $vaguesLot[(int) $source->campaign_id] = $res['task']->vague_id;
+                }
             } else {
                 $ref = $source->panel?->reference ?? "#{$source->id}";
                 $warnings[] = "Panneau {$ref} : " . ($res['error'] ?? 'échec inconnu');
