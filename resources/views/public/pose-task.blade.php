@@ -665,6 +665,9 @@
             </div>
             <div style="font-size:13px;line-height:1.5;background:rgba(255,255,255,.15);border-radius:8px;padding:10px 12px;margin-top:6px">
                 @if($isRechange)
+                    @if($libelleVagueBandeau = $task->libelleVague())
+                        🌊 <strong>Visuel à poser : {{ $libelleVagueBandeau }}</strong><br>
+                    @endif
                     ⚠ <strong>Pose déjà effectuée sur ce panneau ?</strong> Oui — c'est normal.
                     Le client change son visuel. <strong>Tu dois faire une nouvelle pose</strong>
                     et envoyer une <strong>nouvelle pige photo</strong> (les photos plus bas
@@ -776,6 +779,10 @@
         <div style="font-size:16px;font-weight:700;margin-bottom:4px;">{{ $task->campaign->name }}</div>
         @if($task->campaign->client)
             <div style="font-size:14px;color:var(--text2);margin-bottom:8px;">Client : <strong>{{ $task->campaign->client->name }}</strong></div>
+        @endif
+        {{-- 2026-11-04 : la vague = le visuel à poser. --}}
+        @if($libelleVague = $task->libelleVague())
+            <div style="font-size:14px;color:#1d4ed8;margin-bottom:8px;font-weight:700;">🌊 Visuel à poser : {{ $libelleVague }}</div>
         @endif
         @if($task->campaign->start_date && $task->campaign->end_date)
             <div style="font-size:13px;color:var(--text3);">

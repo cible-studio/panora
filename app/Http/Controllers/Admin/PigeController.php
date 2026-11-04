@@ -72,7 +72,7 @@ class PigeController extends Controller
         $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
 
         // Listes des filtres Client / Campagne / Commune (2026-11-04).
-        ['clients' => $clients, 'campaigns' => $campaigns, 'communes' => $communes]
+        ['clients' => $clients, 'campaigns' => $campaigns, 'communes' => $communes, 'vagues' => $vagues]
             = PigeFiltres::listes($filtres);
 
         // Panneau pré-filtré (depuis index poses)
@@ -89,7 +89,7 @@ class PigeController extends Controller
         $filtresActifs = $filtres !== [] || $request->filled('status');
 
         return view('admin.piges.index', compact(
-            'piges', 'stats', 'techniciens', 'campaigns', 'clients', 'communes',
+            'piges', 'stats', 'techniciens', 'campaigns', 'clients', 'communes', 'vagues',
             'filterPanel', 'filterCampaign', 'filtres', 'filtresActifs'
         ));
     }

@@ -726,3 +726,41 @@ Corrigé sur la page :
 - [ ] Temps de génération pour ~100 photos (photos réduites une à une) :
       noter la durée ; si c'est trop long, passer en arrière-plan
 - [ ] Ouvrir le PDF sur téléphone et le joindre à un mail (poids)
+
+---
+
+## 14. Vagues d'une campagne annuelle *(2026-11-04)*
+
+Un client garde ses panneaux toute l'année et change plusieurs fois de
+message (« Phase 2 »…). La campagne reste le chapeau (contrat, facture,
+nom) ; chaque changement de message est une **vague** nommée. Règles
+validées : tout ou partie des panneaux ; facture unique ; nom obligatoire
+(« Vague N » proposé) ; Vague 1 = nom de la campagne, créée au premier
+changement ; retouche = vague de la pose réparée ; panneau ajouté en cours
+d'année = vague en cours ; nom montré aux techniciens.
+
+**Base (à faire sur le PC qui a la vraie base, avant/au déploiement)**
+- [ ] `SHOW CREATE TABLE pose_tasks;` : pas déjà de colonne `vague_id`
+- [ ] Migration `2026_11_04_100000_create_vagues_table` jouée (staging puis
+      prod) : table `vagues`, colonne `pose_tasks.vague_id`. Additive et
+      rejouable ; tant qu'elle n'est pas jouée, tout marche comme avant
+      (champ Vague absent)
+
+**Écrans**
+- [ ] Fiche campagne → « Programmer un rechange » : champ **Vague**
+      (« 🌊 Nouvelle vague » + nom proposé « Vague 2 ») ; masqué pour une
+      retouche ; nom vide → refusé
+- [ ] Après le rechange : bloc **🌊 Vagues (2)** sur la fiche campagne —
+      V1 au nom de la campagne (toutes les anciennes poses), V2 « Phase 2 » ;
+      renommer une vague (✓) ; « PDF des piges » d'une vague
+- [ ] Le lendemain, rechange d'un autre panneau en choisissant
+      « Continuer : Vague 2 · Phase 2 » → toujours 2 vagues
+- [ ] Liste des poses : badge « 🌊 V2 · Phase 2 » sous la campagne ; même
+      badge sur la fiche pose
+- [ ] Rechange en lot depuis la liste des poses (plusieurs campagnes) :
+      « Nouvelle vague » crée une vague par campagne, même nom
+- [ ] Page Piges : campagne choisie → filtre **Vague** ; export PDF : titre
+      proposé « MOOV 2026 — Phase 2 », vague en sous-titre
+- [ ] Technicien : carte de pose (badge 🌊), lien de pose (« Visuel à
+      poser »), feuille de route, fiche de pose PDF (cartes et liste)
+- [ ] Une campagne sans changement de message : aucun bloc, aucun badge

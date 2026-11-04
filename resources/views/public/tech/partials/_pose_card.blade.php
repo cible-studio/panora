@@ -120,6 +120,10 @@
                 @elseif(($task->pose_kind ?? 'initial') === 'retouche')
                     <span style="background:#3b82f6;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;margin-left:5px;letter-spacing:.3px;vertical-align:middle">🔧 RETOUCHE</span>
                 @endif
+                {{-- 2026-11-04 : la vague = le visuel à poser. --}}
+                @if($libelleVague = $task->libelleVague())
+                    <span title="Visuel à poser" style="background:#1d4ed8;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;margin-left:5px;letter-spacing:.3px;vertical-align:middle">🌊 {{ \Illuminate\Support\Str::limit($libelleVague, 30) }}</span>
+                @endif
                 {{-- 2026-08-10 : badge attribution mérite pose.
                      - Pose ÉQUIPE (pose_team_id renseigné) → badge coloré
                        équipe (couleur de PoseTeam::color_slug). Le tech

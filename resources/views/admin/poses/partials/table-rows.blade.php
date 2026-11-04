@@ -386,6 +386,8 @@
                         @php $cui = $task->campaign->status->uiConfig(); @endphp
                         <div style="font-size:9px;color:{{ $cui['color'] }};margin-top:2px;font-weight:600">{{ $task->campaign->status->label() }}</div>
                     @endif
+                    {{-- Vague de la pose (2026-11-04) --}}
+                    @include('admin.poses.partials._badge_vague', ['task' => $task])
                 @else
                     <span style="font-size:11px;color:var(--text3);font-style:italic">Intervention</span>
                 @endif

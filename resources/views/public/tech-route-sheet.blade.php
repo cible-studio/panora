@@ -260,6 +260,10 @@
                                         · {{ \Illuminate\Support\Str::limit($task->campaign->client->name, 25) }}
                                     @endif
                                 </div>
+                                {{-- 2026-11-04 : la vague = le visuel à poser. --}}
+                                @if($libelleVague = $task->libelleVague())
+                                    <div style="font-size:8.5pt;color:#1d4ed8;font-weight:700;margin-top:1px">🌊 Visuel : {{ \Illuminate\Support\Str::limit($libelleVague, 45) }}</div>
+                                @endif
                             @endif
                         </td>
                         <td>

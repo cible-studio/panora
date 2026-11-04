@@ -6,6 +6,8 @@ use App\Enums\CampaignStatus;
 use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Commune;
+use App\Models\Vague;
+use App\Services\Vagues\VagueService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -25,7 +27,7 @@ final class PigeFiltres
 {
     /** Critères reconnus dans l'URL de la page Piges. */
     public const CLES = [
-        'q', 'client_id', 'campaign_id', 'commune_id', 'technicien_id',
+        'q', 'client_id', 'campaign_id', 'vague_id', 'commune_id', 'technicien_id',
         'panel_id', 'geo_check', 'date_from', 'date_to',
     ];
 
@@ -44,6 +46,10 @@ final class PigeFiltres
             $query->whereHas('campaign', fn ($c) => $c->where('client_id', $f['client_id']));
         }
         if (!empty($f['campaign_id']))   $query->where('campaign_id', $f['campaign_id']);
+        // Vague (2026-11-04) : règle de rattachement dans VagueService.
+        if (!empty($f['vague_id']) && VagueService::disponible() && ($vague = Vague::find($f['vague_id']))) {
+            app(VagueService::class)->restreindrePiges($query, $vague);
+        }
         if (!empty($f['commune_id'])) {
             $query->whereHas('panel', fn ($p) => $p->where('commune_id', $f['commune_id']));
         }
@@ -73,6 +79,20 @@ final class PigeFiltres
     }
 
     /**
+     * Libellé d'une campagne dans le filtre : « MOOV 2026 · Terminée »
+     * (rien après le nom pour une campagne en cours). Hors de la vue
+     * depuis le 2026-11-04 : la conversion du statut, déjà une enum,
+     * avait mis la page en erreur 500 sans qu'aucun test ne la voie.
+     */
+    public static function libelleCampagne(Campaign $c): string
+    {
+        $etat = $c->status instanceof CampaignStatus ? $c->status : CampaignStatus::tryFrom((string) $c->status);
+
+        return \Illuminate\Support\Str::limit($c->name, 22)
+            . ($etat && $etat !== CampaignStatus::ACTIF ? ' · ' . $etat->label() : '');
+    }
+
+    /**
      * Les choix des listes Client, Campagne et Commune de la page Piges.
      *
      * Ne proposent que ce qui a des piges (non archivées), campagnes
@@ -81,13 +101,18 @@ final class PigeFiltres
      * campagne finie. Un client choisi restreint les campagnes aux
      * siennes ; les campagnes en cours d'abord.
      *
-     * @return array{clients: Collection, campaigns: Collection, communes: Collection}
+     * Vagues (2026-11-04) : celles de la campagne choisie, s'il y en a.
+     *
+     * @return array{clients: Collection, campaigns: Collection, communes: Collection, vagues: Collection}
      */
     public static function listes(array $f): array
     {
         $avecPiges = fn ($q) => $q->active();
 
         return [
+            'vagues' => app(VagueService::class)->deLaCampagne(
+                !empty($f['campaign_id']) ? (int) $f['campaign_id'] : null
+            ),
             'clients' => Client::whereHas('campaigns.piges', $avecPiges)
                 ->orderBy('name')->get(['id', 'name']),
             'campaigns' => Campaign::whereHas('piges', $avecPiges)

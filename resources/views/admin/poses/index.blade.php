@@ -561,6 +561,15 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                         <option value="retouche">🔧 Retouche</option>
                     </select>
                 </div>
+                {{-- Vague (2026-11-04). La sélection peut mêler plusieurs
+                     campagnes : une nouvelle vague naît dans chacune (même
+                     nom), ou chaque campagne continue sa vague en cours. --}}
+                @include('admin.poses.partials._champ_vague', [
+                    'prefixe'      => 'bulk-rechange',
+                    'campaignId'   => null,
+                    'kindSelector' => '#bulk-rechange-kind',
+                    'avecEnCours'  => true,
+                ])
                 <div style="margin-bottom:14px">
                     <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:6px">Date &amp; heure prévues <span style="color:#ef4444">*</span></label>
                     <input type="datetime-local" id="bulk-rechange-date"
@@ -1257,8 +1266,15 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         const techVal  = document.getElementById('bulk-rechange-tech').value;
         const teamVal  = document.getElementById('bulk-rechange-team')?.value ?? '';
         const notesVal = document.getElementById('bulk-rechange-notes').value;
+        // Vague (2026-11-04) : champ absent tant que la migration n'est pas jouée.
+        const vagueVal    = document.getElementById('bulk-rechange-vague')?.value ?? '';
+        const vagueNomVal = (document.getElementById('bulk-rechange-vague-nom')?.value ?? '').trim();
         if (!dateVal) {
             showToast('warning', 'Choisissez une date.', 2500, 'Rechange');
+            return;
+        }
+        if (kindVal !== 'retouche' && vagueVal === 'nouvelle' && !vagueNomVal) {
+            showToast('warning', 'Donnez un nom à la nouvelle vague (ex. « Phase 2 »).', 3000, 'Rechange');
             return;
         }
         if (selected.size === 0) {
@@ -1282,6 +1298,8 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             // "hérite" (clé absente) de "explicite" (clé présente = override).
             if (teamVal !== '') fd.append('pose_team_id', teamVal === '0' ? '' : teamVal);
             if (notesVal) fd.append('notes', notesVal);
+            if (vagueVal) fd.append('vague', vagueVal);
+            if (vagueVal === 'nouvelle') fd.append('vague_nom', vagueNomVal);
 
             const res = await fetch(@json(route('admin.pose-tasks.rechange-bulk')), {
                 method: 'POST',

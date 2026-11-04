@@ -70,6 +70,9 @@
                     <div style="font-size:11px;font-weight:700;color:var(--accent);font-family:monospace">{{ $pige->panel?->reference ?? '—' }}</div>
                     <div style="font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ $pige->panel?->name }}">{{ $pige->panel?->name ?? '' }}</div>
                     <div style="font-size:10px;color:var(--text3)">{{ $prise?->format('d/m/Y H:i') }}@if($pige->campaign) · {{ Str::limit($pige->campaign->name, 22) }}@endif</div>
+                    @if($pige->relationLoaded('poseTask') && $pige->poseTask?->vague)
+                    <div style="font-size:10px;font-weight:700;color:var(--accent)">🌊 {{ Str::limit($pige->poseTask->vague->badge(), 28) }}</div>
+                    @endif
                 </div>
             </label>
             @endforeach

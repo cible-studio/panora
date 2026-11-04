@@ -100,7 +100,13 @@
             <tr>
                 <td><span class="num">{{ $i + 1 }}</span></td>
                 <td class="ref">{{ $panel->reference }}</td>
-                <td>{{ $panel->name ?? '—' }}</td>
+                <td>
+                    {{ $panel->name ?? '—' }}
+                    {{-- 2026-11-04 : la vague = le visuel à poser. --}}
+                    @if($pose && ($libelleVague = $pose->libelleVague()))
+                        <br><strong style="color:{{ ($charte ?? \App\Support\PdfCharte::data())['bleu'] }}">Visuel : {{ $libelleVague }}</strong>
+                    @endif
+                </td>
                 <td>{{ $panel->commune?->name ?? '—' }}</td>
                 <td>{{ $panel->format?->name ?? '—' }}</td>
                 {{-- 2026-08-10 option A : si pose_team_id renseigné,
