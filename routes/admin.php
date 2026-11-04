@@ -756,6 +756,11 @@ Route::prefix('admin')
             Route::get('campaign-panels', [PigeController::class, 'campaignPanels'])->name('campaign-panels');
             Route::post('verify-batch',   [PigeController::class, 'verifyBatch'])   ->name('verify-batch');
 
+            // Rapport PDF prêt à envoyer (2026-11-04) : préparation (cocher /
+            // décocher, titre) puis génération. Avant les routes {pige}.
+            Route::get('export',  [PigeController::class, 'exportPreparer'])->name('export');
+            Route::post('export', [PigeController::class, 'exportPdf'])     ->name('export.pdf');
+
             // Validation rapide : page dédiée avec navigation clavier V/R/←/→
             Route::get('validation', [PigeController::class, 'validation'])->name('validation');
 

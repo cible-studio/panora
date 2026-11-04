@@ -694,3 +694,35 @@ l'attribution depuis la liste ne mettent plus jamais d'équipe seuls.
 - [ ] Poses déjà créditées à tort (ex. ADJ-004A, Adjamé) : les cocher →
       « Équipe créditée » → « (retirer — pose solo) » → Appliquer.
       Elles reviennent dans les chiffres personnels du technicien
+
+---
+
+## 13. Page Piges : filtres et rapport PDF *(2026-11-04)*
+
+Demande du MP : « toutes les piges de Moov, filtrées et exportées en PDF
+prêt à envoyer », sur le modèle du Word « MOOV _ MILLIONS A SE PARTAGER
+PHASE 2 ». Règles validées : piges **vérifiées** seulement ; tout est
+coché, le MP décoche ; au plus 200 photos par PDF.
+
+Corrigé sur la page :
+- la recherche ne masquait que les 24 cartes affichées, et Entrée ne
+  lançait rien → recherche sur toutes les piges (Entrée), y compris le
+  nom du client et de la commune ;
+- le filtre Campagne ne proposait que les campagnes en cours → les
+  terminées aussi (marquées « · Terminée ») ;
+- nouveaux filtres Client et Commune.
+
+- [ ] Piges → Client = MOOV : seules ses piges ; la liste Campagne ne
+      propose plus que les siennes, terminées comprises
+- [ ] Recherche « moov » + Entrée : le compteur change (toutes les pages)
+- [ ] Pagination : passer en page 2 garde les filtres
+- [ ] « Exporter en PDF » : écran de préparation, tout est coché, titre
+      proposé (la campagne, sinon « Piges [client] ») ; décocher une
+      commune entière puis une photo → le compteur suit
+- [ ] « Générer le PDF » : page 1 récapitulatif, puis une commune par
+      page, deux panneaux par page, ❖ emplacement, Réf., format, date,
+      lien « Position GPS » ; pied de page CIBLE et numéro de page
+- [ ] Plus de 200 piges vérifiées dans le filtre → message « affinez »
+- [ ] Temps de génération pour ~100 photos (photos réduites une à une) :
+      noter la durée ; si c'est trop long, passer en arrière-plan
+- [ ] Ouvrir le PDF sur téléphone et le joindre à un mail (poids)
