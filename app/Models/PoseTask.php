@@ -197,38 +197,22 @@ class PoseTask extends Model
     }
 
     /**
-     * M2 Performance Technicien — auto-sync pose_tasks.team_name VARCHAR
-     * depuis la nouvelle relation users.pose_team_id.
+     * Équipe créditée (pose_team_id) et son nom figé (team_name).
      *
-     * Observer câblé au saving : si assigned_user_id pointe sur un user
-     * qui a une équipe (pose_team_id), on met à jour team_name avec le
-     * nom de l'équipe AU MOMENT de l'assignation. Cohérent avec la
-     * volonté de préserver l'historique : si le tech change d'équipe
-     * plus tard, ses ANCIENNES poses gardent leur ancien team_name.
+     * 2026-11-04 (règle validée, option « b ») : l'équipe d'une pose ne
+     * vient QUE d'un choix explicite — select Équipe des formulaires
+     * (qui la PROPOSE d'après le technicien, cf. _equipe_proposee),
+     * action groupée « Équipe créditée », rechange. Le serveur ne la
+     * déduit plus du technicien assigné.
      *
-     * Garde-fou A : le sous-titre explicatif sur les vues prévient
-     * l'utilisateur de ce comportement.
+     * Avant, un saving remplissait team_name dès qu'on assignait un
+     * technicien membre d'UNE seule équipe, puis la synchro ci-dessous en
+     * tirait pose_team_id : toute pose de ce technicien, même voulue solo
+     * ou attribuée depuis la liste, était créditée à son équipe et sortait
+     * de ses chiffres personnels (cas de David, « Equipe Abengourou »).
      */
     protected static function booted(): void
     {
-        // ═══ Auto-fill team_name (VARCHAR legacy) depuis le tech assigné ═══
-        // Historique 2026-06-19 : si un tech est assigné et qu'il est
-        // membre d'UNE SEULE équipe, on renseigne team_name pour
-        // l'affichage. Comportement conservé pour rétrocompat UI.
-        static::saving(function (PoseTask $task) {
-            if (!$task->isDirty('assigned_user_id') || empty($task->assigned_user_id)) {
-                return;
-            }
-            if (!empty($task->team_name)) {
-                return;
-            }
-            $user = User::with('poseTeams:id,name')->find($task->assigned_user_id);
-            $teams = $user?->poseTeams ?? collect();
-            if ($teams->count() === 1) {
-                $task->team_name = $teams->first()->name;
-            }
-        });
-
         // ═══ Sync bidirectionnelle pose_team_id ↔ team_name (2026-08-10) ═══
         // Le nouveau `pose_team_id` (FK) est la source de vérité métier
         // pour la perf, mais on maintient `team_name` (VARCHAR) synchro

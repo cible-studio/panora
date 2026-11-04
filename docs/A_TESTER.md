@@ -667,3 +667,30 @@ php artisan tinker --execute="
   par mail reste donc valable tant que la personne ne le change pas.
   Faut-il ajouter la contrainte (migration + écran + middleware) ?
   Inscrit dans `TECHNICAL_DEBT.md`.
+
+---
+
+## 12. Équipe créditée d'une pose — proposée, plus imposée *(2026-11-04)*
+
+Constat : chaque pose attribuée à DAVID portait « 👥 Equipe Abengourou »,
+même depuis la liste ou avec « Aucune (pose solo) ». Il est membre d'une
+seule équipe : le serveur en déduisait l'équipe, la pose était créditée à
+l'équipe et **sortait des chiffres personnels de David**.
+
+Règle validée (option « b ») : les formulaires Nouvelle pose / Modifier
+**proposent** l'équipe du technicien (ligne « 👥 Proposée : … »), un choix
+manuel n'est jamais écrasé (« Aucune » compris), le serveur et
+l'attribution depuis la liste ne mettent plus jamais d'équipe seuls.
+
+- [ ] Poses → Équipes : DAVID est-il **vraiment** membre de l'Équipe
+      Abengourou ? Sinon, le retirer de l'équipe
+- [ ] Liste des poses : attribuer DAVID à une pose solo (action groupée
+      « Technicien ») → **pas** de badge d'équipe
+- [ ] Nouvelle pose : choisir DAVID → l'équipe est proposée avec la ligne
+      d'aide ; remettre « Aucune » → enregistrer → pose solo
+- [ ] Modifier une pose avec des piges validées : changer de technicien
+      vers un membre d'une autre équipe → l'alerte « réattribuera ces
+      piges » s'affiche
+- [ ] Poses déjà créditées à tort (ex. ADJ-004A, Adjamé) : les cocher →
+      « Équipe créditée » → « (retirer — pose solo) » → Appliquer.
+      Elles reviennent dans les chiffres personnels du technicien

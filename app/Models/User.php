@@ -210,8 +210,8 @@ class User extends Authenticatable
 
     /**
      * Équipe "principale" du tech : la 1ère rejointe (= la plus ancienne).
-     * Utilisée par l'observer PoseTask::saving pour auto-déduire team_name
-     * quand l'admin ne le précise pas. Si le tech n'a aucune équipe, retourne null.
+     * Si le tech n'a aucune équipe, retourne null. (Le saving de PoseTask
+     * ne déduit plus l'équipe du technicien depuis le 2026-11-04.)
      */
     public function primaryPoseTeam(): ?\App\Models\PoseTeam
     {

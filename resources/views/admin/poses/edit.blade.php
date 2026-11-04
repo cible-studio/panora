@@ -199,7 +199,7 @@ window.__EDIT__ = {
                                 style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;cursor:pointer"
                                 title="Créer un technicien rapidement">+ Nouveau</button>
                     </div>
-                    {{-- 2026-06-19 — Multi-équipe : data-teams (JSON array). Auto-fill équipe seulement si 1 seule. --}}
+                    {{-- 2026-06-19 — Multi-équipe : data-teams (JSON array). Équipe proposée seulement si 1 seule (cf. _equipe_proposee). --}}
                     <select name="assigned_user_id" id="sel-technicien" class="pose-select" data-team-by-user='@json($teamByUser ?? [])'>
                         <option value="">— Non assigné —</option>
                         @foreach($techniciens as $t)
@@ -218,7 +218,9 @@ window.__EDIT__ = {
                                 title="Créer une équipe rapidement (sans quitter ce formulaire)">+ Nouvelle équipe</button>
                     </div>
                     {{-- 2026-08-10 : basculé sur pose_team_id (FK) — mérite pose.
-                         L'observer PoseTask::saving auto-sync team_name (snapshot). --}}
+                         L'observer PoseTask::saving auto-sync team_name (snapshot).
+                         2026-11-04 : seul ce select décide de l'équipe ; le serveur
+                         ne la déduit plus du technicien. --}}
                     <select name="pose_team_id" id="sel-team" class="pose-select"
                             data-initial="{{ (int) ($poseTask->pose_team_id ?? 0) }}"
                             data-has-piges="{{ $poseTask->piges()->where('status', 'verifie')->count() }}">
@@ -236,6 +238,8 @@ window.__EDIT__ = {
                     </div>
                     {{-- 2026-08-10 (v2) : hint filtrage tech par équipe --}}
                     <div id="tech-filter-hint" style="display:none;margin-top:4px;font-size:11px;font-style:italic"></div>
+                    {{-- 2026-11-04 : équipe proposée d'après le technicien --}}
+                    <div id="team-auto-hint" style="display:none;margin-top:4px;font-size:11px;font-style:italic;color:var(--text3)"></div>
                 </div>
             </div>
             {{-- Filtrage select tech en fonction de l'équipe créditée choisie
@@ -247,36 +251,32 @@ window.__EDIT__ = {
                 'membersByTeam' => $membersByTeam ?? [],
                 'hintId'        => 'tech-filter-hint',
             ])
+            @include('admin.poses.partials._equipe_proposee', [
+                'selTechId' => 'sel-technicien',
+                'selTeamId' => 'sel-team',
+                'hintId'    => 'team-auto-hint',
+            ])
             @endpush
             @push('scripts')
             <script>
             (function () {
-                var selTech = document.getElementById('sel-technicien');
                 var selTeam = document.getElementById('sel-team');
-                if (!selTech || !selTeam) return;
-                var teamByUser = {};
-                try { teamByUser = JSON.parse(selTech.dataset.teamByUser || '{}'); } catch (e) {}
+                if (!selTeam) return;
 
-                // Auto-fill équipe à partir du tech mono-équipe. teamByUser[id]
-                // est un array d'objets { id, name } (cf. controller 2026-08-10).
-                selTech.addEventListener('change', function () {
-                    var teamsList = teamByUser[selTech.value];
-                    if (!Array.isArray(teamsList) || teamsList.length !== 1) return;
-                    var team = teamsList[0];
-                    var teamId = String(typeof team === 'object' ? team.id : team);
-                    var opt = Array.from(selTeam.options).find(function (o) { return o.value === teamId; });
-                    if (opt) selTeam.value = teamId;
-                });
-
-                // Warning bascule solo↔équipe avec piges validées existantes.
+                // Warning bascule solo↔équipe avec piges validées existantes,
+                // que l'équipe change à la main ou par proposition (2026-11-04).
+                // Solo = '' dans le select, '0' dans data-initial : on compare
+                // les deux sous la même forme.
                 var warn = document.getElementById('team-switch-warn');
                 var initial = selTeam.dataset.initial || '0';
                 var hasPiges = parseInt(selTeam.dataset.hasPiges || '0', 10);
                 if (warn && hasPiges > 0) {
                     document.getElementById('team-switch-count').textContent = hasPiges;
-                    selTeam.addEventListener('change', function () {
-                        warn.style.display = (selTeam.value !== initial) ? 'block' : 'none';
-                    });
+                    var maj = function () {
+                        warn.style.display = ((selTeam.value || '0') !== initial) ? 'block' : 'none';
+                    };
+                    selTeam.addEventListener('change', maj);
+                    selTeam.addEventListener('equipe-proposee', maj);
                 }
             })();
             </script>
