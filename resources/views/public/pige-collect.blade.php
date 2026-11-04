@@ -638,6 +638,9 @@
         </div>
 
         <div id="upload-gps" class="gps-info">📍 GPS désactivé — la photo sera envoyée sans coordonnées.</div>
+        {{-- Case « Joindre ma position » (2026-11-04) : recochée à chaque
+             ouverture ; décochée, la photo part sans position. --}}
+        <x-joindre-gps style="margin:-4px 0 12px" />
 
         <div class="field">
             <label>Photo</label>
@@ -829,6 +832,7 @@ window.PigeCollect = (function () {
             document.getElementById('preview-wrap').classList.remove('shown');
             document.getElementById('upload-preview-img').src = '';
             document.getElementById('preview-empty').style.display = 'flex';
+            window.PanoraGps?.recocher(modal); // chaque photo repart cochée
             modal.classList.add('open');
             if (currentGps.lat === null) requestGps();
         },
@@ -926,7 +930,10 @@ window.PigeCollect = (function () {
             fd.append('photo',    fileToSend);
             fd.append('notes',    document.getElementById('upload-notes').value);
             fd.append('tech_name', techInput?.value || '');
-            if (currentGps.lat !== null) {
+            // Case « Joindre ma position » (x-joindre-gps) décochée → pas de
+            // position. Absente (page en cache) → on joint, comme avant.
+            const avecPosition = window.PanoraGps ? window.PanoraGps.joindre(modal) : true;
+            if (avecPosition && currentGps.lat !== null) {
                 fd.append('gps_lat', currentGps.lat);
                 fd.append('gps_lng', currentGps.lng);
             }

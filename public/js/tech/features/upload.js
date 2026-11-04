@@ -206,10 +206,13 @@ function getPosition() {
 // Le tech voit ce qu'il s'apprête à envoyer (flou, cadrage, etc.) et
 // peut "Refaire" sans avoir envoyé une mauvaise photo.
 //
-// Retour : Promise<{gps: {lat, lng, acc}|null} | false>
+// Retour : Promise<{gps: {lat, lng, acc}|null, joindreGps?: boolean} | false>
 //   - false : tech a annulé (refaire / Escape)
 //   - { gps } : tech a confirmé. gps réutilisé en aval pour ne pas
 //               re-prompt la géoloc.
+//   - joindreGps (2026-11-04) : case « Joindre ma position » de la modale.
+//               false = le tech l'a décochée → la photo part SANS position.
+//               Absent (modale absente) = on joint, comme avant.
 function haversineMetersT3(lat1, lng1, lat2, lng2) {
     const R = 6371000;
     const toRad = d => d * Math.PI / 180;
@@ -234,6 +237,13 @@ function verdictForDistance(m) {
                            s: 'Vérifie que c\'est bien le bon avant d\'envoyer.', icon: '⚠' };
     return            { v: 'bad',  t: `✗ Tu es à ${formatDistanceT3(m)} du panneau`,
                            s: 'C\'est probablement pas le bon — refais sur place.', icon: '✗' };
+}
+
+// Case « Joindre ma position » (composant Blade x-joindre-gps, qui publie
+// window.PanoraGps). Sans le composant (page restée en cache d'avant la
+// case) : on joint la position, comme avant.
+function joindreGps(racine) {
+    return window.PanoraGps ? window.PanoraGps.joindre(racine) : true;
 }
 
 function askPhotoPreview(file, pose) {
@@ -265,13 +275,31 @@ function askPhotoPreview(file, pose) {
         const now = new Date();
         setText('[data-field="time-text"]', now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
 
-        // Verdict initial : pending
+        // Verdict GPS. 2026-11-04 : on garde le dernier verdict calculé pour
+        // le ré-afficher quand le tech recoche « Joindre ma position » ;
+        // case décochée → bloc neutre « Position non jointe ».
         const verdict = overlay.querySelector('[data-field="verdict"]');
-        verdict.setAttribute('data-verdict', 'pending');
-        setText('[data-field="verdict-icon"]', '⏳');
-        setText('[data-field="verdict-title"]', 'Calcul de la position…');
-        setText('[data-field="verdict-sub"]',   '');
-        setText('[data-field="gps-text"]',      'Position en cours…');
+        const gpsCase = overlay.querySelector('[data-joindre-gps]');
+        let verdictGps = null;
+        const afficherVerdict = () => {
+            const s = joindreGps(overlay) ? verdictGps : {
+                v: 'off', icon: '∅', title: 'Position non jointe',
+                sub: 'La photo part sans ta position.', gpsText: 'Position non jointe',
+            };
+            verdict.setAttribute('data-verdict', s.v);
+            setText('[data-field="verdict-icon"]',  s.icon);
+            setText('[data-field="verdict-title"]', s.title);
+            setText('[data-field="verdict-sub"]',   s.sub);
+            setText('[data-field="gps-text"]',      s.gpsText);
+        };
+        const setVerdict = (s) => { verdictGps = s; afficherVerdict(); };
+
+        // Chaque photo repart cochée (on ne reste pas décoché par oubli).
+        if (window.PanoraGps) window.PanoraGps.recocher(overlay);
+        gpsCase?.addEventListener('change', afficherVerdict);
+
+        // Verdict initial : pending
+        setVerdict({ v: 'pending', icon: '⏳', title: 'Calcul de la position…', sub: '', gpsText: 'Position en cours…' });
 
         // Affiche la modale
         overlay.hidden = false;
@@ -304,32 +332,24 @@ function askPhotoPreview(file, pose) {
                     title = '🚫 Géolocalisation non supportée';
                     sub   = 'Ce navigateur ne fournit pas le GPS — bascule sur le téléphone.';
                 }
-                verdict.setAttribute('data-verdict', 'unknown');
-                setText('[data-field="verdict-icon"]', '❓');
-                setText('[data-field="verdict-title"]', title);
-                setText('[data-field="verdict-sub"]',   sub);
-                setText('[data-field="gps-text"]',      err || 'GPS bloqué');
+                setVerdict({ v: 'unknown', icon: '❓', title, sub, gpsText: err || 'GPS bloqué' });
                 return;
             }
-            setText('[data-field="gps-text"]',
-                `${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}${gps.acc ? ' ±' + Math.round(gps.acc) + ' m' : ''}`);
+            const gpsText = `${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}${gps.acc ? ' ±' + Math.round(gps.acc) + ' m' : ''}`;
 
             const lat = parseFloat(pose?.dataset.lat);
             const lng = parseFloat(pose?.dataset.lng);
             if (!isFinite(lat) || !isFinite(lng)) {
-                verdict.setAttribute('data-verdict', 'unknown');
-                setText('[data-field="verdict-icon"]', '📍');
-                setText('[data-field="verdict-title"]', 'Position du panneau inconnue');
-                setText('[data-field="verdict-sub"]',   'On peut quand même envoyer.');
+                setVerdict({ v: 'unknown', icon: '📍', title: 'Position du panneau inconnue',
+                             sub: 'On peut quand même envoyer.', gpsText });
                 return;
             }
             const m = haversineMetersT3(gps.lat, gps.lng, lat, lng);
             const ver = verdictForDistance(m);
             if (ver) {
-                verdict.setAttribute('data-verdict', ver.v);
-                setText('[data-field="verdict-icon"]', ver.icon);
-                setText('[data-field="verdict-title"]', ver.t);
-                setText('[data-field="verdict-sub"]',   ver.s);
+                setVerdict({ v: ver.v, icon: ver.icon, title: ver.t, sub: ver.s, gpsText });
+            } else {
+                setVerdict({ ...verdictGps, gpsText });
             }
         });
 
@@ -342,12 +362,17 @@ function askPhotoPreview(file, pose) {
             // Détache les listeners temporaires
             document.removeEventListener('keydown', onEsc);
             overlay.removeEventListener('click', onClick);
+            gpsCase?.removeEventListener('change', afficherVerdict);
             resolve(result);
         };
         const onEsc = (ev) => { if (ev.key === 'Escape') close(false); };
         const onClick = (ev) => {
             if (ev.target.closest('[data-action="t3-redo"]')) { ev.preventDefault(); close(false); return; }
-            if (ev.target.closest('[data-action="t3-send"]')) { ev.preventDefault(); close({ gps: capturedGps }); return; }
+            if (ev.target.closest('[data-action="t3-send"]')) {
+                ev.preventDefault();
+                close({ gps: capturedGps, joindreGps: joindreGps(overlay) });
+                return;
+            }
         };
         document.addEventListener('keydown', onEsc);
         overlay.addEventListener('click', onClick);
@@ -557,8 +582,12 @@ function bindMainUpload() {
         const blob = await compressImage(file);
 
         // 2) GPS — déjà capté en T3, on réutilise. Fallback si manquant.
-        let gps = previewResult.gps;
-        if (!gps) {
+        //    2026-11-04 : case « Joindre ma position » décochée en T3 → on
+        //    n'envoie AUCUNE position (ni celle de T3, ni le fallback) ; la
+        //    file hors-ligne garde aussi gps = null pour le rejouage.
+        const avecPosition = previewResult.joindreGps !== false;
+        let gps = avecPosition ? previewResult.gps : null;
+        if (avecPosition && !gps) {
             label.innerHTML = '📍 GPS…';
             gps = await getPosition();
         }
