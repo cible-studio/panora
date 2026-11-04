@@ -1082,14 +1082,9 @@ class DiffusionDisponibilitesService
             $valeurs['LOGO'] = asset($logo);
         }
 
-        $objet = str_replace('{periode}', $periode, (string) config('diffusion.objet'));
-        if ($this->estEnvoiTest($envoi)) {
-            $objet = '[TEST] ' . $objet;
-        }
-
         $payload = [
             'name'       => sprintf('Disponibilités %s — %s #%d', $periode, $envoi->libelleMode(), $envoi->id),
-            'subject'    => $objet,
+            'subject'    => $this->objet($envoi),
             'sender'     => [
                 'name'  => (string) config('brevo.sender.name'),
                 'email' => (string) config('brevo.sender.email'),
@@ -1116,6 +1111,33 @@ class DiffusionDisponibilitesService
         }
 
         return $payload;
+    }
+
+    /**
+     * Objet du mail client (2026-11-04) : les trois formules de la
+     * direction tournent d'un catalogue au suivant. Le rang vient de la
+     * période (deux créneaux par mois, le 1er et le 15) : un test et le
+     * vrai envoi d'une même période portent le même objet, et deux
+     * catalogues qui se suivent n'ont jamais le même. DIFFUSION_OBJET,
+     * s'il est posé, remplace la rotation.
+     */
+    public function objet(DiffusionEnvoi $envoi): string
+    {
+        $formules = ($impose = trim((string) config('diffusion.objet')))
+            ? [$impose]
+            : array_values(array_filter((array) config('diffusion.objets')));
+        $formules = $formules ?: ['Nos disponibilités {periode}'];
+
+        $debut = $envoi->periode_debut;
+        $rang  = $debut->year * 24 + ($debut->month - 1) * 2 + ($debut->day >= 15 ? 1 : 0);
+
+        $objet = str_replace(
+            '{periode}',
+            DiffusionCalendrier::libellePeriode($envoi->periode_debut, $envoi->periode_fin),
+            $formules[$rang % count($formules)]
+        );
+
+        return $this->estEnvoiTest($envoi) ? '[TEST] ' . $objet : $objet;
     }
 
     // ══════════════════════════════════════════════════════════════

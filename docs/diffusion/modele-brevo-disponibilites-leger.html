@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!--
   Modèle Brevo LÉGER — envoi des disponibilités (2026-10-13 ; logo et
-  numéros fournis par Panora depuis le 2026-11-03 ; centré le 2026-11-04).
+  numéros fournis par Panora depuis le 2026-11-03 ; centré et texte de la
+  direction le 2026-11-04).
 
   Objectif : arriver dans la boîte de réception (onglet « Principale » de
   Gmail) plutôt que dans « Promotions ». Gmail classe en promotion les mails
@@ -10,13 +11,23 @@
     · une seule image, le logo, en haut (demande du 2026-11-03 ; retiré de
       la signature le 2026-11-04). Pas de photo ;
     · deux liens utiles, en texte : le catalogue d'Abidjan et celui de
-      l'intérieur du pays (2026-10-29) ;
-    · texte court, police système, colonne et texte centrés (demande du
-      2026-11-04 : « trop à gauche ») ;
+      l'intérieur du pays (2026-10-29), repérés par une pastille verte et
+      une bleue (émojis, pas des images) ;
+    · police système, colonne et texte centrés (demande du 2026-11-04 :
+      « trop à gauche ») ;
     · invitation à RÉPONDRE au mail (les réponses améliorent le classement
       des envois suivants) ;
     · marque discrète : signature + liseré aux 5 couleurs en CSS (pas une image).
   Le lien de désinscription reste obligatoire (pied de page).
+
+  Texte (2026-11-04) : celui de la direction, avec deux ajustements validés :
+    · l'entreprise du destinataire reste nommée (« notre sélection pour
+      ORANGE CI : 232 emplacements… ») ; sans entreprise, sa phrase
+      d'origine (« notre sélection de 232 emplacements… ») ;
+    · « son trafic estimé et sa description » : ce que montre vraiment le
+      PDF (pas de rubrique « recommandations »).
+  L'objet ne vient pas d'ici : Panora fait tourner trois formules
+  (config/diffusion.php, « objets »).
 
   Valeurs remplies par Panora : params.PERIODE, params.MOIS,
   params.NB_PANNEAUX (total), params.NB_ABIDJAN, params.LIEN_ABIDJAN,
@@ -31,8 +42,10 @@
   pas dans ce commentaire.)
 
   Une zone sans aucun emplacement disponible ce mois-là n'est PAS envoyée
-  par Panora : le bloc correspondant disparaît du mail grâce au test
-  « si le lien existe ». Aucun lien mort, aucun PDF vide.
+  par Panora : son lien disparaît du mail grâce au test « si le lien
+  existe », et les lignes « à Abidjan et dans les principales villes » et
+  « Couverture » ne citent plus que l'autre zone. Aucun lien mort, aucun
+  PDF vide.
 
   À coller dans Brevo → Modèles → Code HTML personnalisé, puis mettre son
   numéro dans BREVO_TEMPLATE_DISPOS. Le modèle illustré
@@ -47,7 +60,7 @@
 <title>Disponibilités {{ params.PERIODE }}</title>
 </head>
 <body style="margin:0; padding:0; background-color:#FFFFFF;">
-<div style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">{{ params.NB_PANNEAUX }} emplacements disponibles {{ params.PERIODE }}, avec photo, format et localisation de chacun.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+<div style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">{{ params.NB_PANNEAUX }} emplacements disponibles {{ params.PERIODE }} : photo, format, localisation et trafic estimé de chacun.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF;">
 <tr><td align="center" style="padding:24px 16px;">
 <!--[if mso]><table role="presentation" width="560" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
@@ -64,30 +77,53 @@
   Bonjour {{ contact.CONTACT | default : "Madame, Monsieur" }},
 </td></tr>
 
-<tr><td align="center" style="padding:0 0 18px 0;">
-  Voici{% if contact.SOCIETE %}, pour <strong>{{ contact.SOCIETE }}</strong>,{% endif %} nos emplacements disponibles <strong>{{ params.PERIODE }}</strong>, à Abidjan et dans le reste du pays.
+<tr><td align="center" style="padding:0 0 14px 0; font-size:17px; line-height:25px;">
+  <strong>De nouveaux emplacements publicitaires sont disponibles pour vos prochaines campagnes&nbsp;!</strong>
 </td></tr>
 
-<!-- L'essentiel : un encadré sobre (deux filets gris), deux liens en texte.
-     Chaque lien ne s'affiche que si Panora l'a envoyé, c'est-à-dire si la
-     zone a au moins un emplacement disponible. -->
-<tr><td style="padding:0 0 18px 0;">
+<tr><td align="center" style="padding:0 0 18px 0;">
+  Anticipez vos prochaines prises de parole en découvrant notre sélection{% if contact.SOCIETE %} pour <strong>{{ contact.SOCIETE }}</strong>&nbsp;:{% else %} de{% endif %} <strong>{{ params.NB_PANNEAUX }} emplacements disponibles {{ params.PERIODE }}</strong>, {% if params.LIEN_ABIDJAN %}à Abidjan{% if params.LIEN_INTERIEUR %} et dans les principales villes de Côte d'Ivoire{% endif %}{% else %}dans les principales villes de Côte d'Ivoire{% endif %}.
+</td></tr>
+
+<!-- L'essentiel : un encadré sobre (deux filets gris). -->
+<tr><td style="padding:0 0 20px 0;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-  <tr><td align="center" style="border-top:1px solid #E6E6E6; border-bottom:1px solid #E6E6E6; padding:14px 0; text-align:center;">
-    <strong>{{ params.NB_PANNEAUX }} emplacements disponibles</strong><br>
-    {% if params.LIEN_ABIDJAN %}
-    <a href="{{ params.LIEN_ABIDJAN }}" style="color:#E20613; font-weight:bold; text-decoration:underline;">Disponibilités à Abidjan ({{ params.NB_ABIDJAN }}) &mdash; PDF</a><br>
-    {% endif %}
-    {% if params.LIEN_INTERIEUR %}
-    <a href="{{ params.LIEN_INTERIEUR }}" style="color:#E20613; font-weight:bold; text-decoration:underline;">Disponibilités à l'intérieur du pays ({{ params.NB_INTERIEUR }}) &mdash; PDF</a><br>
-    {% endif %}
-    <span style="font-size:13px; color:#555555;">Pour chaque emplacement : photo, format, localisation et date de disponibilité.</span>
+  <tr><td align="center" style="border-top:1px solid #E6E6E6; border-bottom:1px solid #E6E6E6; padding:14px 0; text-align:center; line-height:26px;">
+    &#128205; <strong>{{ params.NB_PANNEAUX }} emplacements disponibles</strong><br>
+    &#128197; <strong>Période&nbsp;:</strong> {{ params.PERIODE }}<br>
+    &#127757; <strong>Couverture&nbsp;:</strong> {% if params.LIEN_ABIDJAN %}Abidjan{% if params.LIEN_INTERIEUR %} et intérieur du pays{% endif %}{% else %}Intérieur du pays{% endif %}
   </td></tr>
   </table>
 </td></tr>
 
-<tr><td align="center" style="padding:0 0 16px 0;">
-  Un emplacement vous intéresse&nbsp;? <strong>Répondez simplement à ce mail</strong> en indiquant sa référence&nbsp;: nous vous confirmons sa disponibilité et revenons vers vous sous 24&nbsp;heures ouvrées.
+<!-- Les deux catalogues, en liens texte. Chaque lien ne s'affiche que si
+     Panora l'a envoyé, c'est-à-dire si la zone a au moins un emplacement
+     disponible. -->
+<tr><td align="center" style="padding:0 0 10px 0;">
+  <strong>Découvrez les disponibilités selon vos zones d'intérêt</strong>
+</td></tr>
+<tr><td align="center" style="padding:0 0 20px 0; line-height:30px;">
+  {% if params.LIEN_ABIDJAN %}
+  &#128994; <a href="{{ params.LIEN_ABIDJAN }}" style="color:#111111; font-weight:bold; text-decoration:underline;">CONSULTER LES DISPONIBILITÉS À ABIDJAN</a><br>
+  {% endif %}
+  {% if params.LIEN_INTERIEUR %}
+  &#128309; <a href="{{ params.LIEN_INTERIEUR }}" style="color:#111111; font-weight:bold; text-decoration:underline;">CONSULTER LES DISPONIBILITÉS À L'INTÉRIEUR DU PAYS</a><br>
+  {% endif %}
+</td></tr>
+
+<tr><td align="center" style="padding:0 0 18px 0;">
+  <strong>Bien plus qu'un catalogue d'emplacements&nbsp;:</strong> retrouvez pour chaque support sa photographie, son format, sa localisation, son trafic estimé et sa description.
+</td></tr>
+
+<tr><td align="center" style="padding:0 0 8px 0;">
+  <strong>Un ou plusieurs emplacements vous intéressent&nbsp;?</strong>
+</td></tr>
+<tr><td align="center" style="padding:0 0 18px 0;">
+  Répondez simplement à cet email en indiquant les références souhaitées. Notre équipe vous confirmera leur disponibilité et vous transmettra une proposition commerciale <strong>sous 1&nbsp;heure ouvrée</strong>.
+</td></tr>
+
+<tr><td align="center" style="padding:0 0 18px 0;">
+  <strong>Anticipez vos réservations pour sécuriser les meilleurs emplacements pour vos prochaines campagnes.</strong>
 </td></tr>
 
 <tr><td align="center" style="padding:0 0 22px 0;">
@@ -103,7 +139,8 @@
     <td width="12" height="3" style="width:12px; height:3px; background-color:#3F7FC0; font-size:0; line-height:0;">&nbsp;</td>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#81358A; font-size:0; line-height:0;">&nbsp;</td>
   </tr></table>
-  <strong>Le service Commercial de CIBLE</strong><br>
+  <strong>L'équipe commerciale CIBLE</strong><br>
+  <em>Votre visibilité, notre métier.</em><br>
   <span style="font-size:13px; line-height:20px; color:#555555;">
     {% if params.ACTIVITE %}{{ params.ACTIVITE }}<br>{% endif %}
     {% if params.TELEPHONES %}{{ params.TELEPHONES }}<br>{% endif %}

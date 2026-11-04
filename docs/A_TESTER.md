@@ -553,8 +553,8 @@ Retours sur le test #12, traités le 4/11 :
 
 - [ ] Recoller le modèle n° 14 (nouvelle version centrée), puis « Envoyer un
       test » : mail centré, logo en haut seulement, liseré dans la signature,
-      « Régie & Studio · Côte d'Ivoire · depuis 1994 » sous « Le service
-      Commercial de CIBLE »
+      « Régie & Studio · Côte d'Ivoire · depuis 1994 » sous la signature
+      *(à faire avec le texte de la direction, § 10 octies : un seul recollage)*
 - [ ] Diffusion dispos : « Confirmation envoyée à » affiche aussi
       stephane.oponou@cible-ci.com, suivi de « (en production ; un test : à
       son auteur) » tant que le mode test est actif
@@ -581,6 +581,32 @@ publicitaire » (une régie concurrente), voulu.
       à recoller (texte corrigé en dur)
 - [ ] Au premier vrai envoi : Brevo affiche un destinataire de plus que
       Panora (la copie) — c'est normal
+
+### 10 octies. Texte et objet du catalogue — version de la direction *(2026-11-04)*
+
+Le mail reprend le texte de la boss (« De nouveaux emplacements
+publicitaires sont disponibles… », pastilles 📍 📅 🌍, liens 🟢 Abidjan /
+🔵 intérieur, réponse « sous 1 heure ouvrée », signature « L'équipe
+commerciale CIBLE — Votre visibilité, notre métier. »). Choix validés :
+l'entreprise reste nommée (« notre sélection pour ORANGE CI : … ») ; la
+phrase du PDF dit « son trafic estimé et sa description » (le PDF n'a pas
+de rubrique « recommandations »). L'objet tourne entre ses trois formules,
+une par catalogue (cf. `docs/DIFFUSION_DISPONIBILITES.md`, étape 7).
+
+- [ ] Coolify (prod **et** staging) : **pas** de variable `DIFFUSION_OBJET`
+      — sinon elle remplace les trois objets
+- [ ] Brevo → Modèles → n° 14 → coller **tout**
+      `docs/diffusion/modele-brevo-disponibilites-leger.html` → Enregistrer,
+      modèle **Actif**
+- [ ] « Envoyer un test » (période du 15 au 30 novembre) : objet
+      « [TEST] Anticipez vos campagnes : découvrez nos emplacements
+      disponibles »
+- [ ] Mail de test : « Bonjour [nom], », « …notre sélection pour ROMI CI :
+      N emplacements… » ; le mail de Stéphane : « …notre sélection de N
+      emplacements… »
+- [ ] Les deux liens 🟢 / 🔵 ouvrent chacun le bon PDF
+- [ ] Signature : liseré, « L'équipe commerciale CIBLE », « Votre
+      visibilité, notre métier. », Régie & Studio, 3 numéros, e-mail
 
 ---
 
