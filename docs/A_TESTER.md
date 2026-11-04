@@ -719,9 +719,11 @@ Corrigé sur la page :
 - [ ] « Exporter en PDF » : écran de préparation, tout est coché, titre
       proposé (la campagne, sinon « Piges [client] ») ; décocher une
       commune entière puis une photo → le compteur suit
-- [ ] « Générer le PDF » : page 1 récapitulatif, puis une commune par
-      page, deux panneaux par page, ❖ emplacement, Réf., format, date,
-      lien « Position GPS » ; pied de page CIBLE et numéro de page
+- [ ] « Générer le PDF » : **identique au Word** « MOOV _ MILLIONS A SE
+      PARTAGER PHASE 2 » (refait le 4/11, « pas identique » à la 1re
+      version) — logo en haut à gauche, titre centré souligné, date, communes
+      dans l'ordre de la tournée (heure des photos), « ❖ emplacement » puis
+      la photo, environ deux panneaux par page, numéro en bas à droite
 - [ ] Plus de 200 piges vérifiées dans le filtre → message « affinez »
 - [ ] Temps de génération pour ~100 photos (photos réduites une à une) :
       noter la durée ; si c'est trop long, passer en arrière-plan

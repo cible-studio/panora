@@ -17,9 +17,9 @@ use Illuminate\Support\Collection;
  * Rapport de piges en PDF, prêt à envoyer au client (2026-11-04).
  *
  * Remplace le document Word monté à la main (« MOOV _ MILLIONS A SE
- * PARTAGER PHASE 2 ») : mêmes photos groupées par commune, deux panneaux
- * par page, avec en plus la référence, le format, la date de la photo, un
- * récapitulatif en première page et la charte.
+ * PARTAGER PHASE 2 ») et le reproduit à l'identique (demande de
+ * l'utilisateur) : logo, titre, date, communes, « ❖ emplacement » et
+ * photo — cf. resources/views/pdf/rapport-piges.blade.php.
  *
  * Règles validées le 2026-11-04 :
  *   · seules les piges VÉRIFIÉES sont exportables — jamais une rejetée ni
@@ -39,9 +39,9 @@ final class RapportPigesService
     private const PHOTO_MAX_H = 750;
     private const PHOTO_QUALITE = 65;
 
-    /** Cadre de la photo dans la page, en mm (2 panneaux par page A4). */
-    private const CADRE_W = 186;
-    private const CADRE_H = 100;
+    /** Cadre de la photo, en mm : celui du modèle Word (≈ 2 panneaux par page A4). */
+    private const CADRE_W = 150;
+    private const CADRE_H = 85;
 
     /** Les piges exportables pour ces filtres (cf. PigeFiltres). */
     public function selection(array $filtres): Builder
@@ -99,18 +99,24 @@ final class RapportPigesService
     }
 
     /**
-     * Commune → piges, communes par ordre alphabétique, puis panneau et
-     * date de la photo. Même ordre à l'écran de préparation et dans le PDF.
+     * Commune → piges, dans l'ordre de la tournée, comme le document Word
+     * de l'équipe : les communes dans l'ordre de leur première photo, puis
+     * les photos par heure de prise de vue. Même ordre à l'écran de
+     * préparation et dans le PDF.
      *
      * @return Collection<string, Collection<int, Pige>>
      */
     public function grouper(Collection $piges): Collection
     {
+        $quand = fn (Pige $p) => ($p->taken_at ?? $p->created_at)?->getTimestamp() ?? 0;
+        $premiere = $piges->groupBy(fn ($p) => $this->commune($p))
+            ->map(fn (Collection $liste) => $liste->min($quand));
+
         return $piges
             ->sortBy([
+                fn ($a, $b) => $premiere[$this->commune($a)] <=> $premiere[$this->commune($b)],
                 fn ($a, $b) => strcmp($this->commune($a), $this->commune($b)),
-                fn ($a, $b) => strcmp((string) $a->panel?->reference, (string) $b->panel?->reference),
-                fn ($a, $b) => ($a->taken_at ?? $a->created_at) <=> ($b->taken_at ?? $b->created_at),
+                fn ($a, $b) => $quand($a) <=> $quand($b),
             ])
             ->groupBy(fn ($p) => $this->commune($p));
     }
