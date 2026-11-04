@@ -170,7 +170,7 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
             <select name="campaign_id" class="fsel" onchange="this.form.submit()">
                 <option value="">Toutes</option>
                 @foreach($campaigns as $c)
-                @php $etat = \App\Enums\CampaignStatus::tryFrom((string) $c->status); @endphp
+                @php $etat = $c->status instanceof \App\Enums\CampaignStatus ? $c->status : \App\Enums\CampaignStatus::tryFrom((string) $c->status); @endphp
                 <option value="{{ $c->id }}" title="{{ $c->name }}" {{ request('campaign_id')==$c->id?'selected':'' }}>{{ Str::limit($c->name,22) }}{{ $etat && $etat !== \App\Enums\CampaignStatus::ACTIF ? ' · ' . $etat->label() : '' }}</option>
                 @endforeach
             </select>
