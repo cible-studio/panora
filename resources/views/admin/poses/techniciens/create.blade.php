@@ -97,7 +97,8 @@
                         @endforeach
                     </select>
                     <div style="font-size:11px;color:var(--text3);margin-top:4px">
-                        L'équipe sera reportée automatiquement sur les nouvelles tâches de pose assignées à ce technicien.
+                        {{-- 2026-11-04 : proposée, plus imposée (cf. _equipe_proposee). --}}
+                        L'équipe sera proposée quand on lui assigne une pose ; « Aucune » reste possible (pose solo).
                     </div>
                 </div>
 

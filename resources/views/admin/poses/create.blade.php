@@ -184,10 +184,10 @@ window.__POSE__ = {
             </div>
             {{-- 2026-06-18 (mission équipes pose tasks) ─────────────────────
                  Technicien et équipe sont maintenant des VRAIS select alimentés
-                 par les modèles User + PoseTeam. L'observer sur PoseTask::saving
-                 (cf. app/Models/PoseTask.php) auto-sync team_name depuis le
-                 user.poseTeam, mais on permet aussi à l'admin de FORCER une
-                 équipe différente via le select. Boutons "+ Nouveau" pour la
+                 par les modèles User + PoseTeam. Depuis le 2026-11-04, l'équipe
+                 du technicien est seulement PROPOSÉE dans le select (le serveur
+                 ne la déduit plus, cf. app/Models/PoseTask.php) ; l'admin peut
+                 choisir une autre équipe ou « Aucune ». Boutons "+ Nouveau" pour la
                  création rapide sans quitter le formulaire en cours. ───── --}}
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
                 <div>
@@ -198,8 +198,8 @@ window.__POSE__ = {
                                 title="Créer un technicien rapidement (sans quitter ce formulaire)">+ Nouveau</button>
                     </div>
                     {{-- 2026-06-19 — Multi-équipe : data-team passe d'une string à un JSON array.
-                         L'auto-fill équipe ne s'active que si le tech a UNE seule équipe (sinon
-                         l'admin choisit manuellement parmi ses N équipes). --}}
+                         L'équipe n'est proposée que si le tech a UNE seule équipe (sinon
+                         l'admin choisit manuellement parmi ses N équipes) — cf. _equipe_proposee. --}}
                     <select name="assigned_user_id" id="sel-technicien" class="pose-select" data-team-by-user='@json($teamByUser ?? [])'>
                         <option value="">— Non assigné —</option>
                         @foreach($techniciens as $t)
@@ -221,7 +221,9 @@ window.__POSE__ = {
                     {{-- 2026-08-10 : basculé sur pose_team_id (FK). L'observer
                          PoseTask::saving auto-synchronise team_name (snapshot).
                          Une sélection ici = pose CRÉDITÉE À L'ÉQUIPE (mérite
-                         collectif, cf. refonte KPI). Value 0/vide = pose solo. --}}
+                         collectif, cf. refonte KPI). Value 0/vide = pose solo.
+                         2026-11-04 : seul ce select décide de l'équipe ; le serveur
+                         ne la déduit plus du technicien. --}}
                     <select name="pose_team_id" id="sel-team" class="pose-select">
                         <option value="">— Aucune (pose solo, crédit individuel) —</option>
                         @foreach(($teams ?? collect()) as $team)
@@ -230,11 +232,15 @@ window.__POSE__ = {
                     </select>
                     {{-- 2026-08-10 (v2) : hint filtrage tech par équipe --}}
                     <div id="tech-filter-hint" style="display:none;margin-top:4px;font-size:11px;font-style:italic"></div>
+                    {{-- 2026-11-04 : équipe proposée d'après le technicien --}}
+                    <div id="team-auto-hint" style="display:none;margin-top:4px;font-size:11px;font-style:italic;color:var(--text3)"></div>
                 </div>
             </div>
             {{-- Filtrage select tech en fonction de l'équipe créditée choisie
                  (feedback user 2026-08-10). Le tech doit être membre de
-                 l'équipe pour figurer dans le select. --}}
+                 l'équipe pour figurer dans le select.
+                 Puis l'équipe proposée d'après le technicien (2026-11-04) :
+                 jamais à la place d'un choix manuel, « Aucune » compris. --}}
             @push('scripts')
             @include('admin.partials._filter_tech_by_team', [
                 'selTeamId'     => 'sel-team',
@@ -242,32 +248,11 @@ window.__POSE__ = {
                 'membersByTeam' => $membersByTeam ?? [],
                 'hintId'        => 'tech-filter-hint',
             ])
-            @endpush
-            {{-- JS auto-fill équipe au change technicien — seulement si l'admin
-                 n'a pas encore choisi une équipe explicitement (sinon on respecte
-                 son choix). Bascule 2026-08-10 : les option values sont désormais
-                 les pose_team_id (int), pas les team_name (string). --}}
-            @push('scripts')
-            <script>
-            (function () {
-                var selTech = document.getElementById('sel-technicien');
-                var selTeam = document.getElementById('sel-team');
-                if (!selTech || !selTeam) return;
-                var teamByUser = {};
-                try { teamByUser = JSON.parse(selTech.dataset.teamByUser || '{}'); } catch (e) {}
-
-                selTech.addEventListener('change', function () {
-                    // Auto-fill si tech mono-équipe. teamByUser[id] est un array
-                    // d'objets { id, name } (cf. controller). On sélectionne l'ID.
-                    var teamsList = teamByUser[selTech.value];
-                    if (!Array.isArray(teamsList) || teamsList.length !== 1) return;
-                    var team = teamsList[0];
-                    var teamId = String(typeof team === 'object' ? team.id : team);
-                    var opt = Array.from(selTeam.options).find(function (o) { return o.value === teamId; });
-                    if (opt) selTeam.value = teamId;
-                });
-            })();
-            </script>
+            @include('admin.poses.partials._equipe_proposee', [
+                'selTechId' => 'sel-technicien',
+                'selTeamId' => 'sel-team',
+                'hintId'    => 'team-auto-hint',
+            ])
             @endpush
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
                 <div>
