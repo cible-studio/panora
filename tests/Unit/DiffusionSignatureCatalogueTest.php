@@ -100,14 +100,17 @@ class DiffusionSignatureCatalogueTest extends TestCase
         );
         $this->assertStringStartsWith('http', $params['LOGO']);
         $this->assertStringEndsWith('/images/logol.png', $params['LOGO']);
+        // 2026-11-04 : la ligne d'activité vient de la charte, comme les autres mails.
+        $this->assertSame("Régie & Studio · Côte d'Ivoire · depuis 1994", $params['ACTIVITE']);
     }
 
     public function test_sans_numero_ni_logo_dans_la_charte_rien_n_est_envoye(): void
     {
-        config(['charte.coordonnees.telephones' => '', 'charte.logos.clair' => null]);
+        config(['charte.coordonnees.telephones' => '', 'charte.logos.clair' => null, 'charte.coordonnees.activite' => '']);
         $params = $this->params($this->envoi());
 
         // Le modèle teste leur présence : pas de ligne vide, pas d'image cassée.
+        $this->assertArrayNotHasKey('ACTIVITE', $params);
         $this->assertArrayNotHasKey('TELEPHONES', $params);
         $this->assertArrayNotHasKey('LOGO', $params);
     }
@@ -117,6 +120,7 @@ class DiffusionSignatureCatalogueTest extends TestCase
         $modele = file_get_contents(base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'));
 
         $this->assertStringContainsString('{{ params.TELEPHONES }}', $modele);
+        $this->assertStringContainsString('{{ params.ACTIVITE }}', $modele);
         $this->assertSame(1, substr_count($modele, '<img src="{{ params.LOGO }}"'), 'Logo en haut seulement (retiré de la signature le 2026-11-04).');
         // Plus aucun numéro en dur : un changement de numéro ne passe que par le .env.
         $this->assertDoesNotMatchRegularExpression('/\d{2} \d{2} \d{2} \d{2} \d{2}/', $modele);

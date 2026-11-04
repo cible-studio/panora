@@ -21,9 +21,10 @@
   Valeurs remplies par Panora : params.PERIODE, params.MOIS,
   params.NB_PANNEAUX (total), params.NB_ABIDJAN, params.LIEN_ABIDJAN,
   params.NB_INTERIEUR, params.LIEN_INTERIEUR, params.LIEN_PDF (catalogue
-  complet, conservé pour compatibilité), params.TELEPHONES et params.LOGO
-  (charte : CHARTE_TELEPHONES et CHARTE_LOGO_CLAIR du .env ; changer un
-  numéro ne demande plus de recoller ce modèle). Par Brevo : contact.CONTACT,
+  complet, conservé pour compatibilité), params.ACTIVITE, params.TELEPHONES
+  et params.LOGO (charte : CHARTE_ACTIVITE, CHARTE_TELEPHONES et
+  CHARTE_LOGO_CLAIR du .env ; changer un numéro ou la ligne « Régie &
+  Studio » ne demande plus de recoller ce modèle). Par Brevo : contact.CONTACT,
   contact.SOCIETE (l'entreprise cliente, pour que l'interlocuteur sache
   pourquoi il reçoit le mail, 2026-11-03 ; vide pour la copie interne) et
   unsubscribe. (Écrites ici sans accolades pour que Brevo ne les interprète
@@ -104,7 +105,7 @@
   </tr></table>
   <strong>Le service Commercial de CIBLE</strong><br>
   <span style="font-size:13px; line-height:20px; color:#555555;">
-    Régie publicitaire · Côte d'Ivoire · depuis 1994<br>
+    {% if params.ACTIVITE %}{{ params.ACTIVITE }}<br>{% endif %}
     {% if params.TELEPHONES %}{{ params.TELEPHONES }}<br>{% endif %}
     commercial@cible-ci.com · cible-ci.com
   </span>

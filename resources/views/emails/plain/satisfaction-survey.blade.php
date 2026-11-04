@@ -1,5 +1,5 @@
 @php $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')); @endphp
-{{ $operator }} — Régie Publicitaire (Abidjan, Côte d'Ivoire)
+{{ $operator }} — {!! config('charte.coordonnees.activite') !!}
 
 Bonjour {{ \App\Support\Salutation::suivi($client, $campaign?->interlocuteur) }},
 

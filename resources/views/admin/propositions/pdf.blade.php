@@ -132,7 +132,7 @@
 {{-- Pied fixe commun : le texte de l'ancien pied de fin de document est
      reporté en 2e ligne. --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => 'CIBLE CI — Régie publicitaire OOH · Abidjan, Côte d\'Ivoire · Document émis le '
+    'footerHint' => 'CIBLE CI — ' . config('charte.coordonnees.activite') . ' · Document émis le '
         . now()->format('d/m/Y \à H:i') . ' · Référence : ' . $reservation->reference,
 ])
 

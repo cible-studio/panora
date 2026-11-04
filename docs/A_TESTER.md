@@ -552,12 +552,33 @@ Retours sur le test #12, traités le 4/11 :
   aussi d'adresses de test aux mails clients).
 
 - [ ] Recoller le modèle n° 14 (nouvelle version centrée), puis « Envoyer un
-      test » : mail centré, logo en haut seulement, liseré dans la signature
+      test » : mail centré, logo en haut seulement, liseré dans la signature,
+      « Régie & Studio · Côte d'Ivoire · depuis 1994 » sous « Le service
+      Commercial de CIBLE »
 - [ ] Diffusion dispos : « Confirmation envoyée à » affiche aussi
       stephane.oponou@cible-ci.com, suivi de « (en production ; un test : à
       son auteur) » tant que le mode test est actif
 - [ ] Onglet Gmail « Promotions » ou « Notifications » : constaté au test
       #12, cf. réponse du 4/11 (pas de réglage qui garantit « Principale »)
+
+### 10 septies. « Régie & Studio » partout chez les clients *(2026-11-04)*
+
+« Régie publicitaire » devient **« Régie & Studio · Côte d'Ivoire · depuis
+1994 »**, source unique `config/charte.php` (`CHARTE_ACTIVITE`) : pied de
+tous les mails Panora, catalogue Brevo, PDF et pages que le client ouvre.
+Restent « Régie Publicitaire » : les PDF internes (« Document
+confidentiel »), le site vitrine, et le type de contact « Régie
+publicitaire » (une régie concurrente), voulu.
+
+- [ ] Coolify (prod) : **pas** de variable `CHARTE_ACTIVITE`, ou alors avec
+      la nouvelle valeur — sinon l'ancienne ligne reste partout
+- [ ] Un devis ou une facture envoyés en test : pied « CIBLE · Régie &
+      Studio · Côte d'Ivoire · depuis 1994 »
+- [ ] Une proposition : la page client (en-tête et pied) et son PDF
+- [ ] Le PDF du catalogue des disponibilités : pied de page
+- [ ] Page « devis en ligne » et page satisfaction : pied de page
+- [ ] Le modèle Brevo « relance campagne terminée », s'il sert encore :
+      à recoller (texte corrigé en dur)
 - [ ] Au premier vrai envoi : Brevo affiche un destinataire de plus que
       Panora (la copie) — c'est normal
 
