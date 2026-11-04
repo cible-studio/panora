@@ -48,9 +48,18 @@ return [
     // En mode test, seule la personne qui a lancé le test la reçoit.
     'confirmation_email' => env('DIFFUSION_CONFIRMATION_EMAIL', env('BREVO_SENDER_EMAIL')),
 
-    // Objet du mail client. {periode} est remplacé par « du 1er au
-    // 30 novembre 2026 ». Ignoré si le modèle Brevo fixe son propre objet.
-    'objet' => env('DIFFUSION_OBJET', 'Nos disponibilités {periode}'),
+    // Objet du mail client (2026-11-04) : trois formules de la direction,
+    // une par catalogue, à tour de rôle (le rang suit la période, cf.
+    // DiffusionDisponibilitesService::objet()). Une formule peut contenir
+    // {periode}, remplacé par « du 1er au 30 novembre 2026 ».
+    'objets' => [
+        "Anticipez vos campagnes\u{00A0}: découvrez nos emplacements disponibles",
+        'De nouveaux emplacements à réserver pour vos prochaines campagnes',
+        "Où afficher votre prochaine campagne\u{00A0}? Découvrez nos disponibilités",
+    ],
+
+    // Objet imposé à la place des trois formules. Vide = rotation.
+    'objet' => env('DIFFUSION_OBJET'),
 
     // En dessous de ce délai depuis le dernier envoi réussi, le bouton
     // manuel exige une confirmation renforcée (taper ENVOYER).

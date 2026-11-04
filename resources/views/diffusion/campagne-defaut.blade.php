@@ -26,9 +26,24 @@
     // pays. Une zone sans emplacement disponible n'a pas de lien dans
     // $valeurs — son bloc ne s'affiche donc pas du tout.
     $zones = array_values(array_filter([
-        ['libelle' => 'Abidjan',           'lien' => $valeurs['LIEN_ABIDJAN']   ?? null, 'nb' => $valeurs['NB_ABIDJAN']   ?? 0],
-        ['libelle' => 'Intérieur du pays', 'lien' => $valeurs['LIEN_INTERIEUR'] ?? null, 'nb' => $valeurs['NB_INTERIEUR'] ?? 0],
+        ['libelle' => 'à Abidjan',             'pastille' => '🟢', 'lien' => $valeurs['LIEN_ABIDJAN']   ?? null, 'nb' => $valeurs['NB_ABIDJAN']   ?? 0],
+        ['libelle' => "à l'intérieur du pays", 'pastille' => '🔵', 'lien' => $valeurs['LIEN_INTERIEUR'] ?? null, 'nb' => $valeurs['NB_INTERIEUR'] ?? 0],
     ], fn ($z) => $z['lien'] !== null));
+
+    // Texte de la direction (2026-11-04), le même que le modèle Brevo n° 14
+    // (docs/diffusion/modele-brevo-disponibilites-leger.html).
+    $abidjan   = isset($valeurs['LIEN_ABIDJAN']);
+    $interieur = isset($valeurs['LIEN_INTERIEUR']);
+    $ou = match (true) {
+        $abidjan && $interieur => "à Abidjan et dans les principales villes de Côte d'Ivoire",
+        $abidjan               => 'à Abidjan',
+        default                => "dans les principales villes de Côte d'Ivoire",
+    };
+    $couverture = match (true) {
+        $abidjan && $interieur => 'Abidjan et intérieur du pays',
+        $abidjan               => 'Abidjan',
+        default                => 'Intérieur du pays',
+    };
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
@@ -41,7 +56,7 @@
 
     {{-- Aperçu affiché par les messageries sous l'objet --}}
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-        {{ $valeurs['NB_PANNEAUX'] }} emplacements disponibles {{ $valeurs['PERIODE'] }} — consultez le catalogue complet.
+        {{ $valeurs['NB_PANNEAUX'] }} emplacements disponibles {{ $valeurs['PERIODE'] }} : photo, format, localisation et trafic estimé de chacun.
     </div>
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;">
@@ -70,8 +85,8 @@
                     {{-- Titre --}}
                     <tr>
                         <td align="center" style="padding:34px 32px 8px;">
-                            <h1 style="margin:0;font-size:28px;line-height:1.25;font-weight:800;color:#111827;">
-                                Nos disponibilités<br>de {{ $valeurs['MOIS'] }}
+                            <h1 style="margin:0;font-size:22px;line-height:1.3;font-weight:800;color:#111827;">
+                                De nouveaux emplacements publicitaires sont disponibles pour vos prochaines campagnes&nbsp;!
                             </h1>
                         </td>
                     </tr>
@@ -85,14 +100,10 @@
                                         <p style="margin:0 0 12px;font-weight:700;font-size:16px;">
                                             Bonjour @{{ contact.CONTACT | default : "Madame, Monsieur" }},
                                         </p>
-                                        <p style="margin:0 0 12px;">
-                                            {{-- L'entreprise cliente (2026-11-03) : l'interlocuteur sait pourquoi il reçoit le mail. --}}
-                                            Voici{% if contact.SOCIETE %}, pour <strong>@{{ contact.SOCIETE }}</strong>,{% endif %} les emplacements publicitaires disponibles
-                                            <strong>{{ $valeurs['PERIODE'] }}</strong> sur notre réseau.
-                                        </p>
                                         <p style="margin:0;">
-                                            Retrouvez pour chaque panneau sa photo, son format,
-                                            sa localisation et sa date de disponibilité.
+                                            {{-- L'entreprise cliente (2026-11-03) : l'interlocuteur sait pourquoi il reçoit le mail. --}}
+                                            Anticipez vos prochaines prises de parole en découvrant notre sélection{% if contact.SOCIETE %} pour <strong>@{{ contact.SOCIETE }}</strong>&nbsp;:{% else %} de{% endif %}
+                                            <strong>{{ $valeurs['NB_PANNEAUX'] }} emplacements disponibles {{ $valeurs['PERIODE'] }}</strong>, {{ $ou }}.
                                         </p>
                                     </td>
                                 </tr>
@@ -116,6 +127,9 @@
                                     </td>
                                 </tr>
                             </table>
+                            <p style="margin:12px 0 0;text-align:center;font-size:14px;color:#374151;">
+                                🌍 <strong>Couverture&nbsp;:</strong> {{ $couverture }}
+                            </p>
                         </td>
                     </tr>
 
@@ -125,13 +139,14 @@
                     @if($zones)
                     <tr>
                         <td align="center" style="padding:28px 32px 10px;">
+                            <p style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111827;">Découvrez les disponibilités selon vos zones d'intérêt</p>
                             <table role="presentation" cellpadding="0" cellspacing="0">
                                 @foreach($zones as $z)
                                     <tr>
                                         <td align="center" style="background:{{ $loop->first ? $accent : $sombre }};border-radius:8px;">
                                             <a href="{{ $z['lien'] }}"
-                                               style="display:inline-block;padding:16px 34px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;">
-                                                📄 Disponibilités — {{ $z['libelle'] }} ({{ $z['nb'] }})
+                                               style="display:inline-block;padding:16px 34px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">
+                                                {{ $z['pastille'] }} Consulter les disponibilités {{ $z['libelle'] }}
                                             </a>
                                         </td>
                                     </tr>
@@ -140,16 +155,28 @@
                                     @endunless
                                 @endforeach
                             </table>
-                            <p style="margin:12px 0 0;font-size:12px;color:#6b7280;">Catalogue PDF — une page par emplacement, avec photo.</p>
                         </td>
                     </tr>
                     @endif
 
-                    {{-- Appel à l'échange --}}
+                    {{-- Le contenu du catalogue, puis l'appel à l'échange --}}
                     <tr>
                         <td align="center" style="padding:24px 40px 34px;font-size:14px;line-height:1.6;color:#374151;">
-                            Un emplacement vous intéresse ? Répondez simplement à ce mail :
-                            notre équipe commerciale vous recontacte pour le réserver.
+                            <p style="margin:0 0 14px;">
+                                <strong>Bien plus qu'un catalogue d'emplacements&nbsp;:</strong> retrouvez pour chaque support sa photographie,
+                                son format, sa localisation, son trafic estimé et sa description.
+                            </p>
+                            <p style="margin:0 0 6px;"><strong>Un ou plusieurs emplacements vous intéressent&nbsp;?</strong></p>
+                            <p style="margin:0 0 14px;">
+                                Répondez simplement à cet email en indiquant les références souhaitées. Notre équipe vous confirmera
+                                leur disponibilité et vous transmettra une proposition commerciale <strong>sous 1&nbsp;heure ouvrée</strong>.
+                            </p>
+                            <p style="margin:0 0 14px;"><strong>Anticipez vos réservations pour sécuriser les meilleurs emplacements pour vos prochaines campagnes.</strong></p>
+                            <p style="margin:0 0 14px;">Bien cordialement,</p>
+                            <p style="margin:0;">
+                                <strong style="color:#111827;">L'équipe commerciale CIBLE</strong><br>
+                                <em>Votre visibilité, notre métier.</em>
+                            </p>
                         </td>
                     </tr>
 
@@ -157,6 +184,7 @@
                     <tr>
                         <td align="center" style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:22px 32px;font-size:12px;line-height:1.6;color:#6b7280;">
                             <strong style="color:#374151;">CIBLE CI</strong> · {{ config('charte.coordonnees.activite') }}<br>
+                            @if(config('charte.coordonnees.telephones')){{ config('charte.coordonnees.telephones') }}<br>@endif
                             <a href="mailto:{{ config('brevo.sender.email') }}" style="color:#6b7280;">{{ config('brevo.sender.email') }}</a>
                             <br><br>
                             Vous recevez ce mail deux fois par mois en tant que client de CIBLE CI.<br>

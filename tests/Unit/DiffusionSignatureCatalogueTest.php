@@ -128,19 +128,106 @@ class DiffusionSignatureCatalogueTest extends TestCase
 
     public function test_le_mail_nomme_l_entreprise_du_destinataire(): void
     {
-        // Validé le 2026-11-03 : « Voici, pour ORANGE CI, nos emplacements… ».
-        // Sans entreprise (copie, contact de test), la phrase reste entière.
-        $phrase = 'Voici{% if contact.SOCIETE %}, pour <strong>{{ contact.SOCIETE }}</strong>,{% endif %}';
+        // Validé le 2026-11-03, repris dans le texte de la direction le
+        // 2026-11-04 : « …notre sélection pour ORANGE CI : 232 emplacements… ».
+        // Sans entreprise (copie, contact de test) : sa phrase d'origine,
+        // « …notre sélection de 232 emplacements… ».
+        $phrase = 'en découvrant notre sélection{% if contact.SOCIETE %} pour <strong>{{ contact.SOCIETE }}</strong>&nbsp;:{% else %} de{% endif %}';
 
         $this->assertStringContainsString(
-            $phrase . ' nos emplacements disponibles',
+            $phrase . ' <strong>{{ params.NB_PANNEAUX }} emplacements disponibles',
             file_get_contents(base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'))
         );
 
         // Le gabarit de secours (sans modèle Brevo) dit la même chose.
         config(['brevo.template_id' => null]);
         $html = $this->prive(app(DiffusionDisponibilitesService::class), 'contenuCampagne', $this->envoi(), self::CLIENTS)['htmlContent'];
-        $this->assertStringContainsString($phrase . ' les emplacements publicitaires disponibles', $html);
+        $this->assertStringContainsString($phrase, $html);
+    }
+
+    // ── Texte et objet de la direction (2026-11-04) ─────────────────
+
+    public function test_le_mail_porte_le_texte_de_la_direction(): void
+    {
+        $modele = file_get_contents(base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'));
+        config(['brevo.template_id' => null]);
+        $envoi = $this->envoi();
+        $envoi->update([
+            'nb_panneaux_abidjan'   => 220, 'pdf_path_abidjan'   => 'diffusions/abj.pdf', 'pdf_token_abidjan'   => str_repeat('c', 48),
+            'nb_panneaux_interieur' => 40,  'pdf_path_interieur' => 'diffusions/int.pdf', 'pdf_token_interieur' => str_repeat('b', 48),
+        ]);
+        $secours = $this->prive(app(DiffusionDisponibilitesService::class), 'contenuCampagne', $envoi->fresh(), self::CLIENTS)['htmlContent'];
+
+        foreach ([
+            'De nouveaux emplacements publicitaires sont disponibles pour vos prochaines campagnes',
+            'Anticipez vos prochaines prises de parole',
+            "Découvrez les disponibilités selon vos zones d'intérêt",
+            // 3b : ce que montre vraiment le PDF, pas de « recommandations ».
+            'sa localisation, son trafic estimé et sa description',
+            'Répondez simplement à cet email en indiquant les références souhaitées',
+            'sous 1&nbsp;heure ouvrée',
+            'Anticipez vos réservations pour sécuriser les meilleurs emplacements',
+            "L'équipe commerciale CIBLE",
+            'Votre visibilité, notre métier.',
+        ] as $texte) {
+            $this->assertStringContainsString($texte, $modele, "Modèle n° 14 : {$texte}");
+            $this->assertStringContainsString($texte, $secours, "Gabarit de secours : {$texte}");
+        }
+
+        $this->assertStringNotContainsString('nos recommandations stratégiques', $modele);
+        $this->assertStringNotContainsString('24&nbsp;heures', $modele);
+    }
+
+    public function test_une_zone_vide_n_est_pas_annoncee(): void
+    {
+        // Le catalogue de test n'a que l'intérieur du pays : ni « Abidjan »
+        // dans la couverture, ni bouton vers un PDF qui n'existe pas.
+        config(['brevo.template_id' => null]);
+        $envoi = $this->envoi();
+        $envoi->update(['nb_panneaux_interieur' => 40, 'pdf_path_interieur' => 'diffusions/int.pdf', 'pdf_token_interieur' => str_repeat('b', 48)]);
+
+        $html = $this->prive(app(DiffusionDisponibilitesService::class), 'contenuCampagne', $envoi->fresh(), self::CLIENTS)['htmlContent'];
+
+        $this->assertStringContainsString(e("dans les principales villes de Côte d'Ivoire") . '.', $html);
+        $this->assertStringContainsString('Intérieur du pays', $html);
+        $this->assertStringNotContainsString('à Abidjan', $html);
+    }
+
+    public function test_les_trois_objets_tournent_d_un_catalogue_au_suivant(): void
+    {
+        $service = app(DiffusionDisponibilitesService::class);
+        $objet = fn (string $debut, string $fin, string $mode = DiffusionEnvoi::MODE_MANUEL) => $service->objet(
+            DiffusionEnvoi::create([
+                'creneau' => $debut, 'periode_debut' => $debut, 'periode_fin' => $fin,
+                'mode' => $mode, 'statut' => DiffusionEnvoi::STATUT_PREPARE,
+            ])
+        );
+
+        $anticipez = "Anticipez vos campagnes\u{00A0}: découvrez nos emplacements disponibles";
+        $nouveaux  = 'De nouveaux emplacements à réserver pour vos prochaines campagnes';
+        $ou        = "Où afficher votre prochaine campagne\u{00A0}? Découvrez nos disponibilités";
+
+        $this->assertSame($anticipez, $objet('2026-11-15', '2026-11-30'));
+        $this->assertSame($nouveaux,  $objet('2026-12-01', '2026-12-31'));
+        $this->assertSame($ou,        $objet('2026-12-15', '2026-12-31'));
+        $this->assertSame($anticipez, $objet('2027-01-01', '2027-01-31'));
+        // Passage d'année : le tour continue sans répétition.
+        $this->assertSame($ou,        $objet('2027-12-15', '2027-12-31'));
+        $this->assertSame($anticipez, $objet('2028-01-01', '2028-01-31'));
+
+        // Un test annonce l'objet que recevront les clients pour cette période.
+        $this->assertSame('[TEST] ' . $anticipez, $objet('2026-11-15', '2026-11-30', DiffusionEnvoi::MODE_TEST));
+
+        // Le contrat avec Brevo porte cet objet.
+        $this->assertSame($anticipez, $this->prive($service, 'contenuCampagne', $this->envoi(), self::CLIENTS)['subject']);
+    }
+
+    public function test_diffusion_objet_remplace_la_rotation(): void
+    {
+        config(['diffusion.objet' => 'Nos disponibilités {periode}']);
+
+        $this->assertSame('Nos disponibilités du 15 au 30 novembre 2026',
+            app(DiffusionDisponibilitesService::class)->objet($this->envoi()));
     }
 
     // ── Copie à Stéphane ────────────────────────────────────────────

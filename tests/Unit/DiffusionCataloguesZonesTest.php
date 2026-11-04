@@ -151,8 +151,9 @@ class DiffusionCataloguesZonesTest extends TestCase
         $methode->setAccessible(true);
         $html = $methode->invoke($service, $envoi, 3)['htmlContent'];
 
-        $this->assertStringContainsString('Disponibilités — Abidjan (48)', $html);
-        $this->assertStringContainsString('Disponibilités — Intérieur du pays (12)', $html);
+        // Libellés du texte de la direction (2026-11-04), sans le nombre par zone.
+        $this->assertStringContainsString('🟢 Consulter les disponibilités à Abidjan', $html);
+        $this->assertStringContainsString('🔵 Consulter les disponibilités ' . e("à l'intérieur du pays"), $html);
         $this->assertStringContainsString($envoi->lienPdfZone(DiffusionEnvoi::ZONE_ABIDJAN), $html);
         $this->assertStringContainsString($envoi->lienPdfZone(DiffusionEnvoi::ZONE_INTERIEUR), $html);
     }

@@ -20,7 +20,7 @@ page par panneau, avec photo) : un pour Abidjan, un pour l'intérieur du pays.
 | **Prix** | Aucun |
 | **Expéditeur** | `commercial@cible-ci.com` |
 | **Destinataires** | Tous les clients d'office (contact principal, à défaut l'adresse de la fiche client). Désinscription possible à chaque mail |
-| **Copie** *(2026-11-03)* | L'adresse de `MAIL_COPIE_COMMERCIALE` (Stéphane) reçoit chaque vrai catalogue, comme un client : une campagne Brevo n'a pas de copie, chaque adresse de la liste reçoit son propre mail. Elle n'est pas comptée parmi les clients (Brevo affiche donc un destinataire de plus que Panora) mais compte dans le contrôle du quota. Désinscrite, elle n'est pas remise dans la liste. Sans entreprise : elle lit « Voici nos emplacements… ». Les tests n'en ont pas : ajouter son adresse à la main dans la liste « Tests internes » de Brevo |
+| **Copie** *(2026-11-03)* | L'adresse de `MAIL_COPIE_COMMERCIALE` (Stéphane) reçoit chaque vrai catalogue, comme un client : une campagne Brevo n'a pas de copie, chaque adresse de la liste reçoit son propre mail. Elle n'est pas comptée parmi les clients (Brevo affiche donc un destinataire de plus que Panora) mais compte dans le contrôle du quota. Désinscrite, elle n'est pas remise dans la liste. Sans entreprise : elle lit « …notre sélection de 232 emplacements… ». Les tests n'en ont pas : ajouter son adresse à la main dans la liste « Tests internes » de Brevo |
 | **Confirmation interne** | `commercial@cible-ci.com` + `studio@cible-ci.com` (admin) + la copie commerciale `MAIL_COPIE_COMMERCIALE` (Stéphane, 2026-11-04) + tous les Media Planners actifs, après chaque envoi, et alerte en cas d'échec. Un test : seulement à son auteur. La copie n'est pas à mettre dans `DIFFUSION_CONFIRMATION_EMAIL`, qui sert aussi d'adresses de test aux mails clients |
 | **Envoi manuel** | Admin seul. N'annule pas l'automatique. Rappelle le dernier envoi ; si le dernier date de moins de 24 h, il faut taper ENVOYER. Le bouton enregistre une demande, traitée par le planificateur dans la minute (le PDF est trop long à générer pendant une requête web) |
 
@@ -139,7 +139,7 @@ Placez dans le modèle :
 | À écrire dans le modèle | Remplacé par |
 |---|---|
 | `{{ contact.CONTACT \| default : "Madame, Monsieur" }}` | Nom du contact |
-| `{{ contact.SOCIETE }}` | Entreprise cliente : « Voici, pour ORANGE CI, nos emplacements… » *(2026-11-03)*. À tester avec `{% if contact.SOCIETE %}` : vide pour la copie interne et les contacts de test |
+| `{{ contact.SOCIETE }}` | Entreprise cliente : « …notre sélection pour ORANGE CI : 232 emplacements… » *(2026-11-03, repris dans le texte de la direction le 2026-11-04)*. À tester avec `{% if contact.SOCIETE %}` : vide pour la copie interne et les contacts de test |
 | `{{ params.PERIODE }}` | « du 1er au 30 novembre 2026 » |
 | `{{ params.MOIS }}` | « novembre 2026 » |
 | `{{ params.NB_PANNEAUX }}` | Nombre total d'emplacements présentés |
@@ -198,8 +198,21 @@ seul. Chaque valeur est testée dans le modèle : sans elle, la ligne disparaît
 Notez l'identifiant du modèle, et **activez-le** : Brevo ne copie dans
 une campagne que le contenu d'un modèle au statut « Actif ».
 
-L'objet du mail ne vient pas du modèle : il est fixé par Panora
-(`DIFFUSION_OBJET`, défaut « Nos disponibilités {periode} »).
+L'objet du mail ne vient pas du modèle : il est fixé par Panora. Depuis le
+2026-11-04, trois formules de la direction tournent d'un catalogue au
+suivant (`config/diffusion.php`, « objets ») :
+
+| Catalogue | Objet |
+|---|---|
+| 15 nov. 2026, 1er janv. 2027… | Anticipez vos campagnes : découvrez nos emplacements disponibles |
+| 1er déc. 2026, 15 janv. 2027… | De nouveaux emplacements à réserver pour vos prochaines campagnes |
+| 15 déc. 2026, 1er fév. 2027… | Où afficher votre prochaine campagne ? Découvrez nos disponibilités |
+
+Le rang suit la période : un test porte l'objet que recevront les clients
+pour la même période, et deux catalogues qui se suivent n'ont jamais le
+même. La période n'est plus dans l'objet (elle reste dans le texte
+d'aperçu). `DIFFUSION_OBJET`, s'il est posé, remplace la rotation par un
+objet unique (`{periode}` y est remplacé).
 
 ### Étape 7 bis — La page de désinscription *(facultatif)*
 Brevo propose une page de désinscription par défaut, en français mais
