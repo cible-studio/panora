@@ -531,20 +531,33 @@ emplacements… » (validé le 3/11).
 
 Dans cet ordre, après la mise en ligne :
 
-- [ ] Brevo → Modèles → n° 14 → Modifier → coller **tout**
+- [x] Brevo → Modèles → n° 14 → Modifier → coller **tout**
       `docs/diffusion/modele-brevo-disponibilites-leger.html` → Enregistrer,
-      modèle **Actif**
-- [ ] Brevo → Contacts → liste « Tests internes » (#4) : ajouter
+      modèle **Actif** *(fait le 4/11 avant le test #12)*
+- [x] Brevo → Contacts → liste « Tests internes » (#4) : ajouter
       `stephane.oponou@cible-ci.com` (les tests ne l'ajoutent pas seuls)
-- [ ] Même liste : sur les 2 contacts de test, remplir le champ **SOCIETE**
+      *(test #12 du 4/11 : 3 contacts)*
+- [x] Même liste : sur les 2 contacts de test, remplir le champ **SOCIETE**
       (ex. « CIBLE (test) ») pour voir l'entreprise dans le mail de test ;
-      Stéphane le laisse vide
+      Stéphane le laisse vide *(test #12 : « Voici, pour ROMI CI, … »)*
 - [ ] Diffusion dispos : la ligne « Copie du catalogue » affiche son adresse
-- [ ] « Envoyer un test » → 3 destinataires ; le mail reçu porte le logo en
-      haut et dans la signature, et les **3** numéros, sans coupure au milieu
-      d'un numéro sur téléphone ; « Voici, pour CIBLE (test), nos
-      emplacements… » chez les 2 contacts de test, « Voici nos
-      emplacements… » chez Stéphane
+- [x] « Envoyer un test » → 3 destinataires, logo, **3** numéros,
+      entreprise nommée *(test #12 du 4/11 à 9h44)*
+
+Retours sur le test #12, traités le 4/11 :
+- logo retiré de la signature (le liseré aux 5 couleurs revient), gardé en haut ;
+- colonne et texte centrés, comme les mails de Brevo (« trop à gauche ») ;
+- Stéphane ajouté à la **confirmation** des vrais envois (par
+  `MAIL_COPIE_COMMERCIALE`, pas par `DIFFUSION_CONFIRMATION_EMAIL`, qui sert
+  aussi d'adresses de test aux mails clients).
+
+- [ ] Recoller le modèle n° 14 (nouvelle version centrée), puis « Envoyer un
+      test » : mail centré, logo en haut seulement, liseré dans la signature
+- [ ] Diffusion dispos : « Confirmation envoyée à » affiche aussi
+      stephane.oponou@cible-ci.com, suivi de « (en production ; un test : à
+      son auteur) » tant que le mode test est actif
+- [ ] Onglet Gmail « Promotions » ou « Notifications » : constaté au test
+      #12, cf. réponse du 4/11 (pas de réglage qui garantit « Principale »)
 - [ ] Au premier vrai envoi : Brevo affiche un destinataire de plus que
       Panora (la copie) — c'est normal
 
