@@ -81,7 +81,7 @@
 
 | ID | Texte actuel |
 |---|---|
-| `[HOME.HERO.SURTITRE]` | → Régie & studio · Côte d'Ivoire · depuis 1994 |
+| `[HOME.HERO.SURTITRE]` | → Régie & Studio Créatif · Côte d'Ivoire · depuis 1994 |
 | `[HOME.HERO.TITRE.L1]` | → Votre marque, |
 | `[HOME.HERO.TITRE.L2]` | → partout où vit |
 | `[HOME.HERO.TITRE.L3]` | → votre audience. *(en rouge)* |

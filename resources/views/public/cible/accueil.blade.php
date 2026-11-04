@@ -357,7 +357,7 @@
 
         {{-- La carte blanche : le manifeste, et son mot en rouge. --}}
         <div class="carte-h" data-rev>
-            <p class="sur">Régie &amp; studio · <b>Côte d'Ivoire</b> · depuis 1994</p>
+            <p class="sur">Régie &amp; Studio Créatif · <b>Côte d'Ivoire</b> · depuis 1994</p>
             <div class="hero__filet"></div>
 
             {{-- Lignes posées à la main pour garder le <em> rouge, que le

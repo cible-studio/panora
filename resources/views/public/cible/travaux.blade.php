@@ -410,7 +410,7 @@
     <div class="fleche-d" style="--c:var(--jaune);--op:.1;top:12%;right:4%;width:clamp(90px,10vw,150px)" data-par="-24" data-rot="-14"></div>
     <div class="large preuve__grille">
         <div>
-            <p class="sur" style="--c:var(--rouge)">Régie &amp; studio · <b>depuis 1994</b></p>
+            <p class="sur" style="--c:var(--rouge)">Régie &amp; Studio Créatif · <b>depuis 1994</b></p>
             <h2 class="t-grand" data-lignes>Chaque campagne, de la recommandation <em>à la preuve de pose.</em></h2>
             <p class="intro" data-rev=".1">
                 Affichage, digital, terrain et pilotage par la donnée. Quatre leviers,

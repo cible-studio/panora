@@ -36,7 +36,7 @@ return [
 
         ['titre' => 'Bandeau principal', 'champs' => [
             'hero_surtitre' => ['label' => 'Sur-titre', 'type' => 'texte',
-                'defaut' => "Régie & studio · Côte d'Ivoire · depuis 1994"],
+                'defaut' => "Régie & Studio Créatif · Côte d'Ivoire · depuis 1994"],
             'hero_titre_1' => ['label' => 'Titre — ligne 1', 'type' => 'texte',
                 'defaut' => 'Votre visibilité.'],
             'hero_titre_2' => ['label' => 'Titre — ligne 2', 'type' => 'texte',
