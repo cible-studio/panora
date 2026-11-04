@@ -796,15 +796,16 @@ de la pige (le tech voyait un échec, la photo était pourtant reçue).
 - [ ] Lien de campagne : case dans la fenêtre d'envoi, recochée à chaque
       ouverture
 
-**À trancher**
-- [ ] **Galerie** : tous les champs photo ont `capture="environment"`,
-      qui ouvre directement l'appareil photo sur la plupart des téléphones,
-      sans proposer la galerie. Vérifier sur les téléphones des techs si
-      une photo **déjà prise** peut être choisie. Sinon, le cas « j'envoie
-      de chez moi la photo de mon téléphone » reste impossible : retirer
-      `capture` (le téléphone propose alors appareil photo OU galerie) ou
-      ajouter un bouton « Depuis la galerie » — décision métier (une photo
-      de galerie peut être ancienne)
-- [ ] Faut-il tracer « position retirée par le technicien » (différent
-      d'un GPS en panne) pour le MP ? Proposition sans migration : une
-      mention dans `piges.notes`, comme « ⚠ CONTRADICTION SIGNALEMENT »
+**Tranché le 2026-11-04**
+- [x] **Galerie** : option a — l'attribut `capture` est retiré des 4 champs
+      photo de pige (espace tech, lien de pose ×2, lien de campagne) ; le
+      téléphone propose « Appareil photo ou Galerie ». La photo d'un
+      signalement garde l'appareil photo direct.
+- [x] Tracer « position retirée par le technicien » : **non** (même badge
+      « Sans GPS » qu'un GPS en panne).
+
+**À vérifier sur téléphone (galerie)**
+- [ ] Android et iPhone : toucher « Photo » propose bien appareil photo OU
+      galerie ; une photo de galerie s'envoie (iPhone : format HEIC accepté)
+- [ ] Une photo de galerie porte la date de l'ENVOI, pas celle de la prise
+      de vue (le serveur ne lit pas l'EXIF) — cf. question du 4/11

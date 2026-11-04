@@ -62,7 +62,9 @@
                     📍 Je suis arrivé sur place
                 </button>
                 <label class="sm2-t2-btn sm2-t2-btn-cam" data-action="photo">
-                    <input type="file" accept="image/*" capture="environment" data-photo-input>
+                    {{-- Sans l’attribut « capture » (2026-11-04) : appareil photo OU galerie
+                         (photo déjà prise, envoyée plus tard). --}}
+                    <input type="file" accept="image/*" data-photo-input>
                     📷 Photo (fin de pose)
                 </label>
                 <button type="button" class="sm2-t2-btn sm2-t2-btn-warn" data-action="report">
