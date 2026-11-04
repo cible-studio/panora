@@ -807,5 +807,5 @@ de la pige (le tech voyait un échec, la photo était pourtant reçue).
 **À vérifier sur téléphone (galerie)**
 - [ ] Android et iPhone : toucher « Photo » propose bien appareil photo OU
       galerie ; une photo de galerie s'envoie (iPhone : format HEIC accepté)
-- [ ] Une photo de galerie porte la date de l'ENVOI, pas celle de la prise
-      de vue (le serveur ne lit pas l'EXIF) — cf. question du 4/11
+- [x] Date d'une photo de galerie : celle de l'ENVOI, pas de la prise de
+      vue (le serveur ne lit pas l'EXIF) — **voulu**, option a du 4/11
