@@ -312,7 +312,7 @@
 
         <div class="footer">
             🔒 Votre lien est personnel et sécurisé. Vos réponses sont confidentielles.<br>
-            © {{ date('Y') }} CIBLE CI · Régie Publicitaire — Abidjan
+            © {{ date('Y') }} CIBLE CI · {{ config('charte.coordonnees.activite') }}
         </div>
     </form>
 </div>

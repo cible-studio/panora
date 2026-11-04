@@ -1067,9 +1067,12 @@ class DiffusionDisponibilitesService
             }
         }
 
-        // Signature (2026-11-03) : numéros et logo viennent de la charte,
-        // donc du .env. Le modèle Brevo ne les écrit plus en dur : changer
-        // un numéro ne demande plus de le recoller.
+        // Signature (2026-11-03) : activité, numéros et logo viennent de la
+        // charte, donc du .env. Le modèle Brevo ne les écrit plus en dur :
+        // les changer ne demande plus de le recoller.
+        if ($activite = trim((string) config('charte.coordonnees.activite'))) {
+            $valeurs['ACTIVITE'] = $activite;   // « Régie & Studio · Côte d'Ivoire · depuis 1994 » (2026-11-04)
+        }
         if ($telephones = trim((string) config('charte.coordonnees.telephones'))) {
             // Espaces insécables DANS chaque numéro : un téléphone ne le
             // coupe jamais en fin de ligne, seuls les « · » séparent.

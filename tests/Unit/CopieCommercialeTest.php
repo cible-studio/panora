@@ -180,6 +180,44 @@ class CopieCommercialeTest extends TestCase
         }
     }
 
+    public function test_regie_et_studio_partout_chez_les_clients(): void
+    {
+        // 2026-11-04 : « Régie & Studio · Côte d'Ivoire · depuis 1994 »,
+        // une seule source (la charte), dans les mails, le catalogue, les PDF
+        // et les pages que reçoit ou ouvre le client.
+        $this->assertSame("Régie & Studio · Côte d'Ivoire · depuis 1994", config('charte.coordonnees.activite'));
+
+        foreach ([
+            'docs/diffusion/modele-brevo-disponibilites-leger.html',
+            'docs/diffusion/modele-brevo-disponibilites.html',
+            'docs/brevo/modele-relance-campagne-terminee.html',
+            'resources/views/diffusion/campagne-defaut.blade.php',
+            'resources/views/emails/plain/proposition.blade.php',
+            'resources/views/emails/plain/campaign-ended.blade.php',
+            'resources/views/emails/plain/satisfaction-survey.blade.php',
+            'resources/views/admin/reservations/pdf/disponibilites-images.blade.php',
+            'resources/views/admin/propositions/pdf.blade.php',
+            'resources/views/admin/propositions/show.blade.php',
+            'resources/views/admin/propositions/confirmed.blade.php',
+            'resources/views/admin/propositions/refused.blade.php',
+            'resources/views/admin/propositions/error.blade.php',
+            'resources/views/pdf/selection-images.blade.php',
+            'resources/views/public/quote-show.blade.php',
+            'resources/views/public/satisfaction.blade.php',
+            'resources/views/public/satisfaction-thanks.blade.php',
+        ] as $fichier) {
+            $this->assertDoesNotMatchRegularExpression('/régie publicitaire/iu', file_get_contents(base_path($fichier)), $fichier);
+        }
+
+        // Versions texte : sans échappement, sinon « Régie &amp; Studio ».
+        foreach (['proposition', 'campaign-ended', 'satisfaction-survey'] as $vue) {
+            $this->assertStringContainsString(
+                "{!! config('charte.coordonnees.activite') !!}",
+                file_get_contents(resource_path("views/emails/plain/{$vue}.blade.php"))
+            );
+        }
+    }
+
     public function test_le_service_commercial_prend_un_c_majuscule(): void
     {
         $this->assertSame('Service Commercial', config('brevo.sender.name'),

@@ -25,7 +25,7 @@
 </head>
 <body>
     <header class="public-hdr">
-        <h1>CIBLE CI · Régie Publicitaire</h1>
+        <h1>CIBLE CI · Régie &amp; Studio</h1>
         <small>Devis {{ $quote->reference }} adressé à {{ $quote->client?->name }}</small>
     </header>
 
@@ -37,7 +37,7 @@
     @include('quotes._show_content', ['quote' => $quote, 'isPublic' => true])
 
     <footer class="public-ftr">
-        <div>© {{ date('Y') }} CIBLE CI · Régie publicitaire · Abidjan, Côte d'Ivoire</div>
+        <div>© {{ date('Y') }} CIBLE CI · {{ config('charte.coordonnees.activite') }}</div>
         <div style="margin-top:6px">Contact : {{ config('billing.company.email') }} · {{ config('billing.company.phone') }}</div>
     </footer>
 </body>

@@ -340,7 +340,7 @@
 </div>
 
 <footer class="footer">
-    © {{ date('Y') }} PANORA · {{ $operator ?? 'CIBLE CI' }} — Régie Publicitaire — Abidjan, Côte d'Ivoire
+    © {{ date('Y') }} PANORA · {{ $operator ?? 'CIBLE CI' }} — {{ config('charte.coordonnees.activite') }}
 </footer>
 
 </body>

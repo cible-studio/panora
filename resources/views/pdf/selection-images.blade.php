@@ -541,7 +541,7 @@ if (!empty($startDate) && !empty($endDate)) {
         <table class="footer-table" cellpadding="0" cellspacing="0">
             <tr>
                 <td class="footer-left">
-                    <strong>CIBLE CI</strong> · Régie Publicitaire · Abidjan, Côte d'Ivoire
+                    <strong>CIBLE CI</strong> · {{ config('charte.coordonnees.activite') }}
                 </td>
                 <td class="footer-center">
                     Document confidentiel — Usage commercial uniquement

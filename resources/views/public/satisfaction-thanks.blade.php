@@ -127,7 +127,7 @@
     </p>
 
     <div class="brand">
-        <strong>CIBLE CI</strong> · Régie Publicitaire · Abidjan, Côte d'Ivoire
+        <strong>CIBLE CI</strong> · {{ config('charte.coordonnees.activite') }}
     </div>
 </div>
 

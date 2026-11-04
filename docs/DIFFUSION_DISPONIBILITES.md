@@ -148,6 +148,7 @@ Placez dans le modèle :
 | `{{ params.LIEN_INTERIEUR }}` | Lien du catalogue **intérieur du pays** — 2e bouton |
 | `{{ params.NB_INTERIEUR }}` | Nombre d'emplacements à l'intérieur |
 | `{{ params.LIEN_PDF }}` | Lien du catalogue complet — conservé pour compatibilité, plus affiché |
+| `{{ params.ACTIVITE }}` | Ligne d'activité de la signature, depuis `CHARTE_ACTIVITE` : « Régie & Studio · Côte d'Ivoire · depuis 1994 » *(2026-11-04)* |
 | `{{ params.TELEPHONES }}` | Numéros de la signature, depuis `CHARTE_TELEPHONES` *(2026-11-03)* |
 | `{{ params.LOGO }}` | Adresse du logo, depuis `CHARTE_LOGO_CLAIR` *(2026-11-03)* |
 | `{{ unsubscribe }}` | Lien de désinscription — **obligatoire** |

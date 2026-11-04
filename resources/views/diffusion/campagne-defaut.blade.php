@@ -156,7 +156,7 @@
                     {{-- Pied de page --}}
                     <tr>
                         <td align="center" style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:22px 32px;font-size:12px;line-height:1.6;color:#6b7280;">
-                            <strong style="color:#374151;">CIBLE CI</strong> · Régie publicitaire · Abidjan, Côte d'Ivoire<br>
+                            <strong style="color:#374151;">CIBLE CI</strong> · {{ config('charte.coordonnees.activite') }}<br>
                             <a href="mailto:{{ config('brevo.sender.email') }}" style="color:#6b7280;">{{ config('brevo.sender.email') }}</a>
                             <br><br>
                             Vous recevez ce mail deux fois par mois en tant que client de CIBLE CI.<br>

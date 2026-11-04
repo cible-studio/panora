@@ -166,7 +166,7 @@
     <div class="header-inner">
         <div>
             <div class="brand-logo">CIBLE <span class="accent">CI</span></div>
-            <div class="brand-sub">Régie Publicitaire</div>
+            <div class="brand-sub">Régie &amp; Studio</div>
         </div>
         <div class="header-meta">
             Réf. <span class="ref">{{ $reservation->reference }}</span>
@@ -203,7 +203,7 @@
 </div>
 
 <footer class="footer">
-    © {{ date('Y') }} CIBLE CI — Régie Publicitaire — Abidjan, Côte d'Ivoire
+    © {{ date('Y') }} CIBLE CI — {{ config('charte.coordonnees.activite') }}
 </footer>
 
 </body>
