@@ -809,3 +809,33 @@ de la pige (le tech voyait un échec, la photo était pourtant reçue).
       galerie ; une photo de galerie s'envoie (iPhone : format HEIC accepté)
 - [x] Date d'une photo de galerie : celle de l'ENVOI, pas de la prise de
       vue (le serveur ne lit pas l'EXIF) — **voulu**, option a du 4/11
+
+---
+
+## 16. Campagnes : filtre « Lancée du / au » et exports *(2026-11-05)*
+
+Constat : « les campagnes lancées en septembre » ne sortaient pas — le
+filtre Du / Au ne gardait que les campagnes débutées après le « Du » ET
+finies avant le « Au ». Règles validées le 5/11 (source unique
+`App\Services\Campagnes\CampagneFiltres`) :
+- **Lancée du / au** : date de début dans la période, fin indifférente ;
+  raccourci **Mois de lancement** qui remplit les deux dates ;
+- lien de l'indicateur « CA TTC équipe » (Performance commerciale) :
+  campagnes **actives** pendant la période, hors annulées — comme le chiffre ;
+- bandeau « se terminent dans moins de 14 jours » : mêmes campagnes que
+  son compteur ;
+- exports Excel et PDF = **exactement** l'écran : tous les filtres, et un
+  commercial n'exporte plus que SES campagnes (avant : tout le monde).
+
+- [ ] Campagnes → Mois de lancement = septembre 2026 : les campagnes
+      lancées en septembre sortent, même finies en décembre
+- [ ] Changer à la main une des deux dates : le mois se vide
+- [ ] Performance commerciale → clic « CA TTC équipe » : puce « Actives du
+      … au … ✕ » ; le nombre de campagnes colle à l'indicateur (écart
+      possible : campagnes sans commercial, que l'indicateur ne compte pas)
+- [ ] Bandeau « se terminent dans moins de 14 jours » → Voir : puce
+      « Finissent dans moins de 14 jours ✕ » ; changer un autre filtre ne
+      la fait pas disparaître ; ✕ la retire
+- [ ] Filtrer (ex. septembre + un commercial), puis Excel et PDF : mêmes
+      campagnes qu'à l'écran
+- [ ] Connecté en commercial : l'export ne contient que ses campagnes

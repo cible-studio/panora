@@ -3,6 +3,8 @@ namespace App\Exports;
 
 use App\Exports\Concerns\ExcelBranding;
 use App\Models\Campaign;
+use App\Models\User;
+use App\Services\Campagnes\CampagneFiltres;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
@@ -34,7 +36,13 @@ class CampaignsExport implements FromQuery, WithHeadings, WithMapping, WithStyle
 
     public function startCell(): string { return $this->brandingStartCell(); }
 
-    public function __construct(protected array $filters = [])
+    /**
+     * @param array     $filters  critères de la liste (CampagneFiltres::CLES),
+     *                            + status, ou ['ids' => […]] pour une sélection
+     * @param User|null $user     auteur de l'export : un commercial n'exporte
+     *                            que SES campagnes (2026-11-05)
+     */
+    public function __construct(protected array $filters = [], protected ?User $user = null)
     {
     }
 
@@ -44,32 +52,17 @@ class CampaignsExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             ->with(['client:id,name', 'user:id,name'])
             ->withCount('panels');
 
-        // Sélection explicite (cases cochées) — prioritaire sur les filtres.
+        // Sélection explicite (cases cochées) — prioritaire sur les filtres,
+        // mais jamais hors du périmètre de l'utilisateur.
         if (!empty($this->filters['ids'])) {
-            return $q->whereIn('id', (array) $this->filters['ids'])
+            return CampagneFiltres::appliquer($q->whereIn('id', (array) $this->filters['ids']), [], $this->user)
                      ->orderByDesc('created_at');
         }
 
-        if (!empty($this->filters['search'])) {
-            $q->where('name', 'like', '%' . $this->filters['search'] . '%');
-        }
+        // Mêmes critères que la liste (2026-11-05) : CampagneFiltres.
+        CampagneFiltres::appliquer($q, $this->filters, $this->user);
         if (!empty($this->filters['status'])) {
             $q->where('status', $this->filters['status']);
-        }
-        if (!empty($this->filters['client_id'])) {
-            $q->where('client_id', $this->filters['client_id']);
-        }
-        if (!empty($this->filters['date_debut'])) {
-            $q->where('start_date', '>=', $this->filters['date_debut']);
-        }
-        if (!empty($this->filters['date_fin'])) {
-            $q->where('start_date', '<=', $this->filters['date_fin']);
-        }
-        if (!empty($this->filters['date_from'])) {
-            $q->where('start_date', '>=', $this->filters['date_from']);
-        }
-        if (!empty($this->filters['date_to'])) {
-            $q->where('end_date', '<=', $this->filters['date_to']);
         }
 
         return $q->orderByDesc('created_at');

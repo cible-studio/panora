@@ -1,11 +1,15 @@
 <x-admin-layout title="Campagnes">
     <x-slot:topbarActions>
         {{-- Exports (préservent les filtres URL courants) --}}
-        <a href="{{ route('admin.campaigns.export.excel', request()->query()) }}"
+        {{-- 2026-11-05 : liens remis à jour à chaque filtrage (majLiensExport) —
+             avant, ils gardaient les filtres du chargement de la page. --}}
+        <a href="{{ route('admin.campaigns.export.excel', request()->query()) }}" id="lien-export-excel"
+           data-base="{{ route('admin.campaigns.export.excel') }}"
            class="btn btn-ghost btn-sm" title="Exporter la liste filtrée en Excel">
             📊 <span class="btn-label">Excel</span>
         </a>
-        <a href="{{ route('admin.campaigns.export.pdf', request()->query()) }}"
+        <a href="{{ route('admin.campaigns.export.pdf', request()->query()) }}" id="lien-export-pdf"
+           data-base="{{ route('admin.campaigns.export.pdf') }}"
            class="btn btn-ghost btn-sm" title="Exporter la liste filtrée en PDF">
             📄 <span class="btn-label">PDF</span>
         </a>
@@ -24,7 +28,9 @@
     <div class="alert-warning-bar" id="ending-soon-banner" data-banner-key="ending-soon-{{ $endingSoonCount }}">
         <span class="alert-icon">⚠️</span>
         <span class="alert-text">{{ $endingSoonCount }} campagne(s) se terminent dans moins de 14 jours</span>
-        <a href="{{ route('admin.campaigns.index', ['status' => 'actif', 'date_to' => now()->addDays(14)->format('Y-m-d')]) }}" class="alert-link">
+        {{-- 2026-11-05 : fin_proche = Campaign::endingSoon, la règle du compteur
+             (avant : date_to, qui veut désormais dire « lancée au plus tard le »). --}}
+        <a href="{{ route('admin.campaigns.index', ['status' => 'actif', 'fin_proche' => 14]) }}" class="alert-link">
             Voir →
         </a>
         <button type="button" class="alert-close"
@@ -68,7 +74,9 @@
     $hasAnyFilter = request('search') || request('status') || request('client_id')
                   || request('date_from') || request('date_to') || request('date_debut')
                   || request('date_fin') || request('non_facturee')
-                  || request('commune_id') || request('zone_id');
+                  || request('commune_id') || request('zone_id')
+                  || request('actives_du') || request('actives_au') || request('fin_proche')
+                  || request('created_from') || request('created_to');
     @endphp
     {{-- KPI cards — design unifié --}}
     <div class="stats-grid" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:20px">
@@ -162,15 +170,28 @@
             </div>
             @endif
 
+            {{-- 2026-11-05 : « Lancée du / au » = campagnes DÉBUTÉES dans la
+                 période, quelle que soit leur fin (CampagneFiltres). Avant :
+                 débutées après le « Du » ET finies avant le « Au ». Le mois
+                 remplit les deux dates d'un coup. --}}
             <div class="filter-group">
-                <label class="filter-label">📅 Du</label>
-                <input type="date" id="filter-date-from" class="filter-input" 
+                <label class="filter-label">🗓 Mois de lancement
+                    <span title="Campagnes lancées dans ce mois, quelle que soit leur date de fin." style="cursor:help;opacity:.7">ⓘ</span>
+                </label>
+                <input type="month" id="filter-mois" class="filter-input">
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">🚀 Lancée du
+                    <span title="Campagnes qui ont débuté entre ces deux dates, quelle que soit leur date de fin." style="cursor:help;opacity:.7">ⓘ</span>
+                </label>
+                <input type="date" id="filter-date-from" class="filter-input"
                     value="{{ request('date_from') }}" data-filter="date_from">
             </div>
 
             <div class="filter-group">
-                <label class="filter-label">📅 Au</label>
-                <input type="date" id="filter-date-to" class="filter-input" 
+                <label class="filter-label">au</label>
+                <input type="date" id="filter-date-to" class="filter-input"
                     value="{{ request('date_to') }}" data-filter="date_to">
             </div>
 
@@ -203,6 +224,12 @@
                 <button id="btn-reset" class="reset-btn">↺ Réinitialiser</button>
             </div>
         </div>
+
+        {{-- Filtres arrivés par un lien, sans champ à l'écran (2026-11-05) :
+             indicateur de la Performance commerciale, bandeau « fin proche ».
+             Visibles et retirables, et gardés tant qu'on ne les retire pas
+             (avant, ils disparaissaient au premier changement de filtre). --}}
+        <div id="filtres-contexte" style="display:none;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
     </div>
 
     {{-- ══ TABLEAU DES CAMPAGNES ══ --}}
@@ -1270,8 +1297,99 @@ document.addEventListener('keydown', e => {
     let currentUrl = '{{ route("admin.campaigns.index") }}';
     let debounceTimer = null;
 
+    // 2026-11-05 — Filtres arrivés par un lien, sans champ à l'écran
+    // (Performance commerciale, bandeau « fin proche ») : gardés et affichés
+    // en puces jusqu'à ce qu'on les retire. `back` = provenance (retour),
+    // conservée mais jamais affichée. Règles : App\Services\Campagnes\CampagneFiltres.
+    const CLES_CONTEXTE = ['actives_du', 'actives_au', 'fin_proche', 'created_from', 'created_to', 'back'];
+    let contexte = {};
+
+    function lireContexte(params) {
+        contexte = {};
+        CLES_CONTEXTE.forEach(k => { const v = params.get(k); if (v) contexte[k] = v; });
+    }
+    function aFiltresContexte() {
+        return CLES_CONTEXTE.some(k => k !== 'back' && contexte[k]);
+    }
+    function dateFr(iso) {
+        const [a, m, j] = String(iso).split('-');
+        return (a && m && j) ? `${j}/${m}/${a}` : iso;
+    }
+    function periodeFr(du, au) {
+        return [du ? 'du ' + dateFr(du) : '', au ? 'au ' + dateFr(au) : ''].filter(Boolean).join(' ');
+    }
+    function afficherContexte() {
+        const zone = document.getElementById('filtres-contexte');
+        if (!zone) return;
+        const puces = [];
+        if (contexte.actives_du || contexte.actives_au) {
+            puces.push({ cles: ['actives_du', 'actives_au'], texte: 'Actives ' + periodeFr(contexte.actives_du, contexte.actives_au) });
+        }
+        if (contexte.fin_proche) {
+            puces.push({ cles: ['fin_proche'], texte: `Finissent dans moins de ${contexte.fin_proche} jours` });
+        }
+        if (contexte.created_from || contexte.created_to) {
+            puces.push({ cles: ['created_from', 'created_to'], texte: 'Créées ' + periodeFr(contexte.created_from, contexte.created_to) });
+        }
+        zone.innerHTML = '';
+        puces.forEach(p => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'reset-btn';
+            b.title = 'Retirer ce filtre';
+            b.textContent = p.texte + '  ✕';
+            b.addEventListener('click', () => {
+                p.cles.forEach(k => delete contexte[k]);
+                currentFilters.page = 1;
+                afficherContexte();
+                updateResetButton();
+                fetchData();
+            });
+            zone.appendChild(b);
+        });
+        zone.style.display = puces.length ? 'flex' : 'none';
+    }
+
+    // Paramètres de la liste = champs + contexte. Une seule fabrique pour le
+    // chargement, l'adresse de la page et les liens d'export.
+    function paramsFiltres() {
+        const params = new URLSearchParams();
+        ['search', 'client_id', 'status', 'date_from', 'date_to', 'non_facturee',
+         'commune_id', 'zone_id', 'commercial_user_id']
+            .forEach(k => { if (currentFilters[k]) params.set(k, currentFilters[k]); });
+        Object.entries(contexte).forEach(([k, v]) => params.set(k, v));
+        return params;
+    }
+    // Les boutons Excel / PDF exportent ce que montre l'écran (avant : les
+    // filtres du chargement de la page, pas ceux choisis ensuite).
+    function majLiensExport() {
+        const params = paramsFiltres();
+        params.delete('back');
+        const qs = params.toString();
+        ['lien-export-excel', 'lien-export-pdf'].forEach(id => {
+            const a = document.getElementById(id);
+            if (a) a.href = a.dataset.base + (qs ? '?' + qs : '');
+        });
+    }
+
+    // Mois de lancement : remplit « Lancée du / au » avec le 1er et le
+    // dernier jour du mois ; affiché tant que les deux dates couvrent
+    // exactement un mois.
+    function dernierJour(ym) {
+        const [a, m] = ym.split('-').map(Number);
+        return `${ym}-${String(new Date(a, m, 0).getDate()).padStart(2, '0')}`;
+    }
+    function synchroMois() {
+        const mois = document.getElementById('filter-mois');
+        if (!mois) return;
+        const du = currentFilters.date_from, au = currentFilters.date_to;
+        const ym = du ? du.slice(0, 7) : '';
+        mois.value = (ym && du === ym + '-01' && au === dernierJour(ym)) ? ym : '';
+    }
+
     function init() {
         const urlParams = new URLSearchParams(window.location.search);
+        lireContexte(urlParams);
         currentFilters.search = urlParams.get('search') || '';
         currentFilters.client_id = urlParams.get('client_id') || '';
         currentFilters.status = urlParams.get('status') || '';
@@ -1296,6 +1414,10 @@ document.addEventListener('keydown', e => {
         document.getElementById('filter-zone').value = currentFilters.zone_id;
         const commercialSelect = document.getElementById('filter-commercial');
         if (commercialSelect) commercialSelect.value = currentFilters.commercial_user_id;
+
+        synchroMois();
+        afficherContexte();
+        majLiensExport();
 
         // Init Select2 sur les filtres avec beaucoup d'options (client +
         // commercial). IMPORTANT — Select2 4.x dispatch ses 'change' via
@@ -1343,6 +1465,14 @@ document.addEventListener('keydown', e => {
         document.getElementById('filter-date-from').addEventListener('change', applyFilters);
         document.getElementById('filter-date-to').addEventListener('change', applyFilters);
 
+        // Mois de lancement → les deux dates ; vidé → les deux dates aussi.
+        const moisInput = document.getElementById('filter-mois');
+        if (moisInput) moisInput.addEventListener('change', () => {
+            document.getElementById('filter-date-from').value = moisInput.value ? moisInput.value + '-01' : '';
+            document.getElementById('filter-date-to').value   = moisInput.value ? dernierJour(moisInput.value) : '';
+            applyFilters();
+        });
+
         const factureFilter = document.getElementById('filter-facture');
         if (factureFilter) factureFilter.addEventListener('change', applyFilters);
 
@@ -1373,7 +1503,10 @@ document.addEventListener('keydown', e => {
             currentFilters.date_to = params.get('date_to') || '';
             currentFilters.commune_id = params.get('commune_id') || '';
             currentFilters.zone_id = params.get('zone_id') || '';
-            
+            lireContexte(params);
+            synchroMois();
+            afficherContexte();
+
             // Mettre à jour les champs
             document.getElementById('filter-search').value = currentFilters.search;
             document.getElementById('filter-client').value = currentFilters.client_id;
@@ -1395,6 +1528,7 @@ document.addEventListener('keydown', e => {
         currentFilters.status = document.getElementById('filter-status').value;
         currentFilters.date_from = document.getElementById('filter-date-from').value;
         currentFilters.date_to = document.getElementById('filter-date-to').value;
+        synchroMois();
 
         const factureSelect = document.getElementById('filter-facture');
         currentFilters.non_facturee = factureSelect ? factureSelect.value : '';
@@ -1432,6 +1566,10 @@ document.addEventListener('keydown', e => {
         document.getElementById('filter-status').value = '';
         document.getElementById('filter-date-from').value = '';
         document.getElementById('filter-date-to').value = '';
+        // Filtres arrivés par un lien retirés aussi ; la provenance reste.
+        contexte = contexte.back ? { back: contexte.back } : {};
+        synchroMois();
+        afficherContexte();
 
         const factureSelect = document.getElementById('filter-facture');
         if (factureSelect) factureSelect.value = '';
@@ -1465,7 +1603,7 @@ document.addEventListener('keydown', e => {
                            currentFilters.status || currentFilters.date_from ||
                            currentFilters.date_to || currentFilters.non_facturee ||
                            currentFilters.commune_id || currentFilters.zone_id ||
-                           currentFilters.commercial_user_id;
+                           currentFilters.commercial_user_id || aFiltresContexte();
         const resetWrapper = document.getElementById('reset-wrapper');
         if (resetWrapper) {
             resetWrapper.style.display = hasFilters ? 'flex' : 'none';
@@ -1481,16 +1619,7 @@ document.addEventListener('keydown', e => {
         const originalHtml = tableBody.innerHTML;
         tableBody.innerHTML = '<tr><td colspan="10" class="text-center"><div class="spinner"></div> Chargement...</td></tr>';
         
-        const params = new URLSearchParams();
-        if (currentFilters.search) params.set('search', currentFilters.search);
-        if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
-        if (currentFilters.status) params.set('status', currentFilters.status);
-        if (currentFilters.date_from) params.set('date_from', currentFilters.date_from);
-        if (currentFilters.date_to) params.set('date_to', currentFilters.date_to);
-        if (currentFilters.non_facturee) params.set('non_facturee', currentFilters.non_facturee);
-        if (currentFilters.commune_id) params.set('commune_id', currentFilters.commune_id);
-        if (currentFilters.zone_id) params.set('zone_id', currentFilters.zone_id);
-        if (currentFilters.commercial_user_id) params.set('commercial_user_id', currentFilters.commercial_user_id);
+        const params = paramsFiltres();
         params.set('ajax', '1');
         params.set('page', currentFilters.page);
 
@@ -1528,6 +1657,7 @@ document.addEventListener('keydown', e => {
             // Mettre à jour l'URL sans recharger
             const newUrl = buildUrl();
             window.history.pushState({}, '', newUrl);
+            majLiensExport();
             
             // Réattacher les événements aux nouveaux boutons
             attachPaginationEvents();
@@ -1555,16 +1685,7 @@ document.addEventListener('keydown', e => {
     }
 
     function buildUrl() {
-        const params = new URLSearchParams();
-        if (currentFilters.search) params.set('search', currentFilters.search);
-        if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
-        if (currentFilters.status) params.set('status', currentFilters.status);
-        if (currentFilters.date_from) params.set('date_from', currentFilters.date_from);
-        if (currentFilters.date_to) params.set('date_to', currentFilters.date_to);
-        if (currentFilters.commune_id) params.set('commune_id', currentFilters.commune_id);
-        if (currentFilters.zone_id) params.set('zone_id', currentFilters.zone_id);
-        if (currentFilters.commercial_user_id) params.set('commercial_user_id', currentFilters.commercial_user_id);
-        if (currentFilters.non_facturee) params.set('non_facturee', currentFilters.non_facturee);
+        const params = paramsFiltres();
         if (currentFilters.page > 1) params.set('page', currentFilters.page);
 
         const query = params.toString();
