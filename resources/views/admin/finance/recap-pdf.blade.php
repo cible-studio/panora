@@ -5,6 +5,7 @@
 <title>Récap Finance — CIBLE CI</title>
 {{-- 2026-10-01 — charte graphique : socle commun (polices, palette, classes ch-*). --}}
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
     /* Marge basse ≥ 18 mm : réserve la place du pied fixe charte-footer. */
     @page { size: A4; margin: 14mm 12mm 18mm 12mm !important; }
@@ -28,13 +29,12 @@
 <body>
 
 {{-- 2026-10-01 — charte graphique : en-tête commun (liseré + logo + titre). --}}
-@include('pdf.partials.charte-header', [
-    'docTitle'    => 'RÉCAP FINANCIER',
-    'docSubtitle' => 'Tableau de bord financier · ' . ($operatorName ?? 'CIBLE CI') . ' · Période : ' . $from->format('d/m/Y') . ' → ' . $to->format('d/m/Y'),
+@include('pdf.partials.doc-entete', [
+    'docTitle'    => 'Récap financier',
+    'docSubtitle' => 'Période du ' . $from->format('d/m/Y') . ' au ' . $to->format('d/m/Y'),
     'docMeta'     => [
         'Édité le ' . now()->format('d/m/Y H:i'),
         'Par ' . ($user->name ?? '—'),
-        'Réf. ' . strtoupper(substr(md5(now()), 0, 8)),
     ],
 ])
 
@@ -169,7 +169,7 @@
 
 {{-- 2026-10-01 — charte graphique : pied fixe commun ; ancienne mention conservée en 2e ligne. --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => 'CIBLE SARL — Régie OOH Côte d\'Ivoire · Récap financier · Détail complet disponible en Excel.',
+    'footerHint' => 'Document confidentiel · détail complet disponible en Excel',
 ])
 
 </body>

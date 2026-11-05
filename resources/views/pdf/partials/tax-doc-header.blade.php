@@ -1,26 +1,14 @@
-{{-- Barre de marque des PDF taxes communales (fond clair).
+{{-- En-tête des PDF taxes communales.
      Variables attendues :
        $docTitle  (string)  — ex. « Détail des taxes communales »
        $docPeriod (?string) — ex. « Janvier → Septembre 2026 » (optionnel)
-     $logoCibleLight / $operatorName / $charte sont injectés par le View
-     composer d'AppServiceProvider sur toutes les vues `pdf.*`.
 
-     ⚠️ On utilise volontairement logoCibleLight (logol.png, texte noir) :
-     le bandeau est clair, logoCibleDark (texte blanc) y serait invisible.
-     2026-10-01 — liseré 5 couleurs de la charte en tête (commun à tous les PDF). --}}
-@include('pdf.partials.charte-lisere')
-<table class="tdoc-top">
-    <tr>
-        <td>
-            @if(!empty($logoCibleLight))
-                <img src="{{ $logoCibleLight }}" alt="{{ $operatorName ?? 'CIBLE CI' }}" class="tdoc-logo">
-            @endif
-            <div class="tdoc-title">{{ $operatorName ?? 'CIBLE CI' }} — {{ $docTitle }}</div>
-        </td>
-        <td class="tdoc-top-right">
-            @if(!empty($docPeriod)){{ $docPeriod }} &nbsp;·&nbsp; @endif
-            Édité le {{ now()->format('d/m/Y') }}
-        </td>
-    </tr>
-</table>
-<div class="tdoc-rule"></div>
+     2026-11-05 — en-tête éditorial commun à tous les documents internes
+     (pdf.partials.doc-entete : logo et régie alignés, filet, type, titre) ;
+     la date d'édition est au pied de page. Avant : barre de marque propre
+     aux taxes (logo + « CIBLE CI — titre » + « Édité le » à droite). --}}
+@include('pdf.partials.doc-entete', [
+    'docKicker'   => 'Taxes communales',
+    'docTitle'    => $docTitle,
+    'docSubtitle' => $docPeriod ?? null,
+])

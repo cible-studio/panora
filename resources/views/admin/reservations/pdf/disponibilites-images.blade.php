@@ -396,7 +396,7 @@
 
     // Pied commun (charte-footer) : on y reporte le texte du pied
     // historique, avec la référence et le client s'ils sont fournis.
-    $piedHistorique = 'CIBLE CI · ' . config('charte.coordonnees.activite') . ' · Document confidentiel'
+    $piedHistorique = 'Document confidentiel'
         . (isset($reservation_ref) ? ' · Réf. ' . $reservation_ref : '')
         . (isset($client_name) ? ' · Client : ' . $client_name : '');
 @endphp

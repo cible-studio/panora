@@ -7,6 +7,7 @@
      (charte-header) à la place du bandeau foncé flottant, synthèse en table
      (les float débordaient), pied commun charte-footer. --}}
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
     @page { size: A4 landscape; margin: 12mm 10mm 20mm 10mm !important; }
     body { font-size: 9px; color: {{ $charte['noir'] }}; line-height: 1.15; margin: 0; padding: 0; }
@@ -49,13 +50,13 @@
 <body>
 
 @include('pdf.partials.charte-footer', [
-    'footerHint' => "CIBLE SARL · Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora",
+    'footerHint' => 'Document confidentiel',
 ])
 
-@include('pdf.partials.charte-header', [
+@include('pdf.partials.doc-entete', [
     'docKicker'   => 'Rapport',
-    'docTitle'    => 'CLASSIFICATION DES PANNEAUX PAR OCCUPATION',
-    'docSubtitle' => "Analyse par durée d'occupation cumulée · CIBLE CI",
+    'docTitle'    => 'Classification des panneaux par occupation',
+    'docSubtitle' => "Analyse par durée d'occupation cumulée",
     'docMeta'     => [
         'Période : ' . $from->format('d/m/Y') . ' → ' . $to->format('d/m/Y'),
         'Édité le ' . now()->format('d/m/Y H:i'),

@@ -5,6 +5,7 @@
 <title>Historique des relances — CIBLE CI</title>
 {{-- 2026-10-01 — charte graphique : socle commun (polices, palette, classes ch-*). --}}
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
     /* Marge basse ≥ 18 mm : réserve la place du pied fixe charte-footer. */
     @page { size: A4 landscape; margin: 12mm 10mm 18mm 10mm !important; }
@@ -28,13 +29,12 @@
 <body>
 
 {{-- 2026-10-01 — charte graphique : en-tête commun (liseré + logo + titre). --}}
-@include('pdf.partials.charte-header', [
-    'docTitle'    => 'HISTORIQUE DES RELANCES',
-    'docSubtitle' => 'Suivi recouvrement · ' . ($operatorName ?? 'CIBLE CI'),
+@include('pdf.partials.doc-entete', [
+    'docTitle'    => 'Historique des relances',
+    'docSubtitle' => 'Suivi du recouvrement',
     'docMeta'     => [
         'Édité le ' . now()->format('d/m/Y H:i'),
         'Par ' . ($user->name ?? '—'),
-        'Réf. ' . strtoupper(substr(md5(now()), 0, 8)),
     ],
 ])
 
@@ -114,7 +114,7 @@
 
 {{-- 2026-10-01 — charte graphique : pied fixe commun ; ancienne mention conservée en 2e ligne. --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => 'CIBLE SARL — Régie OOH Côte d\'Ivoire · Document généré automatiquement par Panora.',
+    'footerHint' => 'Document confidentiel',
 ])
 
 </body>

@@ -5,6 +5,7 @@
     <title>Liste des clients — CIBLE CI</title>
     {{-- 2026-10-01 — charte graphique : styles communs (polices, ch-*) puis styles propres. --}}
     @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
     <style>
         /* 2026-10-01 — charte graphique : vraies marges de page (!important,
            sinon « * { margin:0 } » les annule sous DomPDF) ; marge basse
@@ -47,7 +48,7 @@
 
 {{-- 2026-10-01 — charte graphique : en-tête commun clair (liseré + logo
      CIBLE pour fond clair + titre + méta), remplace le bandeau sombre. --}}
-@include('pdf.partials.charte-header', [
+@include('pdf.partials.doc-entete', [
     'docTitle' => 'Liste des clients',
     'docMeta'  => [
         'Généré le ' . $generated,
@@ -137,7 +138,7 @@
 
 {{-- 2026-10-01 — charte graphique : pied commun ; l'ancien texte de pied est conservé en footerHint. --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => "CIBLE CI · Régie Publicitaire · Abidjan, Côte d'Ivoire · Document confidentiel",
+    'footerHint' => "Document confidentiel",
 ])
 
 </body>

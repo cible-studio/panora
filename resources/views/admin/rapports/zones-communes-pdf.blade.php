@@ -7,6 +7,7 @@
      pied charte-footer (remplace l'ancien pied « Page N / 0 » : le compteur
      counter(pages) n'est pas résolu par DomPDF). --}}
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
     /* margin-bottom 22mm + body padding-bottom = double garde-fou
        contre le débordement du tableau sur le footer (bug DomPDF). */
@@ -78,17 +79,16 @@
 <body>
 
 @include('pdf.partials.charte-footer', [
-    'footerHint' => "CIBLE SARL — Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora",
+    'footerHint' => 'Document confidentiel',
 ])
 
-@include('pdf.partials.charte-header', [
+@include('pdf.partials.doc-entete', [
     'docKicker'   => 'Rapport',
-    'docTitle'    => 'ZONES & COMMUNES — DÉTAIL PAR PANNEAU',
-    'docSubtitle' => 'Panneaux occupés × campagnes, groupés par commune · ' . ($operatorName ?? 'CIBLE CI'),
+    'docTitle'    => 'Zones et communes — détail par panneau',
+    'docSubtitle' => 'Panneaux occupés × campagnes, groupés par commune',
     'docMeta'     => [
         'Édité le ' . now()->format('d/m/Y H:i'),
         'Par ' . ($user->name ?? '—'),
-        'Réf. ' . strtoupper(substr(md5(now()), 0, 8)),
     ],
 ])
 

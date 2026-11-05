@@ -218,7 +218,7 @@ class RapportPigesTest extends TestCase
         // Mise en page « fiche » (2026-11-05 v3) : titre, synthèse, communes
         // en intertitres dans l'ordre de la tournée, une fiche numérotée par
         // panneau (emplacement, référence, dimensions, date de la photo).
-        foreach (['<div class="titre">MOOV 2026</div>', 'Client <strong>MOOV AFRICA</strong>',
+        foreach (['<div class="doc-titre">MOOV 2026</div>', 'Client <strong>MOOV AFRICA</strong>',
                   'photos prises le 07/09/2026',
                   '<div class="commune">YOPOUGON', '<div class="commune">COCODY',
                   '<div class="num">01</div>', '<div class="num">03</div>',
@@ -227,7 +227,7 @@ class RapportPigesTest extends TestCase
                   // Dimensions du panneau, source PanelFormat.
                   '<td class="etiquette">Dimensions</td><td>4×3m · 12 m²</td>',
                   '<td class="etiquette">Photo</td><td>07/09/2026 à 10:03</td>',
-                  'class="page"'] as $attendu) {
+                  'class="ch-pagenum"'] as $attendu) {
             $this->assertStringContainsString($attendu, $html, $attendu);
         }
         // Panneau sans format (YOP-001… a un format ; COC-001 n'en a pas) :

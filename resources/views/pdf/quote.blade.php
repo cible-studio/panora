@@ -813,7 +813,7 @@
          d'origine est reprise mot pour mot en 2e ligne. Pas de « Page N » CSS
          ici : la numérotation reste confiée au script text/php ci-dessous
          (évite un double numéro si enable_php est réactivé). --}}
-    @include('pdf.partials.charte-footer', [
+    @include('pdf.partials.charte-footer-devis', [
         'footerHint' => ($company['name'] ?? 'CIBLE SARL') . ' — Capital : 10 000 000 FCFA'
             . ' · ' . ($company['address'] ?? '')
             . ' · Tél. ' . ($company['phone'] ?? '')

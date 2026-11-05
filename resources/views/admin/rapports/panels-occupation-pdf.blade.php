@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Occupation des panneaux — CIBLE CI</title>
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
 /* ═══════════════════════════════════════════════════════
    RESET + BASE — DomPDF compatible
@@ -198,9 +199,7 @@ body {
      coordonnées + texte de pied d'origine + n° de page). Déclaré en tête
      du body pour figurer aussi sur la page de garde. --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => "Panora · CIBLE SARL · Régie OOH Côte d'Ivoire · Document généré automatiquement"
-        . ' — ' . $stats['total_panneaux'] . ' panneaux · '
-        . $stats['total_campagnes'] . ' campagnes · Taux moyen ' . $stats['taux_moyen'] . ' %',
+    'footerHint' => 'Document confidentiel',
 ])
 
 {{-- ══════════════════════════════════════

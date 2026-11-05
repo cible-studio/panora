@@ -1,10 +1,9 @@
 {{-- Footer fixe des PDF taxes communales : délègue au pied de page commun
-     de la charte (pdf.partials.charte-footer : régie · slogan · coordonnées
-     + numéro de page) en conservant la mention plateforme d'origine.
+     harmonisé (pdf.partials.charte-footer : régie · coordonnées · date
+     d'édition · page). 2026-11-05 : « Plateforme Panora · opérée par… —
+     Document généré automatiquement » remplacé par la mention commune.
      Variable optionnelle :
        $footerHint (?string) — précision de bas de page (ex. la formule). --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => 'Plateforme Panora · opérée par ' . ($operatorName ?? 'CIBLE CI')
-        . ' — Document généré automatiquement'
-        . (!empty($footerHint) ? ' · ' . $footerHint : ''),
+    'footerHint' => 'Document confidentiel' . (!empty($footerHint) ? ' · ' . $footerHint : ''),
 ])

@@ -5,6 +5,7 @@
     {{-- 2026-10-01 — charte graphique : styles communs + en-tête clair commun
          (charte-header) à la place du bandeau foncé, pied commun charte-footer. --}}
     @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         @page { size: A4; margin: 12mm 12mm 20mm 12mm !important; }
@@ -36,15 +37,15 @@
 <body>
 
     @include('pdf.partials.charte-footer', [
-        'footerHint' => 'CIBLE CI — Document confidentiel — Ne pas diffuser · Généré le ' . now()->format('d/m/Y à H:i') . ' · www.cible-ci.com',
+        'footerHint' => 'Document confidentiel — ne pas diffuser',
     ])
 
     {{-- HEADER — reprend le contenu de pdf.partials.branding-header
          (régie · opéré par Panora) dans l'en-tête clair commun. --}}
-    @include('pdf.partials.charte-header', [
+    @include('pdf.partials.doc-entete', [
         'docKicker'   => 'Rapport',
-        'docTitle'    => 'Rapport Réseau Panneaux — ' . now()->format('d/m/Y'),
-        'docSubtitle' => ($operatorName ?? 'CIBLE CI') . ' · opéré par Panora',
+        'docTitle'    => 'Réseau de panneaux',
+        'docSubtitle' => 'État du parc au ' . now()->format('d/m/Y'),
     ])
 
     {{-- STATS GLOBALES --}}

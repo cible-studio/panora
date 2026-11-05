@@ -30,6 +30,15 @@
     };
     $nbCommunes = $groupes->count();
     $numero = 0;   // numéro de fiche, continu sur tout le document
+
+    // Synthèse sous le titre : valeurs échappées, mise en gras.
+    $synthese = implode(' · ', array_filter([
+        $clients->count() === 1 ? 'Client <strong>' . e($clients->first()) . '</strong>' : null,
+        $vagues->count() === 1 ? e($vagues->first()->libelle()) : null,
+        '<strong>' . $nbPanneaux . '</strong> panneau' . ($nbPanneaux > 1 ? 'x' : '')
+            . ' dans <strong>' . $nbCommunes . '</strong> commune' . ($nbCommunes > 1 ? 's' : ''),
+        $periode ? 'photos prises ' . e($periode) : null,
+    ]));
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
@@ -37,23 +46,10 @@
 <meta charset="UTF-8">
 <title>{{ $titre }}</title>
 @include('pdf.partials.charte-styles')
+@include('pdf.partials.doc-styles')
 <style>
     @page { margin: 14mm 15mm 19mm 15mm !important; }
     body { font-family: {!! $ch['ff_texte'] !!}; font-size: 9pt; line-height: 1.4; color: {{ $ch['noir'] }}; }
-
-    /* ── En-tête (identique à la liste des campagnes) ─────────────── */
-    .ch-lisere td { height: 2px; }
-    .tete { width: 100%; border-collapse: collapse; margin-top: 5mm; }
-    .tete td { padding: 0; vertical-align: middle; }
-    .tete .logo img { height: 12mm; display: block; }
-    .tete .societe { text-align: right; font-size: 7.5pt; line-height: 1.55; color: {{ $ch['texte_doux'] }}; }
-    .tete .societe strong { color: {{ $ch['noir'] }}; font-family: {!! $ch['ff_titres'] !!}; font-weight: 700; }
-    .filet { height: 0; border-top: 0.8pt solid {{ $ch['noir'] }}; margin: 4mm 0 7mm; }
-
-    .type   { font-family: {!! $ch['ff_titres'] !!}; font-size: 7.5pt; font-weight: 700; letter-spacing: 1.8pt; text-transform: uppercase; color: {{ $ch['rouge'] }}; }
-    .titre  { font-family: {!! $ch['ff_titres'] !!}; font-size: 19pt; font-weight: 700; line-height: 1.2; margin: 1.5mm 0 2mm; }
-    .resume { font-size: 9.5pt; color: {{ $ch['texte_doux'] }}; margin: 0 0 6mm; }
-    .resume strong { color: {{ $ch['noir'] }}; font-weight: 700; }
 
     /* ── Commune : intertitre ─────────────────────────────────────── */
     .commune {
@@ -76,59 +72,17 @@
     .detail td.etiquette { width: 22mm; color: {{ $ch['texte_doux'] }}; }
     .sans-photo { color: {{ $ch['texte_pale'] }}; font-size: 8.5pt; }
 
-    /* ── Pied (répété sur chaque page) ───────────────────────────── */
-    .pied { position: fixed; left: 0; right: 0; bottom: -12mm; font-size: 7pt; color: {{ $ch['texte_doux'] }}; }
-    .pied table { width: 100%; border-collapse: collapse; }
-    .pied td { padding: 2mm 0 0; border-top: 0.4pt solid {{ $ch['gris'] }}; vertical-align: top; }
-    .pied .droite { text-align: right; white-space: nowrap; }
-    .pied .page:after { content: "Page " counter(page); }
 </style>
 </head>
 <body>
 
-<div class="pied">
-    <table>
-        <tr>
-            <td>
-                <strong style="color:{{ $ch['noir'] }}">{{ $ch['nom'] }}</strong>
-                @if(!empty($coord['activite'])) · {{ $coord['activite'] }}@endif
-                @if(!empty($coord['telephones']))<br>{{ $coord['telephones'] }}@endif
-                @if(!empty($coord['email'])) · {{ $coord['email'] }}@endif
-                @if(!empty($coord['site'])) · {{ $coord['site'] }}@endif
-            </td>
-            <td class="droite">
-                Rapport de piges · édité le {{ now()->format('d/m/Y à H:i') }}<br>
-                <span class="page"></span>
-            </td>
-        </tr>
-    </table>
-</div>
+@include('pdf.partials.charte-footer', ['footerHint' => 'Rapport de piges'])
 
-@include('pdf.partials.charte-lisere')
-
-<table class="tete">
-    <tr>
-        <td class="logo">
-            @if(!empty($logoCibleLight))<img src="{{ $logoCibleLight }}" alt="{{ $ch['nom'] }}">@endif
-        </td>
-        <td class="societe">
-            <strong>{{ $ch['nom'] }}</strong><br>
-            @if(!empty($coord['adresse'])){{ $coord['adresse'] }}<br>@endif
-            @if(!empty($coord['site'])){{ $coord['site'] }}@endif
-        </td>
-    </tr>
-</table>
-<div class="filet"></div>
-
-<div class="type">Rapport de piges</div>
-<div class="titre">{{ $titre }}</div>
-<div class="resume">
-    @if($clients->count() === 1)Client <strong>{{ $clients->first() }}</strong> · @endif
-    @if($vagues->count() === 1){{ $vagues->first()->libelle() }} · @endif
-    <strong>{{ $nbPanneaux }}</strong> panneau{{ $nbPanneaux > 1 ? 'x' : '' }}
-    dans <strong>{{ $nbCommunes }}</strong> commune{{ $nbCommunes > 1 ? 's' : '' }}
-    @if($periode) · photos prises {{ $periode }}@endif
-</div>
+@include('pdf.partials.doc-entete', [
+    'docKicker'       => 'Rapport de piges',
+    'docTitle'        => $titre,
+    'docSubtitleHtml' => $synthese,
+])
 
 @foreach($groupes as $commune => $items)
     @php $parPanneau = $items->groupBy(fn ($item) => $item['pige']->panel_id); @endphp

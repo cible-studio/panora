@@ -5,6 +5,7 @@
 <title>Fiche pose (liste) — {{ $campaign->name }}</title>
 {{-- 2026-10-01 — charte graphique : styles communs (polices, ch-*) puis styles propres. --}}
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
     /* 2026-10-01 — charte graphique : marge basse portée à 20mm pour le pied commun. */
     @page { size: A4 landscape; margin: 12mm 10mm 20mm 10mm !important; }
@@ -38,13 +39,12 @@
 {{-- ════ EN-TÊTE ════
      2026-10-01 — charte graphique : en-tête commun (liseré + logo + titre +
      méta) ; client / statut / période restent juste en dessous. --}}
-@include('pdf.partials.charte-header', [
+@include('pdf.partials.doc-entete', [
     'docTitle'  => $campaign->name . ' — Liste de pose',
     'docKicker' => 'Fiche de pose',
     'docMeta'   => [
         'Édité le ' . now()->format('d/m/Y H:i'),
         'Par ' . ($user->name ?? '—'),
-        'Réf. ' . strtoupper(substr(md5($campaign->id . now()), 0, 8)),
     ],
 ])
 
@@ -131,7 +131,7 @@
 
 {{-- 2026-10-01 — charte graphique : pied commun ; l'ancien texte de pied est conservé en footerHint. --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => "CIBLE SARL — Régie OOH Côte d'Ivoire · Liste de pose campagne · Document interne.",
+    'footerHint' => "Document interne",
 ])
 
 </body>
