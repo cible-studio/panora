@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Fiche panneau — {{ $panel['reference'] }}</title>
     @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
     {{-- 2026-10-01 — charte graphique : en-tête clair (liseré + logo CIBLE +
          titre + méta), pied commun fixe (texte historique reporté en 2e
          ligne), palette $charte, polices Poppins / Nunito. Marges @page avec
@@ -202,26 +203,17 @@
 
     {{-- ─── PIED FIXE COMMUN (texte historique en 2e ligne) ─── --}}
     @include('pdf.partials.charte-footer', [
-        'footerHint' => 'CIBLE CI · Régie Publicitaire · Abidjan, Côte d\'Ivoire · Document confidentiel',
+        'footerHint' => 'Document confidentiel',
     ])
 
-    {{-- ─── EN-TÊTE (charte : liseré + logo clair + titre + méta) ─── --}}
-    @include('pdf.partials.charte-lisere')
-    <table class="fiche-head">
-        <tr>
-            @if(!empty($logoEntete))
-                <td class="logo-cell"><img src="{{ $logoEntete }}" alt="CIBLE CI"></td>
-            @endif
-            <td>
-                <h1>Fiche <span class="accent">Panneau</span></h1>
-            </td>
-            <td class="meta-cell">
-                Généré le {{ $generated }}<br>
-                Réf. {{ $panel['reference'] }}
-            </td>
-        </tr>
-    </table>
-    <div class="fiche-rule"></div>
+    {{-- ─── EN-TÊTE éditorial commun (2026-11-05, pdf.partials.doc-entete) :
+         logo et régie alignés, filet, type et référence ; la date
+         d'édition est au pied de page. ─── --}}
+    @include('pdf.partials.doc-entete', [
+        'docKicker' => 'Fiche panneau',
+        'docTitle'  => $panel['reference'],
+        'docLogo'   => $logoEntete,
+    ])
 
     <div class="container">
 

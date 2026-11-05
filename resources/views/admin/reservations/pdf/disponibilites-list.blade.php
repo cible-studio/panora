@@ -335,7 +335,7 @@
 
 {{-- ── PIED FIXE COMMUN (texte du pied historique en 2e ligne) ── --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => 'CIBLE CI · Régie Publicitaire · Abidjan, Côte d\'Ivoire · Document confidentiel',
+    'footerHint' => 'Document confidentiel',
 ])
 
 {{-- ── EN-TÊTE (charte : liseré + logo clair + titre + méta) ── --}}

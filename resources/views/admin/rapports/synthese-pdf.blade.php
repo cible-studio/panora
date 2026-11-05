@@ -8,6 +8,7 @@
      contenu (bottom:4mm) et chevauchait le tableau en bas de la page 1 ; il
      vit désormais dans la marge basse réservée (20mm). --}}
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
     @page { size: A4; margin: 12mm 14mm 20mm 14mm !important; }
     body { font-size: 10px; color: {{ $charte['noir'] }}; line-height: 1.25; }
@@ -32,17 +33,16 @@
 <body>
 
 @include('pdf.partials.charte-footer', [
-    'footerHint' => 'CIBLE CI — Dashboard analytique OOH · Document généré automatiquement · Confidentiel',
+    'footerHint' => 'Document confidentiel',
 ])
 
-@include('pdf.partials.charte-header', [
+@include('pdf.partials.doc-entete', [
     'docKicker'   => 'Rapport',
-    'docTitle'    => 'SYNTHÈSE EXÉCUTIVE',
-    'docSubtitle' => 'Dashboard analytique OOH — ' . ($operatorName ?? 'CIBLE CI'),
+    'docTitle'    => 'Synthèse exécutive',
+    'docSubtitle' => 'Tableau de bord analytique du réseau',
     'docMeta'     => [
         'Édité le ' . now()->format('d/m/Y H:i'),
         'Par ' . ($user->name ?? '—'),
-        'Réf. ' . strtoupper(substr(md5(now()), 0, 8)),
     ],
 ])
 {{-- Période retirée du header : elle est désormais portée par le

@@ -146,5 +146,7 @@
     .ch-footer .ch-footer-brand { color: {{ $ch['noir'] }}; font-weight: 700; }
     .ch-footer .ch-footer-slogan { color: {{ $ch['rouge'] }}; font-weight: 700; }
     .ch-footer .ch-footer-page { text-align: right; white-space: nowrap; width: 18%; }
+    /* Pied harmonisé (2026-11-05) : colonne de droite, mention + page. */
+    .ch-footer .ch-footer-droite { text-align: right; width: 38%; padding-left: 6mm; }
     .ch-pagenum:before { content: counter(page); }
 </style>

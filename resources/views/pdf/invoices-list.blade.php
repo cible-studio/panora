@@ -5,6 +5,7 @@
 <title>Liste des factures</title>
 {{-- 2026-10-01 — charte graphique : socle commun (polices, palette, classes ch-*). --}}
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     /* !important : « * { margin:0 } » annule sinon la marge @page sous DomPDF.
@@ -43,7 +44,7 @@
 
 {{-- 2026-10-01 — charte graphique : en-tête commun (liseré + logo + titre),
      reprend « Rapport » / « Liste des factures » / date de génération. --}}
-@include('pdf.partials.charte-header', [
+@include('pdf.partials.doc-entete', [
     'docKicker' => 'Rapport',
     'docTitle'  => 'Liste des factures',
     'docMeta'   => ['Généré le ' . now()->format('d/m/Y \à H:i')],
@@ -144,7 +145,7 @@
 {{-- 2026-10-01 — charte graphique : pied fixe commun ; l'ancienne mention
      de pied est conservée en 2e ligne. --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => 'CIBLE CI — Régie publicitaire OOH · Abidjan, Côte d\'Ivoire',
+    'footerHint' => 'Document confidentiel',
 ])
 
 </body>

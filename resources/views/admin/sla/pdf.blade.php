@@ -5,6 +5,7 @@
 <title>Analyse des signalements — CIBLE CI</title>
 {{-- 2026-10-01 — charte graphique : styles communs (polices, ch-*) puis styles propres. --}}
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
     @page { size: A4 landscape; margin: 14mm 12mm 22mm 12mm !important; }
     body { font-size: 10px; color: {{ $charte['noir'] }}; line-height: 1.25; }
@@ -44,9 +45,9 @@
 @endphp
 
 {{-- 2026-10-01 — charte graphique : en-tête commun (liseré + logo + titre + méta). --}}
-@include('pdf.partials.charte-header', [
-    'docTitle'    => 'ANALYSE DES SIGNALEMENTS',
-    'docSubtitle' => 'Analyse des motifs de retard signalés par les techniciens · CIBLE CI',
+@include('pdf.partials.doc-entete', [
+    'docTitle'    => 'Analyse des signalements',
+    'docSubtitle' => 'Du ' . $from->format('d/m/Y') . ' au ' . $to->format('d/m/Y') . ' · ' . ((int) $from->diffInDays($to) + 1) . ' jours',
     'docMeta'     => [
         'Édité le ' . $generatedAt->format('d/m/Y à H:i'),
         'Par ' . ($user->name ?? '—'),
@@ -54,7 +55,6 @@
 ])
 
 <div class="ch-info">
-    <strong>Période :</strong> {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ $from->diffInDays($to) + 1 }} jours)
 </div>
 <div class="filters">
     @if($motifFilter)         <span class="filter-chip">Motif : {{ $motifFilter->label() }}</span>@endif
@@ -223,8 +223,7 @@
 
 {{-- 2026-10-01 — charte graphique : pied commun ; l'ancien texte de pied est conservé en footerHint. --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => 'CIBLE CI — Analyse des signalements · Édité par Panora le ' . $generatedAt->format('d/m/Y à H:i')
-                  . ' · Période : ' . $from->format('d/m/Y') . ' → ' . $to->format('d/m/Y'),
+    'footerHint' => 'Document confidentiel',
 ])
 
 </body>

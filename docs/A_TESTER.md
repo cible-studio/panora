@@ -870,3 +870,49 @@ avec pastille. Piges : une fiche par panneau — photo dans un cadre fixe
 trois fiches par page.
 
 - [ ] Les deux PDF sur la vraie base : en-tête aligné, pied complet
+
+## 17. Harmonisation de tous les PDF *(2026-11-05)*
+
+Décisions du 5/11 : **1-a** — facture et devis inchangés (le devis garde
+son ancien pied, figé dans `pdf.partials.charte-footer-devis`) ;
+**2-non** — proposition commerciale, liste des disponibilités et catalogue
+gardent leur corps, **seul le pied change** ; **3-ok** — quatre PDF vérifiés
+sur données fictives (liste des campagnes, piges, performance commerciale,
+fiche de pose), le reste ici.
+
+Ce qui change partout :
+- **pied commun** : à gauche CIBLE · activité, puis téléphones · e-mail ·
+  site ; à droite la mention (« Document confidentiel », « Document
+  interne », « Proposition RES-… ») · édité le jj/mm/aaaa à hh:mm, puis
+  « Page N ». Disparus : « Régie OOH », « Régie Publicitaire », « Édité par
+  Panora le… », « Document généré automatiquement » recopiés à la main ;
+- **documents internes** : en-tête éditorial (logo et coordonnées alignés,
+  filet, type de document, titre, sous-titre), tableaux à filets sans fond
+  noir ni zébrures, statuts en texte avec pastille de couleur, chiffres clés
+  en bande au lieu de cases ; plus de « Réf. » tirée au hasard dans l'en-tête ;
+  un intertitre ne reste plus seul en bas de page ;
+- **performance (commerciaux, équipes, techniciens) et signalements** : la
+  période passe en sous-titre (« Du 01/09/2026 au 30/11/2026 · 91 jours ») —
+  avant, la durée s'affichait parfois « 91.999999999988 jours ».
+
+À ouvrir sur la vraie base (en-tête aligné, aucun texte coupé ou
+superposé, pied complet sur chaque page, numéros de page) :
+
+- [ ] Campagnes → fiche de pose (une campagne) et fiche de pose en liste
+- [ ] Clients → export PDF de la liste
+- [ ] Finance → récapitulatif PDF et relances PDF
+- [ ] Panneaux → fiche PDF d'un panneau, et rapport réseau PDF
+- [ ] Factures → export PDF de la liste
+- [ ] Rapports → synthèse, occupation des panneaux (couverture conservée),
+      détail d'occupation, classification des panneaux, zones et communes,
+      feuille de décapage
+- [ ] Performance → commerciaux, équipes, techniciens : période en
+      sous-titre, durée en jours entiers
+- [ ] Signalements (SLA) → PDF
+- [ ] Taxes → détail et rapport des taxes communales
+- [ ] Documents clients, **pied seulement** : proposition commerciale,
+      liste des disponibilités, catalogue des disponibilités (y compris
+      celui envoyé par Brevo) — le corps est identique à avant
+- [ ] Facture et devis : **aucun changement** par rapport à hier
+- [ ] Un PDF de plusieurs pages (ex. liste des clients) : le pied se répète,
+      « Page 2 », « Page 3 »…

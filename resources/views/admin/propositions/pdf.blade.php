@@ -132,8 +132,7 @@
 {{-- Pied fixe commun : le texte de l'ancien pied de fin de document est
      reporté en 2e ligne. --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => 'CIBLE CI — ' . config('charte.coordonnees.activite') . ' · Document émis le '
-        . now()->format('d/m/Y \à H:i') . ' · Référence : ' . $reservation->reference,
+    'footerHint' => 'Proposition ' . $reservation->reference,
 ])
 
 {{-- 2026-06-18 (feedback patronne : logo CIBLE sur TOUS les PDF).

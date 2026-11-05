@@ -16,6 +16,9 @@
      page sous DomPDF), seule l'orientation change.
      ═══════════════════════════════════════════════════════════════════ --}}
 @include('pdf.partials.charte-styles')
+{{-- 2026-11-05 : mise en page éditoriale des documents internes (en-tête
+     doc-entete) ; les classes tdoc-* sont alignées en fin de fichier. --}}
+@include('pdf.partials.doc-styles')
 @php($chT = $charte ?? \App\Support\PdfCharte::data())
 <style>
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -105,4 +108,34 @@
         font-size:10px; color:{{ $chT['noir'] }}; line-height:1.55;
     }
     .tdoc-note b { color:{{ $chT['noir'] }}; }
+
+    /* ── Mise en page éditoriale (2026-11-05) ─────────────────────────
+       Même famille que les autres documents internes (pdf.partials.doc-styles) :
+       plus de cases ni de bandeaux noirs — des filets fins, des pastilles. */
+    .tdoc-meta { border: none; border-top: 0.8pt solid {{ $chT['noir'] }}; border-bottom: 0.4pt solid {{ $chT['gris'] }}; }
+    .tdoc-meta th { background: none; border-right: none; border-bottom: none; padding: 7px 12px 0 0; font-size: 7.5px; letter-spacing: .8px; }
+    .tdoc-meta td { border-right: none; padding: 3px 12px 8px 0; }
+    .tdoc-meta td.accent { color: {{ $chT['noir'] }}; }
+    .tdoc-table thead th {
+        background: none; color: {{ $chT['texte_doux'] }}; font-weight: 700; font-size: 8px; letter-spacing: .8px;
+        padding: 0 8px 6px; border-bottom: 0.9pt solid {{ $chT['noir'] }};
+    }
+    .tdoc-table tbody td { border-bottom: 0.4pt solid {{ $chT['gris'] }}; }
+    .tdoc-table tbody tr:nth-child(even) td { background: none; }
+    .tdoc-ref { color: {{ $chT['noir'] }}; }
+    .tdoc-group td {
+        background: none !important; border-left: none; border-bottom: 0.6pt solid {{ $chT['noir'] }};
+        text-transform: uppercase; letter-spacing: 1px; font-size: 9px; padding-top: 10px !important;
+    }
+    .tdoc-badge { background: none !important; color: {{ $chT['noir'] }} !important; padding: 0; border-radius: 0; font-weight: 400; letter-spacing: 0; font-size: inherit; }
+    .tdoc-badge:before { content: "\25CF\00A0"; font-family: 'DejaVu Sans', sans-serif; font-size: 8px; }
+    .tdoc-badge-tm:before     { color: {{ $chT['bleu'] }}; }
+    .tdoc-badge-odp:before    { color: {{ $chT['violet'] }}; }
+    .tdoc-badge-db:before     { color: {{ $chT['texte_pale'] }}; }
+    .tdoc-badge-green:before  { color: {{ $chT['vert'] }}; }
+    .tdoc-badge-orange:before { color: {{ $chT['jaune'] }}; }
+    .tdoc-badge-red:before    { color: {{ $chT['rouge'] }}; }
+    .tdoc-total td { background: none !important; color: {{ $chT['noir'] }}; border-top: 0.9pt solid {{ $chT['noir'] }}; }
+    .tdoc-total .tdoc-amount { color: {{ $chT['noir'] }}; }
+    .tdoc-note { background: none; border-left-width: 0.8pt; padding: 1mm 0 1mm 3mm; }
 </style>

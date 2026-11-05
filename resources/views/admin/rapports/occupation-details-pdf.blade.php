@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Occupation détaillée — CIBLE CI</title>
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
     /* margin-bottom 26mm + body padding-bottom = double garde-fou
        contre le débordement du tableau sur le footer (bug DomPDF).
@@ -40,18 +41,17 @@
 {{-- 2026-10-01 — charte graphique : pied commun (texte d'origine en
      footerHint ; « Page N » fourni par le partiel). --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => "CIBLE SARL — Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora",
+    'footerHint' => 'Document confidentiel',
 ])
 
 {{-- 2026-10-01 — charte graphique : en-tête commun (liseré + logo clair). --}}
-@include('pdf.partials.charte-header', [
+@include('pdf.partials.doc-entete', [
     'docKicker'   => 'Rapport',
-    'docTitle'    => 'OCCUPATION DÉTAILLÉE',
-    'docSubtitle' => 'Panneaux occupés × campagnes · ' . ($operatorName ?? 'CIBLE CI'),
+    'docTitle'    => 'Occupation détaillée',
+    'docSubtitle' => 'Panneaux occupés × campagnes',
     'docMeta'     => [
         'Édité le ' . now()->format('d/m/Y H:i'),
         'Par ' . ($user->name ?? '—'),
-        'Réf. ' . strtoupper(substr(md5(now()), 0, 8)),
     ],
 ])
 

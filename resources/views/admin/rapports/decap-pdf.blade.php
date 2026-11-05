@@ -21,6 +21,7 @@
 <meta charset="UTF-8">
 <title>Feuille de décapage — {{ $totals['generated_at']->format('d/m/Y') }}</title>
 @include('pdf.partials.charte-styles')
+    @include('pdf.partials.doc-styles')
 <style>
     /* Marges : 12mm haut/bas, 10mm latéraux. 18mm bas réservés au footer. */
     @page { size: A4 portrait; margin: 12mm 10mm 18mm 10mm !important; }
@@ -143,15 +144,14 @@
      2026-10-01 — charte graphique : pied commun charte-footer (texte
      d'origine repris dans footerHint ; « Page N » fourni par le partiel). --}}
 @include('pdf.partials.charte-footer', [
-    'footerHint' => ($operatorName ?? 'CIBLE CI') . ' — Feuille de décapage · Panora · généré le '
-        . $totals['generated_at']->format('d/m/Y \à H\hi'),
+    'footerHint' => 'Document interne',
 ])
 
 {{-- ──────────────────────────── HEADER ────────────────────────────
      2026-10-01 — charte graphique : en-tête commun (liseré + logo clair). --}}
-@include('pdf.partials.charte-header', [
+@include('pdf.partials.doc-entete', [
     'docKicker'   => 'Terrain',
-    'docTitle'    => 'FEUILLE DE DÉCAPAGE',
+    'docTitle'    => 'Feuille de décapage',
     'docSubtitle' => $overdueOnly
         ? 'Panneaux en retard (' . $totals['overdue'] . ' campagne' . ($totals['overdue'] > 1 ? 's' : '') . ' > 7 jours)'
         : 'Tous les panneaux à décaper · ' . $totals['campaigns'] . ' campagne' . ($totals['campaigns'] > 1 ? 's' : '')
@@ -159,7 +159,6 @@
     'docMeta'     => [
         'Édité le ' . $totals['generated_at']->format('d/m/Y \à H\hi'),
         'Par ' . $totals['generated_by'],
-        $operatorName ?? 'CIBLE CI',
     ],
 ])
 
