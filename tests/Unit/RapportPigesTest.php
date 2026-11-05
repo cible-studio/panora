@@ -49,7 +49,8 @@ class RapportPigesTest extends TestCase
             $t->id(); $t->string('name'); $t->timestamps();
         });
         Schema::create('panel_formats', function (Blueprint $t) {
-            $t->id(); $t->string('name'); $t->timestamps();
+            $t->id(); $t->string('name'); $t->decimal('width', 6, 2)->nullable(); $t->decimal('height', 6, 2)->nullable();
+            $t->decimal('surface', 8, 2)->nullable(); $t->timestamps();
         });
         Schema::create('panels', function (Blueprint $t) {
             $t->id(); $t->string('reference'); $t->string('name')->nullable(); $t->unsignedBigInteger('commune_id')->nullable();
@@ -69,7 +70,7 @@ class RapportPigesTest extends TestCase
             ['id' => 2, 'name' => 'ORANGE NOËL', 'client_id' => self::ORANGE, 'status' => 'actif'],
         ]);
         DB::table('communes')->insert([['id' => self::COCODY, 'name' => 'COCODY'], ['id' => self::YOPOUGON, 'name' => 'YOPOUGON']]);
-        DB::table('panel_formats')->insert(['id' => 1, 'name' => '12 m²']);
+        DB::table('panel_formats')->insert(['id' => 1, 'name' => '12 m²', 'width' => 4, 'height' => 3, 'surface' => 12]);
         DB::table('panels')->insert([
             ['id' => 1, 'reference' => 'YOP-001', 'name' => 'Carrefour Lokoua', 'commune_id' => self::YOPOUGON, 'format_id' => 1],
             ['id' => 2, 'reference' => 'COC-002', 'name' => 'Riviera Golf, face Ambassade USA', 'commune_id' => self::COCODY, 'format_id' => 1],
@@ -218,7 +219,9 @@ class RapportPigesTest extends TestCase
         // date des photos, communes, « ❖ emplacement », numéro de page.
         foreach (['<div class="rp-titre">MOOV 2026</div>', '<div class="rp-date">07/09/2026</div>',
                   '<div class="rp-commune">COCODY</div>', '<div class="rp-commune">YOPOUGON</div>',
-                  '❖</span> Pont du Lycée Technique', '❖</span> Carrefour Lokoua', 'class="rp-page"'] as $attendu) {
+                  '❖</span> Pont du Lycée Technique', '❖</span> Carrefour Lokoua', 'class="rp-page"',
+                  // Dimensions du panneau (2026-11-05), source PanelFormat.
+                  'Dimensions : 4×3m · 12 m²'] as $attendu) {
             $this->assertStringContainsString($attendu, $html, $attendu);
         }
         // Rien de ce que le modèle n'a pas : ni récapitulatif, ni référence, ni GPS.
@@ -240,5 +243,46 @@ class RapportPigesTest extends TestCase
         $this->assertStringContainsString('name="client_id"', $vue);
         $this->assertStringContainsString('name="commune_id"', $vue);
         $this->assertTrue(\Route::has('admin.piges.export') && \Route::has('admin.piges.export.pdf'));
+    }
+
+    // ── Photos ni déformées ni couchées (2026-11-05) ─────────────────
+
+    public function test_photos_redressees_et_sans_deformation(): void
+    {
+        $photo = function (string $fichier): ?array {
+            $pige = new Pige(['photo_path' => 'test-rapport-piges/' . $fichier]);
+            return (new \ReflectionMethod(RapportPigesService::class, 'photo'))
+                ->invoke(app(RapportPigesService::class), $pige);
+        };
+
+        // Photo paysage 400×300 marquée « téléphone tenu debout » (EXIF
+        // Orientation = 6) : elle doit sortir en PORTRAIT, sans déformation.
+        $jpeg = file_get_contents($this->dossierPhotos . '/pige.jpg');
+        $tiff = "MM\x00\x2A\x00\x00\x00\x08\x00\x01\x01\x12\x00\x03\x00\x00\x00\x01\x00\x06\x00\x00\x00\x00\x00\x00";
+        $app1 = "Exif\x00\x00" . $tiff;
+        file_put_contents($this->dossierPhotos . '/debout.jpg',
+            substr($jpeg, 0, 2) . "\xFF\xE1" . pack('n', strlen($app1) + 2) . $app1 . substr($jpeg, 2));
+
+        $debout = $photo('debout.jpg');
+        $this->assertGreaterThan($debout['w'], $debout['h'], 'Photo redressée : plus haute que large.');
+        $this->assertEqualsWithDelta(300 / 400, $debout['w'] / $debout['h'], 0.01, 'Proportions conservées.');
+        $this->assertLessThanOrEqual(75.0, $debout['h']);
+
+        // Panoramique : limité par la largeur, proportions intactes.
+        $pano = imagecreatetruecolor(1080, 491);
+        imagejpeg($pano, $this->dossierPhotos . '/pano.jpg');
+        $p = $photo('pano.jpg');
+        $this->assertLessThanOrEqual(150.0, $p['w']);
+        $this->assertEqualsWithDelta(1080 / 491, $p['w'] / $p['h'], 0.02);
+
+        // PNG transparent : converti en JPEG (fond blanc), lisible par DomPDF.
+        $png = imagecreatetruecolor(200, 100);
+        imagesavealpha($png, true);
+        imagefill($png, 0, 0, imagecolorallocatealpha($png, 0, 0, 0, 127));
+        imagepng($png, $this->dossierPhotos . '/transparent.png');
+        $this->assertStringStartsWith('data:image/jpeg;base64,', $photo('transparent.png')['src']);
+
+        // Fichier absent : pas de photo (le PDF affiche « Photo indisponible »).
+        $this->assertNull($photo('absente.jpg'));
     }
 }

@@ -8,10 +8,10 @@ use App\Models\Pige;
 use App\Models\Vague;
 use App\Services\Vagues\VagueService;
 use App\Support\DownloadFilename;
-use App\Support\PdfAssets;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Rapport de piges en PDF, prêt à envoyer au client (2026-11-04).
@@ -30,18 +30,16 @@ use Illuminate\Support\Collection;
  */
 final class RapportPigesService
 {
-    use PdfAssets;
-
     public const MAX_PHOTOS = 200;
 
     /** Photo dans le PDF : réduite (poids du fichier), assez nette pour l'impression. */
-    private const PHOTO_MAX_W = 1000;
-    private const PHOTO_MAX_H = 750;
-    private const PHOTO_QUALITE = 65;
+    private const PHOTO_MAX_W = 1000;   // côté le plus long ≤ 1000 px, portrait comme paysage
+    private const PHOTO_MAX_H = 1000;
+    private const PHOTO_QUALITE = 68;
 
     /** Cadre de la photo, en mm : celui du modèle Word (≈ 2 panneaux par page A4). */
     private const CADRE_W = 150;
-    private const CADRE_H = 85;
+    private const CADRE_H = 75;   // 75 et non 85 (2026-11-05) : deux panneaux par page, titre et dimensions compris
 
     /** Les piges exportables pour ces filtres (cf. PigeFiltres). */
     public function selection(array $filtres): Builder
@@ -65,7 +63,7 @@ final class RapportPigesService
         return array_merge([
             'panel:id,reference,name,commune_id,format_id',
             'panel.commune:id,name',
-            'panel.format:id,name',
+            'panel.format:id,name,width,height,surface', // dimensions sous chaque photo (2026-11-05)
             'campaign:id,name,client_id',
             'campaign.client:id,name',
         ], VagueService::disponible() ? [
@@ -167,22 +165,111 @@ final class RapportPigesService
     }
 
     /**
-     * Photo réduite en data-URI + sa taille d'affichage en mm, calculée
-     * pour tenir dans le cadre sans déformation (paysage ou portrait).
+     * Photo prête pour le PDF : data-URI JPEG + taille d'affichage en mm,
+     * calculée pour tenir dans le cadre sans déformation.
+     *
+     * 2026-11-05 (« certaines images sont déformées ou coupées ») : chaque
+     * photo est réencodée ici, ce qui garantit
+     *   · l'orientation : une photo prise téléphone en main porte souvent une
+     *     rotation EXIF que DomPDF ignore — elle sortait couchée ;
+     *   · le bon rapport largeur / hauteur, lu sur l'image réellement
+     *     intégrée (avant : 4:3 supposé quand la taille était illisible,
+     *     d'où des photos étirées) ;
+     *   · un format que DomPDF sait lire (JPEG), quelle que soit l'origine.
      *
      * @return array{src: string, w: float, h: float}|null
      */
     private function photo(Pige $p): ?array
     {
-        $src = $this->photoToDataUriCompact($p->photo_path, self::PHOTO_MAX_W, self::PHOTO_MAX_H, self::PHOTO_QUALITE);
-        if (!$src) {
+        $image = $this->ouvrirRedressee($this->cheminPhoto($p->photo_path));
+        if (!$image) {
             return null;
         }
 
-        $taille = @getimagesizefromstring(base64_decode(substr($src, strpos($src, ',') + 1)));
-        [$w, $h] = $taille ? [$taille[0], $taille[1]] : [4, 3];
+        // Réduction (poids du PDF), sans jamais agrandir.
+        [$w, $h] = [imagesx($image), imagesy($image)];
+        $reduction = min(1, self::PHOTO_MAX_W / $w, self::PHOTO_MAX_H / $h);
+        if ($reduction < 1) {
+            [$nw, $nh] = [max(1, (int) round($w * $reduction)), max(1, (int) round($h * $reduction))];
+            $reduite = imagecreatetruecolor($nw, $nh);
+            imagefill($reduite, 0, 0, imagecolorallocate($reduite, 255, 255, 255));
+            imagecopyresampled($reduite, $image, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            imagedestroy($image);
+            [$image, $w, $h] = [$reduite, $nw, $nh];
+        }
+
+        ob_start();
+        imagejpeg($image, null, self::PHOTO_QUALITE);
+        $jpeg = ob_get_clean();
+        imagedestroy($image);
+
         $echelle = min(self::CADRE_W / $w, self::CADRE_H / $h);
 
-        return ['src' => $src, 'w' => round($w * $echelle, 1), 'h' => round($h * $echelle, 1)];
+        return [
+            'src' => 'data:image/jpeg;base64,' . base64_encode($jpeg),
+            'w'   => round($w * $echelle, 1),
+            'h'   => round($h * $echelle, 1),
+        ];
+    }
+
+    /** Chemin du fichier sur le disque « public » (où PigeService range les photos). */
+    private function cheminPhoto(?string $relatif): ?string
+    {
+        if (!$relatif) {
+            return null;
+        }
+        $rel = ltrim($relatif, '/');
+        foreach ([Storage::disk('public')->path($rel), storage_path('app/public/' . $rel), storage_path('app/' . $rel)] as $chemin) {
+            if (is_file($chemin) && is_readable($chemin)) {
+                return $chemin;
+            }
+        }
+
+        return null;
+    }
+
+    /** Image GD remise à l'endroit selon son orientation EXIF ; null si illisible. */
+    private function ouvrirRedressee(?string $chemin)
+    {
+        $infos = $chemin ? @getimagesize($chemin) : false;
+        if (!$infos || !extension_loaded('gd')) {
+            return null;
+        }
+
+        $image = match ($infos[2]) {
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($chemin),
+            IMAGETYPE_PNG  => @imagecreatefrompng($chemin),
+            IMAGETYPE_GIF  => @imagecreatefromgif($chemin),
+            IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($chemin) : false,
+            default        => false,
+        };
+        if (!$image) {
+            return null;
+        }
+
+        // Fond blanc sous la transparence (PNG), qui sortirait noire en JPEG.
+        if ($infos[2] !== IMAGETYPE_JPEG) {
+            $fond = imagecreatetruecolor(imagesx($image), imagesy($image));
+            imagefill($fond, 0, 0, imagecolorallocate($fond, 255, 255, 255));
+            imagecopy($fond, $image, 0, 0, 0, 0, imagesx($image), imagesy($image));
+            imagedestroy($image);
+            $image = $fond;
+        }
+
+        $orientation = ($infos[2] === IMAGETYPE_JPEG && function_exists('exif_read_data'))
+            ? (int) ((@exif_read_data($chemin) ?: [])['Orientation'] ?? 1)
+            : 1;
+
+        switch ($orientation) {
+            case 2: imageflip($image, IMG_FLIP_HORIZONTAL); break;
+            case 3: $image = imagerotate($image, 180, 0); break;
+            case 4: imageflip($image, IMG_FLIP_VERTICAL); break;
+            case 5: imageflip($image, IMG_FLIP_VERTICAL); $image = imagerotate($image, -90, 0); break;
+            case 6: $image = imagerotate($image, -90, 0); break;
+            case 7: imageflip($image, IMG_FLIP_VERTICAL); $image = imagerotate($image, 90, 0); break;
+            case 8: $image = imagerotate($image, 90, 0); break;
+        }
+
+        return $image ?: null;
     }
 }

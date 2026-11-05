@@ -134,6 +134,32 @@ class CampagneFiltresTest extends TestCase
         $this->assertSame([1], $export(['ids' => [1, 2, 4]], self::ALI));
     }
 
+    public function test_la_selection_en_clair_pour_le_pdf(): void
+    {
+        $this->assertSame(['Lancées en septembre 2026'],
+            CampagneFiltres::description(['date_from' => '2026-09-01', 'date_to' => '2026-09-30']));
+        $this->assertSame(['Lancées du 05/09/2026 au 20/09/2026', 'Statut : En cours', 'Commercial : Ali'],
+            CampagneFiltres::description(['date_from' => '2026-09-05', 'date_to' => '2026-09-20', 'commercial_user_id' => self::ALI], 'actif'));
+        $this->assertSame(['Finissant dans moins de 14 jours'], CampagneFiltres::description(['fin_proche' => 14]));
+        $this->assertSame([], CampagneFiltres::description([]));
+    }
+
+    public function test_le_pdf_de_la_liste_est_pret_a_envoyer(): void
+    {
+        $campagnes = CampagneFiltres::appliquer(Campaign::query()->with(['client', 'user', 'commercial'])->withCount('panels'),
+            ['date_from' => '2026-09-01', 'date_to' => '2026-09-30'], User::find(1))->get();
+
+        $html = view('admin.campaigns.pdf.list', [
+            'campaigns' => $campagnes, 'logoSrc' => null, 'generated' => '05/11/2026 à 10:00',
+            'totalAmount' => 0.0, 'totalPanneaux' => 0, 'criteres' => ['Lancées en septembre 2026'],
+        ])->render();
+
+        $this->assertStringContainsString('Lancées en septembre 2026', $html);
+        $this->assertStringContainsString('Commercial', $html);
+        $this->assertStringContainsString('Total · 3 campagne(s)', $html);
+        $this->assertStringNotContainsString("Filtres appliqués depuis l'interface admin", $html);
+    }
+
     public function test_l_ecran_et_les_liens_utilisent_les_nouvelles_regles(): void
     {
         $liste = file_get_contents(resource_path('views/admin/campaigns/index.blade.php'));

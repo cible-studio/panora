@@ -2434,7 +2434,7 @@ class CampaignController extends Controller
         // 2026-11-05 : mêmes filtres que la liste (CampagneFiltres), périmètre
         // du commercial compris — y compris pour une sélection d'ids, qu'on
         // ne laisse pas sortir du périmètre.
-        $query = Campaign::with(['client:id,name', 'user:id,name'])
+        $query = Campaign::with(['client:id,name', 'user:id,name', 'commercial:id,name'])
             ->withCount('panels')
             ->when(!empty($selectedIds),
                 fn($q) => CampagneFiltres::appliquer($q->whereIn('id', $selectedIds), [], auth()->user()))
@@ -2448,9 +2448,16 @@ class CampaignController extends Controller
         $logoSrc   = $this->getLogoPdf();
         $generated = now()->format('d/m/Y à H:i');
         $totalAmount = (float) $campaigns->sum('total_amount');
+        $totalPanneaux = (int) $campaigns->sum('panels_count');
+
+        // 2026-11-05 : la sélection en clair (en-tête + nom du fichier),
+        // au lieu de « Filtres appliqués depuis l'interface admin ».
+        $criteres = !empty($selectedIds)
+            ? ['Sélection de ' . count($selectedIds) . ' campagne(s)']
+            : CampagneFiltres::description(CampagneFiltres::depuis($request), $request->status);
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.campaigns.pdf.list', compact(
-            'campaigns', 'logoSrc', 'generated', 'totalAmount'
+            'campaigns', 'logoSrc', 'generated', 'totalAmount', 'totalPanneaux', 'criteres'
         ))->setPaper('a4', 'landscape')->setOptions([
             'isHtml5ParserEnabled' => true,
             'isRemoteEnabled'      => false,
@@ -2463,7 +2470,12 @@ class CampaignController extends Controller
             'user_id' => auth()->id(),
         ]);
 
-        return $pdf->download('campagnes-' . now()->format('Ymd-His') . '.pdf');
+        // « Campagnes - Lancées en septembre 2026 - 05-11-2026.pdf »
+        return $pdf->download(\App\Support\DownloadFilename::sanitize(
+            'Campagnes' . ($criteres ? ' - ' . implode(' - ', array_slice($criteres, 0, 2)) : '') . ' - ' . now()->format('d-m-Y'),
+            'campagnes-' . now()->format('Ymd-His'),
+            'pdf'
+        ));
     }
 
     /**
