@@ -2,9 +2,15 @@
 
 namespace App\Services\Campagnes;
 
+use App\Enums\CampaignStatus;
+use App\Models\Client;
+use App\Models\Commune;
 use App\Models\User;
+use App\Models\Zone;
+use App\Services\Diffusion\DiffusionCalendrier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 /**
  * Filtres de la liste des campagnes — source unique (2026-11-05).
@@ -92,5 +98,56 @@ final class CampagneFiltres
         if (!empty($f['zone_id']))    $q->whereHas('panels', fn ($p) => $p->where('zone_id', $f['zone_id']));
 
         return $q;
+    }
+
+    /**
+     * La sélection en clair, pour l'en-tête du PDF de la liste (2026-11-05) :
+     * « Lancées en septembre 2026 », « Statut : En cours », « Client : MOOV
+     * AFRICA »… Remplace « Filtres appliqués depuis l'interface admin ».
+     * Vide = toutes les campagnes (du périmètre de l'utilisateur).
+     *
+     * @return string[]
+     */
+    public static function description(array $f, ?string $statut = null): array
+    {
+        $criteres = [];
+
+        $du = $f['date_from'] ?? $f['date_debut'] ?? null;
+        $au = $f['date_to'] ?? $f['date_fin'] ?? null;
+        if ($du || $au) $criteres[] = 'Lancées ' . self::periode($du, $au);
+        if (!empty($f['actives_du']) || !empty($f['actives_au'])) {
+            $criteres[] = 'Actives ' . self::periode($f['actives_du'] ?? null, $f['actives_au'] ?? null);
+        }
+        if (!empty($f['fin_proche'])) $criteres[] = 'Finissant dans moins de ' . (int) $f['fin_proche'] . ' jours';
+        if (!empty($f['created_from']) || !empty($f['created_to'])) {
+            $criteres[] = 'Créées ' . self::periode($f['created_from'] ?? null, $f['created_to'] ?? null);
+        }
+
+        if ($statut && ($etat = CampaignStatus::tryFrom($statut))) $criteres[] = 'Statut : ' . $etat->label();
+        if (!empty($f['client_id']) && ($nom = Client::whereKey($f['client_id'])->value('name'))) $criteres[] = 'Client : ' . $nom;
+        if (!empty($f['commercial_user_id']) && ($nom = User::whereKey($f['commercial_user_id'])->value('name'))) {
+            $criteres[] = 'Commercial : ' . $nom;
+        }
+        if (!empty($f['commune_id']) && ($nom = Commune::whereKey($f['commune_id'])->value('name'))) $criteres[] = 'Commune : ' . $nom;
+        if (!empty($f['zone_id']) && ($nom = Zone::whereKey($f['zone_id'])->value('name'))) $criteres[] = 'Zone : ' . $nom;
+        if (!empty($f['non_facturee'])) $criteres[] = 'Non facturées';
+        if (!empty($f['search'])) $criteres[] = 'Recherche : « ' . $f['search'] . ' »';
+
+        return $criteres;
+    }
+
+    /** « en septembre 2026 » (mois entier), « du 05/09/2026 au 20/09/2026 »… */
+    private static function periode(?string $du, ?string $au): string
+    {
+        $d = $du ? Carbon::parse($du) : null;
+        $a = $au ? Carbon::parse($au) : null;
+
+        if ($d && $a) {
+            return ($d->day === 1 && $a->isSameDay($d->copy()->endOfMonth()))
+                ? 'en ' . DiffusionCalendrier::libelleMois($d)
+                : 'du ' . $d->format('d/m/Y') . ' au ' . $a->format('d/m/Y');
+        }
+
+        return $d ? 'à partir du ' . $d->format('d/m/Y') : "jusqu'au " . $a->format('d/m/Y');
     }
 }

@@ -40,14 +40,21 @@
     .rp-logo { margin: -14mm 0 2mm -13mm; }
     .rp-logo img { height: 16mm; }
 
-    .rp-titre { text-align: center; font-weight: bold; text-decoration: underline; text-transform: uppercase; margin: 0 0 4mm; }
-    .rp-date { margin: 0 0 4mm; }
-    .rp-commune { text-align: center; font-weight: bold; text-decoration: underline; text-transform: uppercase; margin: 6mm 0 3mm; }
+    /* 2026-11-05 : titre en 16 pt, sur toute la largeur, coupé proprement. */
+    .rp-titre { text-align: center; font-weight: bold; text-decoration: underline; text-transform: uppercase; font-size: 16pt; line-height: 1.3; margin: 0 0 4mm; word-wrap: break-word; }
+    .rp-date { margin: 0 0 2mm; }
+    .rp-commune { text-align: center; font-weight: bold; text-decoration: underline; text-transform: uppercase; margin: 4mm 0 2mm; }
 
-    .rp-panneau { page-break-inside: avoid; margin: 0 0 6mm; }
-    .rp-lieu { margin: 0 0 2mm 6mm; padding-left: 5mm; text-indent: -5mm; line-height: 1.3; }
+    .rp-panneau { page-break-inside: avoid; margin: 0 0 4mm; }
+    /* Légende : puce en retrait suspendu, texte aligné à droite de la puce.
+       Un nom très long ou écrit avec des tirets (« Au-dessus-du-Pont-… »)
+       revient à la ligne aux tirets (vérifié le 2026-11-05) ; break-word en
+       dernier recours, pour ne jamais déborder de la page. */
+    .rp-lieu { margin: 0 0 2mm 6mm; padding-left: 5mm; text-indent: -5mm; line-height: 1.3; word-wrap: break-word; }
     .rp-puce { font-family: 'DejaVu Sans', sans-serif; font-size: 11pt; }
+    .rp-dims { text-indent: 0; font-size: 12pt; color: #333; margin-top: 1mm; }
     .rp-photo { margin: 0 0 3mm 6mm; page-break-inside: avoid; }
+    .rp-photo img { display: block; }
     .rp-sans-photo { margin: 0 0 3mm 6mm; padding: 20mm 0; width: 120mm; text-align: center; color: #666; border: 1px solid #ccc; }
 
     .rp-page { position: fixed; bottom: -12mm; right: 0; font-size: 9pt; }
@@ -70,10 +77,21 @@
          panneau restent sous une seule légende). Le nom de la commune est
          dans le bloc du premier panneau : jamais seul en bas de page. --}}
     @foreach($items->groupBy(fn ($item) => $item['pige']->panel_id) as $photos)
-        @php $panneau = $photos->first()['pige']->panel; @endphp
+        @php
+            $panneau = $photos->first()['pige']->panel;
+            // Dimensions du panneau (2026-11-05) : « 4×3m · 12 m² », source
+            // unique PanelFormat::dimensions_label / surface_label.
+            $dimensions = implode(' · ', array_filter([
+                $panneau?->format?->dimensions_label,
+                $panneau?->format?->surface_label,
+            ]));
+        @endphp
         <div class="rp-panneau">
             @if($loop->first)<div class="rp-commune">{{ $commune }}</div>@endif
-            <div class="rp-lieu"><span class="rp-puce">❖</span> {{ $panneau?->name ?: $panneau?->reference }}</div>
+            <div class="rp-lieu">
+                <span class="rp-puce">❖</span> {{ $panneau?->name ?: $panneau?->reference }}
+                @if($dimensions)<div class="rp-dims">Dimensions : {{ $dimensions }}</div>@endif
+            </div>
             @php $premiere = $photos->first()['photo']; @endphp
             @if($premiere)
                 <div class="rp-photo"><img src="{{ $premiere['src'] }}" style="width:{{ $premiere['w'] }}mm;height:{{ $premiere['h'] }}mm"></div>

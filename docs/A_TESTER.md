@@ -839,3 +839,24 @@ finies avant le « Au ». Règles validées le 5/11 (source unique
 - [ ] Filtrer (ex. septembre + un commercial), puis Excel et PDF : mêmes
       campagnes qu'à l'écran
 - [ ] Connecté en commercial : l'export ne contient que ses campagnes
+
+### 16 bis. PDF « Liste des campagnes » et PDF des piges retravaillés *(2026-11-05)*
+
+Liste des campagnes (bouton PDF de la liste), à envoyer tel quel à
+l'administration : la sélection en clair en titre (« Lancées en septembre
+2026 · Statut : En cours ») au lieu de « Filtres appliqués depuis
+l'interface admin », chiffres clés (campagnes, dont en cours, panneaux,
+montant), colonne **Commercial** (au lieu de « Créée par »), ligne de total,
+nom de fichier parlant.
+
+PDF des piges : chaque photo est réencodée — redressée si le téléphone l'a
+marquée « tenu debout », proportions lues sur l'image réelle (avant : 4:3
+supposé quand la taille était illisible → photos étirées), PNG / WebP
+convertis ; hauteur 75 mm pour garder deux panneaux par page ; titre 16 pt ;
+ligne **« Dimensions : 4×3m · 12 m² »** sous chaque emplacement.
+
+- [ ] Liste des campagnes → PDF avec « Mois de lancement = septembre » :
+      titre, chiffres clés, total et nom du fichier
+- [ ] PDF des piges sur une vraie campagne : aucune photo couchée, étirée
+      ou coupée ; dimensions affichées (format renseigné sur le panneau)
+- [ ] Un panneau sans format renseigné : pas de ligne « Dimensions »
