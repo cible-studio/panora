@@ -37,9 +37,9 @@ final class RapportPigesService
     private const PHOTO_MAX_H = 1000;
     private const PHOTO_QUALITE = 68;
 
-    /** Cadre de la photo, en mm : celui du modèle Word (≈ 2 panneaux par page A4). */
-    private const CADRE_W = 150;
-    private const CADRE_H = 75;   // 75 et non 85 (2026-11-05) : deux panneaux par page, titre et dimensions compris
+    /** Cadre de la photo dans la fiche, en mm (cf. pdf/rapport-piges, td.cadre). */
+    private const CADRE_W = 104;   // cadre de la fiche (2026-11-05 v3) : 104 × 76 mm, photo centrée — trois fiches par page
+    private const CADRE_H = 76;
 
     /** Les piges exportables pour ces filtres (cf. PigeFiltres). */
     public function selection(array $filtres): Builder

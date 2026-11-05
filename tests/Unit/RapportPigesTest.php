@@ -215,21 +215,29 @@ class RapportPigesTest extends TestCase
             'clients' => collect(['MOOV AFRICA']), 'campagnes' => collect(['MOOV 2026']),
         ])->render();
 
-        // Identique au document Word (« pas identique », 2026-11-04) : titre,
-        // date des photos, communes, « ❖ emplacement », numéro de page.
-        foreach (['<div class="rp-titre">MOOV 2026</div>', '<div class="rp-date">07/09/2026</div>',
-                  '<div class="rp-commune">COCODY</div>', '<div class="rp-commune">YOPOUGON</div>',
-                  '❖</span> Pont du Lycée Technique', '❖</span> Carrefour Lokoua', 'class="rp-page"',
-                  // Dimensions du panneau (2026-11-05), source PanelFormat.
-                  'Dimensions : 4×3m · 12 m²'] as $attendu) {
+        // Mise en page « fiche » (2026-11-05 v3) : titre, synthèse, communes
+        // en intertitres dans l'ordre de la tournée, une fiche numérotée par
+        // panneau (emplacement, référence, dimensions, date de la photo).
+        foreach (['<div class="titre">MOOV 2026</div>', 'Client <strong>MOOV AFRICA</strong>',
+                  'photos prises le 07/09/2026',
+                  '<div class="commune">YOPOUGON', '<div class="commune">COCODY',
+                  '<div class="num">01</div>', '<div class="num">03</div>',
+                  '<div class="lieu">Pont du Lycée Technique</div>', '<div class="lieu">Carrefour Lokoua</div>',
+                  '<td class="etiquette">Référence</td><td>COC-001</td>',
+                  // Dimensions du panneau, source PanelFormat.
+                  '<td class="etiquette">Dimensions</td><td>4×3m · 12 m²</td>',
+                  '<td class="etiquette">Photo</td><td>07/09/2026 à 10:03</td>',
+                  'class="page"'] as $attendu) {
             $this->assertStringContainsString($attendu, $html, $attendu);
         }
-        // Rien de ce que le modèle n'a pas : ni récapitulatif, ni référence, ni GPS.
-        foreach (['Rapport de piges', 'Réf.', 'Position GPS', 'Panneaux photographiés'] as $absent) {
-            $this->assertStringNotContainsString($absent, $html, $absent);
-        }
-        // Une légende par panneau (3 panneaux, 3 légendes).
-        $this->assertSame(3, substr_count($html, 'class="rp-lieu"'));
+        // Panneau sans format (YOP-001… a un format ; COC-001 n'en a pas) :
+        // pas de ligne Dimensions vide.
+        $this->assertSame(2, substr_count($html, '<td class="etiquette">Dimensions</td>'));
+        // Une fiche par panneau (3 panneaux), photo absente signalée.
+        $this->assertSame(3, substr_count($html, '<div class="lieu">'));
+        $this->assertSame(3, substr_count($html, 'Photo indisponible'));
+        // Les communes suivent la tournée : Yopougon (10:01) avant Cocody.
+        $this->assertLessThan(strpos($html, '<div class="commune">COCODY'), strpos($html, '<div class="commune">YOPOUGON'));
     }
 
     // ── La page Piges ───────────────────────────────────────────────
@@ -266,7 +274,7 @@ class RapportPigesTest extends TestCase
         $debout = $photo('debout.jpg');
         $this->assertGreaterThan($debout['w'], $debout['h'], 'Photo redressée : plus haute que large.');
         $this->assertEqualsWithDelta(300 / 400, $debout['w'] / $debout['h'], 0.01, 'Proportions conservées.');
-        $this->assertLessThanOrEqual(75.0, $debout['h']);
+        $this->assertLessThanOrEqual(76.0, $debout['h'], 'Tient dans le cadre de la fiche (76 mm).');
 
         // Panoramique : limité par la largeur, proportions intactes.
         $pano = imagecreatetruecolor(1080, 491);

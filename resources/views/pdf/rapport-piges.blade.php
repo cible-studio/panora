@@ -1,109 +1,187 @@
 {{-- ═══════════════════════════════════════════════════════════════════
-     RAPPORT DE PIGES — PDF prêt à envoyer au client (2026-11-04)
+     RAPPORT DE PIGES — PDF prêt à envoyer au client
 
-     Généré par App\Services\Piges\RapportPigesService. IDENTIQUE au
-     document Word que l'équipe envoyait (« MOOV _ MILLIONS A SE PARTAGER
-     PHASE 2 », docs/), à la demande de l'utilisateur :
-       · logo CIBLE en haut à gauche de la première page ;
-       · titre centré, gras, souligné, en capitales ; la date à gauche ;
-       · commune centrée, grasse, soulignée ;
-       · « ❖ emplacement » puis la photo, à la suite (pas de page de garde,
-         les communes s'enchaînent comme dans Word) ;
-       · police Times, numéro de page en bas à droite.
-     Une première version ajoutait récapitulatif, charte, référence, format,
-     date et GPS sous chaque photo : retirée (« pas identique »).
+     Généré par App\Services\Piges\RapportPigesService. Uniquement des
+     piges vérifiées (règle du 2026-11-04).
 
-     Uniquement des piges vérifiées (règle du 2026-11-04).
+     Historique : 2026-11-04 copie du document Word de l'équipe (« MOOV _
+     MILLIONS A SE PARTAGER PHASE 2 ») ; 2026-11-05 v3, retour « le doc est
+     trop simple » — même famille que la liste des campagnes :
+       · en-tête logo + coordonnées, filet, type / titre / ligne de synthèse ;
+       · communes en intertitres, dans l'ordre de la tournée ;
+       · un panneau = une fiche : photo dans un cadre fixe (centrée, jamais
+         déformée — cf. RapportPigesService::photo), à côté son numéro,
+         l'emplacement, la référence, les dimensions et la date de la photo ;
+       · pied : coordonnées, date d'édition, numéro de page.
+     Couleurs et polices : la charte ($charte), jamais un hex en dur.
 
      Variables : $titre, $groupes (commune → [['pige', 'photo' => {src,w,h}|null]]),
-     $debut, $fin (dates des photos). Les autres ($nbPhotos, $clients…)
-     restent fournies par le service, inutilisées ici.
+     $nbPhotos, $nbPanneaux, $debut, $fin, $clients, $campagnes, $vagues.
      ═══════════════════════════════════════════════════════════════════ --}}
 @php
-    $date = match (true) {
-        !$debut                 => now()->format('d/m/Y'),
-        $debut->isSameDay($fin) => $debut->format('d/m/Y'),
-        default                 => 'Du ' . $debut->format('d/m/Y') . ' au ' . $fin->format('d/m/Y'),
+    $ch     = $charte ?? \App\Support\PdfCharte::data();
+    $coord  = $ch['coordonnees'] ?? [];
+    $vagues = $vagues ?? collect();
+
+    $periode = match (true) {
+        !$debut                 => null,
+        $debut->isSameDay($fin) => 'le ' . $debut->format('d/m/Y'),
+        default                 => 'du ' . $debut->format('d/m/Y') . ' au ' . $fin->format('d/m/Y'),
     };
+    $nbCommunes = $groupes->count();
+    $numero = 0;   // numéro de fiche, continu sur tout le document
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <title>{{ $titre }}</title>
+@include('pdf.partials.charte-styles')
 <style>
-    @page { margin: 25mm 22mm 20mm 25mm !important; }
-    /* 14 pt : la taille du document Word (mesurée sur le modèle). */
-    body { font-family: 'Times New Roman', Times, serif; font-size: 14pt; color: #000; margin: 0; }
+    @page { margin: 14mm 15mm 19mm 15mm !important; }
+    body { font-family: {!! $ch['ff_texte'] !!}; font-size: 9pt; line-height: 1.4; color: {{ $ch['noir'] }}; }
 
-    /* Logo dans la marge haute de la première page, comme dans Word. */
-    .rp-logo { margin: -14mm 0 2mm -13mm; }
-    .rp-logo img { height: 16mm; }
+    /* ── En-tête (identique à la liste des campagnes) ─────────────── */
+    .ch-lisere td { height: 2px; }
+    .tete { width: 100%; border-collapse: collapse; margin-top: 5mm; }
+    .tete td { padding: 0; vertical-align: middle; }
+    .tete .logo img { height: 12mm; display: block; }
+    .tete .societe { text-align: right; font-size: 7.5pt; line-height: 1.55; color: {{ $ch['texte_doux'] }}; }
+    .tete .societe strong { color: {{ $ch['noir'] }}; font-family: {!! $ch['ff_titres'] !!}; font-weight: 700; }
+    .filet { height: 0; border-top: 0.8pt solid {{ $ch['noir'] }}; margin: 4mm 0 7mm; }
 
-    /* 2026-11-05 : titre en 16 pt, sur toute la largeur, coupé proprement. */
-    .rp-titre { text-align: center; font-weight: bold; text-decoration: underline; text-transform: uppercase; font-size: 16pt; line-height: 1.3; margin: 0 0 4mm; word-wrap: break-word; }
-    .rp-date { margin: 0 0 2mm; }
-    .rp-commune { text-align: center; font-weight: bold; text-decoration: underline; text-transform: uppercase; margin: 4mm 0 2mm; }
+    .type   { font-family: {!! $ch['ff_titres'] !!}; font-size: 7.5pt; font-weight: 700; letter-spacing: 1.8pt; text-transform: uppercase; color: {{ $ch['rouge'] }}; }
+    .titre  { font-family: {!! $ch['ff_titres'] !!}; font-size: 19pt; font-weight: 700; line-height: 1.2; margin: 1.5mm 0 2mm; }
+    .resume { font-size: 9.5pt; color: {{ $ch['texte_doux'] }}; margin: 0 0 6mm; }
+    .resume strong { color: {{ $ch['noir'] }}; font-weight: 700; }
 
-    .rp-panneau { page-break-inside: avoid; margin: 0 0 4mm; }
-    /* Légende : puce en retrait suspendu, texte aligné à droite de la puce.
-       Un nom très long ou écrit avec des tirets (« Au-dessus-du-Pont-… »)
-       revient à la ligne aux tirets (vérifié le 2026-11-05) ; break-word en
-       dernier recours, pour ne jamais déborder de la page. */
-    .rp-lieu { margin: 0 0 2mm 6mm; padding-left: 5mm; text-indent: -5mm; line-height: 1.3; word-wrap: break-word; }
-    .rp-puce { font-family: 'DejaVu Sans', sans-serif; font-size: 11pt; }
-    .rp-dims { text-indent: 0; font-size: 12pt; color: #333; margin-top: 1mm; }
-    .rp-photo { margin: 0 0 3mm 6mm; page-break-inside: avoid; }
-    .rp-photo img { display: block; }
-    .rp-sans-photo { margin: 0 0 3mm 6mm; padding: 20mm 0; width: 120mm; text-align: center; color: #666; border: 1px solid #ccc; }
+    /* ── Commune : intertitre ─────────────────────────────────────── */
+    .commune {
+        font-family: {!! $ch['ff_titres'] !!}; font-size: 9pt; font-weight: 700; letter-spacing: 1.5pt; text-transform: uppercase;
+        border-bottom: 0.8pt solid {{ $ch['noir'] }}; padding: 0 0 1.5mm; margin: 3mm 0 4mm;
+    }
+    .commune .nb { font-family: {!! $ch['ff_texte'] !!}; font-weight: 400; letter-spacing: 0; text-transform: none; color: {{ $ch['texte_doux'] }}; }
 
-    .rp-page { position: fixed; bottom: -12mm; right: 0; font-size: 9pt; }
-    .rp-page:after { content: counter(page); }
+    /* ── Fiche d'un panneau : photo | informations ────────────────── */
+    .bloc { page-break-inside: avoid; margin: 0 0 5mm; }
+    .fiche { width: 100%; border-collapse: collapse; }
+    .fiche td { padding: 0; vertical-align: top; }
+    .fiche td.cadre { width: 104mm; height: 76mm; background: {{ $ch['gris_clair'] }}; text-align: center; vertical-align: middle; }
+    .fiche td.cadre img { display: inline-block; }
+    .fiche td.infos { padding-left: 6mm; }
+    .num { font-family: {!! $ch['ff_titres'] !!}; font-size: 20pt; font-weight: 700; line-height: 1; color: {{ $ch['rouge'] }}; margin: 0 0 3mm; }
+    .lieu { font-family: {!! $ch['ff_titres'] !!}; font-size: 9.5pt; font-weight: 700; line-height: 1.25; margin: 0 0 3mm; word-wrap: break-word; }
+    .detail { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+    .detail td { padding: 1.6mm 0; border-top: 0.4pt solid {{ $ch['gris'] }}; vertical-align: top; }
+    .detail td.etiquette { width: 22mm; color: {{ $ch['texte_doux'] }}; }
+    .sans-photo { color: {{ $ch['texte_pale'] }}; font-size: 8.5pt; }
+
+    /* ── Pied (répété sur chaque page) ───────────────────────────── */
+    .pied { position: fixed; left: 0; right: 0; bottom: -12mm; font-size: 7pt; color: {{ $ch['texte_doux'] }}; }
+    .pied table { width: 100%; border-collapse: collapse; }
+    .pied td { padding: 2mm 0 0; border-top: 0.4pt solid {{ $ch['gris'] }}; vertical-align: top; }
+    .pied .droite { text-align: right; white-space: nowrap; }
+    .pied .page:after { content: "Page " counter(page); }
 </style>
 </head>
 <body>
 
-<div class="rp-page"></div>
+<div class="pied">
+    <table>
+        <tr>
+            <td>
+                <strong style="color:{{ $ch['noir'] }}">{{ $ch['nom'] }}</strong>
+                @if(!empty($coord['activite'])) · {{ $coord['activite'] }}@endif
+                @if(!empty($coord['telephones']))<br>{{ $coord['telephones'] }}@endif
+                @if(!empty($coord['email'])) · {{ $coord['email'] }}@endif
+                @if(!empty($coord['site'])) · {{ $coord['site'] }}@endif
+            </td>
+            <td class="droite">
+                Rapport de piges · édité le {{ now()->format('d/m/Y à H:i') }}<br>
+                <span class="page"></span>
+            </td>
+        </tr>
+    </table>
+</div>
 
-@if(!empty($logoCibleLight))
-    <div class="rp-logo"><img src="{{ $logoCibleLight }}" alt="CIBLE"></div>
-@endif
+@include('pdf.partials.charte-lisere')
 
-<div class="rp-titre">{{ $titre }}</div>
-<div class="rp-date">{{ $date }}</div>
+<table class="tete">
+    <tr>
+        <td class="logo">
+            @if(!empty($logoCibleLight))<img src="{{ $logoCibleLight }}" alt="{{ $ch['nom'] }}">@endif
+        </td>
+        <td class="societe">
+            <strong>{{ $ch['nom'] }}</strong><br>
+            @if(!empty($coord['adresse'])){{ $coord['adresse'] }}<br>@endif
+            @if(!empty($coord['site'])){{ $coord['site'] }}@endif
+        </td>
+    </tr>
+</table>
+<div class="filet"></div>
+
+<div class="type">Rapport de piges</div>
+<div class="titre">{{ $titre }}</div>
+<div class="resume">
+    @if($clients->count() === 1)Client <strong>{{ $clients->first() }}</strong> · @endif
+    @if($vagues->count() === 1){{ $vagues->first()->libelle() }} · @endif
+    <strong>{{ $nbPanneaux }}</strong> panneau{{ $nbPanneaux > 1 ? 'x' : '' }}
+    dans <strong>{{ $nbCommunes }}</strong> commune{{ $nbCommunes > 1 ? 's' : '' }}
+    @if($periode) · photos prises {{ $periode }}@endif
+</div>
 
 @foreach($groupes as $commune => $items)
-    {{-- Un emplacement, puis sa ou ses photos (plusieurs photos d'un même
-         panneau restent sous une seule légende). Le nom de la commune est
-         dans le bloc du premier panneau : jamais seul en bas de page. --}}
-    @foreach($items->groupBy(fn ($item) => $item['pige']->panel_id) as $photos)
+    @php $parPanneau = $items->groupBy(fn ($item) => $item['pige']->panel_id); @endphp
+    @foreach($parPanneau as $photos)
         @php
-            $panneau = $photos->first()['pige']->panel;
-            // Dimensions du panneau (2026-11-05) : « 4×3m · 12 m² », source
-            // unique PanelFormat::dimensions_label / surface_label.
+            $numero++;
+            $pige    = $photos->first()['pige'];
+            $panneau = $pige->panel;
+            // Dimensions : source unique PanelFormat::dimensions_label / surface_label.
             $dimensions = implode(' · ', array_filter([
                 $panneau?->format?->dimensions_label,
                 $panneau?->format?->surface_label,
             ]));
         @endphp
-        <div class="rp-panneau">
-            @if($loop->first)<div class="rp-commune">{{ $commune }}</div>@endif
-            <div class="rp-lieu">
-                <span class="rp-puce">❖</span> {{ $panneau?->name ?: $panneau?->reference }}
-                @if($dimensions)<div class="rp-dims">Dimensions : {{ $dimensions }}</div>@endif
-            </div>
-            @php $premiere = $photos->first()['photo']; @endphp
-            @if($premiere)
-                <div class="rp-photo"><img src="{{ $premiere['src'] }}" style="width:{{ $premiere['w'] }}mm;height:{{ $premiere['h'] }}mm"></div>
-            @else
-                <div class="rp-sans-photo">Photo indisponible</div>
+        {{-- Le nom de la commune est dans le bloc du premier panneau :
+             jamais seul en bas de page. --}}
+        <div class="bloc">
+            @if($loop->first)
+                <div class="commune">{{ $commune }}
+                    <span class="nb">· {{ $parPanneau->count() }} panneau{{ $parPanneau->count() > 1 ? 'x' : '' }}</span>
+                </div>
             @endif
+            @foreach($photos as $item)
+                @php $prise = $item['pige']->taken_at ?? $item['pige']->created_at; @endphp
+                <table class="fiche" @if(!$loop->first) style="margin-top:4mm" @endif>
+                    <tr>
+                        <td class="cadre">
+                            @if($item['photo'])
+                                <img src="{{ $item['photo']['src'] }}" style="width:{{ $item['photo']['w'] }}mm;height:{{ $item['photo']['h'] }}mm">
+                            @else
+                                <span class="sans-photo">Photo indisponible</span>
+                            @endif
+                        </td>
+                        <td class="infos">
+                            @if($loop->first)
+                                <div class="num">{{ str_pad((string) $numero, 2, '0', STR_PAD_LEFT) }}</div>
+                                <div class="lieu">{{ $panneau?->name ?: $panneau?->reference }}</div>
+                                <table class="detail">
+                                    <tr><td class="etiquette">Référence</td><td>{{ $panneau?->reference ?? '—' }}</td></tr>
+                                    @if($dimensions)<tr><td class="etiquette">Dimensions</td><td>{{ $dimensions }}</td></tr>@endif
+                                    @if($prise)<tr><td class="etiquette">Photo</td><td>{{ $prise->format('d/m/Y à H:i') }}</td></tr>@endif
+                                    @if($campagnes->count() > 1 && $item['pige']->campaign)<tr><td class="etiquette">Campagne</td><td>{{ $item['pige']->campaign->name }}</td></tr>@endif
+                                </table>
+                            @else
+                                <table class="detail">
+                                    <tr><td class="etiquette">Photo {{ $loop->iteration }}/{{ $loop->count }}</td><td>{{ $prise?->format('d/m/Y à H:i') }}</td></tr>
+                                </table>
+                            @endif
+                        </td>
+                    </tr>
+                </table>
+            @endforeach
         </div>
-        @foreach($photos->slice(1) as $autre)
-            @if($autre['photo'])
-                <div class="rp-photo"><img src="{{ $autre['photo']['src'] }}" style="width:{{ $autre['photo']['w'] }}mm;height:{{ $autre['photo']['h'] }}mm"></div>
-            @endif
-        @endforeach
     @endforeach
 @endforeach
 

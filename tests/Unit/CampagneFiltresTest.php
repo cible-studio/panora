@@ -156,7 +156,8 @@ class CampagneFiltresTest extends TestCase
 
         $this->assertStringContainsString('Lancées en septembre 2026', $html);
         $this->assertStringContainsString('Commercial', $html);
-        $this->assertStringContainsString('Total · 3 campagne(s)', $html);
+        $this->assertStringContainsString('Total · 3 campagnes', $html);
+        $this->assertStringNotContainsString('class="ch-kpi', $html, 'Plus de cartes de chiffres (« trop IA », 2026-11-05).');
         $this->assertStringNotContainsString("Filtres appliqués depuis l'interface admin", $html);
     }
 
