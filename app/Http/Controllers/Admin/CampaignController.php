@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Services\Campagnes\CampagneFiltres;
 
 class CampaignController extends Controller
 {
@@ -55,69 +56,12 @@ class CampaignController extends Controller
                 'invoices' => fn($q) => $q->select(['id','campaign_id','status','amount_ttc','paid_at','reference'])->latest(),
             ])
             ->withCount(['panels', 'externalPanels', 'invoices'])
-            // RBAC : un commercial voit SES campagnes — couvre 4 cas :
-            //  1) Campagne directement assignée à lui (campaign.commercial_user_id)
-            //     — cas typique : admin/MP attribue une campagne au commercial
-            //  2) Via la résa source : reservation.commercial_user_id == uid
-            //  3) Résa sans commercial : reservation.user_id == uid (créateur)
-            //  4) Campagne manuelle sans résa : campaign.user_id == uid
-            ->when(auth()->user()?->role?->value === 'commercial', function ($q) {
-                $uid = auth()->id();
-                $q->where(function ($qq) use ($uid) {
-                    $qq->where('commercial_user_id', $uid)
-                       ->orWhereHas('reservation', fn($r) =>
-                            $r->where('commercial_user_id', $uid)
-                              ->orWhere(function ($rr) use ($uid) {
-                                  $rr->whereNull('commercial_user_id')
-                                     ->where('user_id', $uid);
-                              })
-                       )
-                       ->orWhere(function ($qqq) use ($uid) {
-                           $qqq->whereDoesntHave('reservation')
-                               ->where('user_id', $uid);
-                       });
-                });
-            })
-            ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
-            ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
-            // Filtre commercial assigné — admin/MP/comptable peuvent vouloir
-            // voir les campagnes d'un commercial précis (suivi portefeuille).
-            // Réutilise la même logique d'appartenance que le scope commercial
-            // ci-dessus pour rester cohérent : assigné direct, via résa, ou
-            // créateur de la campagne/résa sans commercial explicite.
-            ->when($request->commercial_user_id, function ($q, $uid) {
-                $uid = (int) $uid;
-                $q->where(function ($qq) use ($uid) {
-                    $qq->where('commercial_user_id', $uid)
-                       ->orWhereHas('reservation', fn($r) =>
-                            $r->where('commercial_user_id', $uid)
-                              ->orWhere(function ($rr) use ($uid) {
-                                  $rr->whereNull('commercial_user_id')
-                                     ->where('user_id', $uid);
-                              })
-                       )
-                       ->orWhere(function ($qqq) use ($uid) {
-                           $qqq->whereDoesntHave('reservation')
-                               ->where('user_id', $uid);
-                       });
-                });
-            })
-            // Filtres date originaux : date_from (start) / date_to (end)
-            ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
-            ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
-            // T12 : Filtre période personnalisée (start_date BETWEEN date_debut AND date_fin)
-            ->when($request->date_debut,  fn($q, $d)  => $q->where('start_date', '>=', $d))
-            ->when($request->date_fin,    fn($q, $d)  => $q->where('start_date', '<=', $d))
-            // 2026-07-15 (feedback patronne) : drill-down depuis les cards
-            // KPI de perf commerciale — filtre par DATE DE CRÉATION plutôt
-            // que par période de campagne. Sert au clic "Nouvelles
-            // campagnes créées" de /admin/performance/commerciaux.
-            ->when($request->created_from, fn($q, $d) => $q->whereDate('campaigns.created_at', '>=', $d))
-            ->when($request->created_to,   fn($q, $d) => $q->whereDate('campaigns.created_at', '<=', $d))
-            ->when($request->non_facturee, fn($q)     => $q->nonFacturees())
-            ->when($request->commune_id,  fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('commune_id', $id)))
-            ->when($request->zone_id,     fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('zone_id', $id)))
             ->orderByDesc('created_at');
+
+        // Périmètre du commercial + filtres : source unique avec les exports
+        // Excel et PDF (2026-11-05). « Lancée du / au » = date de DÉBUT dans
+        // la période, quelle que soit la fin. Cf. CampagneFiltres.
+        CampagneFiltres::appliquer($query, CampagneFiltres::depuis($request), auth()->user());
 
         // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
         // Permet à chaque carte de garder sa vraie valeur quand on en clique
@@ -2389,10 +2333,10 @@ class CampaignController extends Controller
     {
         $this->authorize('viewAny', Campaign::class);
 
-        $filters = $request->only([
-            'search', 'status', 'client_id',
-            'date_debut', 'date_fin', 'date_from', 'date_to',
-        ]);
+        // 2026-11-05 : tous les filtres de la liste (CampagneFiltres), plus le
+        // statut. Avant, seuls 7 étaient repris : commercial, commune et zone
+        // étaient ignorés.
+        $filters = CampagneFiltres::depuis($request) + array_filter($request->only('status'));
 
         // Export d'une sélection précise (cases cochées dans l'index).
         // Prioritaire sur les filtres : si ids[] est fourni, on exporte
@@ -2409,7 +2353,9 @@ class CampaignController extends Controller
             'user_id' => auth()->id(),
         ]);
 
-        return Excel::download(new CampaignsExport($filters), $filename);
+        // L'utilisateur part avec l'export : un commercial n'exporte que SES
+        // campagnes (avant : celles de tout le monde).
+        return Excel::download(new CampaignsExport($filters, auth()->user()), $filename);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -2485,17 +2431,15 @@ class CampaignController extends Controller
         // campagnes, sinon on applique les filtres de l'index.
         $selectedIds = array_filter(array_map('intval', (array) $request->input('ids', [])));
 
+        // 2026-11-05 : mêmes filtres que la liste (CampagneFiltres), périmètre
+        // du commercial compris — y compris pour une sélection d'ids, qu'on
+        // ne laisse pas sortir du périmètre.
         $query = Campaign::with(['client:id,name', 'user:id,name'])
             ->withCount('panels')
-            ->when(!empty($selectedIds), fn($q) => $q->whereIn('id', $selectedIds))
-            ->when(empty($selectedIds), fn($q) => $q
-                ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
-                ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
-                ->when($request->status,      fn($q, $s)  => $q->where('status', $s))
-                ->when($request->date_debut,  fn($q, $d)  => $q->where('start_date', '>=', $d))
-                ->when($request->date_fin,    fn($q, $d)  => $q->where('start_date', '<=', $d))
-                ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
-                ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
+            ->when(!empty($selectedIds),
+                fn($q) => CampagneFiltres::appliquer($q->whereIn('id', $selectedIds), [], auth()->user()))
+            ->when(empty($selectedIds), fn($q) => CampagneFiltres::appliquer($q, CampagneFiltres::depuis($request), auth()->user())
+                ->when($request->status, fn($q, $s) => $q->where('status', $s))
             )
             ->orderByDesc('created_at')
             ->limit(2000); // garde-fou perf : pas plus de 2000 lignes par PDF

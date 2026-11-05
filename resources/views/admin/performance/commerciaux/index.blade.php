@@ -75,7 +75,7 @@
          "Trier par" remis en place au-dessus du classement.
          Cards actionnables (drill-down) :
            CA HT équipe            → /admin/invoices?date_from=X&date_to=Y
-           CA TTC équipe           → /admin/campaigns?date_from=X&date_to=Y (chevauchent période)
+           CA TTC équipe           → /admin/campaigns?actives_du=X&actives_au=Y (chevauchent période)
            Nouvelles campagnes     → /admin/campaigns?created_from=X&created_to=Y (créées sur période)
          Cards non-actionnables (ratios, pas de drill-down utile) :
            Taux recouvrement moyen, Panier moyen équipe --}}
@@ -87,7 +87,11 @@
         // et on reste bloqué après un clic sur un KPI.
         $provenance = ['back' => 'performance.commercial'];
         $urlInvoices  = route('admin.invoices.index',  ['date_from' => $fromStr, 'date_to' => $toStr] + $provenance);
-        $urlCampActive = route('admin.campaigns.index', ['date_from' => $fromStr, 'date_to' => $toStr] + $provenance);
+        // 2026-11-05 : actives_du / actives_au = campagnes qui CHEVAUCHENT la
+        // période, comme l'indicateur les compte (CommercialPerformanceService).
+        // Avant : date_from / date_to, qui ne gardaient que les campagnes
+        // entièrement dans la période — la liste ne collait pas au chiffre.
+        $urlCampActive = route('admin.campaigns.index', ['actives_du' => $fromStr, 'actives_au' => $toStr] + $provenance);
         $urlCampNouv   = route('admin.campaigns.index', ['created_from' => $fromStr, 'created_to' => $toStr] + $provenance);
     @endphp
     <style>
