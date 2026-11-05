@@ -860,3 +860,13 @@ ligne **« Dimensions : 4×3m · 12 m² »** sous chaque emplacement.
 - [ ] PDF des piges sur une vraie campagne : aucune photo couchée, étirée
       ou coupée ; dimensions affichées (format renseigné sur le panneau)
 - [ ] Un panneau sans format renseigné : pas de ligne « Dimensions »
+
+**v3 du 2026-11-05** (« ces cases font trop IA », « le doc est trop simple ») :
+mise en page éditoriale commune aux deux PDF — en-tête logo + coordonnées
+alignés, filet, titre et une ligne de synthèse (plus de cartes de chiffres),
+date d’édition et page au pied. Liste : tableau à filets, statut en texte
+avec pastille. Piges : une fiche par panneau — photo dans un cadre fixe
+104 × 76 mm (centrée), numéro, emplacement, référence, dimensions, date ;
+trois fiches par page.
+
+- [ ] Les deux PDF sur la vraie base : en-tête aligné, pied complet
