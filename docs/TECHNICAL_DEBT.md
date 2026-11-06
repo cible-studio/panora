@@ -81,6 +81,9 @@ ligne partirait vers une adresse vide. **À retirer de `contenuCampagne()`
 une fois le modèle remplacé et un envoi réel vérifié** — ce qui permettra
 aussi de ne plus générer le troisième PDF.
 
+*État au 2026-11-06 : modèle remplacé et testé ; il ne manque plus que le
+premier envoi réel vérifié.*
+
 ### `DiffusionDisponibilitesService::renduCatalogue()` sans appelant (2026-10-29)
 
 Remplacée par `renduCatalogues()` (un seul passage sur les photos, trois
