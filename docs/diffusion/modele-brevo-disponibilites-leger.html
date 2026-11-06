@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
   Modèle Brevo LÉGER — envoi des disponibilités (2026-10-13 ; logo et
-  numéros fournis par Panora depuis le 2026-11-03 ; texte de la direction
-  le 2026-11-04, revu le 2026-11-06 ; lignes alignées à gauche le 2026-11-06).
+  numéros fournis par Panora depuis le 2026-11-03 ; centré et texte de la
+  direction le 2026-11-04 ; texte revu le 2026-11-06).
 
   Objectif : arriver dans la boîte de réception (onglet « Principale » de
   Gmail) plutôt que dans « Promotions ». Gmail classe en promotion les mails
@@ -13,9 +13,8 @@
     · deux liens utiles, en texte : le catalogue d'Abidjan et celui de
       l'intérieur du pays (2026-10-29), repérés par une pastille verte et
       une bleue (émojis, pas des images) ;
-    · police système, colonne au milieu de l'écran (demande du 2026-11-04 :
-      « trop à gauche »), lignes alignées à gauche comme une lettre
-      (demande du 2026-11-06) ;
+    · police système, colonne et texte centrés (demande du 2026-11-04 :
+      « trop à gauche ») ;
     · invitation à RÉPONDRE au mail (les réponses améliorent le classement
       des envois suivants) ;
     · marque discrète : signature + liseré aux 5 couleurs en CSS (pas une image).
@@ -66,31 +65,31 @@
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF;">
 <tr><td align="center" style="padding:24px 16px;">
 <!--[if mso]><table role="presentation" width="560" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:23px; color:#111111; text-align:left;">
+<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:23px; color:#111111; text-align:center;">
 
 <!-- Logo (2026-11-03). Sans lien : moins de liens, moins « publicité ». -->
 {% if params.LOGO %}
-<tr><td align="left" style="padding:0 0 22px 0;">
-  <img src="{{ params.LOGO }}" width="120" alt="CIBLE" border="0" style="display:block; width:120px; height:auto; margin:0; border:0; font-family:Arial, Helvetica, sans-serif; font-size:18px; font-weight:bold; color:#111111;">
+<tr><td align="center" style="padding:0 0 22px 0;">
+  <img src="{{ params.LOGO }}" width="120" alt="CIBLE" border="0" style="display:block; width:120px; height:auto; margin:0 auto; border:0; font-family:Arial, Helvetica, sans-serif; font-size:18px; font-weight:bold; color:#111111;">
 </td></tr>
 {% endif %}
 
-<tr><td align="left" style="padding:0 0 16px 0;">
+<tr><td align="center" style="padding:0 0 16px 0;">
   Bonjour {{ contact.CONTACT | default : "Madame, Monsieur" }},
 </td></tr>
 
-<tr><td align="left" style="padding:0 0 14px 0; font-size:17px; line-height:25px;">
+<tr><td align="center" style="padding:0 0 14px 0; font-size:17px; line-height:25px;">
   <strong>De nouveaux emplacements publicitaires sont disponibles pour vos prochaines campagnes&nbsp;!</strong>
 </td></tr>
 
-<tr><td align="left" style="padding:0 0 18px 0;">
+<tr><td align="center" style="padding:0 0 18px 0;">
   Anticipez votre visibilité en découvrant notre sélection de panneaux{% if contact.SOCIETE %} pour <strong>{{ contact.SOCIETE }}</strong>{% endif %}&nbsp;: <strong>{{ params.NB_PANNEAUX }} emplacements disponibles {{ params.PERIODE }}</strong>, {% if params.LIEN_ABIDJAN %}à Abidjan{% if params.LIEN_INTERIEUR %} et dans les principales villes de Côte d'Ivoire{% endif %}{% else %}dans les principales villes de Côte d'Ivoire{% endif %}.
 </td></tr>
 
 <!-- L'essentiel : un encadré sobre (deux filets gris). -->
 <tr><td style="padding:0 0 20px 0;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-  <tr><td align="left" style="border-top:1px solid #E6E6E6; border-bottom:1px solid #E6E6E6; padding:14px 0; text-align:left; line-height:26px;">
+  <tr><td align="center" style="border-top:1px solid #E6E6E6; border-bottom:1px solid #E6E6E6; padding:14px 0; text-align:center; line-height:26px;">
     &#128205; <strong>{{ params.NB_PANNEAUX }} emplacements disponibles</strong><br>
     &#128197; <strong>Période&nbsp;:</strong> {{ params.PERIODE }}<br>
     &#127757; <strong>Couverture&nbsp;:</strong> {% if params.LIEN_ABIDJAN %}Abidjan{% if params.LIEN_INTERIEUR %} et intérieur du pays{% endif %}{% else %}Intérieur du pays{% endif %}
@@ -101,10 +100,10 @@
 <!-- Les deux catalogues, en liens texte. Chaque lien ne s'affiche que si
      Panora l'a envoyé, c'est-à-dire si la zone a au moins un emplacement
      disponible. -->
-<tr><td align="left" style="padding:0 0 10px 0;">
+<tr><td align="center" style="padding:0 0 10px 0;">
   <strong>Découvrez les disponibilités selon vos zones d'intérêt</strong>
 </td></tr>
-<tr><td align="left" style="padding:0 0 20px 0; line-height:30px;">
+<tr><td align="center" style="padding:0 0 20px 0; line-height:30px;">
   {% if params.LIEN_ABIDJAN %}
   &#128994; <a href="{{ params.LIEN_ABIDJAN }}" style="color:#111111; font-weight:bold; text-decoration:underline;">CONSULTER LES DISPONIBILITÉS À ABIDJAN</a><br>
   {% endif %}
@@ -113,29 +112,29 @@
   {% endif %}
 </td></tr>
 
-<tr><td align="left" style="padding:0 0 18px 0;">
+<tr><td align="center" style="padding:0 0 18px 0;">
   Découvrez pour chaque support une fiche détaillée comprenant sa photographie, son format, sa localisation, une estimation du trafic et une description de ses caractéristiques.
 </td></tr>
 
-<tr><td align="left" style="padding:0 0 8px 0;">
+<tr><td align="center" style="padding:0 0 8px 0;">
   <strong>Un ou plusieurs emplacements vous intéressent&nbsp;?</strong>
 </td></tr>
-<tr><td align="left" style="padding:0 0 18px 0;">
+<tr><td align="center" style="padding:0 0 18px 0;">
   Répondez simplement à cet email en indiquant les références souhaitées.<br>
   Notre équipe vous confirmera leur disponibilité et vous transmettra une proposition commerciale <strong>sous 1&nbsp;heure ouvrée</strong>.
 </td></tr>
 
-<tr><td align="left" style="padding:0 0 18px 0;">
+<tr><td align="center" style="padding:0 0 18px 0;">
   <strong>Anticipez vos réservations et sécurisez les meilleurs emplacements pour vos prochaines campagnes.</strong>
 </td></tr>
 
-<tr><td align="left" style="padding:0 0 22px 0;">
+<tr><td align="center" style="padding:0 0 22px 0;">
   Bien cordialement,
 </td></tr>
 
 <!-- Signature : la marque, sans image (logo retiré le 2026-11-04). -->
-<tr><td align="left" style="padding:0 0 26px 0;">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px 0;"><tr>
+<tr><td align="center" style="padding:0 0 26px 0;">
+  <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 10px auto;"><tr>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#E20613; font-size:0; line-height:0;">&nbsp;</td>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#FAB80B; font-size:0; line-height:0;">&nbsp;</td>
     <td width="12" height="3" style="width:12px; height:3px; background-color:#3AA835; font-size:0; line-height:0;">&nbsp;</td>
@@ -152,7 +151,7 @@
 </td></tr>
 
 <!-- Pied : désinscription obligatoire, en petit et en gris. -->
-<tr><td align="left" style="border-top:1px solid #E6E6E6; padding:12px 0 0 0; font-size:12px; line-height:18px; color:#777777; text-align:left;">
+<tr><td align="center" style="border-top:1px solid #E6E6E6; padding:12px 0 0 0; font-size:12px; line-height:18px; color:#777777; text-align:center;">
   Vous recevez ce mail deux fois par mois en tant que client de CIBLE.
   <a href="{{ unsubscribe }}" style="color:#777777; text-decoration:underline;">Ne plus recevoir nos disponibilités</a>
 </td></tr>
