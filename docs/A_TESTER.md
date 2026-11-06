@@ -646,25 +646,36 @@ paginée et le retrait des anciennes adresses se fait par lots de 150 (à lire
 dans le code, ce retrait n'a encore jamais tourné en prod). Non contrôlable
 d'ici : tout ce qui suit.
 
-Envoi conseillé le **lundi 9/11 vers 10 h** plutôt qu'un vendredi soir : le mail
-promet une réponse « sous 1 heure ouvrée », et Brevo peut suspendre un envoi
-jusqu'à 3 h plus tard.
+**Parti le vendredi 6/11 à 17h51** (choix de l'utilisateur, le lundi 9/11 était
+conseillé) : campagne Brevo n° 33, 467 clients + Stéphane = 468 destinataires,
+255 panneaux (95 Abidjan, 160 intérieur).
 
 - [ ] Coolify : dernier déploiement de main en « Success »
-- [ ] Coolify : pas de `DIFFUSION_OBJET` en prod ; retirée du staging, qui reste
-      en `DIFFUSION_MODE=test` et `DIFFUSION_AUTO=false`
-- [ ] Brevo → Paramètres → Webhooks (Marketing) : URL de la **prod**, événements
+- [x] Coolify : pas de `DIFFUSION_OBJET` en prod *(objet lu sur la prod le 6/11 :
+      « Anticipez vos campagnes… », sans [TEST])*
+- [ ] Coolify : `DIFFUSION_OBJET` retirée du staging, qui reste en
+      `DIFFUSION_MODE=test` et `DIFFUSION_AUTO=false`
+- [x] Brevo → Paramètres → Webhooks (Marketing) : URL de la **prod**, événements
       Désinscrit, Hard bounce, Spam (`docs/DIFFUSION_DISPONIBILITES.md`, étape 9)
+      *(6/11 : l'ancien webhook de la prod était sur le canal **SMS**, donc aucun
+      événement de mail n'arrivait à Panora. Remplacé par un webhook canal e-mail,
+      n° 2662418, avant l'envoi)*
+- [ ] Désinscriptions manquées avant ce webhook : `php artisan dispos:nettoyer-adresses`
+      (simple rapport), `--appliquer` seulement après lecture
 - [ ] Brevo : modèle n° 14 à la dernière version (logo 220 px), test reçu et validé
-- [ ] `envoisRestants` en prod : environ 10 000 au lieu de 300
-- [ ] Prod seulement : `DIFFUSION_MODE=production`, `DIFFUSION_AUTO` encore à
-      `false`, redéployer
-- [ ] Diffusion dispos : environ **465** destinataires ; sinon, arrêter et regarder
-- [ ] « Envoyer maintenant… » : période du 15 au 30 novembre, même nombre
-      dans la fenêtre de confirmation
-- [ ] Journal « Envoyé », mail ✅ reçu ; Brevo : un destinataire de plus (Stéphane)
-- [ ] Rapport Brevo à 1 h et à 3 h : rebonds sous 2 %, campagne non suspendue.
-      Suspendue : ne pas la reprendre
+- [x] `envoisRestants` en prod : environ 10 000 au lieu de 300 *(9 982 le 6/11)*
+- [x] Prod seulement : `DIFFUSION_MODE=production`, `DIFFUSION_AUTO` encore à
+      `false`, redéployer *(6/11)*
+- [x] Diffusion dispos : environ **465** destinataires ; sinon, arrêter et regarder
+      *(467 le 6/11)*
+- [x] « Envoyer maintenant… » : période du 15 au 30 novembre, même nombre
+      dans la fenêtre de confirmation *(6/11 à 17h47)*
+- [x] Journal « Envoyé » : 467 ; Brevo : un destinataire de plus (Stéphane), 468
+      *(constaté le 6/11 ; mail ✅ pas encore confirmé)*
+- [ ] Rapport Brevo à 1 h et à 3 h : rebonds sous 2 % (9 adresses au plus),
+      campagne non suspendue. Suspendue : ne pas la reprendre.
+      *(6/11 à 17h53 : statut « En cours de révision », environ 390 mails délivrés
+      sur 468 d'après les pourcentages affichés, à suivre)*
 - [ ] Le mail de Stéphane : « …notre sélection de panneaux : N emplacements… »
 - [ ] `DIFFUSION_AUTO=true` avant le **vendredi 20/11 à 10 h**
 - [ ] Ensuite, côté code : retirer `LIEN_PDF` (`docs/TECHNICAL_DEBT.md`)
