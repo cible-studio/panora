@@ -622,6 +622,18 @@ notre sélection de panneaux pour ROMI CI : N emplacements disponibles… »
       modèle **Actif**, puis « Envoyer un test » : la nouvelle phrase s'affiche
       *(confirmé le 6/11)*
 
+Revu le 6/11 après-midi : bloc au milieu de l'écran mais **lignes alignées à
+gauche** (logo, liseré, signature et pied compris) ; nouveau texte : « Découvrez
+pour chaque support une fiche détaillée… », « Répondez… souhaitées. » puis
+« Notre équipe… » à la ligne, « Anticipez vos réservations et sécurisez… ».
+
+- [ ] Brevo → Modèles → n° 14 → coller **tout**
+      `docs/diffusion/modele-brevo-disponibilites-leger.html` en remplaçant le
+      code existant → Enregistrer, modèle **Actif**
+- [ ] « Envoyer un test » : ouvrir le mail reçu sur ordinateur et sur
+      téléphone. Bloc au milieu, lignes à gauche, nouveau texte, aucun code
+      `{% if %}` visible
+
 ---
 
 ## 11. Renvoyer les accès — personnel et clients *(ajouté le 2026-11-02)*
