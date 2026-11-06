@@ -147,19 +147,22 @@ class DiffusionSignatureCatalogueTest extends TestCase
 
     // ── Texte et objet de la direction (2026-11-04) ─────────────────
 
-    public function test_le_mail_reste_centre(): void
+    public function test_seuls_le_titre_et_l_accroche_sont_a_gauche(): void
     {
-        // Décision du 2026-11-06 : le texte change, pas le design (un essai
-        // aligné à gauche a été retiré le jour même, « remet le design »).
-        foreach ([
-            base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'),
-            resource_path('views/diffusion/campagne-defaut.blade.php'),
-        ] as $fichier) {
-            $source = file_get_contents($fichier);
-            $this->assertStringContainsString('text-align:center', $source, $fichier);
-            $this->assertStringNotContainsString('text-align:left', $source, $fichier);
-            $this->assertStringNotContainsString('<td align="left"', $source, $fichier);
-        }
+        // Demande du 2026-11-06, capture à l'appui : ces deux blocs à gauche,
+        // tout le reste du mail centré.
+        $modele = file_get_contents(base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'));
+        $this->assertSame(2, substr_count($modele, '<td align="left"'), 'Le titre et l\'accroche, rien d\'autre.');
+        $this->assertMatchesRegularExpression('/<td align="left"[^>]*text-align:left;">\s*<strong>De nouveaux emplacements/u', $modele);
+        $this->assertMatchesRegularExpression('/<td align="left"[^>]*text-align:left;">\s*Anticipez votre visibilité/u', $modele);
+        $this->assertStringContainsString('max-width:560px; margin:0 auto;', $modele);
+        $this->assertStringContainsString('color:#111111; text-align:center;">', $modele);
+
+        // Le gabarit de secours suit.
+        $secours = file_get_contents(resource_path('views/diffusion/campagne-defaut.blade.php'));
+        $this->assertSame(1, substr_count($secours, '<td align="left"'));
+        $this->assertMatchesRegularExpression('/<td align="left"[^>]*>\s*<h1[^>]*>\s*De nouveaux emplacements/u', $secours);
+        $this->assertMatchesRegularExpression('/<p style="margin:0;text-align:left;">\s*\{\{--.*?--\}\}\s*Anticipez votre visibilité/us', $secours);
     }
 
     public function test_le_mail_porte_le_texte_de_la_direction(): void

@@ -14,7 +14,8 @@
       l'intérieur du pays (2026-10-29), repérés par une pastille verte et
       une bleue (émojis, pas des images) ;
     · police système, colonne et texte centrés (demande du 2026-11-04 :
-      « trop à gauche ») ;
+      « trop à gauche »), sauf le titre et le paragraphe d'accroche, alignés à
+      gauche (demande du 2026-11-06) ;
     · invitation à RÉPONDRE au mail (les réponses améliorent le classement
       des envois suivants) ;
     · marque discrète : signature + liseré aux 5 couleurs en CSS (pas une image).
@@ -78,11 +79,11 @@
   Bonjour {{ contact.CONTACT | default : "Madame, Monsieur" }},
 </td></tr>
 
-<tr><td align="center" style="padding:0 0 14px 0; font-size:17px; line-height:25px;">
+<tr><td align="left" style="padding:0 0 14px 0; font-size:17px; line-height:25px; text-align:left;">
   <strong>De nouveaux emplacements publicitaires sont disponibles pour vos prochaines campagnes&nbsp;!</strong>
 </td></tr>
 
-<tr><td align="center" style="padding:0 0 18px 0;">
+<tr><td align="left" style="padding:0 0 18px 0; text-align:left;">
   Anticipez votre visibilité en découvrant notre sélection de panneaux{% if contact.SOCIETE %} pour <strong>{{ contact.SOCIETE }}</strong>{% endif %}&nbsp;: <strong>{{ params.NB_PANNEAUX }} emplacements disponibles {{ params.PERIODE }}</strong>, {% if params.LIEN_ABIDJAN %}à Abidjan{% if params.LIEN_INTERIEUR %} et dans les principales villes de Côte d'Ivoire{% endif %}{% else %}dans les principales villes de Côte d'Ivoire{% endif %}.
 </td></tr>
 
