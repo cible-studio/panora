@@ -9,7 +9,8 @@
   qui ressemblent à une newsletter : grandes images, gros boutons colorés,
   blocs de couleur, nombreux liens. Ce modèle reste sobre :
     · une seule image, le logo, en haut (demande du 2026-11-03 ; retiré de
-      la signature le 2026-11-04). Pas de photo ;
+      la signature le 2026-11-04 ; 220 px de large le 2026-11-06, seule la
+      largeur est fixée pour ne jamais le déformer). Pas de photo ;
     · deux liens utiles, en texte : le catalogue d'Abidjan et celui de
       l'intérieur du pays (2026-10-29), repérés par une pastille verte et
       une bleue (émojis, pas des images) ;
@@ -71,7 +72,7 @@
 <!-- Logo (2026-11-03). Sans lien : moins de liens, moins « publicité ». -->
 {% if params.LOGO %}
 <tr><td align="center" style="padding:0 0 22px 0;">
-  <img src="{{ params.LOGO }}" width="120" alt="CIBLE" border="0" style="display:block; width:120px; height:auto; margin:0 auto; border:0; font-family:Arial, Helvetica, sans-serif; font-size:18px; font-weight:bold; color:#111111;">
+  <img src="{{ params.LOGO }}" width="220" alt="CIBLE" border="0" style="display:block; width:220px; height:auto; margin:0 auto; border:0; font-family:Arial, Helvetica, sans-serif; font-size:18px; font-weight:bold; color:#111111;">
 </td></tr>
 {% endif %}
 
