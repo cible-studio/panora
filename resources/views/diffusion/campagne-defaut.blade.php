@@ -84,7 +84,7 @@
 
                     {{-- Titre --}}
                     <tr>
-                        <td align="center" style="padding:34px 32px 8px;">
+                        <td align="left" style="padding:34px 32px 8px;text-align:left;">
                             <h1 style="margin:0;font-size:22px;line-height:1.3;font-weight:800;color:#111827;">
                                 De nouveaux emplacements publicitaires sont disponibles pour vos prochaines campagnes&nbsp;!
                             </h1>
@@ -100,7 +100,7 @@
                                         <p style="margin:0 0 12px;font-weight:700;font-size:16px;">
                                             Bonjour @{{ contact.CONTACT | default : "Madame, Monsieur" }},
                                         </p>
-                                        <p style="margin:0;">
+                                        <p style="margin:0;text-align:left;">
                                             {{-- L'entreprise cliente (2026-11-03) : l'interlocuteur sait pourquoi il reçoit le mail. --}}
                                             Anticipez votre visibilité en découvrant notre sélection de panneaux{% if contact.SOCIETE %} pour <strong>@{{ contact.SOCIETE }}</strong>{% endif %}&nbsp;:
                                             <strong>{{ $valeurs['NB_PANNEAUX'] }} emplacements disponibles {{ $valeurs['PERIODE'] }}</strong>, {{ $ou }}.
