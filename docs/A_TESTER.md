@@ -617,9 +617,10 @@ Phrase d'accroche revue le 6/11 : « Anticipez votre visibilité en découvrant
 notre sélection de panneaux pour ROMI CI : N emplacements disponibles… »
 (sans entreprise : « …notre sélection de panneaux : N emplacements… »).
 
-- [ ] Brevo → Modèles → n° 14 → coller **tout**
+- [x] Brevo → Modèles → n° 14 → coller **tout**
       `docs/diffusion/modele-brevo-disponibilites-leger.html` → Enregistrer,
       modèle **Actif**, puis « Envoyer un test » : la nouvelle phrase s'affiche
+      *(confirmé le 6/11)*
 
 ---
 
