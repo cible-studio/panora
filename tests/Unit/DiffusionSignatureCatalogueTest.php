@@ -159,14 +159,16 @@ class DiffusionSignatureCatalogueTest extends TestCase
         $this->assertStringNotContainsString(' height="', $logo[0]);
     }
 
-    public function test_seuls_le_titre_et_l_accroche_sont_a_gauche(): void
+    public function test_seuls_le_titre_et_trois_paragraphes_sont_a_gauche(): void
     {
-        // Demande du 2026-11-06, capture à l'appui : ces deux blocs à gauche,
+        // Demandes du 2026-11-06, captures à l'appui : ces quatre blocs à gauche,
         // tout le reste du mail centré.
         $modele = file_get_contents(base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'));
-        $this->assertSame(2, substr_count($modele, '<td align="left"'), 'Le titre et l\'accroche, rien d\'autre.');
+        $this->assertSame(4, substr_count($modele, '<td align="left"'), 'Le titre et les trois paragraphes, rien d\'autre.');
         $this->assertMatchesRegularExpression('/<td align="left"[^>]*text-align:left;">\s*<strong>De nouveaux emplacements/u', $modele);
-        $this->assertMatchesRegularExpression('/<td align="left"[^>]*text-align:left;">\s*Anticipez votre visibilité/u', $modele);
+        foreach (['Anticipez votre visibilité', 'Découvrez pour chaque support', 'Répondez simplement'] as $debut) {
+            $this->assertMatchesRegularExpression('/<td align="left"[^>]*text-align:left;">\s*' . $debut . '/u', $modele);
+        }
         $this->assertStringContainsString('max-width:560px; margin:0 auto;', $modele);
         $this->assertStringContainsString('color:#111111; text-align:center;">', $modele);
 
@@ -175,6 +177,9 @@ class DiffusionSignatureCatalogueTest extends TestCase
         $this->assertSame(1, substr_count($secours, '<td align="left"'));
         $this->assertMatchesRegularExpression('/<td align="left"[^>]*>\s*<h1[^>]*>\s*De nouveaux emplacements/u', $secours);
         $this->assertMatchesRegularExpression('/<p style="margin:0;text-align:left;">\s*\{\{--.*?--\}\}\s*Anticipez votre visibilité/us', $secours);
+        foreach (['Découvrez pour chaque support', 'Répondez simplement'] as $debut) {
+            $this->assertMatchesRegularExpression('/<p style="margin:0 0 14px;text-align:left;">\s*' . $debut . '/u', $secours);
+        }
     }
 
     public function test_le_mail_porte_le_texte_de_la_direction(): void
