@@ -626,13 +626,15 @@ Texte revu le 6/11 après-midi : « Découvrez pour chaque support une fiche
 détaillée… », « Répondez… souhaitées. » puis « Notre équipe… » à la ligne,
 « Anticipez vos réservations et sécurisez… ». Mise en page : le **titre** et le
 paragraphe **« Anticipez votre visibilité… »** sont alignés à gauche, tout le
-reste est centré (demande du 6/11, capture à l'appui).
+reste est centré (demande du 6/11, capture à l'appui). Logo agrandi à 220 px
+de large, proportions conservées (120 px avant).
 
 - [ ] Brevo → Modèles → n° 14 → coller **tout**
       `docs/diffusion/modele-brevo-disponibilites-leger.html` en remplaçant le
       code existant → Enregistrer, modèle **Actif**
 - [ ] « Envoyer un test » : ouvrir le mail reçu sur ordinateur et sur
-      téléphone. Titre et paragraphe « Anticipez… » à gauche, le reste centré,
+      téléphone. Logo plus grand et non déformé, titre et paragraphe
+      « Anticipez… » à gauche, le reste centré,
       nouveau texte, aucun code `{% if %}` visible
 
 ---

@@ -147,6 +147,18 @@ class DiffusionSignatureCatalogueTest extends TestCase
 
     // ── Texte et objet de la direction (2026-11-04) ─────────────────
 
+    public function test_le_logo_est_large_sans_etre_deforme(): void
+    {
+        // Demande du 2026-11-06 : seule la largeur est fixée, la hauteur suit
+        // les proportions de l'image. Une hauteur imposée l'étirerait.
+        $modele = file_get_contents(base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'));
+
+        $this->assertSame(1, preg_match('/<img src="\{\{ params\.LOGO \}\}"[^>]*>/', $modele, $logo));
+        $this->assertStringContainsString('width="220"', $logo[0]);
+        $this->assertStringContainsString('width:220px; height:auto;', $logo[0]);
+        $this->assertStringNotContainsString(' height="', $logo[0]);
+    }
+
     public function test_seuls_le_titre_et_l_accroche_sont_a_gauche(): void
     {
         // Demande du 2026-11-06, capture à l'appui : ces deux blocs à gauche,
