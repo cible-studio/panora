@@ -551,10 +551,11 @@ Retours sur le test #12, traités le 4/11 :
   `MAIL_COPIE_COMMERCIALE`, pas par `DIFFUSION_CONFIRMATION_EMAIL`, qui sert
   aussi d'adresses de test aux mails clients).
 
-- [ ] Recoller le modèle n° 14 (nouvelle version centrée), puis « Envoyer un
+- [x] Recoller le modèle n° 14 (nouvelle version centrée), puis « Envoyer un
       test » : mail centré, logo en haut seulement, liseré dans la signature,
       « Régie & Studio Créatif · Côte d'Ivoire · depuis 1994 » sous la signature
-      *(à faire avec le texte de la direction, § 10 octies : un seul recollage)*
+      *(confirmé le 6/11, avec le texte de la direction, § 10 octies : mail
+      centré, logo en haut, « Régie & Studio Créatif »)*
 - [ ] Diffusion dispos : « Confirmation envoyée à » affiche aussi
       stephane.oponou@cible-ci.com, suivi de « (en production ; un test : à
       son auteur) » tant que le mode test est actif
@@ -573,12 +574,12 @@ seulement). Restent « Régie Publicitaire » : les PDF internes (« Document
 confidentiel ») et le type de contact « Régie publicitaire » (une régie
 concurrente), voulu.
 
-- [ ] Coolify (prod) : **pas** de variable `CHARTE_ACTIVITE`, ou alors avec
-      la nouvelle valeur — sinon l'ancienne ligne reste partout
+- [x] Coolify (prod) : **pas** de variable `CHARTE_ACTIVITE`, ou alors avec
+      la nouvelle valeur — sinon l'ancienne ligne reste partout *(confirmé le 6/11)*
 - [ ] Un devis ou une facture envoyés en test : pied « CIBLE · Régie &
       Studio Créatif · Côte d'Ivoire · depuis 1994 »
 - [ ] Une proposition : la page client (en-tête et pied) et son PDF
-- [ ] Le PDF du catalogue des disponibilités : pied de page
+- [x] Le PDF du catalogue des disponibilités : pied de page *(confirmé le 6/11)*
 - [ ] Page « devis en ligne » et page satisfaction : pied de page
 - [ ] Le modèle Brevo « relance campagne terminée », s'il sert encore :
       à recoller (texte corrigé en dur)
@@ -596,20 +597,21 @@ phrase du PDF dit « son trafic estimé et sa description » (le PDF n'a pas
 de rubrique « recommandations »). L'objet tourne entre ses trois formules,
 une par catalogue (cf. `docs/DIFFUSION_DISPONIBILITES.md`, étape 7).
 
-- [ ] Coolify (prod **et** staging) : **pas** de variable `DIFFUSION_OBJET`
-      — sinon elle remplace les trois objets
-- [ ] Brevo → Modèles → n° 14 → coller **tout**
+- [x] Coolify (prod **et** staging) : **pas** de variable `DIFFUSION_OBJET`
+      — sinon elle remplace les trois objets *(confirmé le 6/11)*
+- [x] Brevo → Modèles → n° 14 → coller **tout**
       `docs/diffusion/modele-brevo-disponibilites-leger.html` → Enregistrer,
-      modèle **Actif**
-- [ ] « Envoyer un test » (période du 15 au 30 novembre) : objet
+      modèle **Actif** *(confirmé le 6/11)*
+- [x] « Envoyer un test » (période du 15 au 30 novembre) : objet
       « [TEST] Anticipez vos campagnes : découvrez nos emplacements
-      disponibles »
-- [ ] Mail de test : « Bonjour [nom], », « …notre sélection pour ROMI CI :
-      N emplacements… » ; le mail de Stéphane : « …notre sélection de N
-      emplacements… »
-- [ ] Les deux liens 🟢 / 🔵 ouvrent chacun le bon PDF
-- [ ] Signature : liseré, « L'équipe commerciale CIBLE », « Votre
+      disponibles » *(confirmé le 6/11)*
+- [x] Mail de test : « Bonjour [nom], », « …notre sélection pour ROMI CI :
+      N emplacements… » *(confirmé le 6/11)*
+- [ ] Le mail de Stéphane : « …notre sélection de N emplacements… »
+- [x] Les deux liens 🟢 / 🔵 ouvrent chacun le bon PDF *(confirmé le 6/11)*
+- [x] Signature : liseré, « L'équipe commerciale CIBLE », « Votre
       visibilité, notre métier. », Régie & Studio Créatif, 3 numéros, e-mail
+      *(confirmé le 6/11 : Régie & Studio Créatif et les 3 numéros)*
 
 ---
 
@@ -913,6 +915,8 @@ superposé, pied complet sur chaque page, numéros de page) :
 - [ ] Documents clients, **pied seulement** : proposition commerciale,
       liste des disponibilités, catalogue des disponibilités (y compris
       celui envoyé par Brevo) — le corps est identique à avant
+      *(catalogue : nouveau pied vu au test du 6/11 ; restent la proposition
+      et la liste)*
 - [ ] Facture et devis : **aucun changement** par rapport à hier
 - [ ] Un PDF de plusieurs pages (ex. liste des clients) : le pied se répète,
       « Page 2 », « Page 3 »…
