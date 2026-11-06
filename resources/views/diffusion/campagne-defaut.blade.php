@@ -162,12 +162,12 @@
                     {{-- Le contenu du catalogue, puis l'appel à l'échange --}}
                     <tr>
                         <td align="center" style="padding:24px 40px 34px;font-size:14px;line-height:1.6;color:#374151;">
-                            <p style="margin:0 0 14px;">
+                            <p style="margin:0 0 14px;text-align:left;">
                                 Découvrez pour chaque support une fiche détaillée comprenant sa photographie, son format,
                                 sa localisation, une estimation du trafic et une description de ses caractéristiques.
                             </p>
                             <p style="margin:0 0 6px;"><strong>Un ou plusieurs emplacements vous intéressent&nbsp;?</strong></p>
-                            <p style="margin:0 0 14px;">
+                            <p style="margin:0 0 14px;text-align:left;">
                                 Répondez simplement à cet email en indiquant les références souhaitées.<br>
                                 Notre équipe vous confirmera leur disponibilité et vous transmettra une proposition commerciale <strong>sous 1&nbsp;heure ouvrée</strong>.
                             </p>
