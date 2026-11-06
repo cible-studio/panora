@@ -637,6 +637,37 @@ de large, proportions conservées (120 px avant).
       « Anticipez… » à gauche, le reste centré,
       nouveau texte, aucun code `{% if %}` visible
 
+### 10 nonies. Premier vrai envoi du catalogue *(Brevo payé, signalé le 2026-11-06)*
+
+Contrôlé le 6/11 sans toucher à la prod : le domaine est authentifié pour Brevo
+(code Brevo, DKIM et DMARC dans le DNS public) ; la lecture de la liste est
+paginée et le retrait des anciennes adresses se fait par lots de 150 (à lire
+dans le code, ce retrait n'a encore jamais tourné en prod). Non contrôlable
+d'ici : tout ce qui suit.
+
+Envoi conseillé le **lundi 9/11 vers 10 h** plutôt qu'un vendredi soir : le mail
+promet une réponse « sous 1 heure ouvrée », et Brevo peut suspendre un envoi
+jusqu'à 3 h plus tard.
+
+- [ ] Coolify : dernier déploiement de main en « Success »
+- [ ] Coolify : pas de `DIFFUSION_OBJET` en prod ; retirée du staging, qui reste
+      en `DIFFUSION_MODE=test` et `DIFFUSION_AUTO=false`
+- [ ] Brevo → Paramètres → Webhooks (Marketing) : URL de la **prod**, événements
+      Désinscrit, Hard bounce, Spam (`docs/DIFFUSION_DISPONIBILITES.md`, étape 9)
+- [ ] Brevo : modèle n° 14 à la dernière version (logo 220 px), test reçu et validé
+- [ ] `envoisRestants` en prod : environ 10 000 au lieu de 300
+- [ ] Prod seulement : `DIFFUSION_MODE=production`, `DIFFUSION_AUTO` encore à
+      `false`, redéployer
+- [ ] Diffusion dispos : environ **465** destinataires ; sinon, arrêter et regarder
+- [ ] « Envoyer maintenant… » : période du 15 au 30 novembre, même nombre
+      dans la fenêtre de confirmation
+- [ ] Journal « Envoyé », mail ✅ reçu ; Brevo : un destinataire de plus (Stéphane)
+- [ ] Rapport Brevo à 1 h et à 3 h : rebonds sous 2 %, campagne non suspendue.
+      Suspendue : ne pas la reprendre
+- [ ] Le mail de Stéphane : « …notre sélection de panneaux : N emplacements… »
+- [ ] `DIFFUSION_AUTO=true` avant le **vendredi 20/11 à 10 h**
+- [ ] Ensuite, côté code : retirer `LIEN_PDF` (`docs/TECHNICAL_DEBT.md`)
+
 ---
 
 ## 11. Renvoyer les accès — personnel et clients *(ajouté le 2026-11-02)*
