@@ -128,11 +128,11 @@ class DiffusionSignatureCatalogueTest extends TestCase
 
     public function test_le_mail_nomme_l_entreprise_du_destinataire(): void
     {
-        // Validé le 2026-11-03, repris dans le texte de la direction le
-        // 2026-11-04 : « …notre sélection pour ORANGE CI : 232 emplacements… ».
-        // Sans entreprise (copie, contact de test) : sa phrase d'origine,
-        // « …notre sélection de 232 emplacements… ».
-        $phrase = 'en découvrant notre sélection{% if contact.SOCIETE %} pour <strong>{{ contact.SOCIETE }}</strong>&nbsp;:{% else %} de{% endif %}';
+        // Validé le 2026-11-03, phrase revue le 2026-11-06 :
+        // « …notre sélection de panneaux pour ORANGE CI : 232 emplacements… ».
+        // Sans entreprise (copie, contact de test) :
+        // « …notre sélection de panneaux : 232 emplacements… ».
+        $phrase = 'en découvrant notre sélection de panneaux{% if contact.SOCIETE %} pour <strong>{{ contact.SOCIETE }}</strong>{% endif %}&nbsp;:';
 
         $this->assertStringContainsString(
             $phrase . ' <strong>{{ params.NB_PANNEAUX }} emplacements disponibles',
@@ -160,7 +160,7 @@ class DiffusionSignatureCatalogueTest extends TestCase
 
         foreach ([
             'De nouveaux emplacements publicitaires sont disponibles pour vos prochaines campagnes',
-            'Anticipez vos prochaines prises de parole',
+            'Anticipez votre visibilité',
             "Découvrez les disponibilités selon vos zones d'intérêt",
             // 3b : ce que montre vraiment le PDF, pas de « recommandations ».
             'sa localisation, son trafic estimé et sa description',

@@ -20,7 +20,7 @@ page par panneau, avec photo) : un pour Abidjan, un pour l'intérieur du pays.
 | **Prix** | Aucun |
 | **Expéditeur** | `commercial@cible-ci.com` |
 | **Destinataires** | Tous les clients d'office (contact principal, à défaut l'adresse de la fiche client). Désinscription possible à chaque mail |
-| **Copie** *(2026-11-03)* | L'adresse de `MAIL_COPIE_COMMERCIALE` (Stéphane) reçoit chaque vrai catalogue, comme un client : une campagne Brevo n'a pas de copie, chaque adresse de la liste reçoit son propre mail. Elle n'est pas comptée parmi les clients (Brevo affiche donc un destinataire de plus que Panora) mais compte dans le contrôle du quota. Désinscrite, elle n'est pas remise dans la liste. Sans entreprise : elle lit « …notre sélection de 232 emplacements… ». Les tests n'en ont pas : ajouter son adresse à la main dans la liste « Tests internes » de Brevo |
+| **Copie** *(2026-11-03)* | L'adresse de `MAIL_COPIE_COMMERCIALE` (Stéphane) reçoit chaque vrai catalogue, comme un client : une campagne Brevo n'a pas de copie, chaque adresse de la liste reçoit son propre mail. Elle n'est pas comptée parmi les clients (Brevo affiche donc un destinataire de plus que Panora) mais compte dans le contrôle du quota. Désinscrite, elle n'est pas remise dans la liste. Sans entreprise : elle lit « …notre sélection de panneaux : 232 emplacements… ». Les tests n'en ont pas : ajouter son adresse à la main dans la liste « Tests internes » de Brevo |
 | **Confirmation interne** | `commercial@cible-ci.com` + `studio@cible-ci.com` (admin) + la copie commerciale `MAIL_COPIE_COMMERCIALE` (Stéphane, 2026-11-04) + tous les Media Planners actifs, après chaque envoi, et alerte en cas d'échec. Un test : seulement à son auteur. La copie n'est pas à mettre dans `DIFFUSION_CONFIRMATION_EMAIL`, qui sert aussi d'adresses de test aux mails clients |
 | **Envoi manuel** | Admin seul. N'annule pas l'automatique. Rappelle le dernier envoi ; si le dernier date de moins de 24 h, il faut taper ENVOYER. Le bouton enregistre une demande, traitée par le planificateur dans la minute (le PDF est trop long à générer pendant une requête web) |
 
@@ -139,7 +139,7 @@ Placez dans le modèle :
 | À écrire dans le modèle | Remplacé par |
 |---|---|
 | `{{ contact.CONTACT \| default : "Madame, Monsieur" }}` | Nom du contact |
-| `{{ contact.SOCIETE }}` | Entreprise cliente : « …notre sélection pour ORANGE CI : 232 emplacements… » *(2026-11-03, repris dans le texte de la direction le 2026-11-04)*. À tester avec `{% if contact.SOCIETE %}` : vide pour la copie interne et les contacts de test |
+| `{{ contact.SOCIETE }}` | Entreprise cliente : « …notre sélection de panneaux pour ORANGE CI : 232 emplacements… » *(2026-11-03, phrase revue le 2026-11-06)*. À tester avec `{% if contact.SOCIETE %}` : vide pour la copie interne et les contacts de test |
 | `{{ params.PERIODE }}` | « du 1er au 30 novembre 2026 » |
 | `{{ params.MOIS }}` | « novembre 2026 » |
 | `{{ params.NB_PANNEAUX }}` | Nombre total d'emplacements présentés |

@@ -607,11 +607,19 @@ une par catalogue (cf. `docs/DIFFUSION_DISPONIBILITES.md`, étape 7).
       disponibles » *(confirmé le 6/11)*
 - [x] Mail de test : « Bonjour [nom], », « …notre sélection pour ROMI CI :
       N emplacements… » *(confirmé le 6/11)*
-- [ ] Le mail de Stéphane : « …notre sélection de N emplacements… »
+- [ ] Le mail de Stéphane : « …notre sélection de panneaux : N emplacements… »
 - [x] Les deux liens 🟢 / 🔵 ouvrent chacun le bon PDF *(confirmé le 6/11)*
 - [x] Signature : liseré, « L'équipe commerciale CIBLE », « Votre
       visibilité, notre métier. », Régie & Studio Créatif, 3 numéros, e-mail
       *(confirmé le 6/11 : Régie & Studio Créatif et les 3 numéros)*
+
+Phrase d'accroche revue le 6/11 : « Anticipez votre visibilité en découvrant
+notre sélection de panneaux pour ROMI CI : N emplacements disponibles… »
+(sans entreprise : « …notre sélection de panneaux : N emplacements… »).
+
+- [ ] Brevo → Modèles → n° 14 → coller **tout**
+      `docs/diffusion/modele-brevo-disponibilites-leger.html` → Enregistrer,
+      modèle **Actif**, puis « Envoyer un test » : la nouvelle phrase s'affiche
 
 ---
 

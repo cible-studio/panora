@@ -102,7 +102,7 @@
                                         </p>
                                         <p style="margin:0;">
                                             {{-- L'entreprise cliente (2026-11-03) : l'interlocuteur sait pourquoi il reçoit le mail. --}}
-                                            Anticipez vos prochaines prises de parole en découvrant notre sélection{% if contact.SOCIETE %} pour <strong>@{{ contact.SOCIETE }}</strong>&nbsp;:{% else %} de{% endif %}
+                                            Anticipez votre visibilité en découvrant notre sélection de panneaux{% if contact.SOCIETE %} pour <strong>@{{ contact.SOCIETE }}</strong>{% endif %}&nbsp;:
                                             <strong>{{ $valeurs['NB_PANNEAUX'] }} emplacements disponibles {{ $valeurs['PERIODE'] }}</strong>, {{ $ou }}.
                                         </p>
                                     </td>
