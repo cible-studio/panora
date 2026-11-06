@@ -84,7 +84,7 @@
 
                     {{-- Titre --}}
                     <tr>
-                        <td align="left" style="padding:34px 32px 8px;">
+                        <td align="center" style="padding:34px 32px 8px;">
                             <h1 style="margin:0;font-size:22px;line-height:1.3;font-weight:800;color:#111827;">
                                 De nouveaux emplacements publicitaires sont disponibles pour vos prochaines campagnes&nbsp;!
                             </h1>
@@ -96,7 +96,7 @@
                         <td style="padding:22px 32px 6px;">
                             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fdf3e1;border-radius:22px;">
                                 <tr>
-                                    <td align="left" style="padding:26px 28px;font-size:15px;line-height:1.6;color:#1f2937;">
+                                    <td align="center" style="padding:26px 28px;font-size:15px;line-height:1.6;color:#1f2937;">
                                         <p style="margin:0 0 12px;font-weight:700;font-size:16px;">
                                             Bonjour @{{ contact.CONTACT | default : "Madame, Monsieur" }},
                                         </p>
@@ -127,7 +127,7 @@
                                     </td>
                                 </tr>
                             </table>
-                            <p style="margin:12px 0 0;text-align:left;font-size:14px;color:#374151;">
+                            <p style="margin:12px 0 0;text-align:center;font-size:14px;color:#374151;">
                                 🌍 <strong>Couverture&nbsp;:</strong> {{ $couverture }}
                             </p>
                         </td>
@@ -138,7 +138,7 @@
                          plutôt qu'une légende sans bouton. --}}
                     @if($zones)
                     <tr>
-                        <td align="left" style="padding:28px 32px 10px;">
+                        <td align="center" style="padding:28px 32px 10px;">
                             <p style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111827;">Découvrez les disponibilités selon vos zones d'intérêt</p>
                             <table role="presentation" cellpadding="0" cellspacing="0">
                                 @foreach($zones as $z)
@@ -161,7 +161,7 @@
 
                     {{-- Le contenu du catalogue, puis l'appel à l'échange --}}
                     <tr>
-                        <td align="left" style="padding:24px 32px 34px;font-size:14px;line-height:1.6;color:#374151;">
+                        <td align="center" style="padding:24px 40px 34px;font-size:14px;line-height:1.6;color:#374151;">
                             <p style="margin:0 0 14px;">
                                 Découvrez pour chaque support une fiche détaillée comprenant sa photographie, son format,
                                 sa localisation, une estimation du trafic et une description de ses caractéristiques.
@@ -182,7 +182,7 @@
 
                     {{-- Pied de page --}}
                     <tr>
-                        <td align="left" style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:22px 32px;font-size:12px;line-height:1.6;color:#6b7280;">
+                        <td align="center" style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:22px 32px;font-size:12px;line-height:1.6;color:#6b7280;">
                             <strong style="color:#374151;">CIBLE CI</strong> · {{ config('charte.coordonnees.activite') }}<br>
                             @if(config('charte.coordonnees.telephones')){{ config('charte.coordonnees.telephones') }}<br>@endif
                             <a href="mailto:{{ config('brevo.sender.email') }}" style="color:#6b7280;">{{ config('brevo.sender.email') }}</a>

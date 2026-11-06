@@ -147,20 +147,19 @@ class DiffusionSignatureCatalogueTest extends TestCase
 
     // ── Texte et objet de la direction (2026-11-04) ─────────────────
 
-    public function test_le_bloc_est_au_milieu_et_les_lignes_alignees_a_gauche(): void
+    public function test_le_mail_reste_centre(): void
     {
-        // Demande du 2026-11-06 : comme une lettre, sans revenir à la colonne
-        // collée à gauche de l'écran (« trop à gauche », 2026-11-04).
-        $modele = file_get_contents(base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'));
-
-        $this->assertStringContainsString('max-width:560px; margin:0 auto;', $modele);
-        $this->assertSame(1, substr_count($modele, '<td align="center"'), 'Seule la cellule extérieure, qui place le bloc au milieu.');
-        $this->assertStringNotContainsString('text-align:center', $modele);
-
-        // Le gabarit de secours suit (logo, cases de chiffres et boutons restent centrés dans leur cadre).
-        $secours = file_get_contents(resource_path('views/diffusion/campagne-defaut.blade.php'));
-        $this->assertStringContainsString('<td align="left" style="padding:34px 32px 8px;">', $secours);
-        $this->assertStringNotContainsString('text-align:center', $secours);
+        // Décision du 2026-11-06 : le texte change, pas le design (un essai
+        // aligné à gauche a été retiré le jour même, « remet le design »).
+        foreach ([
+            base_path('docs/diffusion/modele-brevo-disponibilites-leger.html'),
+            resource_path('views/diffusion/campagne-defaut.blade.php'),
+        ] as $fichier) {
+            $source = file_get_contents($fichier);
+            $this->assertStringContainsString('text-align:center', $source, $fichier);
+            $this->assertStringNotContainsString('text-align:left', $source, $fichier);
+            $this->assertStringNotContainsString('<td align="left"', $source, $fichier);
+        }
     }
 
     public function test_le_mail_porte_le_texte_de_la_direction(): void
@@ -181,7 +180,8 @@ class DiffusionSignatureCatalogueTest extends TestCase
             // Texte du 2026-11-06 : ce que montre vraiment le PDF, pas de « recommandations ».
             'Découvrez pour chaque support une fiche détaillée',
             'sa localisation, une estimation du trafic et une description de ses caractéristiques',
-            'Répondez simplement à cet email en indiquant les références souhaitées',
+            // Le passage à la ligne est voulu (2026-11-06).
+            'Répondez simplement à cet email en indiquant les références souhaitées.<br>',
             'Notre équipe vous confirmera leur disponibilité',
             'sous 1&nbsp;heure ouvrée',
             'Anticipez vos réservations et sécurisez les meilleurs emplacements',
