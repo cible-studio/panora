@@ -183,6 +183,11 @@ Schedule::command('dispos:reparer-pdf')
     ->everyMinute()
     ->withoutOverlapping(30)
     ->runInBackground();
+//     Chaque nuit à 1h15 (2026-11-09) : PDF des envois de test de plus de
+//     7 jours supprimés, juste avant la sauvegarde de 2h qu'ils alourdissaient.
+Schedule::command('dispos:purger-pdf-tests')
+    ->dailyAt('01:15')
+    ->withoutOverlapping();
 //     Toutes les 15 minutes (2026-11-02) : Brevo accepte l'envoi puis peut
 //     suspendre la campagne (quota épuisé, trop d'adresses invalides).
 //     Les envois des dernières 24 h sont relus ; une suspension passe au

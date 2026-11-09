@@ -71,6 +71,11 @@ return [
     // nombre faux.
     'controle_quota' => (bool) env('DIFFUSION_CONTROLE_QUOTA', true),
 
+    // Nombre de jours pendant lesquels les PDF d'un envoi de test sont gardés
+    // (2026-11-09). Les envois aux clients ne sont pas concernés. Cf.
+    // DiffusionDisponibilitesService::purgerPdfTests().
+    'jours_pdf_tests' => (int) env('DIFFUSION_JOURS_PDF_TESTS', 7),
+
     // ── MAIL « VOTRE CAMPAGNE SE TERMINE » (J-7) ─────────────────────
     //
     // Règles validées le 2026-10-21 — cf. docs/DIFFUSION_DISPONIBILITES.md
