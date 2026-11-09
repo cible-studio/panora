@@ -672,10 +672,13 @@ conseillé) : campagne Brevo n° 33, 467 clients + Stéphane = 468 destinataires
       dans la fenêtre de confirmation *(6/11 à 17h47)*
 - [x] Journal « Envoyé » : 467 ; Brevo : un destinataire de plus (Stéphane), 468
       *(constaté le 6/11 ; mail ✅ pas encore confirmé)*
-- [ ] Rapport Brevo à 1 h et à 3 h : rebonds sous 2 % (9 adresses au plus),
-      campagne non suspendue. Suspendue : ne pas la reprendre.
-      *(6/11 à 17h53 : statut « En cours de révision », environ 390 mails délivrés
-      sur 468 d'après les pourcentages affichés, à suivre)*
+- [x] Rapport Brevo relu le 9/11 : campagne « Envoyée » (18h03), non suspendue,
+      404 délivrés sur 468. **Rebonds définitifs : 30, soit 6,4 %, au-dessus des
+      2 %.** Panora a exclu 30 adresses depuis l'envoi : le webhook e-mail fonctionne
+- [ ] Onglet Délivrabilité : nature des 34 autres mails non délivrés
+- [ ] Diffusion dispos : environ **437** destinataires au lieu de 467
+- [ ] Équipe commerciale : corriger les 30 adresses (Diffusion dispos, Adresses exclues)
+- [ ] Envoi du 20/11 : rebonds définitifs sous 2 %
 - [ ] Le mail de Stéphane : « …notre sélection de panneaux : N emplacements… »
 - [ ] `DIFFUSION_AUTO=true` avant le **vendredi 20/11 à 10 h**
 - [ ] Ensuite, côté code : retirer `LIEN_PDF` (`docs/TECHNICAL_DEBT.md`)
