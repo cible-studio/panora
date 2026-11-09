@@ -708,9 +708,11 @@ client. Avant de lancer la reconduction, chaque commercial renseigne le sien.
 
 - [ ] Après déploiement : `php artisan campagnes:sans-interlocuteur` affiche le décompte
 - [ ] `php artisan campagnes:sans-interlocuteur --mail=<adresse>` : un Excel par commercial
-- [ ] Écran **Campagnes → 👤 Interlocuteurs** (`/admin/campaigns/interlocuteurs`) : un commercial ne voit que
-      ses campagnes, le choix s'enregistre aussitôt, « + Nouveau » crée le contact et le choisit,
-      « Même personne pour ses autres campagnes » fonctionne
+- [ ] Écran **Campagnes → 👤 Interlocuteurs** (`/admin/campaigns/interlocuteurs`, refait le 9/11) : un commercial
+      ne voit que ses campagnes ; l'interlocuteur actuel s'affiche avec Modifier ; choisir dans la liste
+      n'enregistre rien tant qu'on n'a pas cliqué sur **Appliquer** ; « + Nouveau » → Créer et appliquer ;
+      « Appliquer aussi à ses autres campagnes » ; filtres À renseigner / Déjà renseignées.
+      *Parcours vérifié dans un navigateur le 9/11, avec des réponses simulées : à refaire sur la vraie base*
 - [ ] Le fichier Excel reste disponible, mais l'écran le remplace pour la saisie
 - [ ] Simulation de la reconduction : chaque ligne `[→]` vise la bonne personne
 

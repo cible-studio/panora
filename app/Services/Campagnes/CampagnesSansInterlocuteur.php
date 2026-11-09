@@ -37,6 +37,36 @@ class CampagnesSansInterlocuteur
      */
     public function campagnes(?int $commercialId = null, bool $toutes = false): Collection
     {
+        return $this->avecClient($commercialId, $toutes)
+            ->reject(fn (Campaign $c) => $this->interlocuteurActuel($c))
+            ->values();
+    }
+
+    /**
+     * Campagnes de l'écran, avec ou sans interlocuteur (2026-11-09) : celui
+     * qui existe doit rester visible et modifiable.
+     *
+     * @return Collection<int, Campaign>
+     */
+    public function enCours(?int $commercialId = null): Collection
+    {
+        return $this->avecClient($commercialId, false);
+    }
+
+    /** L'interlocuteur utilisé pour les envois, ou null. */
+    public function interlocuteurActuel(Campaign $campagne): ?ClientContact
+    {
+        return $campagne->client->interlocuteurRetenu($campagne->interlocuteur);
+    }
+
+    public function libelleContact(ClientContact $contact): string
+    {
+        return $contact->name . ($contact->position ? ' — ' . $contact->position : '') . ' (' . mb_strtolower(trim($contact->email)) . ')';
+    }
+
+    /** @return Collection<int, Campaign> */
+    private function avecClient(?int $commercialId, bool $toutes): Collection
+    {
         return Campaign::query()
             ->with(['client.contacts', 'interlocuteur', 'commercial', 'user'])
             ->when($commercialId !== null, fn ($q) => $q->forCommercialUser($commercialId))
@@ -44,9 +74,7 @@ class CampagnesSansInterlocuteur
             ->orderByRaw('end_date IS NULL')
             ->orderBy('end_date')
             ->get()
-            ->filter(fn (Campaign $c) => $c->client
-                && !$c->client->trashed()
-                && !$c->client->interlocuteurRetenu($c->interlocuteur))
+            ->filter(fn (Campaign $c) => $c->client && !$c->client->trashed())
             ->values();
     }
 

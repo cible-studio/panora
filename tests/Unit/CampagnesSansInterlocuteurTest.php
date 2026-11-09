@@ -223,6 +223,47 @@ class CampagnesSansInterlocuteurTest extends TestCase
         $this->assertStringContainsString('Reconduction', $html);
     }
 
+    public function test_l_interlocuteur_actuel_reste_visible_et_les_campagnes_a_faire_passent_d_abord(): void
+    {
+        $contact = DB::table('client_contacts')->where('client_id', 10)->value('id');
+        $this->campagne(['name' => 'Deja renseignee', 'client_contact_id' => $contact, 'end_date' => '2026-11-30']);
+        $this->campagne(['name' => 'A faire', 'end_date' => '2026-12-31']);
+        $this->actingAs($this->utilisateur(3));
+
+        $donnees = app(\App\Http\Controllers\Admin\CampagnesInterlocuteursController::class)->index(
+            request()->setUserResolver(fn () => $this->utilisateur(3)),
+            app(CampagnesSansInterlocuteur::class)
+        )->getData();
+
+        $this->assertSame(['A faire', 'Deja renseignee'], $donnees['lignes']->pluck('campagne')->all());
+        $this->assertSame(1, $donnees['aRenseigner']);
+        $this->assertNull($donnees['lignes'][0]['interlocuteur']);
+        $this->assertSame('Awa Koné', $donnees['lignes'][1]['interlocuteur']['nom']);
+        $this->assertStringContainsString('awa@orange.ci', $donnees['lignes'][1]['interlocuteur']['detail']);
+    }
+
+    public function test_appliquer_renvoie_l_interlocuteur_a_afficher(): void
+    {
+        $contact = DB::table('client_contacts')->where('client_id', 10)->value('id');
+
+        $reponse = $this->choisir($this->campagne(), $contact, 2)->assertOk();
+
+        $this->assertSame($contact, $reponse->json('id'));
+        $this->assertSame('Awa Koné', $reponse->json('nom'));
+        $this->assertStringContainsString('awa@orange.ci', $reponse->json('libelle'));
+    }
+
+    public function test_rien_n_est_enregistre_sans_cliquer_sur_appliquer(): void
+    {
+        $source = file_get_contents(resource_path('views/admin/campaigns/interlocuteurs.blade.php'));
+
+        // Choisir dans la liste ne fait qu'activer le bouton.
+        $this->assertStringContainsString("choix.addEventListener('change', function () { majBouton(ligne); });", $source);
+        $this->assertStringContainsString('data-appliquer', $source);
+        // .btn impose un display : sans cette règle, un bouton caché reste visible (vu au premier essai).
+        $this->assertStringContainsString('.ecran-interlocuteurs [hidden] { display: none !important; }', $source);
+    }
+
     public function test_un_commercial_ne_liste_que_ses_campagnes(): void
     {
         DB::table('users')->insert(['id' => 4, 'name' => 'Autre', 'email' => 'autre@cible-ci.com', 'role' => 'commercial']);
