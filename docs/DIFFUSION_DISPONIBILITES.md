@@ -22,6 +22,7 @@ page par panneau, avec photo) : un pour Abidjan, un pour l'intérieur du pays.
 | **Destinataires** | Tous les clients d'office (contact principal, à défaut l'adresse de la fiche client). Désinscription possible à chaque mail |
 | **Copie** *(2026-11-03)* | L'adresse de `MAIL_COPIE_COMMERCIALE` (Stéphane) reçoit chaque vrai catalogue, comme un client : une campagne Brevo n'a pas de copie, chaque adresse de la liste reçoit son propre mail. Elle n'est pas comptée parmi les clients (Brevo affiche donc un destinataire de plus que Panora) mais compte dans le contrôle du quota. Désinscrite, elle n'est pas remise dans la liste. Sans entreprise : elle lit « …notre sélection de panneaux : 232 emplacements… ». Les tests n'en ont pas : ajouter son adresse à la main dans la liste « Tests internes » de Brevo |
 | **Confirmation interne** | `commercial@cible-ci.com` + `studio@cible-ci.com` (admin) + la copie commerciale `MAIL_COPIE_COMMERCIALE` (Stéphane, 2026-11-04) + tous les Media Planners actifs, après chaque envoi, et alerte en cas d'échec. Un test : seulement à son auteur. La copie n'est pas à mettre dans `DIFFUSION_CONFIRMATION_EMAIL`, qui sert aussi d'adresses de test aux mails clients |
+| **PDF des tests** *(2026-11-09)* | Supprimés après 7 jours (`DIFFUSION_JOURS_PDF_TESTS`), la ligne du journal reste. Les envois aux clients gardent leurs PDF. Un test suspendu par Brevo garde les siens jusqu'à la fin de sa période. Essai sans rien supprimer : `php artisan dispos:purger-pdf-tests --simuler` |
 | **Envoi manuel** | Admin seul. N'annule pas l'automatique. Rappelle le dernier envoi ; si le dernier date de moins de 24 h, il faut taper ENVOYER. Le bouton enregistre une demande, traitée par le planificateur dans la minute (le PDF est trop long à générer pendant une requête web) |
 
 **Pourquoi avant** : un client qui veut afficher au 1er du mois doit avoir
@@ -366,6 +367,7 @@ l'écran de diffusion. Un bandeau le rappelle tant qu'elles manquent.
 | `app/Services/DisponibilitesPdfBuilder.php` | PDF images — partagé avec l'export manuel |
 | `app/Services/Brevo/BrevoClient.php` | Seul point de contact avec l'API Brevo |
 | `app/Console/Commands/DiffuserDisponibilites.php` | `dispos:diffuser` : 9h préparation du PDF, 10h envoi, chaque minute les demandes manuelles |
+| `app/Console/Commands/PurgerPdfTestsDiffusion.php` | `dispos:purger-pdf-tests` : à 1h15, supprime les PDF de test de plus de 7 jours |
 | `app/Console/Commands/VerifierEnvoisDiffusion.php` | `dispos:verifier-envois` : toutes les 15 min, repère les envois suspendus par Brevo et tranche les envois « à vérifier » |
 | `app/Http/Controllers/Admin/DiffusionDisponibilitesController.php` | Écran admin |
 | `app/Http/Controllers/Webhooks/BrevoWebhookController.php` | Désinscriptions, rebonds, spam |

@@ -22,6 +22,7 @@ L'export de la base se fait **sans verrouiller les tables** (`--single-transacti
 
 | Heure | Tâche |
 |---|---|
+| 01:15 | Suppression des PDF d'envois de test de plus de 7 jours (`dispos:purger-pdf-tests`) |
 | 01:30 | Suppression des copies trop anciennes |
 | **02:00** | Sauvegarde (heure creuse, loin de la diffusion de 9h-10h) |
 | 08:30 | Contrôle : alerte si la dernière copie a plus d'un jour |

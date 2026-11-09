@@ -491,6 +491,69 @@ class DiffusionDisponibilitesService
     }
 
     /**
+     * Supprime les PDF des envois de test trop anciens (règle validée le
+     * 2026-11-09 : 7 jours). Le 9/11, ils pesaient 342 Mo sur les 545 Mo de
+     * la sauvegarde. Source unique de cette règle.
+     *
+     *   • Seul le mode « test » est concerné : un envoi aux clients garde
+     *     ses PDF, leurs liens doivent continuer de marcher.
+     *   • Exception : un test suspendu par Brevo garde ses PDF jusqu'à la fin
+     *     de sa période (STATUTS_PARTIS : « leurs PDF restent servis ») ; le
+     *     test #8 du 2/11 a atteint des clients par erreur.
+     *   • La ligne du journal reste. Chemins et jetons sont vidés : le
+     *     journal n'affiche plus de lien, le lien public répond 404, et
+     *     reparerPdfsManquants() n'a plus rien à refaire.
+     *
+     * @return array{envois: int, fichiers: int, octets: int}
+     */
+    public function purgerPdfTests(bool $simuler = false): array
+    {
+        $disque = Storage::disk('local');
+        $limite = now()->subDays(max(1, (int) config('diffusion.jours_pdf_tests', 7)));
+
+        $envois = DiffusionEnvoi::where('mode', DiffusionEnvoi::MODE_TEST)
+            ->where('created_at', '<', $limite)
+            ->where(fn ($q) => $q->where('statut', '!=', DiffusionEnvoi::STATUT_SUSPENDU)
+                ->orWhereDate('periode_fin', '<', today()->toDateString()))
+            ->where(fn ($q) => $q->whereNotNull('pdf_path')
+                ->orWhereNotNull('pdf_path_abidjan')
+                ->orWhereNotNull('pdf_path_interieur'))
+            ->get();
+
+        $bilan = ['envois' => 0, 'fichiers' => 0, 'octets' => 0];
+
+        foreach ($envois as $envoi) {
+            $toutSupprime = true;
+
+            foreach ($envoi->cheminsCatalogues() as $chemin) {
+                if (!$disque->exists($chemin)) {
+                    continue;
+                }
+                $taille = $disque->size($chemin);
+                if (!$simuler && !$disque->delete($chemin)) {
+                    $toutSupprime = false;
+                    Log::warning('diffusion.purge-pdf-test', ['envoi_id' => $envoi->id, 'chemin' => $chemin]);
+                    continue;
+                }
+                $bilan['fichiers']++;
+                $bilan['octets'] += $taille;
+            }
+
+            // Fichier resté sur le disque : on garde son chemin pour réessayer demain.
+            if (!$simuler && $toutSupprime) {
+                $envoi->update([
+                    'pdf_path'           => null, 'pdf_token'           => null,
+                    'pdf_path_abidjan'   => null, 'pdf_token_abidjan'   => null,
+                    'pdf_path_interieur' => null, 'pdf_token_interieur' => null,
+                ]);
+            }
+            $bilan['envois']++;
+        }
+
+        return $bilan;
+    }
+
+    /**
      * Envoie un créneau préparé via Brevo, puis prévient l'équipe.
      *
      * Ne lève pas d'exception : un échec est consigné dans le journal et

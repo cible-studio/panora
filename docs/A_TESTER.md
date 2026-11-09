@@ -683,6 +683,21 @@ conseillé) : campagne Brevo n° 33, 467 clients + Stéphane = 468 destinataires
 - [ ] `DIFFUSION_AUTO=true` avant le **vendredi 20/11 à 10 h**
 - [ ] Ensuite, côté code : retirer `LIEN_PDF` (`docs/TECHNICAL_DEBT.md`)
 
+### 10 decies. Sauvegardes et PDF de test *(2026-11-09)*
+
+La copie vers Hetzner a échoué les nuits du 7 au 9/11. Rattrapée à la main le
+9/11 (545 Mo), puis 2 morceaux envoyés à la fois au lieu de 3. Les PDF de test
+pesaient 342 Mo sur ces 545 Mo : ils sont supprimés après 7 jours, à 1h15.
+
+- [ ] Pas de mail « Échec de la sauvegarde » les nuits suivantes. Sinon :
+      `BACKUP_S3_CONCURRENCE=1` dans Coolify, ou décaler l'heure
+- [ ] Après déploiement : `php artisan dispos:purger-pdf-tests --simuler` annonce
+      les tests d'avant le 2/11 ; le test #8 suspendu n'en fait pas partie
+- [ ] Lendemain : `php artisan backup:list`, archive plus légère. Après le
+      13/11 (tests du 6/11 supprimés) : autour de 200 Mo
+- [ ] Journal Diffusion dispos : un vieux test n'a plus de lien PDF, le vrai
+      envoi du 6/11 garde les trois
+
 ---
 
 ## 11. Renvoyer les accès — personnel et clients *(ajouté le 2026-11-02)*
