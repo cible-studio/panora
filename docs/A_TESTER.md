@@ -701,6 +701,24 @@ pesaient 342 Mo sur ces 545 Mo : ils sont supprimés après 7 jours, à 1h15.
 - [ ] Journal Diffusion dispos : un vieux test n'a plus de lien PDF, le vrai
       envoi du 6/11 garde les trois
 
+### 10 undecies. Interlocuteurs manquants et réponses automatiques *(2026-11-09)*
+
+Sans interlocuteur, les mails de suivi partent à tous les contacts cochés du
+client. Avant de lancer la reconduction, chaque commercial renseigne le sien.
+
+- [ ] Après déploiement : `php artisan campagnes:sans-interlocuteur` affiche le décompte
+- [ ] `php artisan campagnes:sans-interlocuteur --mail=<adresse>` : un Excel par commercial
+- [ ] Fichiers transmis aux commerciaux, colonnes jaunes remplies, saisie dans Panora
+- [ ] Simulation de la reconduction : chaque ligne `[→]` vise la bonne personne
+
+Réponses automatiques au catalogue (« X ne fait plus partie de l'entreprise ») :
+le nouveau contact entre par le Sheet (statut Client), l'ancien est supprimé
+dans Panora et sa ligne retirée du Sheet. Il ne revient pas : Panora refuse une
+adresse supprimée (« Supprimé dans Panora : ne revient pas »). Exception : si
+l'adresse est celle de la **fiche client**, c'est la fiche qu'il faut corriger.
+
+- [ ] Les 11 réponses du 6/11 traitées
+
 ---
 
 ## 11. Renvoyer les accès — personnel et clients *(ajouté le 2026-11-02)*
