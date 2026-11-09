@@ -262,6 +262,10 @@ class CampagnesSansInterlocuteurTest extends TestCase
         $this->assertStringContainsString('data-appliquer', $source);
         // .btn impose un display : sans cette règle, un bouton caché reste visible (vu au premier essai).
         $this->assertStringContainsString('.ecran-interlocuteurs [hidden] { display: none !important; }', $source);
+        // La flèche montre que la liste se déroule ; un « background: » en ligne l'effacerait.
+        $this->assertStringContainsString('.ecran-interlocuteurs select {', $source);
+        $this->assertStringContainsString("polyline points='6 9 12 15 18 9'", $source);
+        $this->assertStringNotContainsString('background:var(--surface2)', $source);
     }
 
     public function test_un_commercial_ne_liste_que_ses_campagnes(): void
