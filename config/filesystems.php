@@ -66,6 +66,10 @@ return [
             // avec un délai croissant, avant de déclarer l'échec.
             'retries' => ['mode' => 'standard', 'max_attempts' => (int) env('BACKUP_S3_TENTATIVES', 6)],
             'http' => ['connect_timeout' => 15, 'timeout' => 900],
+            // 2026-11-09 — Hetzner a répondu « GatewayTimeout » sur un morceau de
+            // l'archive trois nuits de suite (7, 8 et 9/11) : moins de morceaux
+            // envoyés en même temps (3 par défaut dans le SDK).
+            'options' => ['concurrency' => max(1, (int) env('BACKUP_S3_CONCURRENCE', 2))],
         ],
 
 
