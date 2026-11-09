@@ -13,11 +13,11 @@ use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
- * Écran « Interlocuteurs à renseigner » (2026-11-09) : chaque commercial
- * choisit ou saisit l'interlocuteur de ses campagnes sur une seule page,
- * sans ouvrir chaque campagne. Le commercial ne voit que les siennes ; il
- * n'a pas le droit de modifier une campagne, seulement ce champ
- * (CampaignPolicy::definirInterlocuteur).
+ * Écran « Interlocuteurs des campagnes » (2026-11-09) : l'interlocuteur
+ * actuel de chaque campagne en cours, à choisir, créer ou modifier sur une
+ * seule page. Rien n'est enregistré sans un clic sur Appliquer. Le commercial
+ * ne voit que ses campagnes ; il n'a pas le droit de modifier une campagne,
+ * seulement ce champ (CampaignPolicy::definirInterlocuteur).
  */
 class CampagnesInterlocuteursController extends Controller
 {
@@ -27,25 +27,33 @@ class CampagnesInterlocuteursController extends Controller
         $estCommercial = $user->role === UserRole::COMMERCIAL;
         $exclues = $service->adressesExclues();
 
-        $lignes = $service->campagnes($estCommercial ? (int) $user->id : null)
-            ->map(fn (Campaign $c) => [
-                'id'           => $c->id,
-                'client_id'    => $c->client_id,
-                'client'       => $c->client->name,
-                'campagne'     => $c->name,
-                'echeance'     => $c->end_date?->format('d/m/Y') ?? '—',
-                'reconduction' => $c->estAnnuelle(),
-                'commercial'   => $service->nomCommercial($c),
-                'contacts'     => $service->contactsProposes($c->client, $exclues)
-                    ->map(fn (ClientContact $k) => [
-                        'id'      => $k->id,
-                        'libelle' => $k->name . ($k->position ? ' — ' . $k->position : '') . ' (' . mb_strtolower(trim($k->email)) . ')',
-                    ])
-                    ->values(),
-            ]);
+        $lignes = $service->enCours($estCommercial ? (int) $user->id : null)
+            ->map(function (Campaign $c) use ($service, $exclues) {
+                $actuel = $service->interlocuteurActuel($c);
+
+                return [
+                    'id'            => $c->id,
+                    'client_id'     => $c->client_id,
+                    'client'        => $c->client->name,
+                    'campagne'      => $c->name,
+                    'echeance'      => $c->end_date?->format('d/m/Y') ?? '—',
+                    'reconduction'  => $c->estAnnuelle(),
+                    'commercial'    => $service->nomCommercial($c),
+                    'interlocuteur' => $actuel ? $this->fiche($actuel) + [
+                        'exclu' => $exclues->has(mb_strtolower(trim($actuel->email))),
+                    ] : null,
+                    'contacts'      => $service->contactsProposes($c->client, $exclues)
+                        ->map(fn (ClientContact $k) => ['id' => $k->id, 'libelle' => $service->libelleContact($k)])
+                        ->values(),
+                ];
+            })
+            // Celles à renseigner d'abord ; l'échéance reste l'ordre dans chaque groupe.
+            ->sortBy(fn (array $l) => $l['interlocuteur'] ? 1 : 0)
+            ->values();
 
         return view('admin.campaigns.interlocuteurs', [
             'lignes'      => $lignes,
+            'aRenseigner' => $lignes->whereNull('interlocuteur')->count(),
             'commerciaux' => $estCommercial ? collect() : $lignes->pluck('commercial')->unique()->sort()->values(),
         ]);
     }
@@ -69,6 +77,16 @@ class CampagnesInterlocuteursController extends Controller
 
         $campaign->update(['client_contact_id' => $contact->id, 'updated_by' => $request->user()->id]);
 
-        return response()->json(['ok' => true]);
+        return response()->json(['ok' => true, 'libelle' => $service->libelleContact($contact)] + $this->fiche($contact));
+    }
+
+    /** @return array{id: int, nom: string, detail: string} */
+    private function fiche(ClientContact $contact): array
+    {
+        return [
+            'id'     => $contact->id,
+            'nom'    => $contact->name,
+            'detail' => implode(' · ', array_filter([$contact->position, mb_strtolower(trim($contact->email)), $contact->phone])),
+        ];
     }
 }
