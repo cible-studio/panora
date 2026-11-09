@@ -13,6 +13,11 @@
            class="btn btn-ghost btn-sm" title="Exporter la liste filtrée en PDF">
             📄 <span class="btn-label">PDF</span>
         </a>
+        @if(in_array(auth()->user()?->role?->value, ['admin', 'commercial', 'mediaplanner'], true))
+        <a href="{{ route('admin.campaigns.interlocuteurs') }}" class="btn btn-ghost btn-sm" title="Renseigner les interlocuteurs manquants">
+            👤 <span class="btn-label">Interlocuteurs</span>
+        </a>
+        @endif
         @can('create', App\Models\Campaign::class)
         <a href="{{ route('admin.campaigns.import-pdf.form') }}" class="btn btn-ghost btn-sm" title="Importer une campagne depuis un PDF « Liste des panneaux commandes »">
             📥 <span class="btn-label">Import PDF</span>

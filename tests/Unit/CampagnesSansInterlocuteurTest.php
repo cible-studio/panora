@@ -22,6 +22,7 @@ class CampagnesSansInterlocuteurTest extends TestCase
     {
         parent::setUp();
         $this->preparerBaseRenouvellement();
+        \Illuminate\Support\Facades\Schema::table("campaigns", fn ($t) => $t->unsignedBigInteger("updated_by")->nullable());
     }
 
     private function groupes(bool $toutes = false)
@@ -122,5 +123,114 @@ class CampagnesSansInterlocuteurTest extends TestCase
 
             return true;
         });
+    }
+
+    // ── Écran « Interlocuteurs à renseigner » ──────────────────────
+
+    private function utilisateur(int $id): \App\Models\User
+    {
+        return \App\Models\User::findOrFail($id);
+    }
+
+    private function choisir(\App\Models\Campaign $campagne, $contact, int $userId)
+    {
+        return $this->actingAs($this->utilisateur($userId))
+            ->withoutMiddleware(\App\Http\Middleware\SyncReactiveState::class)
+            ->postJson(route('admin.campaigns.interlocuteur', $campagne->id), ['client_contact_id' => $contact]);
+    }
+
+    public function test_le_commercial_choisit_l_interlocuteur_de_sa_campagne(): void
+    {
+        $campagne = $this->campagne();
+        $contact = DB::table('client_contacts')->where('client_id', 10)->value('id');
+
+        $this->choisir($campagne, $contact, 2)->assertOk();
+
+        $this->assertSame($contact, $campagne->fresh()->client_contact_id);
+        $this->assertSame(2, (int) $campagne->fresh()->updated_by);
+        $this->assertTrue($this->groupes()->isEmpty());
+    }
+
+    public function test_un_commercial_ne_touche_pas_a_la_campagne_d_un_autre(): void
+    {
+        DB::table('users')->insert(['id' => 4, 'name' => 'Autre', 'email' => 'autre@cible-ci.com', 'role' => 'commercial']);
+        $campagne = $this->campagne();
+        $contact = DB::table('client_contacts')->where('client_id', 10)->value('id');
+
+        $this->choisir($campagne, $contact, 4)->assertForbidden();
+
+        $this->assertNull($campagne->fresh()->client_contact_id);
+    }
+
+    public function test_le_mp_peut_choisir_pour_tous_les_commerciaux(): void
+    {
+        $campagne = $this->campagne();
+        $contact = DB::table('client_contacts')->where('client_id', 10)->value('id');
+
+        $this->choisir($campagne, $contact, 3)->assertOk();
+    }
+
+    public function test_un_contact_d_un_autre_client_est_refuse(): void
+    {
+        DB::table('clients')->insert(['id' => 11, 'name' => 'MTN']);
+        $autre = DB::table('client_contacts')->insertGetId(['client_id' => 11, 'name' => 'Ali', 'email' => 'ali@mtn.ci']);
+
+        $this->choisir($this->campagne(), $autre, 2)->assertStatus(422);
+    }
+
+    public function test_une_adresse_morte_ou_sans_mail_est_refusee(): void
+    {
+        $campagne = $this->campagne();
+        $sansMail = DB::table('client_contacts')->insertGetId(['client_id' => 10, 'name' => 'Sans', 'email' => null]);
+        $morte = DB::table('client_contacts')->where('email', 'awa@orange.ci')->value('id');
+        DB::table('diffusion_desinscriptions')->insert(['email' => 'awa@orange.ci', 'motif' => 'rebond']);
+
+        $this->choisir($campagne, $sansMail, 2)->assertStatus(422);
+        $this->choisir($campagne, $morte, 2)->assertStatus(422);
+
+        $this->assertNull($campagne->fresh()->client_contact_id);
+    }
+
+    public function test_une_campagne_terminee_ne_se_modifie_pas_ici(): void
+    {
+        $campagne = $this->campagne(['status' => 'termine']);
+        $contact = DB::table('client_contacts')->where('client_id', 10)->value('id');
+
+        $this->choisir($campagne, $contact, 2)->assertForbidden();
+    }
+
+    public function test_l_ecran_affiche_les_campagnes_a_renseigner(): void
+    {
+        $this->campagne(["name" => "Annuelle Orange"]);
+
+        $this->actingAs($this->utilisateur(2));
+
+        $vue = app(\App\Http\Controllers\Admin\CampagnesInterlocuteursController::class)->index(
+            request()->setUserResolver(fn () => $this->utilisateur(2)),
+            app(CampagnesSansInterlocuteur::class)
+        );
+        $this->assertSame('admin.campaigns.interlocuteurs', $vue->name());
+        $this->assertTrue($vue->getData()['commerciaux']->isEmpty(), "Un commercial n'a pas de filtre.");
+
+        // Le corps de la page, sans le gabarit général (qui lit des tables absentes ici).
+        $source = file_get_contents(resource_path('views/admin/campaigns/interlocuteurs.blade.php'));
+        $corps = preg_replace(['/<x-admin-layout[^>]*>/', '/<\/x-admin-layout>/'], '', $source);
+        $html = \Illuminate\Support\Facades\Blade::render($corps, $vue->getData());
+
+        $this->assertStringContainsString('ORANGE CI', $html);
+        $this->assertStringContainsString('Annuelle Orange', $html);
+        $this->assertStringContainsString('awa@orange.ci', $html);
+        $this->assertStringContainsString('Reconduction', $html);
+    }
+
+    public function test_un_commercial_ne_liste_que_ses_campagnes(): void
+    {
+        DB::table('users')->insert(['id' => 4, 'name' => 'Autre', 'email' => 'autre@cible-ci.com', 'role' => 'commercial']);
+        $this->campagne(['name' => 'De Yao']);
+        $this->campagne(['name' => "De l'autre", 'commercial_user_id' => 4]);
+
+        $service = app(CampagnesSansInterlocuteur::class);
+        $this->assertSame(['De Yao'], $service->campagnes(2)->pluck('name')->all());
+        $this->assertCount(2, $service->campagnes());
     }
 }

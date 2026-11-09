@@ -53,7 +53,7 @@ class CopieCommercialeTest extends TestCase
         'RenouvellementDigestMail', 'RenouvellementReponseMail',
         'ReservationAssignedMail', 'PropositionAssignedMail', 'UserWelcomeMail',
         'RappelTestRestaurationMail', 'DemoRequestMail', 'CibleContactMail',
-        'ClientContactReceivedMail',
+        'ClientContactReceivedMail', 'InterlocuteursAFournirMail',
         // Suivi d'exécution
         'PigeValidatedMail', 'CampaignDecappedMail', 'CampaignEndedMail',
         'ClientPanelMaintenanceMail', 'SatisfactionSurveyMail', 'MaintenanceMail',

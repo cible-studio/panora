@@ -170,7 +170,8 @@ Commandes utiles :
 
 ```bash
 php artisan campaigns:notify-ending --dry-run                 # ce qui partirait aujourd'hui
-php artisan campagnes:sans-interlocuteur --mail=moi@cible-ci.com  # un Excel par commercial, à remplir
+php artisan campagnes:sans-interlocuteur --mail=moi@cible-ci.com  # un Excel par commercial
+# Saisie rapide par les commerciaux : Campagnes → Interlocuteurs (/admin/campaigns/interlocuteurs)
 php artisan campaigns:notify-ending --campagne=42 --etape=j30 # une étape précise pour une campagne
 php artisan renouvellements:digest --dry-run                  # le mail du matin, sans l'envoyer
 ```
