@@ -1475,6 +1475,14 @@ Route::prefix('admin')
         // segments non-numériques (comme 'create') ne soient pas capturés.
         Route::get('campaigns', [CampaignController::class, 'index'])->name('campaigns.index');
 
+        // Interlocuteurs à renseigner (2026-11-09) : un écran pour chaque commercial.
+        Route::middleware('role:admin,commercial,mediaplanner')->group(function () {
+            Route::get('campaigns/interlocuteurs', [\App\Http\Controllers\Admin\CampagnesInterlocuteursController::class, 'index'])
+                ->name('campaigns.interlocuteurs');
+            Route::post('campaigns/{campaign}/interlocuteur', [\App\Http\Controllers\Admin\CampagnesInterlocuteursController::class, 'update'])
+                ->whereNumber('campaign')->name('campaigns.interlocuteur');
+        });
+
         // Création (avant routes {campaign} paramétriques)
         Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::get('campaigns/create', [CampaignController::class, 'create'])->name('campaigns.create');

@@ -708,7 +708,10 @@ client. Avant de lancer la reconduction, chaque commercial renseigne le sien.
 
 - [ ] Après déploiement : `php artisan campagnes:sans-interlocuteur` affiche le décompte
 - [ ] `php artisan campagnes:sans-interlocuteur --mail=<adresse>` : un Excel par commercial
-- [ ] Fichiers transmis aux commerciaux, colonnes jaunes remplies, saisie dans Panora
+- [ ] Écran **Campagnes → 👤 Interlocuteurs** (`/admin/campaigns/interlocuteurs`) : un commercial ne voit que
+      ses campagnes, le choix s'enregistre aussitôt, « + Nouveau » crée le contact et le choisit,
+      « Même personne pour ses autres campagnes » fonctionne
+- [ ] Le fichier Excel reste disponible, mais l'écran le remplace pour la saisie
 - [ ] Simulation de la reconduction : chaque ligne `[→]` vise la bonne personne
 
 Réponses automatiques au catalogue (« X ne fait plus partie de l'entreprise ») :

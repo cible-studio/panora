@@ -96,6 +96,17 @@ class CampaignPolicy
         return $user->canEditPrices();
     }
 
+    /**
+     * Choisir l'interlocuteur (2026-11-09) : MP, et le commercial sur ses
+     * propres campagnes. Le commercial ne modifie rien d'autre.
+     */
+    public function definirInterlocuteur(User $user, Campaign $campaign): bool
+    {
+        if (in_array($campaign->status, [CampaignStatus::TERMINE, CampaignStatus::ANNULE], true)) return false;
+        if ($user->role === UserRole::MEDIAPLANNER) return true;
+        return $user->role === UserRole::COMMERCIAL && $campaign->belongsToCommercialUser((int) $user->id);
+    }
+
     /** Suppression : Admin uniquement (le before() ci-dessus capte). */
     public function delete(User $user, Campaign $campaign): bool
     {
