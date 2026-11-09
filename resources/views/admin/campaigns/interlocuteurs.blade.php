@@ -3,14 +3,22 @@
          choisir, créer ou modifier. Rien n'est enregistré sans un clic sur
          Appliquer. Règles : CampagnesInterlocuteursController. --}}
     @php
-        $champ = 'width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:13px;color:var(--text)';
-        $filtre = $champ . ';width:auto';
+        // background-color, pas background : le raccourci effacerait la flèche des listes.
+        $champ = 'width:100%;box-sizing:border-box;background-color:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:13px;color:var(--text)';
+        $liste = $champ . ';padding-right:28px';
+        $filtre = $liste . ';width:auto';
     @endphp
 
     {{-- .btn impose un display : sans cette règle, un bouton « hidden » resterait visible. --}}
     <style>
         .ecran-interlocuteurs [hidden] { display: none !important; }
         .ecran-interlocuteurs button:disabled { opacity: .45; cursor: not-allowed; }
+        /* Flèche visible : on doit voir que la liste se déroule. */
+        .ecran-interlocuteurs select {
+            cursor: pointer; -webkit-appearance: none; appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+            background-repeat: no-repeat; background-position: right 10px center;
+        }
     </style>
 
     <div class="card ecran-interlocuteurs">
@@ -86,7 +94,7 @@
                                     <div data-edition @if($actuel) hidden @endif>
                                         <div data-aucun @if($actuel) hidden @endif style="font-size:12px;color:var(--text3);margin-bottom:5px">Aucun interlocuteur pour l'instant</div>
                                         <div style="display:flex;gap:8px;align-items:center">
-                                            <select data-choix aria-label="Interlocuteur de {{ $l['campagne'] }}" style="{{ $champ }}">
+                                            <select data-choix aria-label="Interlocuteur de {{ $l['campagne'] }}" style="{{ $liste }}">
                                                 <option value="">{{ $l['contacts']->isEmpty() ? 'Aucun contact : cliquez sur + Nouveau' : "— Choisir l'interlocuteur —" }}</option>
                                                 @foreach($l['contacts'] as $c)
                                                     <option value="{{ $c['id'] }}">{{ $c['libelle'] }}</option>
