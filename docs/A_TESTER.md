@@ -675,7 +675,10 @@ conseillé) : campagne Brevo n° 33, 467 clients + Stéphane = 468 destinataires
 - [x] Rapport Brevo relu le 9/11 : campagne « Envoyée » (18h03), non suspendue,
       404 délivrés sur 468. **Rebonds définitifs : 30, soit 6,4 %, au-dessus des
       2 %.** Panora a exclu 30 adresses depuis l'envoi : le webhook e-mail fonctionne
-- [ ] Onglet Délivrabilité : nature des 34 autres mails non délivrés
+- [x] Onglet Délivrabilité : les 34 autres sont des rebonds temporaires (18 cause inconnue, 12 connexion au fournisseur, 4 boîte pleine ou inactive). Hors robots : 206 ouvertures, 24 clics. Au 9/11 : aucune réponse, aucun devis
+- [ ] Envoi du 20/11 : regarder si les mêmes adresses rebondissent encore
+- [ ] Jeudi 12/11 : refaire le point réponses et devis
+- [ ] Vérifier l'offre Brevo payée : l'onglet Délivrabilité propose encore « Passer à Standard »
 - [ ] Diffusion dispos : environ **437** destinataires au lieu de 467
 - [ ] Équipe commerciale : corriger les 30 adresses (Diffusion dispos, Adresses exclues)
 - [ ] Envoi du 20/11 : rebonds définitifs sous 2 %
