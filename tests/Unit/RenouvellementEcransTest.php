@@ -53,7 +53,7 @@ class RenouvellementEcransTest extends TestCase
 
         $this->actingAs($admin)->post('/admin/renouvellements/textes/apercu', [
             'cle' => 'j30', 'objet' => 'Échéance [Société]', 'corps' => "Bonjour [Nom du client],\n\n[Boutons]", 'campagne' => $c->id,
-        ])->assertOk()->assertSee('Échéance ORANGE CI', false)->assertSee('Bonjour Awa Koné', false)->assertSee('Je souhaite renouveler ma campagne', false);
+        ])->assertOk()->assertSee('Échéance ORANGE CI', false)->assertSee('Bonjour Awa Koné', false)->assertSee('Je souhaite renouveler mon réseau', false);
     }
 
     public function test_par_defaut_tout_est_visible_et_une_fenetre_vide_est_expliquee(): void

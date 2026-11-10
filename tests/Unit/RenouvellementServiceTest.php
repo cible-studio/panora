@@ -299,7 +299,7 @@ class RenouvellementServiceTest extends TestCase
 
         // Revenir sur le lien : la réponse est rappelée, plus de formulaire.
         $this->get("/renouvellement/{$dossier->token}/refus")->assertOk()
-            ->assertSee('Votre réponse est déjà enregistrée')->assertSee('Je souhaite renouveler ma campagne')
+            ->assertSee('Votre réponse est déjà enregistrée')->assertSee('Je souhaite renouveler mon réseau')
             ->assertDontSee('Confirmer ma réponse');
 
         // Renvoyer une réponse (ou la même) : rien n'est enregistré, aucun mail ne repart.
@@ -418,7 +418,7 @@ class RenouvellementServiceTest extends TestCase
         $html = $mail->render();
 
         $this->assertStringContainsString('Retirer ABJ-101.', $html);
-        $this->assertStringContainsString('Je souhaite ajuster mon dispositif', $html);
+        $this->assertStringContainsString('Je souhaite ajuster mon réseau', $html);
     }
 
     public function test_un_test_manuel_ne_compte_pas_comme_l_envoi_automatique(): void

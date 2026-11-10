@@ -37,8 +37,8 @@ class ModelesMail
 
     /** Choix de réponse du client → libellé du bouton et de la page. */
     public const CHOIX = [
-        'renouveler' => 'Je souhaite renouveler ma campagne',
-        'ajuster'    => 'Je souhaite ajuster mon dispositif',
+        'renouveler' => 'Je souhaite renouveler mon réseau',
+        'ajuster'    => 'Je souhaite ajuster mon réseau',
         'refus'      => 'Je ne souhaite pas renouveler',
         'rappel'     => 'Je souhaite échanger avec un conseiller',
     ];
