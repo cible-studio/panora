@@ -18,6 +18,7 @@
         $contact->name, $contact->email, $contact->phone, $contact->position, $contact->role_label,
     ]))));
     $badge = 'font-size:9px;font-weight:700;padding:1px 6px;border-radius:9px;letter-spacing:.3px;white-space:nowrap;';
+    $campagnesInterlocuteur = $campagnesInterlocuteur ?? null;
 @endphp
 <div class="contact-item ci-ligne" data-contact-id="{{ $contact->id }}"
      data-name="{{ $contact->name }}" data-email="{{ $contact->email }}" data-phone="{{ $contact->phone }}"
@@ -43,7 +44,11 @@
                 <span style="{{ $badge }}background:rgba(234,67,53,.12);color:#ea4335;cursor:help;"
                       title="Arrivé du Google Sheets le {{ $contact->created_at?->format('d/m/Y') }}">GMAIL</span>
             @endif
-            @if(!$contact->receives_notifications)
+            {{-- L'interlocuteur d'une campagne en cours reçoit ses mails, case cochée ou non (2026-11-10). --}}
+            @if($campagnesInterlocuteur?->isNotEmpty())
+                <span style="{{ $badge }}background:rgba(22,163,74,.12);color:#16a34a;cursor:help;"
+                      title="Reçoit les mails de : {{ $campagnesInterlocuteur->implode(', ') }}">Interlocuteur de campagne</span>
+            @elseif(!$contact->receives_notifications)
                 <span style="{{ $badge }}font-weight:600;background:var(--surface3);color:var(--text3);cursor:help;"
                       title="Ne reçoit pas les mails de campagne (renouvellement, fin de campagne)">sans mails de campagne</span>
             @endif

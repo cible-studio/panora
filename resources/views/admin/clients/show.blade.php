@@ -144,6 +144,7 @@
                         Ils n'ont pas de compte d'accès au portail. Chaque campagne, réservation ou devis
                         précise lequel suit le dossier ; « sans mails de campagne » : le contact ne reçoit
                         pas les mails de suivi s'il n'est pas l'interlocuteur du dossier.
+                        « Interlocuteur de campagne » : il reçoit les mails de sa campagne en cours.
                     </x-aide>
                 </div>
                 <button type="button" onclick="ClientContacts.openCreate()" class="btn btn-ghost btn-sm" title="Ajouter un interlocuteur" style="padding:3px 10px;font-size:11px;flex-shrink:0;">
@@ -167,7 +168,7 @@
 
             <div id="contacts-list" class="ci-liste" @if($nbContacts === 0) hidden @endif>
                 @foreach($client->contacts as $contact)
-                    @include('admin.clients.partials.contact-item', ['contact' => $contact, 'client' => $client])
+                    @include('admin.clients.partials.contact-item', ['contact' => $contact, 'client' => $client, 'campagnesInterlocuteur' => $campagnesParInterlocuteur->get($contact->id)])
                 @endforeach
             </div>
             <div id="ci-aucun-resultat" hidden style="font-size:12px;color:var(--text3);padding:10px 2px;">
