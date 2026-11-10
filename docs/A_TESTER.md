@@ -692,8 +692,9 @@ La copie vers Hetzner a échoué les nuits du 7 au 9/11. Rattrapée à la main l
 9/11 (545 Mo), puis 2 morceaux envoyés à la fois au lieu de 3. Les PDF de test
 pesaient 342 Mo sur ces 545 Mo : ils sont supprimés après 7 jours, à 1h15.
 
-- [ ] Pas de mail « Échec de la sauvegarde » les nuits suivantes. Sinon :
-      `BACKUP_S3_CONCURRENCE=1` dans Coolify, ou décaler l'heure
+- [ ] Pas de mail « Échec de la sauvegarde » les nuits suivantes. *(10/11 : nouvel échec à 2h,
+      `503 Slow Down` sur une simple lecture : sauvegarde déplacée à 4h40, 3 essais à 30 min
+      d'écart.)* Si ça échoue encore : choisir une autre heure avec `BACKUP_HEURE`
 - [ ] Après déploiement : `php artisan dispos:purger-pdf-tests --simuler` annonce
       les tests d'avant le 2/11 ; le test #8 suspendu n'en fait pas partie
 - [ ] Lendemain : `php artisan backup:list`, archive plus légère. Après le

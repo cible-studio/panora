@@ -184,7 +184,7 @@ Schedule::command('dispos:reparer-pdf')
     ->withoutOverlapping(30)
     ->runInBackground();
 //     Chaque nuit à 1h15 (2026-11-09) : PDF des envois de test de plus de
-//     7 jours supprimés, juste avant la sauvegarde de 2h qu'ils alourdissaient.
+//     7 jours supprimés, avant la sauvegarde de la nuit qu'ils alourdissaient.
 Schedule::command('dispos:purger-pdf-tests')
     ->dailyAt('01:15')
     ->withoutOverlapping();
@@ -200,7 +200,8 @@ Schedule::command('dispos:verifier-envois')
 //     spatie/laravel-backup, configuré dans config/backup.php ; guide :
 //     docs/SAUVEGARDES.md. Inactif tant que BACKUP_ENABLED=false.
 //     01:30 nettoyage des anciennes copies (7 j / 4 sem. / 6 mois),
-//     02:00 sauvegarde (heure creuse, loin de la diffusion de 9h-10h),
+//     04:40 sauvegarde (BACKUP_HEURE ; heure creuse, loin de la diffusion
+//     de 9h-10h et hors du créneau de 2h saturé chez Hetzner, 2026-11-10),
 //     08:30 contrôle : alerte mail si la dernière copie a plus d'un jour.
 //     runInBackground() : l'export + l'archive des photos peut dépasser
 //     les 300 s de la tâche Coolify qui lance schedule:run.
@@ -210,7 +211,7 @@ Schedule::command('backup:clean')
     ->withoutOverlapping()
     ->runInBackground();
 Schedule::command('backup:run')
-    ->dailyAt('02:00')
+    ->dailyAt(config('backup.heure', '04:40'))
     ->when(fn () => config('backup.actif'))
     ->withoutOverlapping(180)
     ->runInBackground();
