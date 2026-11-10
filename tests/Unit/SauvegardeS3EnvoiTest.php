@@ -38,6 +38,17 @@ class SauvegardeS3EnvoiTest extends TestCase
         $this->assertSame(2, $this->optionsEnvoi()['concurrency']);
     }
 
+    public function test_la_sauvegarde_evite_le_creneau_sature_et_espace_ses_essais(): void
+    {
+        $this->assertSame('04:40', config('backup.heure'));
+        $this->assertSame(3, config('backup.backup.tries'));
+        $this->assertSame(1800, config('backup.backup.retry_delay'));
+        $this->assertMatchesRegularExpression(
+            "/Schedule::command\('backup:run'\)\s+->dailyAt\(config\('backup\.heure', '04:40'\)\)/",
+            file_get_contents(base_path('routes/console.php'))
+        );
+    }
+
     public function test_les_reprises_automatiques_restent_en_place(): void
     {
         $this->assertSame('standard', config('filesystems.disks.backups-s3.retries.mode'));

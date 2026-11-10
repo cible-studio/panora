@@ -24,7 +24,7 @@ L'export de la base se fait **sans verrouiller les tables** (`--single-transacti
 |---|---|
 | 01:15 | Suppression des PDF d'envois de test de plus de 7 jours (`dispos:purger-pdf-tests`) |
 | 01:30 | Suppression des copies trop anciennes |
-| **02:00** | Sauvegarde (heure creuse, loin de la diffusion de 9h-10h) |
+| **04:40** | Sauvegarde (`BACKUP_HEURE`, heure creuse, loin de la diffusion de 9h-10h et hors du créneau de 2h saturé chez Hetzner). En cas d'échec, deux nouveaux essais à 30 minutes d'écart |
 | 08:30 | Contrôle : alerte si la dernière copie a plus d'un jour |
 
 **Copies conservées :** toutes celles des 7 derniers jours, puis 1 par jour pendant 7 jours de plus, 1 par semaine sur 4 semaines, 1 par mois sur 6 mois et 1 par an sur 2 ans. Les plus anciennes sont supprimées au-delà de `BACKUP_MAX_MO` (20 Go par défaut).
@@ -86,10 +86,11 @@ Test réalisé le 2026-10-02 en local : sauvegarde en 11 s (102 Mo). La base a �
 |---|---|
 | `TLS/SSL error: self-signed certificate` | Corrigé le 2026-10-07 : le client MariaDB vérifie le certificat du MySQL Coolify, qui est auto-signé. Option `--skip-ssl-verify-server-cert` ajoutée côté serveur (`config/database.php`, la connexion reste chiffrée). Remplaçable par `DB_DUMP_EXTRA_OPTION` |
 | `Plugin caching_sha2_password could not be loaded` | Corrigé le 2026-10-07 : paquet `mariadb-connector-c` ajouté à l image (module de connexion MySQL 8). Redéployer si l erreur revient |
-| `cURL error 35: TLS connect error … unexpected eof` vers backups-s3 | Coupure réseau vers Hetzner Object Storage (constatée du 10 au 12/10/2026). Depuis le 12/10, le SDK réessaie 6 fois puis la sauvegarde entière est relancée 5 min plus tard (`BACKUP_TENTATIVES`, `BACKUP_DELAI_REPRISE`). La copie sur le serveur, elle, est faite avant. Si l erreur persiste : tester `curl -sv https://hel1.your-objectstorage.com` depuis le conteneur et consulter status.hetzner.com |
+| `cURL error 35: TLS connect error … unexpected eof` vers backups-s3 | Coupure réseau vers Hetzner Object Storage (constatée du 10 au 12/10/2026). Depuis le 12/10, le SDK réessaie 6 fois puis la sauvegarde entière est relancée (depuis le 10/11 : 3 essais à 30 min d'écart, `BACKUP_TENTATIVES`, `BACKUP_DELAI_REPRISE`). La copie sur le serveur, elle, est faite avant. Si l erreur persiste : tester `curl -sv https://hel1.your-objectstorage.com` depuis le conteneur et consulter status.hetzner.com |
 | `GatewayTimeout` sur `UploadPart` vers backups-s3 | Hetzner ne répond pas à temps pendant l'envoi d'un morceau de l'archive (nuits du 7 au 9/11/2026, cause non établie). La copie sur le serveur est faite quand même. Rattraper à la main : `php artisan backup:run --only-to-disk=backups-s3`. Depuis le 9/11, 2 morceaux à la fois (`BACKUP_S3_CONCURRENCE`, à passer à 1 si l'erreur revient) |
 | Mail « Les sauvegardes … sont corrompues » | Traduction trompeuse de « unhealthy » : la dernière copie de ce disque a plus d'un jour. L'archive elle-même n'est pas abîmée. État réel : `php artisan backup:list` |
 | `mysqldump: not found` | Image construite sans `mariadb-client` : redéployer |
-| Alerte « backup is unhealthy » | La sauvegarde de 2h n'a pas tourné : vérifier la tâche planifiée `schedule:run` dans Coolify |
+| `503 Slow Down` sur `ListObjectsV2` vers backups-s3 | Hetzner limite les requêtes parce qu'il est surchargé : constaté à 2h le 10/11, sur une simple lecture de la liste, avant tout envoi. La sauvegarde a été déplacée à 4h40. Rattraper à la main : `php artisan backup:run --only-to-disk=backups-s3` |
+| Alerte « backup is unhealthy » | La sauvegarde de la nuit n'a pas tourné : vérifier la tâche planifiée `schedule:run` dans Coolify |
 | Échec vers `backups-s3` | Clé, bucket ou endpoint S3 incorrect ; la copie locale existe quand même |
 | En local (Windows) | `DB_DUMP_BINARY_PATH=C:/wamp64/bin/mysql/mysql9.1.0/bin/` |

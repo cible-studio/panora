@@ -17,6 +17,11 @@ return [
     // Interrupteur des tâches planifiées (routes/console.php).
     'actif' => (bool) env('BACKUP_ENABLED', false),
 
+    // Heure de la sauvegarde (2026-11-10). Hetzner a refusé la copie vers 2h
+    // quatre nuits de suite (GatewayTimeout, puis 503 SlowDown) alors qu'elle
+    // passait dans la journée : on sort du créneau où tout le monde sauvegarde.
+    'heure' => env('BACKUP_HEURE', '04:40'),
+
     'backup' => [
         /*
          * The name of this application. You can use this name to monitor
@@ -206,14 +211,16 @@ return [
          * The number of attempts, in case the backup command encounters an exception
          */
         // 2026-10-12 — Si la copie hors serveur échoue malgré les reprises du
-        // SDK, toute la sauvegarde est relancée une fois, 5 minutes plus tard.
-        'tries' => (int) env('BACKUP_TENTATIVES', 2),
+        // SDK, toute la sauvegarde est relancée. 2026-11-10 : trois essais à
+        // 30 minutes d'écart, 5 minutes ne suffisaient pas à laisser passer
+        // une surcharge de Hetzner. Le dernier finit avant le contrôle de 8h30.
+        'tries' => (int) env('BACKUP_TENTATIVES', 3),
 
         /*
          * The number of seconds to wait before attempting a new backup if the previous try failed
          * Set to `0` for none
          */
-        'retry_delay' => (int) env('BACKUP_DELAI_REPRISE', 300),
+        'retry_delay' => (int) env('BACKUP_DELAI_REPRISE', 1800),
     ],
 
     /*

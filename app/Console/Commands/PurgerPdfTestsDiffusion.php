@@ -11,7 +11,7 @@ use Illuminate\Console\Command;
  * 545 Mo de la sauvegarde. La règle est dans
  * DiffusionDisponibilitesService::purgerPdfTests().
  *
- * Planifiée à 1h15, juste avant la sauvegarde de 2h (cf. routes/console.php).
+ * Planifiée à 1h15, avant la sauvegarde de la nuit (cf. routes/console.php).
  */
 class PurgerPdfTestsDiffusion extends Command
 {
