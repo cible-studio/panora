@@ -59,6 +59,26 @@ class CampagnesSansInterlocuteur
         return $campagne->client->interlocuteurRetenu($campagne->interlocuteur);
     }
 
+    /**
+     * Interlocuteurs des campagnes en cours d'un client (2026-11-10) : ils
+     * reçoivent les mails de leur campagne, que la case « reçoit les mails »
+     * soit cochée ou non. Même règle que les envois (interlocuteurActuel).
+     *
+     * @return Collection<int, Collection<int, string>>  id du contact → noms de ses campagnes
+     */
+    public function campagnesParInterlocuteur(Client $client): Collection
+    {
+        return $client->campaigns()
+            ->with('interlocuteur')
+            ->whereNotNull('client_contact_id')
+            ->whereIn('status', array_map(fn ($s) => $s->value, self::STATUTS_EN_COURS))
+            ->orderBy('end_date')
+            ->get()
+            ->filter(fn (Campaign $c) => $client->interlocuteurRetenu($c->interlocuteur))
+            ->groupBy('client_contact_id')
+            ->map(fn (Collection $campagnes) => $campagnes->pluck('name')->values());
+    }
+
     public function libelleContact(ClientContact $contact): string
     {
         return $contact->name . ($contact->position ? ' — ' . $contact->position : '') . ' (' . mb_strtolower(trim($contact->email)) . ')';

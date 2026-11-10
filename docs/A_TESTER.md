@@ -716,6 +716,8 @@ client. Avant de lancer la reconduction, chaque commercial renseigne le sien.
       *Parcours vérifié dans un navigateur le 9/11, avec des réponses simulées : à refaire sur la vraie base*
 - [ ] Le fichier Excel reste disponible, mais l'écran le remplace pour la saisie
 - [ ] Simulation de la reconduction : chaque ligne `[→]` vise la bonne personne
+- [ ] Fiche client (10/11) : l'interlocuteur d'une campagne en cours porte le badge vert « Interlocuteur de campagne »
+      (au survol, ses campagnes) à la place de « sans mails de campagne »
 
 Réponses automatiques au catalogue (« X ne fait plus partie de l'entreprise ») :
 le nouveau contact entre par le Sheet (statut Client), l'ancien est supprimé

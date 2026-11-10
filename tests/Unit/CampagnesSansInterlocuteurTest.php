@@ -278,4 +278,69 @@ class CampagnesSansInterlocuteurTest extends TestCase
         $this->assertSame(['De Yao'], $service->campagnes(2)->pluck('name')->all());
         $this->assertCount(2, $service->campagnes());
     }
+
+    // ── Badge de la fiche client (2026-11-10) ──────────────────────
+
+    private function campagnesDe(int $clientId)
+    {
+        return app(CampagnesSansInterlocuteur::class)->campagnesParInterlocuteur(\App\Models\Client::findOrFail($clientId));
+    }
+
+    private function ligneContact(int $contactId, ?\Illuminate\Support\Collection $campagnes = null): string
+    {
+        return view('admin.clients.partials.contact-item', [
+            'contact' => \App\Models\ClientContact::findOrFail($contactId),
+            'client'  => \App\Models\Client::findOrFail(10),
+            'campagnesInterlocuteur' => $campagnes,
+        ])->render();
+    }
+
+    public function test_l_interlocuteur_d_une_campagne_en_cours_est_repere_meme_non_coche(): void
+    {
+        DB::table('client_contacts')->update(['receives_notifications' => false]);
+        $contact = DB::table('client_contacts')->where('client_id', 10)->value('id');
+        $this->campagne(['name' => 'Annuelle', 'client_contact_id' => $contact]);
+        $this->campagne(['name' => 'Planifiee', 'status' => 'planifie', 'end_date' => '2027-12-31', 'client_contact_id' => $contact]);
+
+        $this->assertSame(['Annuelle', 'Planifiee'], $this->campagnesDe(10)->get($contact)->all());
+    }
+
+    public function test_une_campagne_terminee_ou_un_contact_sans_adresse_ne_comptent_pas(): void
+    {
+        $contact  = DB::table('client_contacts')->where('client_id', 10)->value('id');
+        $sansMail = DB::table('client_contacts')->insertGetId(['client_id' => 10, 'name' => 'Sans', 'email' => null]);
+        $this->campagne(['status' => 'termine', 'end_date' => '2026-06-30', 'client_contact_id' => $contact]);
+        $this->campagne(['client_contact_id' => $sansMail]);
+
+        $this->assertTrue($this->campagnesDe(10)->isEmpty());
+    }
+
+    public function test_le_badge_interlocuteur_remplace_sans_mails_de_campagne(): void
+    {
+        DB::table('client_contacts')->update(['receives_notifications' => false]);
+        $contact = DB::table('client_contacts')->where('client_id', 10)->value('id');
+
+        $avec = $this->ligneContact($contact, collect(['BNI 2026', 'BNI Extension']));
+        $this->assertStringContainsString('Interlocuteur de campagne', $avec);
+        $this->assertStringContainsString('Reçoit les mails de : BNI 2026, BNI Extension', $avec);
+        $this->assertStringNotContainsString('sans mails de campagne', $avec);
+
+        $sans = $this->ligneContact($contact);
+        $this->assertStringContainsString('sans mails de campagne', $sans);
+        $this->assertStringNotContainsString('Interlocuteur de campagne', $sans);
+
+        DB::table('client_contacts')->update(['receives_notifications' => true]);
+        $coche = $this->ligneContact($contact);
+        $this->assertStringNotContainsString('sans mails de campagne', $coche);
+        $this->assertStringNotContainsString('Interlocuteur de campagne', $coche);
+    }
+
+    public function test_la_fiche_client_transmet_les_campagnes_de_chaque_interlocuteur(): void
+    {
+        $vue = file_get_contents(resource_path('views/admin/clients/show.blade.php'));
+        $this->assertStringContainsString("'campagnesInterlocuteur' => \$campagnesParInterlocuteur->get(\$contact->id)", $vue);
+
+        $controleur = file_get_contents(app_path('Http/Controllers/Admin/ClientController.php'));
+        $this->assertStringContainsString("'campagnesParInterlocuteur'", $controleur);
+    }
 }

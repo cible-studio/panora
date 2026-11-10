@@ -380,13 +380,18 @@ class ClientController extends Controller
         ]), 10);
         $relancesStats  = $reminderSvc->statsByClient($client->id);
 
+        // Badge « Interlocuteur de campagne » de la liste des interlocuteurs (2026-11-10).
+        $campagnesParInterlocuteur = app(\App\Services\Campagnes\CampagnesSansInterlocuteur::class)
+            ->campagnesParInterlocuteur($client);
+
         return view('admin.clients.show', compact(
             'client',
             'totalFacture',
             'sectors',
             'panneauxClient',
             'relancesClient',
-            'relancesStats'
+            'relancesStats',
+            'campagnesParInterlocuteur'
         ));
     }
 
