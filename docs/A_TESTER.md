@@ -1145,6 +1145,24 @@ php artisan axes:decouper --appliquer  # crée les 101 pieds
 Rejouable. Recopie les tarifs tels quels. `--axe=CDYLUP-004` pour n'en
 traiter qu'un et regarder le résultat avant d'y aller en entier.
 
+**Simulation passée en production le 11/11** — 13 axes, **101 pieds**, et
+elle confirme le document métier contre le vieux seeder : CDYLUP-004
+Carrefour Lavie annonce bien **11 pieds** (le seeder disait 14, il a
+tort). Toutes les structures se lisent : 3 faces par pied partout, sauf
+BK-002 Carrefour Adiaké Assinie qui en a 2 (« 12Panneaux double face »).
+
+Deux tarifs sortent du rang, et les deux portent une référence à 2
+chiffres au lieu de 3 — à faire trancher :
+
+- **CDYPUB-09** (2 Plateaux – Carrefour Laspalmas) : **100 000** alors que
+  tous les autres axes Lumipub sont à 130 000. Référence en `CDYPUB` et
+  non `CDYLUP`.
+- **CDYLUP-10** (Opéra – Pharmacie St Gabriel) : 130 000, mais déjà
+  réservé deux fois à PU = 0.
+
+`BK-002` à 100 000 est probablement normal : c'est un Classique double
+face, pas un Lumipub — produit différent.
+
 #### 🔴 Le contrôle qui compte — la neutralité fiscale
 
 La promesse de la phase 1 est que **la facture ne change pas d'un franc**.
@@ -1161,7 +1179,27 @@ php artisan tinker --execute="
   }"
 ```
 
-- [ ] Noter les chiffres AVANT le découpage : ……
+- [x] **Chiffres AVANT le découpage — relevés en production le 11/11 :**
+
+| campagne | lignes | HT | ODP | TM |
+|---|---|---|---|---|
+| 4 AKWABAO FIGURINE | 2 | 20 908 800 | 1 728 000 | 1 728 000 |
+| 6 ADDOHA – CITÉ SONGON – 22M | 1 | 13 000 000 | 2 700 000 | 540 000 |
+| 9 ITB | 1 | 1 200 000 | 144 000 | 144 000 |
+| 27 BNI 2026 | 2 | 17 520 000 | 864 000 | 864 000 |
+| 76 LOKO 2026 | 1 | 639 600 | 72 000 | 72 000 |
+| 95 DAIKIN | 1 | **0** | 6 300 000 | 360 000 |
+| 102 LADILI CONSULTING – 2026 | 5 | 7 750 000 | 680 000 | 68 000 |
+| **TOTAL** | **13** | **61 018 400** | **12 488 000** | **3 776 000** |
+
+Les 38 autres campagnes vivantes n'ont aucune ligne de facture. **Ce sont
+ces quatre totaux qu'il faut retrouver à l'identique après le découpage.**
+
+🔶 **À faire trancher — campagne 95 DAIKIN** : une ligne à **HT = 0** qui
+porte pourtant **6 300 000 d'ODP** et 360 000 de TM. À elle seule, la
+moitié de l'ODP de tout le carnet vivant, sur une ligne sans montant de
+base. Sans rapport avec les axes, antérieur, non corrigé — mais à
+regarder, parce que ce chiffre entre dans la comparaison avant/après.
 - [ ] Les comparer APRÈS : **ils doivent être identiques**. S'ils bougent,
       le regroupement de `InvoiceFromCampaignBuilder` a un trou — ne pas
       émettre de facture avant d'avoir compris.
