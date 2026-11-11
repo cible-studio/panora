@@ -142,17 +142,23 @@ class InvoiceFromCampaignBuilder
             ]);
 
             // ─── Lignes panneaux internes ────────────────────────
+            // Axes multi-pieds (2026-11-11) : les pieds d'un même axe
+            // donnent UNE seule ligne, portée par la ligne de l'axe.
+            // C'est ce qui rend la phase 1 fiscalement neutre — cf.
+            // self::FACTURER_AU_PIED et docs/AXES_MULTI_PIEDS.md § 4.
             $orderIdx = 0;
-            foreach ($campaign->panels as $panel) {
+            foreach ($this->grouperParAxe($campaign->panels, $negotiated) as $groupe) {
                 $this->createLineForPanel(
                     invoice: $invoice,
-                    panel: $panel,
-                    pivotKey: 'int_' . $panel->id,
+                    panel: $groupe['porteur'],
+                    pivotKey: 'int_' . $groupe['porteur']->id,
                     negotiated: $negotiated,
                     dureeMois: $dureeMois,
                     year: $year,
                     orderIdx: $orderIdx++,
                     campaign: $campaign,
+                    puForce: $groupe['pu'],
+                    quantite: self::FACTURER_AU_PIED ? $groupe['pieds'] : 1,
                 );
             }
 
@@ -193,8 +199,14 @@ class InvoiceFromCampaignBuilder
         int $orderIdx,
         bool $isExternal = false,
         ?Campaign $campaign = null,
+        ?float $puForce = null,
+        int $quantite = 1,
     ): InvoiceLine {
-        $puHt = $negotiated[$pivotKey]
+        // $puForce : prix déjà résolu par le regroupement des axes (le prix
+        // négocié vit sur les pieds, pas sur la ligne de l'axe qui porte
+        // la facture).
+        $puHt = $puForce
+            ?? $negotiated[$pivotKey]
             ?? (float) ($panel->monthly_rate ?? 0);
 
         $m2 = $panel->format?->surface_m2 ?? 0;
@@ -218,7 +230,7 @@ class InvoiceFromCampaignBuilder
             'snapshot_commune_name' => $commune?->name,
             'dimension_m2'          => $m2,
             'pu_ht_mensuel'         => $puHt,
-            'quantite'              => 1,
+            'quantite'              => $quantite,
             'duree_mois'            => $dureeMois,
             // TX-9 (2026-07-29) — Dates campagne propagées pour calcul auto
             // TM (mois anniversaire) + ODP (trimestres × forfait ×3).
@@ -235,6 +247,105 @@ class InvoiceFromCampaignBuilder
 
         $invoice->lines()->save($line);
         return $line;
+    }
+
+    /**
+     * ═══ AXES MULTI-PIEDS — LA BASCULE (2026-11-11) ═══
+     *
+     * **false = phase 1.** Un axe donne UNE ligne de facture, quantité 1,
+     * au prix d'UN pied — exactement ce que produisait Panora avant le
+     * découpage. L'ODP et la TM sont donc inchangées au franc près, et le
+     * découpage ne tranche pas à la place de la direction la question
+     * « un axe de 11 pieds, c'est 11 ODP ou 1 ? ».
+     *
+     * **true = phase 2**, à n'activer qu'une fois cette question tranchée
+     * par écrit. La quantité devient le nombre de pieds réservés : le loyer
+     * devient juste, MAIS l'ODP et la TM sont multipliées par le même
+     * facteur, car `InvoiceCalculator::calculateLine()` applique `quantite`
+     * aux trois calculs :
+     *
+     *     LOYER = pu_ht_mensuel × quantite × duree_mois
+     *     ODP   = odp_rate × surface × quantite × mois_ODP
+     *     TM    = tm_rate  × surface × quantite × mois_TM
+     *
+     * Cf. docs/AXES_MULTI_PIEDS.md § 4 et docs/A_TESTER.md § 18.
+     */
+    public const FACTURER_AU_PIED = false;
+
+    /**
+     * Regroupe les pieds d'un même axe en une seule ligne de facture.
+     *
+     * Clé de groupe : `axe_id ?? id`. Un panneau normal est donc seul dans
+     * son groupe, et la ligne d'axe elle-même (présente sur les contrats
+     * signés avant le découpage) tombe dans le même groupe que ses pieds.
+     *
+     * Le **porteur** du groupe est la ligne de l'axe : c'est elle qui donne
+     * `panel_id`, la référence, la surface et la commune de la ligne de
+     * facture — donc un calcul de taxe identique à avant.
+     *
+     * Le **prix** vient des pieds, car c'est là que vit le prix négocié ;
+     * on prend le plus élevé du groupe pour qu'un pied à 0 n'efface pas le
+     * tarif, et on retombe sur le tarif catalogue de l'axe.
+     *
+     * @param  iterable<\App\Models\Panel> $panels
+     * @param  array<string, float>        $negotiated
+     * @return list<array{porteur: \App\Models\Panel, pieds: int, pu: float}>
+     */
+    protected function grouperParAxe($panels, array $negotiated): array
+    {
+        $groupes = [];
+
+        foreach ($panels as $panel) {
+            $cle = $panel->axe_id ?? $panel->id;
+
+            $groupes[$cle] ??= ['porteur' => null, 'membres' => [], 'prix' => []];
+            $groupes[$cle]['membres'][] = $panel;
+
+            // La ligne d'axe (axe_id null) porte le groupe si elle est là.
+            if ($panel->axe_id === null) {
+                $groupes[$cle]['porteur'] = $panel;
+            }
+
+            $prix = $negotiated['int_' . $panel->id] ?? null;
+            if ($prix !== null) {
+                $groupes[$cle]['prix'][] = (float) $prix;
+            }
+        }
+
+        // Les axes dont seuls les pieds sont au contrat : charger la ligne
+        // parente, avec ce dont createLineForPanel a besoin.
+        $aCharger = array_keys(array_filter($groupes, fn ($g) => $g['porteur'] === null));
+        if (! empty($aCharger)) {
+            $axes = \App\Models\Panel::with(['format', 'commune'])
+                ->whereIn('id', $aCharger)
+                ->get()
+                ->keyBy('id');
+
+            foreach ($aCharger as $cle) {
+                // Garde-fou : un axe introuvable (supprimé) ne doit pas
+                // faire disparaître la ligne — on retombe sur le pied.
+                $groupes[$cle]['porteur'] = $axes->get($cle) ?? $groupes[$cle]['membres'][0];
+            }
+        }
+
+        $resultat = [];
+        foreach ($groupes as $g) {
+            $porteur = $g['porteur'];
+            $pu = ! empty($g['prix'])
+                ? max($g['prix'])
+                : (float) ($porteur->monthly_rate ?? 0);
+
+            // Les pieds du groupe, sans compter la ligne d'axe elle-même.
+            $pieds = count(array_filter($g['membres'], fn ($p) => $p->axe_id !== null));
+
+            $resultat[] = [
+                'porteur' => $porteur,
+                'pieds'   => max(1, $pieds),
+                'pu'      => $pu,
+            ];
+        }
+
+        return $resultat;
     }
 
     /**

@@ -1,0 +1,388 @@
+<?php
+
+namespace Tests\Unit;
+
+use App\Models\Panel;
+use App\Services\AvailabilityService;
+use App\Services\Axes\AxeService;
+use App\Services\InvoiceFromCampaignBuilder;
+use App\Services\TaxCalculationService;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+
+/**
+ * Axes multi-pieds — phase 1 (2026-11-11).
+ *
+ * Un axe est une ligne `panels` qui regroupe plusieurs supports. Le pied
+ * devient l'unité de réservation. Trois promesses sont tenues ici :
+ *
+ *   1. une **ligne d'axe ne se vend plus** — sinon l'axe et ses pieds
+ *      seraient proposés deux fois ;
+ *   2. un **pied hérite du blocage de son axe** — les contrats signés
+ *      avant le découpage portent sur la ligne de l'axe, et on ne doit
+ *      pas revendre un axe déjà vendu en entier ;
+ *   3. la **facture ne change pas** — phase 1 fiscalement neutre : l'ODP
+ *      et la TM restent au franc près ce qu'elles étaient.
+ *
+ * Base du scénario : AXE-10 est un axe de 3 pieds, vendu en entier à
+ * ORANGE CI jusqu'au 31/12. AXE-20 est un axe de 2 pieds, libre. P-30 est
+ * un panneau normal, libre.
+ */
+class AxesMultiPiedsTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Schema::create('clients', function (Blueprint $t) {
+            $t->id(); $t->string('name'); $t->softDeletes(); $t->timestamps();
+        });
+        Schema::create('panels', function (Blueprint $t) {
+            $t->id(); $t->string('reference'); $t->string('name')->nullable();
+            $t->string('status')->nullable();
+            $t->unsignedBigInteger('monthly_rate')->default(0);
+            // Les colonnes de la phase 1
+            $t->unsignedBigInteger('axe_id')->nullable();
+            $t->boolean('est_axe')->default(false);
+            $t->unsignedSmallInteger('pied_numero')->nullable();
+            $t->unsignedSmallInteger('faces_par_pied')->nullable();
+            $t->date('odp_start_date')->nullable();
+            $t->softDeletes(); $t->timestamps();
+        });
+        Schema::create('reservations', function (Blueprint $t) {
+            $t->id(); $t->string('reference'); $t->unsignedBigInteger('client_id');
+            $t->string('status'); $t->date('start_date'); $t->date('end_date');
+            $t->softDeletes(); $t->timestamps();
+        });
+        Schema::create('reservation_panels', function (Blueprint $t) {
+            $t->id(); $t->unsignedBigInteger('reservation_id');
+            $t->unsignedBigInteger('panel_id')->nullable();
+            $t->unsignedBigInteger('external_panel_id')->nullable();
+            $t->string('source')->default('interne');
+            $t->unsignedBigInteger('unit_price')->default(0);
+            $t->unsignedBigInteger('total_price')->default(0);
+            $t->date('panel_start_date')->nullable(); $t->timestamps();
+        });
+        Schema::create('campaigns', function (Blueprint $t) {
+            $t->id(); $t->string('name'); $t->unsignedBigInteger('client_id');
+            $t->unsignedBigInteger('reservation_id')->nullable(); $t->string('status');
+            $t->date('start_date'); $t->date('end_date'); $t->softDeletes(); $t->timestamps();
+        });
+        Schema::create('campaign_panels', function (Blueprint $t) {
+            $t->id(); $t->unsignedBigInteger('campaign_id');
+            $t->unsignedBigInteger('panel_id')->nullable();
+            $t->unsignedBigInteger('external_panel_id')->nullable();
+            $t->string('type')->default('interne'); $t->timestamps();
+        });
+
+        DB::table('clients')->insert([['id' => 1, 'name' => 'ORANGE CI'], ['id' => 2, 'name' => 'MOOV']]);
+
+        // Un insert groupé exige les MÊMES colonnes sur chaque ligne.
+        $panneau = fn (array $valeurs) => $valeurs + [
+            // Un panneau réel porte toujours un statut : après découpage,
+            // chaque pied hérite de celui de son axe.
+            'status' => 'libre', 'monthly_rate' => 130000, 'axe_id' => null,
+            'est_axe' => false, 'pied_numero' => null, 'faces_par_pied' => 3,
+        ];
+
+        DB::table('panels')->insert([
+            // Axe vendu en entier, et ses 3 pieds
+            $panneau(['id' => 10, 'reference' => 'AXE-10',     'name' => 'Axe Vendu (3P x 3F)',   'est_axe' => true]),
+            $panneau(['id' => 11, 'reference' => 'AXE-10-P01', 'name' => 'Axe Vendu — pied 1/3',  'axe_id' => 10, 'pied_numero' => 1]),
+            $panneau(['id' => 12, 'reference' => 'AXE-10-P02', 'name' => 'Axe Vendu — pied 2/3',  'axe_id' => 10, 'pied_numero' => 2]),
+            $panneau(['id' => 13, 'reference' => 'AXE-10-P03', 'name' => 'Axe Vendu — pied 3/3',  'axe_id' => 10, 'pied_numero' => 3]),
+            // Axe libre, et ses 2 pieds
+            $panneau(['id' => 20, 'reference' => 'AXE-20',     'name' => 'Axe Libre (2P x 3F)',   'est_axe' => true]),
+            $panneau(['id' => 21, 'reference' => 'AXE-20-P01', 'name' => 'Axe Libre — pied 1/2',  'axe_id' => 20, 'pied_numero' => 1]),
+            $panneau(['id' => 22, 'reference' => 'AXE-20-P02', 'name' => 'Axe Libre — pied 2/2',  'axe_id' => 20, 'pied_numero' => 2]),
+            // Panneau normal
+            $panneau(['id' => 30, 'reference' => 'P-30',       'name' => 'Panneau simple', 'monthly_rate' => 450000, 'faces_par_pied' => null]),
+        ]);
+
+        // Le contrat signé AVANT le découpage porte sur la LIGNE DE L'AXE.
+        DB::table('reservations')->insert([
+            'id' => 60, 'reference' => 'RES-ORANGE', 'client_id' => 1, 'status' => 'confirme',
+            'start_date' => '2026-11-01', 'end_date' => '2026-12-31',
+        ]);
+        DB::table('reservation_panels')->insert([
+            'reservation_id' => 60, 'panel_id' => 10, 'unit_price' => 130000, 'total_price' => 130000,
+        ]);
+    }
+
+    private function dispo(): AvailabilityService
+    {
+        return app(AvailabilityService::class);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // Lecture de la structure dans le nom
+    // ══════════════════════════════════════════════════════════════
+
+    public function test_la_structure_se_lit_dans_le_nom(): void
+    {
+        $axes = new AxeService();
+
+        $this->assertSame(
+            ['pieds' => 11, 'faces' => 3],
+            $axes->lireStructure('Cocody Lumipub Axe St Jean - Carrefour Lavie (11P x 3F)')
+        );
+        // Sans espaces, comme CDYLUP-10 en production.
+        $this->assertSame(
+            ['pieds' => 2, 'faces' => 3],
+            $axes->lireStructure('Lumipub Axe opéra-Pharmacie st gabriel (2Px3F)')
+        );
+        // BK-002 : un Classique double face, 12 pieds de 2 faces.
+        $this->assertSame(
+            ['pieds' => 12, 'faces' => 2],
+            $axes->lireStructure('Axe Carrefour Adiaké Assinie (12Panneaux double face)')
+        );
+    }
+
+    public function test_un_lumipub_isole_n_est_pas_un_axe(): void
+    {
+        // MRYLUP-001 porte le mot « Lumipub » et un nombre, mais c'est UN
+        // support : le découper créerait un pied fantôme.
+        $axes = new AxeService();
+
+        $this->assertNull($axes->lireStructure('Marcory Résidentiel (1 Lumipub)'));
+        $this->assertNull($axes->lireStructure('Abengourou route de la gare'));
+        $this->assertNull($axes->lireStructure(null));
+    }
+
+    public function test_la_reference_d_un_pied_ne_casse_pas_le_calcul_de_l_odp(): void
+    {
+        $axes = new AxeService();
+        $reference = $axes->referencePied('CDYLUP-004', 1);
+
+        $this->assertSame('CDYLUP-004-P01', $reference);
+
+        // TaxCalculationService fusionne les faces d'un même mât en
+        // retirant un suffixe A/B collé à un chiffre. Un pied ne doit
+        // JAMAIS être fusionné : son ODP resterait celle d'un seul.
+        $this->assertSame(
+            $reference,
+            TaxCalculationService::referencePhysique($reference),
+            'Une référence de pied ne doit pas être regroupée comme une face.'
+        );
+        $this->assertSame(
+            'CDYLUP-004-P11',
+            TaxCalculationService::referencePhysique($axes->referencePied('CDYLUP-004', 11))
+        );
+    }
+
+    public function test_le_nom_du_pied_perd_la_mention_de_structure(): void
+    {
+        $axes = new AxeService();
+
+        $this->assertSame(
+            'Cocody Lumipub Axe St Jean - Carrefour Lavie — pied 3/11',
+            $axes->nomPied('Cocody Lumipub Axe St Jean - Carrefour Lavie (11P x 3F)', 3, 11)
+        );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // RÈGLE 1 — une ligne d'axe ne se vend plus
+    // ══════════════════════════════════════════════════════════════
+
+    public function test_une_ligne_d_axe_n_est_jamais_proposee(): void
+    {
+        $proposes = $this->dispo()
+            ->getAvailablePanels('2026-06-01', '2026-06-30')
+            ->pluck('reference')
+            ->all();
+
+        $this->assertNotContains('AXE-10', $proposes, 'La ligne d\'axe serait comptée deux fois.');
+        $this->assertNotContains('AXE-20', $proposes);
+        $this->assertContains('AXE-20-P01', $proposes);
+        $this->assertContains('P-30', $proposes, 'Les panneaux simples ne changent pas.');
+    }
+
+    public function test_la_portee_vendables_ecarte_les_axes(): void
+    {
+        $refs = Panel::vendables()->pluck('reference')->all();
+
+        $this->assertNotContains('AXE-10', $refs);
+        $this->assertNotContains('AXE-20', $refs);
+        $this->assertCount(6, $refs, '5 pieds + 1 panneau simple.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // RÈGLE 2 — un pied hérite du blocage de son axe
+    // ══════════════════════════════════════════════════════════════
+
+    public function test_les_pieds_d_un_axe_vendu_en_entier_ne_sont_pas_libres(): void
+    {
+        // Le contrat porte sur la ligne AXE-10, pas sur ses pieds. Sans le
+        // report, on revendrait trois fois un axe déjà vendu.
+        $bloques = $this->dispo()->getUnavailablePanelIds([11, 12, 13], '2026-11-10', '2026-11-20');
+
+        sort($bloques);
+        $this->assertSame([11, 12, 13], $bloques);
+    }
+
+    public function test_les_pieds_redeviennent_libres_apres_la_fin_du_contrat(): void
+    {
+        $bloques = $this->dispo()->getUnavailablePanelIds([11, 12, 13], '2027-01-01', '2027-01-31');
+
+        $this->assertSame([], $bloques, 'Le contrat finit le 31/12 : janvier est libre.');
+    }
+
+    public function test_les_pieds_d_un_axe_libre_restent_libres(): void
+    {
+        $bloques = $this->dispo()->getUnavailablePanelIds([21, 22], '2026-11-10', '2026-11-20');
+
+        $this->assertSame([], $bloques);
+    }
+
+    public function test_l_axe_interroge_au_passage_ne_ressort_pas(): void
+    {
+        // On n'a demandé que les pieds : l'appelant ne doit pas recevoir
+        // l'id de l'axe, qu'il ne connaît pas.
+        $bloques = $this->dispo()->getUnavailablePanelIds([11], '2026-11-10', '2026-11-20');
+
+        $this->assertSame([11], $bloques);
+        $this->assertNotContains(10, $bloques);
+    }
+
+    public function test_le_conflit_ferme_d_un_pied_nomme_l_axe(): void
+    {
+        $conflits = $this->dispo()->conflitsFermes([11, 21], '2026-11-10', '2026-11-20');
+
+        $this->assertCount(1, $conflits, 'Seul le pied de l\'axe vendu est en conflit.');
+        $this->assertSame(11, $conflits[0]['panel_id']);
+        $this->assertSame('AXE-10-P01', $conflits[0]['reference']);
+        $this->assertStringContainsString('axe vendu en entier', $conflits[0]['blocking_ref'],
+            'L\'utilisateur doit comprendre que c\'est l\'axe qui est pris, pas ce pied.');
+    }
+
+    public function test_la_date_de_liberation_d_un_pied_suit_son_axe(): void
+    {
+        $details = $this->dispo()->getOccupationDetails([11, 21], '2026-11-10', '2026-11-20');
+
+        $this->assertArrayHasKey(11, $details);
+        $this->assertArrayNotHasKey(21, $details, 'L\'axe libre n\'occupe rien.');
+        $this->assertArrayNotHasKey(10, $details, 'L\'axe interrogé au passage ne ressort pas.');
+        $this->assertSame('2026-12-31', $details[11]['end_date']->toDateString());
+    }
+
+    public function test_le_statut_d_un_pied_reflete_le_contrat_de_son_axe(): void
+    {
+        // Le statut est le cache lu par les badges d'inventaire : un pied
+        // affiché « libre » alors que son axe est vendu, c'est une vente
+        // en double annoncée.
+        $this->dispo()->syncPanelStatuses([11, 12, 13, 21, 22, 30]);
+
+        $this->assertSame('confirme', Panel::find(11)->status->value);
+        $this->assertSame('confirme', Panel::find(13)->status->value);
+        $this->assertSame('libre',    Panel::find(21)->status->value);
+        $this->assertSame('libre',    Panel::find(30)->status->value);
+    }
+
+    public function test_le_controle_rapide_voit_aussi_l_axe(): void
+    {
+        $this->assertFalse($this->dispo()->quickCheck(11, '2026-11-10', '2026-11-20'));
+        $this->assertTrue($this->dispo()->quickCheck(21, '2026-11-10', '2026-11-20'));
+    }
+
+    public function test_les_donnees_d_affichage_marquent_le_pied_occupe(): void
+    {
+        $data = $this->dispo()->getPanelAvailabilityData([11, 21], '2026-11-10', '2026-11-20');
+
+        $this->assertFalse($data[11]['available']);
+        $this->assertSame('2026-12-31', $data[11]['release_date']);
+        $this->assertTrue($data[21]['available']);
+        $this->assertFalse($data->has(10), 'L\'axe interrogé au passage ne ressort pas.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // RÈGLE 3 — la facture ne change pas (phase 1)
+    // ══════════════════════════════════════════════════════════════
+
+    public function test_la_phase_1_ne_facture_pas_encore_au_pied(): void
+    {
+        // La bascule est explicite et documentée : la passer à true
+        // multiplie l'ODP et la TM par le nombre de pieds, ce qui attend
+        // une décision de la direction (docs/A_TESTER.md § 18).
+        $this->assertFalse(
+            InvoiceFromCampaignBuilder::FACTURER_AU_PIED,
+            'Phase 1 : quantité 1 par axe, ODP et TM inchangées.'
+        );
+    }
+
+    public function test_les_pieds_d_un_axe_donnent_une_seule_ligne_de_facture(): void
+    {
+        $builder = new class extends InvoiceFromCampaignBuilder {
+            public function __construct() {}
+            public function grouper($panels, array $negotiated): array
+            {
+                return $this->grouperParAxe($panels, $negotiated);
+            }
+        };
+
+        $panels = Panel::whereIn('id', [11, 12, 13, 30])->get();
+        $groupes = $builder->grouper($panels, [
+            'int_11' => 130000.0, 'int_12' => 130000.0, 'int_13' => 0.0,
+            'int_30' => 450000.0,
+        ]);
+
+        $this->assertCount(2, $groupes, 'Trois pieds + un panneau simple = deux lignes.');
+
+        $parPorteur = collect($groupes)->keyBy(fn ($g) => $g['porteur']->reference);
+
+        // Le porteur est la LIGNE DE L'AXE : même panel_id, même surface,
+        // même commune qu'avant le découpage → même calcul de taxe.
+        $this->assertTrue($parPorteur->has('AXE-10'));
+        $this->assertSame(3, $parPorteur['AXE-10']['pieds']);
+        $this->assertSame(130000.0, $parPorteur['AXE-10']['pu'],
+            'Un pied à 0 ne doit pas effacer le tarif du groupe.');
+
+        $this->assertTrue($parPorteur->has('P-30'));
+        $this->assertSame(1, $parPorteur['P-30']['pieds']);
+        $this->assertSame(450000.0, $parPorteur['P-30']['pu']);
+    }
+
+    public function test_la_ligne_d_axe_d_un_ancien_contrat_porte_son_groupe(): void
+    {
+        // Contrat signé avant le découpage : le pivot pointe l'axe. La
+        // facture doit continuer de sortir UNE ligne, portée par l'axe.
+        $builder = new class extends InvoiceFromCampaignBuilder {
+            public function __construct() {}
+            public function grouper($panels, array $negotiated): array
+            {
+                return $this->grouperParAxe($panels, $negotiated);
+            }
+        };
+
+        $groupes = $builder->grouper(Panel::whereIn('id', [10])->get(), ['int_10' => 130000.0]);
+
+        $this->assertCount(1, $groupes);
+        $this->assertSame('AXE-10', $groupes[0]['porteur']->reference);
+        $this->assertSame(1, $groupes[0]['pieds'], 'Aucun pied au contrat : quantité 1.');
+        $this->assertSame(130000.0, $groupes[0]['pu']);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // Le code doit tourner AVANT que la migration soit jouée
+    // ══════════════════════════════════════════════════════════════
+
+    public function test_sans_les_colonnes_rien_ne_casse(): void
+    {
+        // Le code part en production avant `php artisan migrate`. Sans ce
+        // garde-fou, toute réservation plante jusqu'à la migration.
+        Schema::table('panels', function (Blueprint $t) {
+            $t->dropColumn('axe_id');
+        });
+
+        $axes = new AxeService();
+        $this->assertFalse($axes->colonnesPresentes());
+        $this->assertSame([], $axes->axeParPied([11, 12]));
+        $this->assertSame([11, 12], $axes->avecAxesParents([11, 12]));
+        $this->assertTrue($axes->candidats()->isEmpty());
+
+        // Et la disponibilité continue de répondre.
+        $this->assertSame([], app(AvailabilityService::class)
+            ->getUnavailablePanelIds([30], '2026-11-10', '2026-11-20'));
+    }
+}
