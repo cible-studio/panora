@@ -49,6 +49,18 @@ use Illuminate\Support\Facades\Log;
  */
 class AvailabilityService
 {
+    /**
+     * Axes multi-pieds (2026-11-11). Dépendance facultative : les 22
+     * appelants passent par le conteneur, mais un `new AvailabilityService()`
+     * doit continuer de fonctionner.
+     */
+    public function __construct(private ?\App\Services\Axes\AxeService $axes = null) {}
+
+    private function axes(): \App\Services\Axes\AxeService
+    {
+        return $this->axes ??= new \App\Services\Axes\AxeService();
+    }
+
     // Statuts qui bloquent un panneau — source unique
     public const BLOCKING_STATUSES = [
         ReservationStatus::EN_ATTENTE->value,
@@ -145,10 +157,15 @@ class AvailabilityService
         $panelIds = array_values(array_filter(array_map('intval', $panelIds)));
         if (empty($panelIds)) return [];
 
+        // Axes multi-pieds (2026-11-11) : un pied est pris fermement si son
+        // axe l'est. Cf. App\Services\Axes\AxeService.
+        $axeParPied     = $this->axes()->axeParPied($panelIds);
+        $idsAInterroger = $this->axes()->avecAxesParents($panelIds);
+
         $reservations = DB::table('reservation_panels as rp')
             ->join('reservations as r', 'r.id', '=', 'rp.reservation_id')
             ->leftJoin('clients as cl', 'cl.id', '=', 'r.client_id')
-            ->whereIn('rp.panel_id', $panelIds)
+            ->whereIn('rp.panel_id', $idsAInterroger)
             ->where('r.status', ReservationStatus::CONFIRME->value)
             ->whereNull('r.deleted_at')
             ->where('r.start_date', '<=', $endDate)
@@ -159,7 +176,7 @@ class AvailabilityService
         $campagnes = DB::table('campaign_panels as cp')
             ->join('campaigns as c', 'c.id', '=', 'cp.campaign_id')
             ->leftJoin('clients as cl', 'cl.id', '=', 'c.client_id')
-            ->whereIn('cp.panel_id', $panelIds)
+            ->whereIn('cp.panel_id', $idsAInterroger)
             ->where('cp.type', 'interne')
             ->whereIn('c.status', self::BLOCKING_CAMPAIGN_STATUSES)
             ->whereNull('c.deleted_at')
@@ -177,15 +194,30 @@ class AvailabilityService
         }
         if (!$parPanneau) return [];
 
+        // Le motif de l'axe retombe sur ses pieds, puis on ne garde que les
+        // panneaux réellement demandés (pas les axes interrogés au passage).
+        $parPanneau = $this->axes()->reporterMotifsDesAxes($parPanneau, $axeParPied);
+        $parPanneau = array_intersect_key($parPanneau, array_flip($panelIds));
+        if (!$parPanneau) return [];
+
         $refs = Panel::whereIn('id', array_keys($parPanneau))->pluck('reference', 'id');
         $conflits = [];
-        foreach ($parPanneau as $pid => ['source' => $source, 'ligne' => $l]) {
+        foreach ($parPanneau as $pid => $motif) {
+            ['source' => $source, 'ligne' => $l] = $motif;
             $fin = $l->end_date ? \Carbon\Carbon::parse($l->end_date) : null;
+
+            // Un pied bloqué par son axe : le dire, sinon l'utilisateur
+            // cherche en vain quelle campagne occupe CE pied.
+            $dossier = trim($l->dossier . ($l->client ? ' — ' . $l->client : ''));
+            if (!empty($motif['herite_de_axe'])) {
+                $dossier .= ' — axe vendu en entier';
+            }
+
             $conflits[] = [
                 'panel_id'        => $pid,
                 'reference'       => $refs[$pid] ?? null,
                 'blocking_source' => $source,
-                'blocking_ref'    => trim($l->dossier . ($l->client ? ' — ' . $l->client : '')),
+                'blocking_ref'    => $dossier,
                 'release_date'    => $fin?->format('d/m/Y'),
                 'next_free'       => $fin?->copy()->addDay()->format('d/m/Y'),
             ];
@@ -243,10 +275,18 @@ class AvailabilityService
     ): array {
         if (empty($panelIds)) return [];
 
+        // ── Axes multi-pieds (2026-11-11) ───────────────────────────
+        // Un pied n'est pas libre tant que SON AXE est vendu en entier :
+        // les contrats signés avant le découpage portent sur la ligne de
+        // l'axe. Sans ce report, on revendrait un axe déjà vendu.
+        // Règle : App\Services\Axes\AxeService.
+        $axeParPied     = $this->axes()->axeParPied($panelIds);
+        $idsAInterroger = $this->axes()->avecAxesParents($panelIds);
+
         // Check 1 — Réservations actives (en_attente / confirme) qui chevauchent
         $fromReservations = ReservationPanel::select('reservation_panels.panel_id')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->whereIn('reservation_panels.panel_id', $idsAInterroger)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
             // Chevauchement INCLUSIF : end_date est compté comme journée occupée
             // (cohérent avec la facturation jusqu'au end_date inclus). Deux
@@ -268,7 +308,7 @@ class AvailabilityService
         $fromCampaigns = DB::table('campaign_panels')
             ->select('campaign_panels.panel_id')
             ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
-            ->whereIn('campaign_panels.panel_id', $panelIds)
+            ->whereIn('campaign_panels.panel_id', $idsAInterroger)
             ->where('campaign_panels.type', 'interne')
             ->whereIn('campaigns.status', self::BLOCKING_CAMPAIGN_STATUSES)
             ->where('campaigns.start_date', '<=', $endDate)
@@ -281,7 +321,13 @@ class AvailabilityService
             ->pluck('campaign_panels.panel_id')
             ->toArray();
 
-        return array_values(array_unique(array_merge($fromReservations, $fromCampaigns)));
+        // Le blocage d'un axe retombe sur ses pieds ; un axe interrogé par
+        // ricochet ne ressort pas si l'appelant ne l'avait pas demandé.
+        return $this->axes()->reporterBlocageDesAxes(
+            array_merge($fromReservations, $fromCampaigns),
+            $panelIds,
+            $axeParPied,
+        );
     }
 
     // ── 2.b — Map panel_id → ['end_date'=>Carbon, 'source'=>'reservation|campaign']
@@ -296,12 +342,17 @@ class AvailabilityService
     ): array {
         if (empty($panelIds)) return [];
 
+        // Axes multi-pieds (2026-11-11) : « libre à partir du … » d'un pied
+        // doit tenir compte du contrat qui porte sur son axe entier.
+        $axeParPied     = $this->axes()->axeParPied($panelIds);
+        $idsAInterroger = $this->axes()->avecAxesParents($panelIds);
+
         $details = [];
 
         // Réservations qui occupent
         $rResults = DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->whereIn('reservation_panels.panel_id', $idsAInterroger)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
             ->where('reservations.start_date', '<=', $endDate)
             ->where('reservations.end_date',   '>=', $startDate)
@@ -333,7 +384,7 @@ class AvailabilityService
         // Campagnes qui occupent
         $cResults = DB::table('campaign_panels')
             ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
-            ->whereIn('campaign_panels.panel_id', $panelIds)
+            ->whereIn('campaign_panels.panel_id', $idsAInterroger)
             ->where('campaign_panels.type', 'interne')
             ->whereIn('campaigns.status', self::BLOCKING_CAMPAIGN_STATUSES)
             ->where('campaigns.start_date', '<=', $endDate)
@@ -364,7 +415,20 @@ class AvailabilityService
             }
         }
 
-        return $details;
+        // Le pied reprend la date de libération de son axe si elle est plus
+        // tardive que la sienne, puis les axes interrogés au passage sont
+        // retirés : l'appelant ne les avait pas demandés.
+        foreach ($axeParPied as $piedId => $axeId) {
+            if (! isset($details[$axeId])) {
+                continue;
+            }
+            if (! isset($details[$piedId])
+                || $details[$axeId]['end_date']->gt($details[$piedId]['end_date'])) {
+                $details[(int) $piedId] = $details[$axeId];
+            }
+        }
+
+        return array_intersect_key($details, array_flip(array_map('intval', $panelIds)));
     }
 
     // ── 3. Panneaux disponibles avec données de libération ────────
@@ -399,6 +463,20 @@ class AvailabilityService
 
         $query = Panel::whereNotIn('id', $blockedByReservations)
             ->whereNotIn('id', $blockedByCampaigns)
+            // Axes multi-pieds (2026-11-11) : une ligne d'axe ne se vend
+            // pas — sinon l'axe ET ses pieds seraient proposés deux fois.
+            ->vendables()
+            // Et un pied suit son axe : tant que l'axe est vendu en entier,
+            // aucun de ses pieds n'est libre. `whereNotIn` seul exclurait
+            // les panneaux normaux (axe_id NULL → NOT IN rend NULL), d'où
+            // la parenthèse.
+            ->where(fn ($q) => $q
+                ->whereNull('axe_id')
+                ->orWhere(fn ($q2) => $q2
+                    ->whereNotIn('axe_id', $blockedByReservations)
+                    ->whereNotIn('axe_id', $blockedByCampaigns)
+                )
+            )
             ->where('status', '!=', PanelStatus::MAINTENANCE->value)
             ->whereNull('deleted_at')
             ->with(['commune:id,name', 'format:id,name,width,height', 'zone:id,name']);
@@ -429,10 +507,17 @@ class AvailabilityService
 
         $today = now()->toDateString();
 
+        // Axes multi-pieds (2026-11-11) : le statut est le cache lu par
+        // tous les badges d'inventaire. Un pied dont l'axe est vendu en
+        // entier doit porter le statut de son axe, sinon l'écran affiche
+        // « libre » un pied qui ne l'est pas.
+        $axeParPied     = $this->axes()->axeParPied($panelIds);
+        $idsAInterroger = $this->axes()->avecAxesParents($panelIds);
+
         // Réservations actives (en_attente / confirme) qui couvrent today
         $activeBookings = DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->whereIn('reservation_panels.panel_id', $idsAInterroger)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
             ->where('reservations.end_date', '>=', $today)
             ->select(
@@ -450,13 +535,23 @@ class AvailabilityService
         // permet de propager l'occupation effective dans l'inventaire.
         $occupiedByCampaign = DB::table('campaign_panels')
             ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
-            ->whereIn('campaign_panels.panel_id', $panelIds)
+            ->whereIn('campaign_panels.panel_id', $idsAInterroger)
             ->where('campaign_panels.type', 'interne')
             ->where('campaigns.status', 'actif')
             ->where('campaigns.start_date', '<=', $today)
             ->where('campaigns.end_date',   '>=', $today)
             ->pluck('campaign_panels.panel_id')
             ->flip();
+
+        // Report axe → pieds, avant le calcul de priorité ci-dessous.
+        foreach ($axeParPied as $piedId => $axeId) {
+            if ($occupiedByCampaign->has($axeId)) {
+                $occupiedByCampaign->put((int) $piedId, true);
+            }
+            if ($activeBookings->has($axeId) && ! $activeBookings->has($piedId)) {
+                $activeBookings->put((int) $piedId, $activeBookings->get($axeId));
+            }
+        }
 
         // Maintenance → intouchable par la sync (l'admin contrôle manuellement)
         $maintenanceIds = Panel::whereIn('id', $panelIds)
@@ -683,9 +778,14 @@ class AvailabilityService
     ): Collection {
         if (empty($panelIds)) return collect();
 
-        return DB::table('reservation_panels')
+        // Axes multi-pieds (2026-11-11) : la carte sert au PDF des
+        // disponibilités et aux écrans de réservation. Un pied doit y
+        // apparaître occupé quand son axe est vendu en entier.
+        $axeParPied = $this->axes()->axeParPied($panelIds);
+
+        $carte = DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->whereIn('reservation_panels.panel_id', $this->axes()->avecAxesParents($panelIds))
             ->where('reservation_panels.source', 'interne')
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
             ->where('reservations.start_date', '<=', $endDate)
@@ -702,6 +802,14 @@ class AvailabilityService
             ->groupBy('reservation_panels.panel_id')
             ->get()
             ->keyBy('panel_id');
+
+        foreach ($axeParPied as $piedId => $axeId) {
+            if ($carte->has($axeId) && ! $carte->has($piedId)) {
+                $carte->put($piedId, $carte->get($axeId));
+            }
+        }
+
+        return $carte->only(array_map('intval', $panelIds));
     }
 
     // ── 6. Cartes de conflits avec référence — pour sauvegarde partielle ──
@@ -723,10 +831,15 @@ class AvailabilityService
     ): Collection {
         if (empty($panelIds)) return collect();
 
+        // Axes multi-pieds (2026-11-11) : un pied est en conflit si son axe
+        // l'est. Cf. App\Services\Axes\AxeService.
+        $axeParPied     = $this->axes()->axeParPied($panelIds);
+        $idsAInterroger = $this->axes()->avecAxesParents($panelIds);
+
         // ── Source 1 : RÉSERVATIONS en_attente / confirme ─────────
         $fromReservations = DB::table('reservation_panels as rp')
             ->join('reservations as r', 'r.id', '=', 'rp.reservation_id')
-            ->whereIn('rp.panel_id', $panelIds)
+            ->whereIn('rp.panel_id', $idsAInterroger)
             ->whereIn('r.status', self::BLOCKING_STATUSES)
             ->where('r.start_date', '<=', $endDate)
             ->where('r.end_date',   '>=', $startDate)
@@ -752,7 +865,7 @@ class AvailabilityService
         // utilise donc `name` directement comme identifiant lisible.
         $fromCampaigns = DB::table('campaign_panels as cp')
             ->join('campaigns as c', 'c.id', '=', 'cp.campaign_id')
-            ->whereIn('cp.panel_id', $panelIds)
+            ->whereIn('cp.panel_id', $idsAInterroger)
             ->where('cp.type', 'interne')
             ->whereIn('c.status', self::BLOCKING_CAMPAIGN_STATUSES)
             ->where('c.start_date', '<=', $endDate)
@@ -768,9 +881,22 @@ class AvailabilityService
             ->get()
             ->keyBy('panel_id');
 
+        // Le conflit d'un axe retombe sur ses pieds, avant la fusion.
+        foreach ($axeParPied as $piedId => $axeId) {
+            foreach ([$fromReservations, $fromCampaigns] as $lot) {
+                if ($lot->has($axeId) && ! $lot->has($piedId)) {
+                    $lot->put($piedId, $lot->get($axeId));
+                }
+            }
+        }
+
         // ── Merge : union des deux sources, plus tardif gagne ──
         $merged = collect();
-        $allKeys = $fromReservations->keys()->merge($fromCampaigns->keys())->unique();
+        $allKeys = $fromReservations->keys()
+            ->merge($fromCampaigns->keys())
+            ->unique()
+            // Les axes interrogés par ricochet ne ressortent pas.
+            ->intersect(array_map('intval', $panelIds));
         foreach ($allKeys as $pid) {
             $r = $fromReservations->get($pid);
             $c = $fromCampaigns->get($pid);
@@ -1035,9 +1161,12 @@ class AvailabilityService
 
     public function quickCheck(int $panelId, string $start, string $end): bool
     {
+        // Axes multi-pieds (2026-11-11) : un pied est pris si son axe l'est.
+        $ids = $this->axes()->avecAxesParents([$panelId]);
+
         $blockedByResa = DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-            ->where('reservation_panels.panel_id', $panelId)
+            ->whereIn('reservation_panels.panel_id', $ids)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
             ->where('reservations.start_date', '<=', $end)
             ->where('reservations.end_date',   '>=', $start)
@@ -1047,7 +1176,7 @@ class AvailabilityService
         // 2e source : campagnes actives (planifie/actif/pause)
         $blockedByCamp = DB::table('campaign_panels')
             ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
-            ->where('campaign_panels.panel_id', $panelId)
+            ->whereIn('campaign_panels.panel_id', $ids)
             ->where('campaign_panels.type', 'interne')
             ->whereIn('campaigns.status', self::BLOCKING_CAMPAIGN_STATUSES)
             ->where('campaigns.start_date', '<=', $end)
@@ -1082,6 +1211,11 @@ class AvailabilityService
     ): Collection {
         if (empty($panelIds)) return collect();
 
+        // Axes multi-pieds (2026-11-11) : on interroge aussi les axes
+        // parents, et chaque pied reprend l'occupation de son axe plus bas.
+        $axeParPied     = $this->axes()->axeParPied($panelIds);
+        $idsAInterroger = $this->axes()->avecAxesParents($panelIds);
+
         $bookings = DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->join('clients', 'clients.id', '=', 'reservations.client_id')
@@ -1092,7 +1226,7 @@ class AvailabilityService
                 $j->on('campaigns.reservation_id', '=', 'reservations.id')
                   ->whereNull('campaigns.deleted_at');
             })
-            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->whereIn('reservation_panels.panel_id', $idsAInterroger)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
             ->where('reservations.start_date', '<=', $endDate)
             ->where('reservations.end_date',   '>=', $startDate)
@@ -1129,7 +1263,7 @@ class AvailabilityService
             $campaignBookings = DB::table('campaign_panels')
                 ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
                 ->leftJoin('clients', 'clients.id', '=', 'campaigns.client_id')
-                ->whereIn('campaign_panels.panel_id', $panelIds)
+                ->whereIn('campaign_panels.panel_id', $idsAInterroger)
                 ->where('campaign_panels.type', 'interne')
                 ->whereIn('campaigns.status', self::BLOCKING_CAMPAIGN_STATUSES)
                 ->where('campaigns.start_date', '<=', $endDate)
@@ -1148,6 +1282,19 @@ class AvailabilityService
                 )
                 ->get()
                 ->groupBy('panel_id');
+        }
+
+        // Chaque pied hérite des occupations de son axe. On recopie sous la
+        // clé du pied : tout le calcul qui suit (date de libération, statut
+        // bloquant, détail) fonctionne alors sans changement.
+        foreach ($axeParPied as $piedId => $axeId) {
+            foreach ([$bookings, $campaignBookings] as $lot) {
+                $lignesAxe = $lot->get($axeId);
+                if ($lignesAxe === null || $lignesAxe->isEmpty()) {
+                    continue;
+                }
+                $lot->put($piedId, ($lot->get($piedId) ?? collect())->concat($lignesAxe));
+            }
         }
 
         return collect($panelIds)->mapWithKeys(function ($id) use ($bookings, $campaignBookings) {

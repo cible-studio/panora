@@ -42,6 +42,13 @@ class Panel extends Model
         'adresse',
         'quartier',
         'axe_routier',
+
+        // Axes multi-pieds (2026-11-11) — cf. App\Services\Axes\AxeService
+        // et docs/AXES_MULTI_PIEDS.md.
+        'axe_id',
+        'est_axe',
+        'pied_numero',
+        'faces_par_pied',
     ];
 
     protected $casts = [
@@ -54,6 +61,10 @@ class Panel extends Model
         'gps_computed_at'     => 'datetime',
         'status'       => PanelStatus::class,
         'odp_start_date'      => 'date',
+        'est_axe'             => 'boolean',
+        'axe_id'              => 'integer',
+        'pied_numero'         => 'integer',
+        'faces_par_pied'      => 'integer',
     ];
 
     /**
@@ -151,6 +162,59 @@ class Panel extends Model
     public function piges()
     {
         return $this->hasMany(Pige::class);
+    }
+
+    // ───────────── Axes multi-pieds (2026-11-11) ─────────────
+    //
+    // Un axe regroupe plusieurs pieds. Le PIED est l'unité de réservation,
+    // de disponibilité et de pige ; la ligne de l'AXE garde l'historique
+    // mais ne se vend plus. La règle complète vit dans
+    // App\Services\Axes\AxeService — ici, uniquement les accès aux données.
+
+    /** L'axe parent, si ce panneau est un pied. */
+    public function axe()
+    {
+        return $this->belongsTo(self::class, 'axe_id');
+    }
+
+    /** Les pieds de cet axe, dans l'ordre du terrain. */
+    public function pieds()
+    {
+        return $this->hasMany(self::class, 'axe_id')->orderBy('pied_numero');
+    }
+
+    public function estAxe(): bool
+    {
+        return (bool) $this->est_axe;
+    }
+
+    public function estPied(): bool
+    {
+        return $this->axe_id !== null;
+    }
+
+    /**
+     * Panneaux vendables : tout sauf les lignes d'axe.
+     *
+     * À utiliser partout où l'on PROPOSE un panneau — catalogue, PDF des
+     * disponibilités, inventaire, cases à cocher d'une réservation. Sans
+     * ce filtre, l'axe et ses pieds seraient comptés deux fois.
+     */
+    public function scopeVendables($query)
+    {
+        // Tant que la migration n'est pas jouée, tout panneau est vendable :
+        // le filtre ne doit pas casser les écrans (cf. AxeService).
+        return app(\App\Services\Axes\AxeService::class)->colonnesPresentes()
+            ? $query->where('est_axe', false)
+            : $query;
+    }
+
+    /** Les lignes d'axe seules. */
+    public function scopeAxes($query)
+    {
+        return app(\App\Services\Axes\AxeService::class)->colonnesPresentes()
+            ? $query->where('est_axe', true)
+            : $query->whereRaw('1 = 0');
     }
 
     // ───────────── Helpers ─────────────
