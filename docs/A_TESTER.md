@@ -684,7 +684,7 @@ conseillé) : campagne Brevo n° 33, 467 clients + Stéphane = 468 destinataires
 - [ ] Envoi du 20/11 : rebonds définitifs sous 2 %
 - [ ] Le mail de Stéphane : « …notre sélection de panneaux : N emplacements… »
 - [x] `DIFFUSION_AUTO=true` avant le **vendredi 20/11 à 10 h** *(posé le 11/11)*
-- [ ] Écran Diffusion dispos : le prochain envoi automatique affiché est bien le 20/11
+- [x] Écran Diffusion dispos : le prochain envoi automatique affiché est bien le 20/11 *(vu le 11/11)*
 - [ ] Ensuite, côté code : retirer `LIEN_PDF` (`docs/TECHNICAL_DEBT.md`)
 
 ### 10 decies. Sauvegardes et PDF de test *(2026-11-09)*
