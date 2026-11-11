@@ -225,7 +225,17 @@ class ReservationController extends Controller
                     // Chevauchement INCLUSIF (<=/>=) : cohérent avec
                     // AvailabilityService. Le bout-à-bout est compté
                     // comme conflit (jour de fin = jour facturé occupé).
-                    $bookings = ReservationPanel::whereIn('panel_id', $panels->pluck('id'))
+                    // ⚠ Cet écran recalcule la disponibilité lui-même (il
+                    // n'appelle pas AvailabilityService). Il doit donc, lui
+                    // aussi, appliquer la règle des axes — sinon un pied
+                    // d'axe vendu en entier s'affiche LIBRE et on le revend.
+                    // La règle reste écrite une seule fois, dans AxeService.
+                    $axeParPied = app(\App\Services\Axes\AxeService::class)
+                        ->axeParPied($panels->pluck('id')->all());
+                    $idsOccupation = app(\App\Services\Axes\AxeService::class)
+                        ->avecAxesParents($panels->pluck('id')->all());
+
+                    $bookings = ReservationPanel::whereIn('panel_id', $idsOccupation)
                         ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
                         ->whereIn('reservations.status', [
                             ReservationStatus::CONFIRME->value,
@@ -248,7 +258,7 @@ class ReservationController extends Controller
                     // possible. C'est le bug #4 du parc.
                     $campaignBlocks = DB::table('campaign_panels')
                         ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
-                        ->whereIn('campaign_panels.panel_id', $panels->pluck('id'))
+                        ->whereIn('campaign_panels.panel_id', $idsOccupation)
                         ->where('campaign_panels.type', 'interne')
                         ->whereIn('campaigns.status', ['planifie', 'actif', 'pause'])
                         ->where('campaigns.start_date', '<=', $endDate)
@@ -277,6 +287,22 @@ class ReservationController extends Controller
                         $existing = $releaseDates->get($cb->panel_id);
                         if (!$existing || $cb->release_date > $existing) {
                             $releaseDates->put($cb->panel_id, $cb->release_date);
+                        }
+                    }
+
+                    // Axes multi-pieds (2026-11-11) : le pied reprend
+                    // l'occupation de son axe. Les contrats signés avant le
+                    // découpage portent sur la ligne de l'axe.
+                    foreach ($axeParPied as $piedId => $axeId) {
+                        if ($occupiedIds->contains($axeId)) {
+                            $occupiedIds = $occupiedIds->push($piedId)->unique();
+                        }
+                        if ($optionIds->contains($axeId)) {
+                            $optionIds = $optionIds->push($piedId)->unique();
+                        }
+                        $dateAxe = $releaseDates->get($axeId);
+                        if ($dateAxe && (! $releaseDates->get($piedId) || $dateAxe > $releaseDates->get($piedId))) {
+                            $releaseDates->put($piedId, $dateAxe);
                         }
                     }
                 }
@@ -413,8 +439,31 @@ class ReservationController extends Controller
         $total = $allPanels->count();
         $paginated = $allPanels->forPage($page, $perPage)->values();
 
+        // Axes multi-pieds (2026-11-11) : un dictionnaire à part plutôt que
+        // de recopier le nom de l'axe sur chacun de ses onze pieds. Le
+        // sélecteur y lit « Axe St Jean — pied 3/11 » et sait proposer
+        // « tout l'axe ».
+        $axes = [];
+        $axeIds = collect($paginated)->pluck('axe_id')->filter()->unique()->values()->all();
+        if (! empty($axeIds)) {
+            $totaux = Panel::whereIn('axe_id', $axeIds)
+                ->selectRaw('axe_id, COUNT(*) as total')
+                ->groupBy('axe_id')
+                ->pluck('total', 'axe_id');
+
+            foreach (Panel::whereIn('id', $axeIds)->get(['id', 'reference', 'name']) as $axe) {
+                $axes[$axe->id] = [
+                    'reference'   => $axe->reference,
+                    // Le « (11P x 3F) » du nom n'intéresse pas le MP ici.
+                    'nom'         => trim(preg_replace('/\(\s*\d+\s*P\s*x\s*\d+\s*F\s*\)/i', '', (string) $axe->name) ?? ''),
+                    'pieds_total' => (int) ($totaux[$axe->id] ?? 0),
+                ];
+            }
+        }
+
         return response()->json([
             'panels' => $paginated,
+            'axes'   => $axes,
             'stats' => [
             'total'        => $total,
             'displayed'    => $paginated->count(),
@@ -526,6 +575,11 @@ class ReservationController extends Controller
             'agency_name' => null,
             'agency_id' => null,
             'is_lit' => (bool) $panel->is_lit,
+            // Axes multi-pieds (2026-11-11) : de quoi afficher « pied 3/11 »
+            // et proposer « tout l'axe » dans le sélecteur.
+            'axe_id' => $panel->axe_id,
+            'pied_numero' => $panel->pied_numero,
+            'faces_par_pied' => $panel->faces_par_pied,
             'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
             'daily_traffic' => (int) ($panel->daily_traffic ?? 0),
             'zone_description' => $panel->zone_description ?? '',
