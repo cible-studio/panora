@@ -74,6 +74,26 @@ individus.
   l'inventaire Panora, qui reste la source de vérité.
 - Un panneau **double-face** (deux faces sur un même mât) se commercialise
   par face, mais ne compte qu'**une seule ODP** (taxe d'occupation du sol).
+- ⚠ Inventaire Panora relevé en production le **2026-11-11** : **348
+  panneaux actifs** (34 supprimés). Le catalogue envoyé aux clients le 6/11
+  annonçait **255 emplacements** (95 Abidjan, 160 intérieur).
+
+**Axes multi-pieds** *(mesuré le 2026-11-11, voir `AXES_MULTI_PIEDS.md`)* :
+- Un **axe** est un tronçon de voie qui regroupe plusieurs **pieds**. Panora
+  n'en fait aujourd'hui qu'une seule ligne de panneau : le parc compte
+  **13 axes pour 101 pieds réels**.
+- La structure est écrite dans le nom, en texte libre : « Cocody Lumipub Axe
+  St Jean - Carrefour Lavie (11P x 3F) » = 11 pieds de 3 faces.
+- **Un pied porte 3 faces** (2 pour `BK-002`, un Classique double face).
+- 💰 **130 000 FCFA/mois = le prix d'UN pied**, faces comprises *(tranché
+  par l'utilisateur le 2026-11-11)*. L'unité de réservation est donc le
+  pied, pas la face, et pas l'axe.
+- ⚠ Aujourd'hui, l'axe entier est vendu au prix d'un seul pied, et **aucun
+  commercial n'a jamais corrigé ce prix à la main** (0 sur 14 lignes de
+  réservation). Presque rien n'a cependant été facturé par Panora : le
+  risque est devant, pas derrière.
+- L'**ODP** et la **TM** des axes sont **en attente de décision** : ne pas
+  les toucher. L'utilisateur revient avec confirmation.
 
 **Catégories de panneaux** dans Panora : Classique, Caisson, Lumipub,
 Trivision, Murale, Petit format, Chevalet.
