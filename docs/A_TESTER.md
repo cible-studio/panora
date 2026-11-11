@@ -736,6 +736,14 @@ l'adresse est celle de la **fiche client**, c'est la fiche qu'il faut corriger.
 
 ## 11. Renvoyer les accès — personnel et clients *(ajouté le 2026-11-02)*
 
+- [x] Inscription libre `/register` fermée le 11/11 (404 vérifié en prod)
+- [ ] Liste des comptes du personnel : aucun compte inconnu créé par
+      `/register` avant sa fermeture (commande tinker « created_at | rôle |
+      actif | nom | email »). En cas d'inconnu : le désactiver
+- [ ] Rôle du compte « DIRECTION CIBLE » : `admin` pour tout voir
+- [ ] PDF « Rôles et droits » validé par la DG ; écarts à corriger listés
+      dans `docs/TECHNICAL_DEBT.md` (audit du 11/11)
+
 Nouveau bouton demandé par la direction : « un bouton simple pour
 renvoyer les accès ». Décision prise le 2026-11-02 : **un nouveau mot de
 passe temporaire**, un bouton par ligne, pas d'action groupée.
