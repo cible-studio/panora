@@ -1099,9 +1099,23 @@ environ 290, et le PDF gagnerait ~30 pages pour 15 photos disponibles.
 
 ### 18 bis. Axes multi-pieds — phase 1 livrée *(2026-11-11)*
 
-Validée et livrée sur `develop`. Détail complet : `docs/AXES_MULTI_PIEDS.md § 8`.
-**23 tests** passent ; la suite complète est à 757 passants, 23 échecs — les
-mêmes tests d'auth SQLite qu'avant.
+Validée, livrée sur `develop`, puis **reportée sur `main` le 11/11**
+(cherry-pick `490355e9` → `acc4a8de`). Détail complet :
+`docs/AXES_MULTI_PIEDS.md § 8`. **28 tests** passent ; la suite complète est à
+765 passants, 23 échecs — les mêmes tests d'auth SQLite qu'avant, chiffres
+identiques sur les deux branches.
+
+#### ⛔ Le code est en production, le découpage NON
+
+Le déploiement de `main` ne change **rien** de visible : `axe_id` est nul
+partout et `est_axe` vaut `false`, donc tous les panneaux restent vendables.
+Même la migration jouée automatiquement est neutre. Ce qui change le parc,
+c'est la commande ci-dessous, et elle est manuelle.
+
+**Ne pas la jouer avant l'envoi automatique du catalogue du 20/11.** Juste
+après le découpage, les 13 axes quittent le catalogue et leurs 101 pieds
+prennent leur place : si cela tombe entre-temps, les destinataires reçoivent
+un catalogue dont personne n'a encore relu un seul écran.
 
 #### Déploiement, dans cet ordre
 
