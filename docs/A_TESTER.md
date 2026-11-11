@@ -1200,9 +1200,54 @@ porte pourtant **6 300 000 d'ODP** et 360 000 de TM. À elle seule, la
 moitié de l'ODP de tout le carnet vivant, sur une ligne sans montant de
 base. Sans rapport avec les axes, antérieur, non corrigé — mais à
 regarder, parce que ce chiffre entre dans la comparaison avant/après.
-- [ ] Les comparer APRÈS : **ils doivent être identiques**. S'ils bougent,
-      le regroupement de `InvoiceFromCampaignBuilder` a un trou — ne pas
-      émettre de facture avant d'avoir compris.
+- [ ] Les comparer APRÈS : **ils doivent être identiques**.
+
+**⚠ Correction du 11/11 (soir) — ce contrôle est plus faible qu'annoncé.**
+Les lignes de facture sont des valeurs **stockées** ; `axes:decouper`
+n'écrit que dans `panels`. Les totaux ci-dessus ne *peuvent* donc pas
+bouger. Le relevé garde sa valeur de filet (il attraperait un observer ou
+un recalcul inattendu) mais il **ne prouve pas** la neutralité fiscale.
+
+**Le vrai test, c'est de REGÉNÉRER une facture** depuis une campagne qui
+porte un axe, après le découpage, et de comparer ce qu'elle propose.
+
+Sonde du 11/11 — une seule ligne de facture de tout le parc porte un axe :
+
+| ligne | facture | statut | qté | PU | mois | HT | ODP | TM |
+|---|---|---|---|---|---|---|---|---|
+| 102 | `FAC-2026-019` | **brouillon** | 1 | 130 000 | 1,00 | 130 000 | 15 000 | 3 000 |
+
+C'est le brouillon laissé de côté sur décision du 11/11. **Aucune facture
+émise ne porte d'axe** : l'exposition financière du découpage est nulle.
+
+- [ ] Après le découpage, sur la campagne **102 LADILI** (planifiée
+      décembre 2026, 1 axe) : relancer la génération de facture et
+      vérifier qu'elle propose toujours **PU 130 000, qté 1, HT 130 000,
+      ODP 15 000, TM 3 000**. Si la qté passe à 11, c'est que
+      `FACTURER_AU_PIED` a été basculé par erreur.
+
+#### Campagnes et réservations qui portent un axe (sonde du 11/11)
+
+| campagne | statut | période | axes |
+|---|---|---|---|
+| 2 BEM | actif | 2026-01-01 → 2026-12-31 | **4** |
+| 8 MOOV 2026 | actif | 2026-01-01 → 2026-12-31 | 1 |
+| 102 LADILI CONSULTING | planifié | 2026-12-01 → 2026-12-31 | 1 |
+| 19 VOODOO – MANSA BANK | terminé | 2026-05-18 → 2026-06-18 | 3 |
+| 50 KOTON (Lup) | terminé | 2026-04-01 → 2026-06-30 | 2 |
+| 72 KOTON – SOLDES | terminé | 2026-08-01 → 2026-10-31 | 2 |
+
+Soit **6 axes engagés** jusqu'au 31/12 (BEM 4, MOOV 1, LADILI 1) et
+**7 axes libres**, qui deviennent vendables au pied dès le découpage. Les
+pieds des 6 engagés héritent du blocage de leur axe (règle 2) : ils ne
+doivent PAS apparaître comme libres avant 2027.
+
+**Limite assumée de la phase 1** : les campagnes existantes continuent de
+pointer sur la *ligne d'axe*, pas sur ses pieds. BEM, MOOV et LADILI
+gardent donc l'ancien fonctionnement — une seule pose, une seule pige pour
+tout l'axe — jusqu'à ce que quelqu'un refasse la sélection. Le découpage ne
+migre aucun contrat en cours, et c'est voulu : y toucher déplacerait des
+poses et des piges déjà réalisées.
 
 #### Écrans à ouvrir après le découpage
 
