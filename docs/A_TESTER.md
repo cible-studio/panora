@@ -683,7 +683,8 @@ conseillé) : campagne Brevo n° 33, 467 clients + Stéphane = 468 destinataires
 - [ ] Équipe commerciale : corriger les 30 adresses (Diffusion dispos, Adresses exclues)
 - [ ] Envoi du 20/11 : rebonds définitifs sous 2 %
 - [ ] Le mail de Stéphane : « …notre sélection de panneaux : N emplacements… »
-- [ ] `DIFFUSION_AUTO=true` avant le **vendredi 20/11 à 10 h**
+- [x] `DIFFUSION_AUTO=true` avant le **vendredi 20/11 à 10 h** *(posé le 11/11)*
+- [ ] Écran Diffusion dispos : le prochain envoi automatique affiché est bien le 20/11
 - [ ] Ensuite, côté code : retirer `LIEN_PDF` (`docs/TECHNICAL_DEBT.md`)
 
 ### 10 decies. Sauvegardes et PDF de test *(2026-11-09)*
@@ -716,6 +717,10 @@ client. Avant de lancer la reconduction, chaque commercial renseigne le sien.
       *Parcours vérifié dans un navigateur le 9/11, avec des réponses simulées : à refaire sur la vraie base*
 - [ ] Le fichier Excel reste disponible, mais l'écran le remplace pour la saisie
 - [ ] Simulation de la reconduction : chaque ligne `[→]` vise la bonne personne
+      *(11/11 : `RELANCE_FIN_MODE=production` posé ; simulation : 9 campagnes partiront le 12/11,
+      seule #20 EUROLAIT - YOPLAIT reste sans adresse)*
+- [ ] 12/11 après 10 h : lignes J-60 en vert sur Renouvellements ; Brevo → Transactionnel → Journal, tag `renouvellement-j60`
+- [ ] #20 EUROLAIT - YOPLAIT : interlocuteur avant le 15/11 à 10 h (sinon le J-45 du 16/11 part directement)
 - [ ] Fiche client (10/11) : l'interlocuteur d'une campagne en cours porte le badge vert « Interlocuteur de campagne »
       (au survol, ses campagnes) à la place de « sans mails de campagne »
 
