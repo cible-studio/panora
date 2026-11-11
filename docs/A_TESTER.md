@@ -1249,6 +1249,37 @@ tout l'axe — jusqu'à ce que quelqu'un refasse la sélection. Le découpage ne
 migre aucun contrat en cours, et c'est voulu : y toucher déplacerait des
 poses et des piges déjà réalisées.
 
+#### ✅ DÉCOUPAGE APPLIQUÉ EN PRODUCTION — 2026-11-11
+
+`php artisan axes:decouper --appliquer` : **13 axes, 101 pieds créés**,
+aucune erreur. Les 13 axes portent `est_axe`, et **0 axe n'est encore
+proposé à la vente**.
+
+Vérification de la règle 2 (un pied hérite du blocage de son axe), sur la
+période 2026-11-11 → 2026-12-31, via `AvailabilityService` :
+
+| axe | pieds bloqués | verdict |
+|---|---|---|
+| CDYLUP-001 | 10 / 10 | occupé en entier |
+| CDYLUP-002 | 6 / 6 | occupé en entier |
+| CDYLUP-007 | 9 / 9 | occupé en entier |
+| CDYLUP-008 | 9 / 9 | occupé en entier |
+| TVILUP-001 | 10 / 10 | occupé en entier |
+| TVILUP-002 | 5 / 5 | occupé en entier |
+| CDYLUP-003 · -004 · -005 · -006 · CDYPUB-09 · BK-002 · CDYLUP-10 | 0 | libres |
+
+**49 pieds bloqués sur 101.** Six axes occupés — exactement les six
+engagés par BEM (4), MOOV (1) et LADILI (1) — et 10+6+9+9+10+5 = 49, le
+compte est juste. Aucun axe vendu n'apparaît libre : **le risque de
+revente d'un axe déjà vendu est écarté, prouvé sur les vraies données.**
+
+Aucun axe en état `PARTIEL`, ce qui est le résultat attendu juste après le
+découpage : l'héritage est tout-ou-rien par axe. Les états partiels
+(« 7 pieds sur 11 ») n'apparaîtront qu'avec les ventes au pied à venir.
+
+Gain métier effectif : **7 axes libres = 52 pieds** vendables à l'unité,
+là où il fallait prendre l'axe entier.
+
 #### Écrans à ouvrir après le découpage
 
 - [ ] **Inventaire** : les 13 axes portent le badge orange « AXE · N pieds »,
