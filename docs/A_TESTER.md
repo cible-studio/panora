@@ -1112,10 +1112,27 @@ partout et `est_axe` vaut `false`, donc tous les panneaux restent vendables.
 Même la migration jouée automatiquement est neutre. Ce qui change le parc,
 c'est la commande ci-dessous, et elle est manuelle.
 
-**Ne pas la jouer avant l'envoi automatique du catalogue du 20/11.** Juste
-après le découpage, les 13 axes quittent le catalogue et leurs 101 pieds
-prennent leur place : si cela tombe entre-temps, les destinataires reçoivent
-un catalogue dont personne n'a encore relu un seul écran.
+**Correction du 11/11 (soir)** — une version antérieure de cette note
+annonçait que « les 101 pieds prennent la place des 13 axes au
+catalogue ». **C'est faux**, et vérifié dans le code :
+`DiffusionDisponibilitesService::panneauxDiffusables()` termine par
+`regrouperLesPieds()`, qui recolle les pieds en **une entrée par axe**,
+avec le nom et la photo de la ligne d'axe. Le nombre d'entrées du
+catalogue ne change donc pas, et `NB_PANNEAUX` non plus.
+
+Ce qui change réellement dans le catalogue client, juste après le
+découpage :
+
+- l'entrée d'un axe gagne la ligne **« Pieds proposés : N sur N »** ;
+- la couverture gagne l'encadré **« Comment lire cette disponibilité »** ;
+- la **disponibilité est identique** : les pieds héritent du blocage de
+  leur axe, donc aucun axe ne devient partiellement libre du seul fait du
+  découpage.
+
+Le risque restant n'est donc pas une rupture de contenu mais un
+**changement d'apparence d'un document client que personne n'a encore
+relu**. D'où la consigne, moins dure qu'annoncée : regarder le PDF via un
+**envoi de test** avant de laisser partir celui du 20/11.
 
 #### Déploiement, dans cet ordre
 
