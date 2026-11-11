@@ -288,8 +288,10 @@ livré dans le même lot que la migration — jamais après.
 | Encadré « Comment lire cette disponibilité » + « Pieds proposés » | `admin/reservations/pdf/disponibilites-images.blade.php` |
 | Les axes ne sont plus proposés (4 écrans) | réservation ×2, campagne, devis |
 | Badge « AXE · N pieds » / « pied N » en inventaire | `admin/panels/partials/table-rows.blade.php` |
+| Badge « ⛓ pied 3/11 » + bouton « tout l'axe » au sélecteur | `admin/reservations/disponibilites.blade.php` |
+| La règle appliquée au sélecteur, qui recalculait seul | `ReservationController::panneauxAjax` |
 | Découpage des données, simulation par défaut | `php artisan axes:decouper` |
-| Garde-fous | `tests/Unit/AxesMultiPiedsTest.php` — 23 tests |
+| Garde-fous | `tests/Unit/AxesMultiPiedsTest.php` — 28 tests |
 
 Les 8 méthodes de décision adaptées : `getUnavailablePanelIds`,
 `conflitsFermes`, `getOccupationDetails`, `quickCheck`,
@@ -328,14 +330,26 @@ php artisan axes:decouper --appliquer
 « corrigés » : deux anomalies attendent une décision — cf.
 `TECHNICAL_DEBT.md`), et accepte `--axe=CDYLUP-004` pour n'en traiter qu'un.
 
+### Le sélecteur de réservation *(terminé le 2026-11-11)*
+
+Chaque pied porte un badge **« ⛓ pied 3/11 · 3 faces »** — en vue cartes
+comme en vue liste — et un bouton **« ⛓ 5 »** qui coche d'un geste les cinq
+pieds libres de l'axe, ou les décoche s'ils l'étaient déjà. Le compteur
+annonce exactement ce que le bouton va changer, pagination comprise. La
+logique est écrite une fois, dans `DISPO._axeInfo()`.
+
+🔴 **Un défaut sérieux trouvé en chemin.** `ReservationController::panneauxAjax`
+— l'écran de sélection — **recalcule la disponibilité lui-même** : il
+n'appelle pas `AvailabilityService`, il a ses propres requêtes sur
+`reservation_panels` et `campaign_panels`. Un pied d'axe vendu en entier s'y
+affichait donc **libre**, et on pouvait le revendre. Corrigé en lui faisant
+appliquer la règle via `AxeService` — qui reste la seule source — mais la
+duplication de fond est inscrite comme dette : cet écran devrait passer par
+le service, comme les 22 autres appelants.
+
 ### Ce qui reste dans la phase 1
 
-- [ ] **Regroupement visuel du sélecteur de réservation** : les pieds sont
-      déjà cochables un par un (un pied est un panneau) et les axes n'y
-      apparaissent plus, donc le geste fonctionne. Mais le media planner
-      voit 11 lignes « Axe … — pied 3/11 » dans la liste, au lieu d'un bloc
-      « Axe » replié avec ses pieds et un compteur « 5 sélectionnés ·
-      5 disponibles ». C'est du confort, pas de la justesse.
+Rien. La phase 2 (le prix au pied) attend la décision ODP / TM.
 
 ### Non régression attendue
 

@@ -599,3 +599,26 @@ trimestre, etc.).
   systématique). Précurseur de TX-9.
 - **2026-06-22** : TX-3 clôturé — les tarifs sont mensuels (correction du
   bug TX-1 qui divisait par 12).
+
+### `panneauxAjax` recalcule la disponibilité au lieu d'appeler le service (constaté 2026-11-11)
+
+`ReservationController::panneauxAjax` — l'écran de sélection des panneaux —
+n'utilise pas `AvailabilityService`. Il porte ses **propres requêtes** sur
+`reservation_panels` et `campaign_panels`, avec ses propres règles de
+priorité (`$occupiedIds`, `$optionIds`, `$releaseDates`). Le service, lui,
+se décrit comme « source de vérité unique » de la disponibilité et compte
+22 appelants.
+
+Conséquence constatée pendant le chantier des axes : la règle « un pied
+n'est pas libre tant que son axe est vendu » avait été posée dans les 8
+méthodes du service, mais **cet écran l'ignorait** — un pied d'axe vendu en
+entier s'y affichait `libre`, et on pouvait le revendre. Corrigé le
+2026-11-11 en lui faisant appliquer la règle via `App\Services\Axes\AxeService`
+(la règle reste écrite une seule fois), mais la duplication de fond reste.
+
+Toute nouvelle règle de disponibilité devra donc être posée **à deux
+endroits** tant que ce n'est pas réglé. À faire : brancher `panneauxAjax`
+sur `AvailabilityService::getPanelAvailabilityData()`, qui rend déjà
+`available` / `release_date` / `blocking_status` par panneau. Le risque est
+la régression d'affichage sur un écran très utilisé : à faire avec des
+captures avant/après sur la vraie base.

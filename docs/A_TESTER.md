@@ -1171,3 +1171,17 @@ php artisan tinker --execute="
 20/11.** Le regroupement d'affichage est livré, donc le risque est maîtrisé,
 mais trois jours avant un envoi réel n'est pas le moment de découvrir un
 écart.
+
+#### 18 ter. Le sélecteur de réservation *(2026-11-11)*
+
+- [ ] Vue **cartes** et vue **liste** : chaque pied porte « ⛓ pied 3/11 · 3 faces ».
+- [ ] Bouton « ⛓ 5 » sur un pied → coche les 5 pieds libres de l'axe d'un
+      geste. Re-cliquer les décoche tous.
+- [ ] Le compteur du bouton correspond au nombre de pieds **affichés** et
+      libres (pagination comprise).
+- [ ] 🔴 **Le plus important** : filtrer sur `statut = libre` et une période
+      où `CDYLUP-001` est vendu. **Aucun de ses 10 pieds ne doit apparaître.**
+      Cet écran recalculait la disponibilité tout seul, sans passer par
+      `AvailabilityService` — le défaut est corrigé, mais c'est le test qui
+      le prouve. S'ils apparaissent, ne pas réserver : on revendrait un axe
+      déjà vendu.

@@ -474,6 +474,86 @@ class AxesMultiPiedsTest extends TestCase
     }
 
     // ══════════════════════════════════════════════════════════════
+    // Aucun écran ne propose plus un axe
+    // ══════════════════════════════════════════════════════════════
+
+    private function source(string $chemin): string
+    {
+        $fichier = __DIR__ . '/../../' . $chemin;
+        $this->assertFileExists($fichier);
+
+        return file_get_contents($fichier);
+    }
+
+    public function test_les_quatre_ecrans_qui_proposent_des_panneaux_ecartent_les_axes(): void
+    {
+        // Sans ce filtre, l'axe ET ses pieds s'affichent : le même
+        // emplacement compté deux fois, et vendable deux fois.
+        foreach ([
+            'app/Http/Controllers/Admin/ReservationController.php' => 2,
+            'app/Http/Controllers/Admin/CampaignController.php'     => 1,
+            'app/Http/Controllers/Admin/QuoteController.php'        => 1,
+        ] as $fichier => $attendu) {
+            $this->assertSame(
+                $attendu,
+                substr_count($this->source($fichier), 'vendables()'),
+                "{$fichier} : chaque liste de panneaux proposés doit écarter les axes."
+            );
+        }
+    }
+
+    public function test_le_catalogue_ecarte_les_axes_et_regroupe_les_pieds(): void
+    {
+        $source = $this->source('app/Services/Diffusion/DiffusionDisponibilitesService.php');
+
+        $this->assertStringContainsString('->vendables()', $source);
+        $this->assertStringContainsString('regrouperLesPieds(', $source,
+            'Sans regroupement, le catalogue perd les photos (elles sont sur la ligne d\'axe) et gagne 90 pages.');
+    }
+
+    public function test_le_selecteur_de_reservation_applique_la_regle_des_axes(): void
+    {
+        // ⚠ Cet écran recalcule la disponibilité LUI-MÊME, il n'appelle pas
+        // AvailabilityService. S'il oublie la règle, un pied d'axe vendu
+        // s'affiche libre et on le revend.
+        $source = $this->source('app/Http/Controllers/Admin/ReservationController.php');
+
+        $this->assertStringContainsString('->axeParPied(', $source);
+        $this->assertStringContainsString('->avecAxesParents(', $source);
+        $this->assertStringContainsString('$idsOccupation', $source);
+        $this->assertStringNotContainsString(
+            "ReservationPanel::whereIn('panel_id', \$panels->pluck('id'))",
+            $source,
+            'Les requêtes d\'occupation doivent interroger aussi les axes parents.'
+        );
+    }
+
+    public function test_le_selecteur_affiche_le_pied_et_sait_cocher_tout_l_axe(): void
+    {
+        $vue = $this->source('resources/views/admin/reservations/disponibilites.blade.php');
+
+        $this->assertStringContainsString('_axeInfo(p)', $vue, 'La logique d\'affichage, écrite une fois.');
+        $this->assertStringContainsString('selectAxe(axeId)', $vue);
+        $this->assertStringContainsString('S._axes = data.axes', $vue);
+        // Le badge et le bouton sont posés dans les DEUX vues (cartes, liste).
+        $this->assertStringContainsString('${_ax.badge', $vue);
+        $this->assertStringContainsString('${_ax.btn}', $vue);
+        $this->assertStringContainsString('badgeLigne', $vue);
+    }
+
+    public function test_le_pdf_explique_au_client_comment_lire_un_axe(): void
+    {
+        $vue = $this->source('resources/views/admin/reservations/pdf/disponibilites-images.blade.php');
+
+        $this->assertStringContainsString('Comment lire cette disponibilité', $vue);
+        $this->assertStringContainsString('Pieds proposés', $vue);
+        // L'encadré ne s'affiche que si le document contient un axe, et une
+        // seule fois.
+        $this->assertStringContainsString('$contientUnAxe', $vue);
+        $this->assertStringContainsString('$encadreAxePose', $vue);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // Le code doit tourner AVANT que la migration soit jouée
     // ══════════════════════════════════════════════════════════════
 
