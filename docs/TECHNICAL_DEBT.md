@@ -359,9 +359,48 @@ laissé en place et tenu à jour le 2026-11-02 pour ne pas contredire
 l'écran réel, mais il faut décider : le brancher, ou le supprimer. Le
 garder sans l'utiliser garantit qu'il divergera.
 
+### Droits d'accès : écarts constatés à l'audit du 2026-11-11
+
+Audit complet des rôles pour la Direction générale (PDF à cases remis le
+11/11, hors Git). Points ouverts, soumis à sa validation :
+
+- **Rapports** : le commercial voit le CA de toute la société
+  (`RapportController` passe `null` comme commercial à `CaRealService`,
+  et « CA par commune / ville » n'est pas filtré).
+- **Fiches** : `ClientController::show/edit/update`, `rapports.clients.detail`
+  et `finance.relances.detail` ne vérifient pas que le client est dans le
+  portefeuille du commercial (seule la liste est filtrée).
+- **Media Planner** : voit des montants (pipeline devis, panier moyen, CA
+  des rapports, montant des campagnes) alors que les chiffres financiers
+  lui ont été retirés le 2/11 : à trancher.
+- **Compte désactivé** : `LoginRequest` ne vérifie pas `is_active` ;
+  `CheckRole` ne déconnecte qu'à la première page `/admin`, `/dashboard`
+  reste ouvert.
+- **Réservations** : `show`, `update`, `destroy` n'appellent pas la policy ;
+  le MP peut supprimer des campagnes via l'action en lot.
+- **Personnel** : pas de changement de mot de passe imposé (cf. plus haut),
+  pas de double authentification.
+- **Audit** : seuls Invoice*, Quote*, Relance sont suivis ; le middleware
+  `AuditLogger` n'est branché sur aucune route, la page `admin.audit.logs`
+  ne reçoit plus rien.
+- **Espace client** : un membre se connecte sur le garde du Client ; son
+  rôle n'est qu'en session (« Se souvenir de moi » → `canManage()` vrai,
+  membre désactivé non revérifié) et la page mot de passe modifie celui du
+  Client.
+- **Liens publics** : `PublicLinkService::revoke()` sans appelant ; devis et
+  propositions consultables après échéance.
+- **Copie commerciale** en Cc visible ; **avoirs** impossibles à émettre.
+
 ---
 
 ## Résolues
+
+### Inscription libre `/register` ouverte en production — résolu le 2026-11-11
+
+Tout inscrit recevait le rôle par défaut de `users.role` (`commercial`), un
+compte actif et l'accès au bureau. Routes retirées de `routes/auth.php`,
+garde-fou `tests/Unit/InscriptionFermeeTest`. Vérifié en prod : 404.
+Reste à contrôler la liste des comptes (A_TESTER § 11).
 
 ### Tous les espaces clients avaient le mot de passe « password » — résolu le 2026-11-02
 
