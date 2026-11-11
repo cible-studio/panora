@@ -1047,3 +1047,52 @@ superposé, pied complet sur chaque page, numéros de page) :
 - [ ] Facture et devis : **aucun changement** par rapport à hier
 - [ ] Un PDF de plusieurs pages (ex. liste des clients) : le pied se répète,
       « Page 2 », « Page 3 »…
+
+---
+
+## 18. Axes multi-pieds — décisions en attente *(ajouté le 2026-11-11)*
+
+Chantier documenté dans **`docs/AXES_MULTI_PIEDS.md`** : le plan y est
+détaillé et **attend validation**. Aucun code écrit à ce jour.
+
+L'inventaire réel a été relevé en production le 11/11 (script de lecture
+seule) : **13 axes, 101 pieds, 291 faces**, dans un parc de 348 panneaux
+actifs. `CDYLUP-004` (St Jean – Carrefour Lavie) compte bien **11 pieds**.
+
+### Tranché le 11/11
+
+- **130 000 FCFA/mois = le prix d'UN pied**, ses 3 faces comprises.
+  L'unité de réservation est le pied.
+- L'axe entier est aujourd'hui vendu au prix d'un seul pied, et **aucun
+  commercial n'a corrigé ce prix** (0 sur 14 lignes).
+
+### En attente de décision — à me revenir
+
+- [ ] **ODP** : un axe de 11 pieds, c'est **11 ODP ou 1** ? L'ODP est gérée
+      autrement aujourd'hui ; décision reportée, à confirmer.
+- [ ] **TM** : par pied, ou par face (3 faces par pied) ?
+- [ ] ⚠ **Point dur à connaître avant de trancher** : `InvoiceCalculator`
+      applique `quantite` **aux trois calculs** — loyer, ODP et TM. Facturer
+      au pied multiplie donc l'ODP et la TM par le même nombre,
+      automatiquement. « Facturer au pied » et « ne pas toucher l'ODP » ne
+      peuvent pas être vrais en même temps. C'est pourquoi le plan sépare
+      une phase 1 fiscalement neutre d'une phase 2 sur le prix.
+
+### Deux anomalies de tarif à élucider
+
+- [ ] **`CDYPUB-09`** : 100 000 au lieu de 130 000, et référence `CDYPUB`
+      hors convention. Erreur de saisie ou tarif négocié ?
+- [ ] **`CDYLUP-10`** : réservé deux fois à PU = 0. Volontaire ?
+
+### Décidé de ne PAS faire
+
+- **`FAC-2026-019`** (brouillon, `CDYLUP-002`, 130 000 pour un axe de
+  6 pieds) : laissée telle quelle le 11/11 — les brouillons attendent.
+
+### Contrainte de calendrier
+
+Les 6 axes `libre` totalisent 40 pieds. Sans regroupement d'affichage,
+`NB_PANNEAUX` passerait de **255** (chiffre réellement parti le 6/11) à
+environ 290, et le PDF gagnerait ~30 pages pour 15 photos disponibles.
+**Le découpage ne part pas en production avant l'envoi automatique du
+20/11.**

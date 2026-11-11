@@ -235,8 +235,12 @@ nommage ne porte pas.
 Pistes (aucune tranchée) :
 - un champ `panneau_physique_id` (ou `mat_id`) sur `panels`, saisi par le
   MP, qui remplacerait la déduction par référence — le plus fiable ;
-- réutiliser `nombre_faces`, aujourd'hui à 1 sur les 364 panneaux donc
-  inexploitable en l'état ;
+- réutiliser `nombre_faces` — **mesure du 2026-11-11 : l'affirmation
+  « à 1 sur les 364 panneaux » est périmée.** Le champ porte désormais 1 sur
+  320 panneaux, **4 sur 27** (les Chevalets : faces du chevalet) et **3 sur
+  un seul** (`CDYLUP-10` : faces d'un pied d'axe). Deux significations
+  différentes dans la même colonne : toujours inexploitable, et maintenant
+  trompeur ;
 - un rapprochement par coordonnées GPS, fragile (dispersion connue).
 
 ⚠ Tant que ce n'est pas traité, **l'ODP de Panora est surévaluée** partout
@@ -349,6 +353,21 @@ Correction possible : un hook `updating` qui rappelle
 source que la création et `geo:backfill`). Non fait le 2026-11-04 : cela
 change aussi l'écran admin d'édition, à valider avant. Rattrapage des
 données : `php artisan geo:backfill --all-piges`.
+
+### Deux tarifs d'axes à expliquer (constaté 2026-11-11)
+
+Relevé en production, en préparant le chantier `AXES_MULTI_PIEDS.md` :
+
+- **`CDYPUB-09`** (10 pieds, 2 Plateaux – Carrefour Laspalmas) est à
+  **100 000 FCFA/mois** quand les douze autres Lumipub sont à 130 000. Sa
+  référence ne suit pas non plus la convention : `CDYPUB` au lieu de
+  `CDYLUP`. Erreur de saisie, ou tarif négocié figé dans la fiche ?
+- **`CDYLUP-10`** a été réservé **deux fois à `unit_price = 0`**
+  (`RES-QNHQIVXJ` et `AUTO-000050`). Gratuité voulue, ou oubli ?
+
+Les deux questions sont posées à l'utilisateur et restent ouvertes. Tant
+qu'elles ne sont pas tranchées, la migration des axes doit **recopier les
+tarifs tels quels** sur les pieds, sans les « corriger » au passage.
 
 ### `clients/partials/account-actions.blade.php` est du code mort (constaté 2026-11-02)
 
