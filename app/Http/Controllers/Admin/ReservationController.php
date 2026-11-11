@@ -144,7 +144,10 @@ class ReservationController extends Controller
 
         // ══ PANNEAUX INTERNES ════════════════════════════════════════
         if (in_array($source, ['internal', 'all'])) {
-            $query = Panel::with([
+            // Axes multi-pieds (2026-11-11) : on propose les PIEDS, jamais
+            // la ligne de l'axe — elle n'est pas vendable et serait comptée
+            // en plus de ses pieds.
+            $query = Panel::vendables()->with([
                 'commune:id,name',
                 'format:id,name,width,height',
                 'zone:id,name',
@@ -865,8 +868,13 @@ class ReservationController extends Controller
         // disponibilités aux clients produit le MÊME PDF. Deux copies de
         // ce calcul, c'est exactement ce qui avait produit le bug
         // « Actuellement occupé » sur une recherche de novembre.
-        $panels = app(DisponibilitesPdfBuilder::class)
-            ->lignes($internalIds, $externalIds, $startDate, $endDate);
+        $constructeur = app(DisponibilitesPdfBuilder::class);
+        $panels = $constructeur->lignes($internalIds, $externalIds, $startDate, $endDate);
+
+        // Axes multi-pieds (2026-11-11) : un axe = UNE page, avec « N pieds
+        // disponibles sur M ». Le même regroupement sert au catalogue
+        // envoyé par Brevo — une seule méthode pour les deux documents.
+        $panels = $constructeur->regrouperLesPieds($panels);
 
         // Nom de fichier : override par le MP possible (feedback user
         // 2026-09-17 : le MP veut personnaliser le nom avant download).
@@ -2913,7 +2921,9 @@ class ReservationController extends Controller
             $excludeId = $request->exclude_reservation_id ? (int) $request->exclude_reservation_id : null;
 
             // ─── INTERNES ───────────────────────────────────────────
-            $query = Panel::with(['commune:id,name', 'format:id,name,width,height', 'zone:id,name'])
+            // Axes multi-pieds : les pieds, pas la ligne de l'axe.
+            $query = Panel::vendables()
+                ->with(['commune:id,name', 'format:id,name,width,height', 'zone:id,name'])
                 ->whereNull('deleted_at')
                 ->where('status', '!=', PanelStatus::MAINTENANCE->value)
                 ->select(['id', 'reference', 'name', 'commune_id', 'zone_id', 'format_id', 'is_lit', 'monthly_rate', 'daily_traffic', 'zone_description']);

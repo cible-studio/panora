@@ -662,7 +662,9 @@ class CampaignController extends Controller
         // ─── PANNEAUX INTERNES ──────────────────────────────────────
         $existingIds = $campaign->panels()->pluck('panels.id')->all();
 
-        $internalPanels = Panel::with(['commune:id,name', 'format:id,name,width,height', 'zone:id,name'])
+        // Axes multi-pieds (2026-11-11) : on propose les pieds, pas l'axe.
+        $internalPanels = Panel::vendables()
+            ->with(['commune:id,name', 'format:id,name,width,height', 'zone:id,name'])
             ->whereNull('deleted_at')
             ->where('status', '!=', PanelStatus::MAINTENANCE->value)
             ->whereNotIn('id', $existingIds)

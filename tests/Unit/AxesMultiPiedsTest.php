@@ -39,10 +39,41 @@ class AxesMultiPiedsTest extends TestCase
         Schema::create('clients', function (Blueprint $t) {
             $t->id(); $t->string('name'); $t->softDeletes(); $t->timestamps();
         });
+        // Tables nécessaires à l'enrichissement des lignes PDF
+        // (PdfExportService::enrichPanel lit commune, zone, format,
+        // catégorie et photos).
+        Schema::create('communes', function (Blueprint $t) {
+            $t->id(); $t->string('name'); $t->string('city')->nullable(); $t->timestamps();
+        });
+        Schema::create('zones', function (Blueprint $t) {
+            $t->id(); $t->string('name'); $t->timestamps();
+        });
+        Schema::create('panel_formats', function (Blueprint $t) {
+            $t->id(); $t->string('name'); $t->decimal('width', 8, 2)->nullable();
+            $t->decimal('height', 8, 2)->nullable(); $t->timestamps();
+        });
+        Schema::create('panel_categories', function (Blueprint $t) {
+            $t->id(); $t->string('name'); $t->timestamps();
+        });
+        Schema::create('panel_photos', function (Blueprint $t) {
+            $t->id(); $t->unsignedBigInteger('panel_id'); $t->string('path');
+            $t->unsignedInteger('ordre')->default(0); $t->timestamps();
+        });
+
         Schema::create('panels', function (Blueprint $t) {
             $t->id(); $t->string('reference'); $t->string('name')->nullable();
             $t->string('status')->nullable();
             $t->unsignedBigInteger('monthly_rate')->default(0);
+            $t->unsignedBigInteger('commune_id')->nullable();
+            $t->unsignedBigInteger('zone_id')->nullable();
+            $t->unsignedBigInteger('format_id')->nullable();
+            $t->unsignedBigInteger('category_id')->nullable();
+            $t->string('adresse')->nullable(); $t->string('quartier')->nullable();
+            $t->boolean('is_lit')->default(false);
+            $t->unsignedInteger('daily_traffic')->default(0);
+            $t->text('zone_description')->nullable();
+            $t->decimal('latitude', 10, 7)->nullable();
+            $t->decimal('longitude', 10, 7)->nullable();
             // Les colonnes de la phase 1
             $t->unsignedBigInteger('axe_id')->nullable();
             $t->boolean('est_axe')->default(false);
@@ -78,6 +109,10 @@ class AxesMultiPiedsTest extends TestCase
         });
 
         DB::table('clients')->insert([['id' => 1, 'name' => 'ORANGE CI'], ['id' => 2, 'name' => 'MOOV']]);
+        DB::table('communes')->insert(['id' => 1, 'name' => 'COCODY', 'city' => 'Abidjan']);
+        DB::table('zones')->insert(['id' => 1, 'name' => 'Zone 1']);
+        DB::table('panel_formats')->insert(['id' => 1, 'name' => '3x1', 'width' => 3, 'height' => 1]);
+        DB::table('panel_categories')->insert(['id' => 1, 'name' => 'Lumipub']);
 
         // Un insert groupé exige les MÊMES colonnes sur chaque ligne.
         $panneau = fn (array $valeurs) => $valeurs + [
@@ -85,6 +120,10 @@ class AxesMultiPiedsTest extends TestCase
             // chaque pied hérite de celui de son axe.
             'status' => 'libre', 'monthly_rate' => 130000, 'axe_id' => null,
             'est_axe' => false, 'pied_numero' => null, 'faces_par_pied' => 3,
+            'commune_id' => 1, 'zone_id' => 1, 'format_id' => 1, 'category_id' => 1,
+            'adresse' => null, 'quartier' => null, 'is_lit' => false,
+            'daily_traffic' => 0, 'zone_description' => null,
+            'latitude' => null, 'longitude' => null,
         ];
 
         DB::table('panels')->insert([
@@ -361,6 +400,77 @@ class AxesMultiPiedsTest extends TestCase
         $this->assertSame('AXE-10', $groupes[0]['porteur']->reference);
         $this->assertSame(1, $groupes[0]['pieds'], 'Aucun pied au contrat : quantité 1.');
         $this->assertSame(130000.0, $groupes[0]['pu']);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // Affichage — un axe = UNE entrée (PDF et catalogue Brevo)
+    // ══════════════════════════════════════════════════════════════
+
+    private function lignesFactices(array $ids): \Illuminate\Support\Collection
+    {
+        // Des lignes au format de DisponibilitesPdfBuilder::lignes().
+        return Panel::whereIn('id', $ids)->get()->map(fn ($p) => [
+            'id'             => $p->id,
+            'reference'      => $p->reference,
+            'name'           => $p->name,
+            'commune'        => 'COCODY',
+            'display_status' => 'libre',
+            'release_date'   => null,
+        ]);
+    }
+
+    public function test_les_pieds_d_un_axe_donnent_une_seule_entree(): void
+    {
+        // Deux pieds sur trois disponibles : le client doit lire « 2 sur 3 »,
+        // pas voir deux pages identiques.
+        $groupes = app(\App\Services\DisponibilitesPdfBuilder::class)
+            ->regrouperLesPieds($this->lignesFactices([11, 12, 30]));
+
+        $this->assertCount(2, $groupes, 'Deux pieds d\'un axe + un panneau simple = deux entrées.');
+
+        $axe = $groupes->firstWhere('reference', 'AXE-10');
+        $this->assertNotNull($axe, 'L\'entrée porte la référence de l\'AXE — donc sa photo.');
+        $this->assertTrue($axe['est_axe']);
+        $this->assertSame(2, $axe['pieds_disponibles']);
+        $this->assertSame(3, $axe['pieds_total']);
+        $this->assertSame(3, $axe['faces_par_pied']);
+        $this->assertSame('libre', $axe['display_status'],
+            'Le statut vient du pied : l\'axe peut porter un vieux contrat.');
+    }
+
+    public function test_un_panneau_simple_traverse_sans_changement(): void
+    {
+        $groupes = app(\App\Services\DisponibilitesPdfBuilder::class)
+            ->regrouperLesPieds($this->lignesFactices([30]));
+
+        $this->assertCount(1, $groupes);
+        $this->assertSame('P-30', $groupes[0]['reference']);
+        $this->assertArrayNotHasKey('est_axe', $groupes[0]);
+    }
+
+    public function test_deux_axes_restent_deux_entrees(): void
+    {
+        $groupes = app(\App\Services\DisponibilitesPdfBuilder::class)
+            ->regrouperLesPieds($this->lignesFactices([11, 12, 13, 21, 22]));
+
+        $this->assertCount(2, $groupes);
+        $this->assertSame(
+            [3, 2],
+            $groupes->pluck('pieds_disponibles')->all(),
+            'AXE-10 propose ses 3 pieds, AXE-20 ses 2.'
+        );
+    }
+
+    public function test_le_regroupement_ne_tente_rien_sans_les_colonnes(): void
+    {
+        Schema::table('panels', function (Blueprint $t) {
+            $t->dropColumn('axe_id');
+        });
+
+        $lignes = collect([['id' => 30, 'reference' => 'P-30', 'commune' => 'COCODY']]);
+        $groupes = app(\App\Services\DisponibilitesPdfBuilder::class)->regrouperLesPieds($lignes);
+
+        $this->assertSame($lignes->all(), $groupes->all());
     }
 
     // ══════════════════════════════════════════════════════════════

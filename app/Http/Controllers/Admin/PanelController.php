@@ -62,6 +62,15 @@ class PanelController extends Controller
 
             $query = Panel::with($eagerLoad);
 
+            // Axes multi-pieds (2026-11-11) : le badge « AXE · N pieds » de
+            // l'inventaire a besoin du compte. Chargé ici pour éviter une
+            // requête par ligne d'axe. Les axes restent VISIBLES : le media
+            // planner doit pouvoir les ouvrir — ils ne sont simplement plus
+            // proposés à la vente (cf. Panel::scopeVendables).
+            if (app(\App\Services\Axes\AxeService::class)->colonnesPresentes()) {
+                $query->withCount('pieds');
+            }
+
             if ($source === 'occupes') {
                 $query->whereIn('status', ['occupe', 'option', 'confirme']);
             }

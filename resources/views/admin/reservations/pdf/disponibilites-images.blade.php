@@ -276,6 +276,34 @@
         font-weight: 700;
         letter-spacing: .3px;
     }
+    /* Encadré « Comment lire cette disponibilité » — axes multi-pieds
+       (2026-11-11). Posé sous la période, sur la première page de garde
+       seulement, et uniquement si le document contient un axe. */
+    .cover-axe-note {
+        margin: 30px auto 0;
+        max-width: 420px;
+        padding: 14px 18px;
+        background: {{ $charte['gris_clair'] }};
+        border: 1px solid {{ $charte['gris'] }};
+        border-left: 3px solid {{ $charte['rouge'] }};
+        border-radius: 4px;
+        text-align: left;
+    }
+    .cover-axe-title {
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: .6px;
+        text-transform: uppercase;
+        color: {{ $charte['rouge'] }};
+        margin-bottom: 6px;
+    }
+    .cover-axe-note p {
+        margin: 0;
+        font-size: 9.5px;
+        line-height: 1.55;
+        color: {{ $charte['texte_doux'] }};
+    }
+
     .cover-period-arrow {
         color: {{ $charte['rouge'] }};
         margin: 0 8px;
@@ -407,7 +435,14 @@
      confusion. --}}
 @include('pdf.partials.charte-footer', ['footerHint' => $piedHistorique, 'footerPage' => false])
 
-@php $globalIndex = 0; @endphp
+@php
+    $globalIndex = 0;
+    // Axes multi-pieds (2026-11-11) : l'encadré explicatif n'apparaît que
+    // si le document contient au moins un axe — inutile de parler de pieds
+    // dans un PDF qui n'en propose aucun.
+    $contientUnAxe = collect($panels)->contains(fn ($p) => !empty($p['est_axe']));
+    $encadreAxePose = false;
+@endphp
 @foreach ($grouped as $communeName => $groupPanels)
     @php
         $groupSize = count($groupPanels);
@@ -431,6 +466,23 @@
                     <strong>{{ $startFr }}</strong>
                     <span class="cover-period-arrow">→</span>
                     <strong>{{ $endFr }}</strong>
+                </div>
+            @endif
+
+            {{-- Comment lire un axe — texte validé le 2026-11-11. Posé une
+                 seule fois, sur la première page de garde. --}}
+            @if($contientUnAxe && !$encadreAxePose)
+                @php $encadreAxePose = true; @endphp
+                <div class="cover-axe-note">
+                    <div class="cover-axe-title">Comment lire cette disponibilité</div>
+                    <p>
+                        Un <strong>axe</strong> regroupe plusieurs <strong>pieds</strong>,
+                        c'est-à-dire plusieurs supports le long d'une même voie. Vous pouvez
+                        réserver un seul pied, plusieurs, ou l'axe entier. Le chiffre indiqué
+                        pour chaque axe correspond au nombre de pieds que nous vous proposons
+                        sur la période. Chaque pied réservé fait l'objet de sa propre pige,
+                        pour un suivi précis de votre campagne.
+                    </p>
                 </div>
             @endif
         </div>
@@ -542,6 +594,20 @@
                         <td class="lbl">Type de support</td>
                         <td class="val">{{ $category }}</td>
                     </tr>
+                    @if(!empty($p['est_axe']))
+                    {{-- Axes multi-pieds : le client doit comprendre qu'il
+                         réserve au pied, et combien lui sont proposés. --}}
+                    <tr>
+                        <td class="lbl">Pieds proposés</td>
+                        <td class="val">
+                            <strong>{{ $p['pieds_disponibles'] ?? 1 }}</strong>
+                            sur {{ $p['pieds_total'] ?? ($p['pieds_disponibles'] ?? 1) }} pieds
+                            @if(!empty($p['faces_par_pied']) && $p['faces_par_pied'] > 1)
+                                <br><span class="val-sub">{{ $p['faces_par_pied'] }} faces par pied</span>
+                            @endif
+                        </td>
+                    </tr>
+                    @endif
                     <tr>
                         <td class="lbl">Format</td>
                         <td class="val">{{ $format }}</td>

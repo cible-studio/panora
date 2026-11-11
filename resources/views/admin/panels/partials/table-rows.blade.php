@@ -23,7 +23,26 @@
         @endif
     </td>
     <td style="vertical-align:middle;"><a href="{{ route('admin.panels.show', $panel) }}" data-ligne-principal style="font-family:monospace;color:var(--accent);font-weight:700;" title="Ouvrir le panneau">{{ $panel->reference }}</a></td>
-    <td style="vertical-align:middle;"><div style="font-weight:500;">{{ $panel->name }}</div><div style="font-size:11px;color:var(--text3);">{{ $panel->category?->name ?? '—' }} @if($panel->is_lit) · 💡 @endif</div></td>
+    <td style="vertical-align:middle;">
+        <div style="font-weight:500;">
+            {{ $panel->name }}
+            {{-- Axes multi-pieds (2026-11-11) : un axe reste visible dans
+                 l'inventaire mais ne se vend plus — ce sont ses pieds qui
+                 se réservent. Cf. docs/AXES_MULTI_PIEDS.md --}}
+            @if($panel->est_axe)
+                <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(232,160,32,.14);color:#e8a020;border:1px solid rgba(232,160,32,.3);"
+                      title="Regroupement : ce sont ses pieds qui se réservent, pas l'axe">
+                    AXE · {{ $panel->pieds_count ?? $panel->pieds()->count() }} pieds
+                </span>
+            @elseif($panel->axe_id)
+                <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(148,163,184,.12);color:var(--text3);border:1px solid var(--border);"
+                      title="Pied d'un axe">
+                    pied {{ $panel->pied_numero ?? '?' }}
+                </span>
+            @endif
+        </div>
+        <div style="font-size:11px;color:var(--text3);">{{ $panel->category?->name ?? '—' }} @if($panel->is_lit) · 💡 @endif</div>
+    </td>
     <td style="vertical-align:middle;">{{ $panel->commune->name }}</td>
     <td style="vertical-align:middle;">
         @if($panel->format->dimensions_label)<div style="font-weight:500;">{{ $panel->format->dimensions_label }}</div>@endif

@@ -250,7 +250,9 @@ class QuoteController extends Controller
         // accents, commune comprise (App\Support\RecherchePanneaux). Avant,
         // un simple LIKE : « bouet » ne trouvait pas « Port Bouët », et
         // « ABG » remontait aussi CABG-001.
-        $requete = \App\Models\Panel::with(['commune:id,name', 'format:id,width,height,surface,name']);
+        // Axes multi-pieds (2026-11-11) : un devis se fait au pied.
+        $requete = \App\Models\Panel::vendables()
+            ->with(['commune:id,name', 'format:id,width,height,surface,name']);
         $panels = \App\Support\RecherchePanneaux::appliquer($requete, $q)
             ->whereNull('deleted_at')
             ->orderBy('reference')
