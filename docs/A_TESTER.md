@@ -1096,3 +1096,78 @@ Les 6 axes `libre` totalisent 40 pieds. Sans regroupement d'affichage,
 environ 290, et le PDF gagnerait ~30 pages pour 15 photos disponibles.
 **Le découpage ne part pas en production avant l'envoi automatique du
 20/11.**
+
+### 18 bis. Axes multi-pieds — phase 1 livrée *(2026-11-11)*
+
+Validée et livrée sur `develop`. Détail complet : `docs/AXES_MULTI_PIEDS.md § 8`.
+**23 tests** passent ; la suite complète est à 757 passants, 23 échecs — les
+mêmes tests d'auth SQLite qu'avant.
+
+#### Déploiement, dans cet ordre
+
+```bash
+php artisan migrate
+php artisan axes:decouper              # SIMULATION, n'écrit rien
+php artisan axes:decouper --appliquer  # crée les 101 pieds
+```
+
+Rejouable. Recopie les tarifs tels quels. `--axe=CDYLUP-004` pour n'en
+traiter qu'un et regarder le résultat avant d'y aller en entier.
+
+#### 🔴 Le contrôle qui compte — la neutralité fiscale
+
+La promesse de la phase 1 est que **la facture ne change pas d'un franc**.
+À vérifier sur la vraie base, AVANT et APRÈS le découpage :
+
+```
+php artisan tinker --execute="
+  foreach (App\Models\Campaign::whereNull('deleted_at')
+      ->where('end_date','>=',date('Y-m-d'))->get() as \$c) {
+    \$l = App\Models\InvoiceLine::whereHas('invoice', fn(\$q)=>\$q->where('campaign_id',\$c->id))->get();
+    echo \$c->id,' | ',\$c->name,' | lignes=',\$l->count(),
+         ' | HT=',\$l->sum('montant_ht_ligne'),
+         ' | ODP=',\$l->sum('odp_ligne'),' | TM=',\$l->sum('tm_ligne'),\"\n\";
+  }"
+```
+
+- [ ] Noter les chiffres AVANT le découpage : ……
+- [ ] Les comparer APRÈS : **ils doivent être identiques**. S'ils bougent,
+      le regroupement de `InvoiceFromCampaignBuilder` a un trou — ne pas
+      émettre de facture avant d'avoir compris.
+
+#### Écrans à ouvrir après le découpage
+
+- [ ] **Inventaire** : les 13 axes portent le badge orange « AXE · N pieds »,
+      les pieds le badge gris « pied N ». Les axes restent ouvrables.
+- [ ] **Réservation → sélection des panneaux** : les axes n'apparaissent
+      plus, leurs pieds oui, cochables un par un.
+- [ ] **Un pied d'un axe déjà vendu** (`CDYLUP-001`, `-007`, `-008`,
+      `TVILUP-001`, `-002` sont occupés) : il doit sortir **indisponible**,
+      avec le motif « … — axe vendu en entier ». Si un seul ressort libre,
+      on revend un axe déjà vendu : arrêter tout.
+- [ ] **PDF des disponibilités** : un axe = UNE page, ligne « Pieds proposés :
+      7 sur 11 », et l'encadré « Comment lire cette disponibilité » sur la
+      première page de garde. La photo doit être là (elle appartient à la
+      ligne de l'axe).
+- [ ] **Catalogue Brevo** (aperçu, pas d'envoi) : même regroupement.
+      `NB_PANNEAUX` doit rester proche de 255 — un axe compte pour 1 entrée,
+      comme avant. S'il bondit vers 290, le regroupement n'est pas appliqué.
+- [ ] **Devis** : la recherche de panneaux ne propose plus les axes.
+- [ ] **GPS manquant** : les 101 pieds y apparaissent. **C'est voulu** —
+      recopier la position de l'axe ferait rendre « trop loin » au contrôle
+      géo des piges. À remplir depuis le terrain, ou laisser la
+      géolocalisation automatique le faire depuis les premières piges.
+
+#### À trancher avant la phase 2
+
+- [ ] `NB_PANNEAUX` du catalogue : un axe compte pour **1 entrée** (choix
+      actuel, continuité avec les 255 déjà annoncés) ou pour **ses pieds
+      disponibles** (plus juste, mais le chiffre bondit) ?
+- [ ] ODP et TM (cf. § 18) — la phase 2 ne s'ouvre pas sans.
+
+#### Rappel de calendrier
+
+**Ne pas déployer le découpage avant l'envoi automatique du catalogue du
+20/11.** Le regroupement d'affichage est livré, donc le risque est maîtrisé,
+mais trois jours avant un envoi réel n'est pas le moment de découvrir un
+écart.

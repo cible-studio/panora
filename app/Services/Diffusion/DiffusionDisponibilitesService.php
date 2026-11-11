@@ -95,6 +95,11 @@ class DiffusionDisponibilitesService
         // confirmé par le MP — ils restent au client actuel.
         $ids = Panel::query()
             ->whereNull('panels.deleted_at')
+            // Axes multi-pieds (2026-11-11) : la disponibilité se calcule
+            // sur les PIEDS. La ligne d'axe n'est pas vendable — la garder
+            // compterait l'axe en plus de ses pieds. Son nom et sa photo
+            // reviennent au regroupement, juste avant le rendu.
+            ->vendables()
             ->whereNotIn('panels.id', RenouvellementService::panneauxRetenus())
             ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
             ->orderBy('communes.name')
@@ -114,7 +119,13 @@ class DiffusionDisponibilitesService
             photosCompactes: true
         );
 
-        return self::filtrerDiffusables($lignes, $fin->toDateString());
+        // Un axe = UNE entrée (« 7 pieds disponibles sur 11 »), et c'est
+        // aussi ce qui rend sa photo au catalogue : elle appartient à la
+        // ligne de l'axe, pas aux pieds.
+        return $this->pdfBuilder->regrouperLesPieds(
+            self::filtrerDiffusables($lignes, $fin->toDateString()),
+            photosCompactes: true,
+        );
     }
 
     /**

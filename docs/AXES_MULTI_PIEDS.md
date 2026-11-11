@@ -4,8 +4,9 @@
 > sujet : ce qui a été mesuré sur la base de production, ce qui a été
 > tranché, ce qui attend encore une décision.
 >
-> ⚠ **Aucun code n'a été écrit à ce jour.** Le plan de la section 5 est une
-> proposition qui attend validation (règle n°1, étape 4).
+> ✅ **Phase 1 validée par l'utilisateur et livrée le 2026-11-11** (branche
+> `develop`). Ce qui est fait, ce qui reste et comment déployer : section 8.
+> La phase 2 (le prix au pied) attend la décision ODP / TM.
 
 ---
 
@@ -268,3 +269,78 @@ livré dans le même lot que la migration — jamais après.
   `AvailabilityService` (section 5).
 - **Ne pas livrer le découpage sans le regroupement d'affichage** : les
   clients verraient le parc gonfler sans explication.
+
+
+---
+
+## 8. Phase 1 — livrée le 2026-11-11
+
+### Ce qui est en place
+
+| Élément | Où |
+|---|---|
+| Colonnes `axe_id`, `est_axe`, `pied_numero`, `faces_par_pied` | `2026_11_11_100000_add_axe_to_panels_table.php` |
+| **La règle, écrite une seule fois** | `app/Services/Axes/AxeService.php` |
+| Relations, portées `vendables()` / `axes()` | `app/Models/Panel.php` |
+| Un pied hérite du blocage de son axe — **8 méthodes** | `app/Services/AvailabilityService.php` |
+| Facture : regroupement des pieds, bascule `FACTURER_AU_PIED` | `app/Services/InvoiceFromCampaignBuilder.php` |
+| Un axe = UNE entrée dans le PDF **et** le catalogue Brevo | `DisponibilitesPdfBuilder::regrouperLesPieds()` |
+| Encadré « Comment lire cette disponibilité » + « Pieds proposés » | `admin/reservations/pdf/disponibilites-images.blade.php` |
+| Les axes ne sont plus proposés (4 écrans) | réservation ×2, campagne, devis |
+| Badge « AXE · N pieds » / « pied N » en inventaire | `admin/panels/partials/table-rows.blade.php` |
+| Découpage des données, simulation par défaut | `php artisan axes:decouper` |
+| Garde-fous | `tests/Unit/AxesMultiPiedsTest.php` — 23 tests |
+
+Les 8 méthodes de décision adaptées : `getUnavailablePanelIds`,
+`conflitsFermes`, `getOccupationDetails`, `quickCheck`,
+`getPanelAvailabilityData`, `getInternalConflictMap`,
+`getInternalPanelBookingMap` et `syncPanelStatuses` — ce dernier parce que
+`panels.status` est le cache lu par tous les badges d'inventaire : un pied
+affiché « libre » alors que son axe est vendu, c'est une vente en double
+annoncée.
+
+### Trois décisions techniques à connaître
+
+1. **Les pieds naissent sans position GPS.** Recopier celle de l'axe ferait
+   rendre « trop loin » au contrôle géo des piges, alors que les pieds sont
+   répartis sur des centaines de mètres. Le verdict `no_panel_gps` est
+   neutre et vrai, et la géolocalisation automatique
+   (`gps_source = pige_provisional`) remplit chaque pied depuis sa première
+   photo de terrain. **Conséquence : l'écran « GPS manquant » affichera les
+   101 pieds** — c'est la liste de travail du media planner, pas un bug.
+2. **La référence d'un pied finit par des chiffres** (`CDYLUP-004-P01`).
+   `TaxCalculationService::referencePhysique()` ne retire qu'un suffixe
+   `A`/`B` collé à un chiffre : un pied n'est donc jamais fusionné comme une
+   face, et le calcul de l'ODP reste intact.
+3. **Le code tourne avant la migration.** `AxeService::colonnesPresentes()`
+   coupe tout si `axe_id` est absente. Sans ce garde-fou, toute réservation
+   planterait entre le déploiement et le `migrate`.
+
+### Déploiement, dans cet ordre
+
+```bash
+php artisan migrate                 # ajoute les 4 colonnes
+php artisan axes:decouper           # SIMULATION : montre les 13 axes et 101 pieds
+php artisan axes:decouper --appliquer
+```
+
+`axes:decouper` est rejouable, recopie les tarifs **tels quels** (jamais
+« corrigés » : deux anomalies attendent une décision — cf.
+`TECHNICAL_DEBT.md`), et accepte `--axe=CDYLUP-004` pour n'en traiter qu'un.
+
+### Ce qui reste dans la phase 1
+
+- [ ] **Regroupement visuel du sélecteur de réservation** : les pieds sont
+      déjà cochables un par un (un pied est un panneau) et les axes n'y
+      apparaissent plus, donc le geste fonctionne. Mais le media planner
+      voit 11 lignes « Axe … — pied 3/11 » dans la liste, au lieu d'un bloc
+      « Axe » replié avec ses pieds et un compteur « 5 sélectionnés ·
+      5 disponibles ». C'est du confort, pas de la justesse.
+
+### Non régression attendue
+
+Le test le plus important n'est pas automatisable ici (base locale vide) :
+**construire la facture des 3 campagnes vivantes avant et après le
+découpage, et vérifier que chaque ligne est identique au franc près** —
+`montant_ht_ligne`, `odp_ligne`, `tm_ligne`. C'est la promesse de la
+phase 1.

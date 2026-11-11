@@ -152,6 +152,107 @@ class DisponibilitesPdfBuilder
     }
 
     /**
+     * Axes multi-pieds (2026-11-11) : un axe = UNE entrée, pas N.
+     *
+     * Appelé APRÈS le filtrage des panneaux présentables, pour que le
+     * compteur annonce les pieds réellement disponibles. Deux raisons de
+     * regrouper, l'une commerciale et l'autre technique :
+     *
+     *   · le client doit lire « Axe St Jean – Carrefour Lavie : 7 pieds
+     *     disponibles sur 11 », pas onze pages identiques ;
+     *   · les **photos appartiennent à la ligne de l'axe**
+     *     (`panel_photos.panel_id`), pas aux pieds. Sans regroupement, le
+     *     catalogue perdrait ses images.
+     *
+     * L'entrée produite est celle de l'AXE — photo, nom, commune, format —
+     * enrichie de `pieds_disponibles` et `pieds_total`. Les panneaux
+     * simples traversent sans changement, à leur place dans l'ordre.
+     */
+    public function regrouperLesPieds(Collection $lignes, bool $photosCompactes = false): Collection
+    {
+        $axes = app(\App\Services\Axes\AxeService::class);
+        if (! $axes->colonnesPresentes()) {
+            return $lignes;
+        }
+
+        // Seuls les panneaux du parc CIBLE ont des pieds : les panneaux de
+        // régies partenaires portent 'source' => 'external'.
+        $idsInternes = $lignes
+            ->filter(fn ($l) => ($l['source'] ?? null) !== 'external')
+            ->pluck('id')
+            ->filter()
+            ->all();
+
+        $axeParPied = $axes->axeParPied($idsInternes);
+        if (empty($axeParPied)) {
+            return $lignes;
+        }
+
+        $axeIds = array_values(array_unique($axeParPied));
+
+        $panneauxAxes = Panel::with([
+            'commune:id,name',
+            'zone:id,name',
+            'format:id,name,width,height',
+            'category:id,name',
+            'photos' => fn ($q) => $q->orderBy('ordre'),
+        ])->whereIn('id', $axeIds)->get()->keyBy('id');
+
+        // Nombre TOTAL de pieds de chaque axe — pas seulement ceux qui
+        // sont disponibles : « 7 sur 11 » a besoin des deux chiffres.
+        $totaux = Panel::whereIn('axe_id', $axeIds)
+            ->selectRaw('axe_id, COUNT(*) as total')
+            ->groupBy('axe_id')
+            ->pluck('total', 'axe_id');
+
+        $resultat = collect();
+        $positionDeLAxe = [];
+
+        foreach ($lignes as $ligne) {
+            $axeId = $axeParPied[$ligne['id'] ?? null] ?? null;
+
+            if ($axeId === null) {
+                $resultat->push($ligne);
+                continue;
+            }
+
+            // Deuxième pied du même axe : on incrémente l'entrée déjà posée.
+            if (isset($positionDeLAxe[$axeId])) {
+                $index = $positionDeLAxe[$axeId];
+                $deja  = $resultat->get($index);
+                $deja['pieds_disponibles']++;
+                $resultat->put($index, $deja);
+                continue;
+            }
+
+            $axe = $panneauxAxes->get($axeId);
+            if ($axe === null) {
+                // Axe introuvable (supprimé) : on garde le pied tel quel
+                // plutôt que de perdre une disponibilité.
+                $resultat->push($ligne);
+                continue;
+            }
+
+            $entree = $this->pdfExport->enrichPanel($axe, $photosCompactes);
+
+            // Le statut et la date de libération viennent du PIED : c'est
+            // lui qui est disponible, l'axe porte peut-être encore un vieux
+            // contrat.
+            $entree['display_status']    = $ligne['display_status'] ?? null;
+            $entree['release_date']      = $ligne['release_date'] ?? null;
+            $entree['est_axe']           = true;
+            $entree['pieds_disponibles'] = 1;
+            $entree['pieds_total']       = (int) ($totaux[$axeId] ?? 1);
+            $entree['faces_par_pied']    = (int) ($axe->faces_par_pied ?? 1);
+
+            $positionDeLAxe[$axeId] = $resultat->count();
+            $resultat->push($entree);
+        }
+
+        return $resultat->values();
+    }
+
+    /**
      * Rendu du PDF.
      *
      * @param  array{reservation_ref?: ?string, client_name?: ?string,
