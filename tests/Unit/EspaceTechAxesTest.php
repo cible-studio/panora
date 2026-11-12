@@ -404,6 +404,90 @@ class EspaceTechAxesTest extends TestCase
         $this->assertArrayNotHasKey('suivante', $this->postJson('/tech/' . self::TOKEN . '/poses/1/status', ['status' => 'en_route'])->json());
     }
 
+    // ── Étape 3 : Carte, Mon chemin, Mes photos, feuille de route ──────
+
+    public function test_la_carte_montre_un_arret_par_axe_a_sa_position(): void
+    {
+        $r = $this->get('/tech/' . self::TOKEN . '/poses/map');
+
+        $r->assertOk();
+        $points = collect($r->viewData('points'));
+        // Avant : les pieds (sans position propre) disparaissaient de la carte.
+        $this->assertCount(3, $points, 'l\'axe, COC-020 et l\'axe entier');
+        $axe = $points->firstWhere('axe', '10-1');
+        $this->assertNotNull($axe);
+        $this->assertSame('CDYLUP-004', $axe['ref']);
+        $this->assertSame([1, 2], $axe['ids']);
+        $this->assertSame(2, $axe['pieds']);
+        $this->assertEqualsWithDelta(self::AXE_LAT, $axe['lat'], 0.000001);
+        $this->assertSame([], $r->viewData('sansPosition'));
+        // « Voir » : la fiche (?focus=task_…) ou la carte de l'axe (?axe=…), plus « #pose-… ».
+        $r->assertSee('?axe=', false);
+        $r->assertSee('?focus=task_', false);
+        $r->assertDontSee('#pose-', false);
+        $r->assertSee('Ma tournée');
+    }
+
+    public function test_un_pied_sans_aucune_position_est_annonce_sans_position(): void
+    {
+        DB::table('panels')->where('id', 10)->update(['latitude' => null, 'longitude' => null]);
+
+        $r = $this->get('/tech/' . self::TOKEN . '/poses/map');
+
+        $this->assertSame(['CDYLUP-004'], $r->viewData('sansPosition'));
+        $r->assertSee('1 panneau sans position');
+    }
+
+    public function test_mon_chemin_passe_une_fois_par_axe(): void
+    {
+        $r = $this->getJson('/tech/' . self::TOKEN . '/poses/optimize?lat=5.36&lng=-3.98');
+
+        $r->assertOk()->assertJson(['ok' => true, 'count' => 3]);
+        $arret = collect($r->json('order'))->firstWhere('ref', 'CDYLUP-004');
+        $this->assertSame([1, 2], $arret['ids']);
+        $this->assertSame([], $r->json('no_gps'));
+    }
+
+    public function test_la_feuille_de_route_donne_au_pied_la_position_de_son_axe(): void
+    {
+        $r = $this->get('/tech/' . self::TOKEN . '/poses/route-sheet');
+
+        $r->assertOk();
+        $r->assertSee('CDYLUP-004-P01');
+        $r->assertSee('5.36000');
+    }
+
+    public function test_mes_photos_en_galerie_avec_refaire(): void
+    {
+        DB::table('piges')->insert([
+            ['panel_id' => 11, 'campaign_id' => 1, 'pose_task_id' => 1, 'user_id' => 2, 'photo_path' => 'piges/a.jpg',
+             'status' => 'rejete', 'rejection_reason' => 'Photo floue', 'taken_at' => now()->subHour()],
+            ['panel_id' => 13, 'campaign_id' => 1, 'pose_task_id' => 3, 'user_id' => 2, 'photo_path' => 'piges/b.jpg',
+             'status' => 'verifie', 'rejection_reason' => null, 'taken_at' => now()->subHours(2)],
+        ]);
+
+        $r = $this->get('/tech/' . self::TOKEN . '/piges');
+
+        $r->assertOk();
+        $r->assertSee('tx-galerie', false);
+        $r->assertSee('Photo floue');
+        $r->assertSee('refaire=1', false);
+        $r->assertSee('À valider');
+        // La barre du bas, onglet « Mes photos » actif ; « Alertes » ramène à Ma journée.
+        $r->assertSee('class="tx-nav"', false);
+        $r->assertSee('alertes=1', false);
+    }
+
+    public function test_photos_a_refaire_affiche_la_distance_enregistree(): void
+    {
+        DB::table('piges')->insert(['panel_id' => 11, 'campaign_id' => 1, 'pose_task_id' => 1, 'user_id' => 2,
+            'photo_path' => 'piges/a.jpg', 'status' => 'rejete', 'rejection_reason' => 'Floue',
+            'gps_lat' => 5.3627, 'gps_lng' => -3.98, 'geo_distance_m' => 300, 'geo_check' => 'ok', 'taken_at' => now()]);
+
+        // Le pied n'a pas de position : l'ancien calcul en Blade n'affichait rien.
+        $this->get('/tech/' . self::TOKEN . '/poses')->assertOk()->assertSee('À 300 m');
+    }
+
     public function test_ma_journee_affiche_une_carte_par_axe(): void
     {
         $r = $this->get('/tech/' . self::TOKEN . '/poses');

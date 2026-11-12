@@ -293,10 +293,13 @@ function initNotifications() {
         if (row) { e.preventDefault(); ouvrirAlerte(row); }
     });
 
-    // 1er fetch au load, puis refresh toutes les 60s
+    // 1er fetch au load, puis refresh toutes les 60s. Le tiroir a pu être
+    // ouvert avant la réponse (« Alertes » depuis une autre page, ?alertes=1) :
+    // on le remplit dès qu'elle arrive.
     fetchNotifs().then(items => {
         B3_STATE.notifs = items;
         refreshHelpBadge();
+        if (document.querySelector('#sm2c-b3-overlay.is-open')) renderNotifs();
     });
     setInterval(() => {
         fetchNotifs().then(items => {

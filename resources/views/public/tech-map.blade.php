@@ -199,23 +199,29 @@
         .empty-overlay .icon { font-size: 52px; margin-bottom: 12px; opacity: .5; }
         .empty-overlay h2 { font-size: 18px; margin: 0 0 6px; color: var(--text); }
         .empty-overlay p { font-size: 13px; color: var(--text2); margin: 0; max-width: 320px; line-height: 1.5; }
-    </style>
-</head>
-<body>
 
-<div class="header">
-    <a href="{{ route('tech.space', $token) }}" class="back">←</a>
-    <img src="{{ asset('images/panora.png') }}" alt="Panora by CIBLE" class="brand-logo">
-    <div style="flex:1;min-width:0">
-        <h1>🗺 Mes panneaux sur la carte</h1>
-        <div class="subtitle">
-            {{ $points->count() }} panneau{{ $points->count() > 1 ? 'x' : '' }} avec position
-            @if($withoutGps > 0)
-                · <span style="color:var(--cancelled)">{{ $withoutGps }} sans position</span>
-            @endif
-        </div>
+        /* Refonte, étape 3 (2026-11-12) : un arrêt par axe. */
+        .ts-marker.axe { width: auto; min-width: 34px; padding: 0 8px; border-radius: 14px; gap: 3px; }
+        .map-controls { top: 84px; }
+    </style>
+    {{-- Refonte 2026-11-12 (maquette validée) : en-tête, boutons, barre du bas. --}}
+    <link rel="stylesheet" href="{{ asset('css/tech/tx-refonte.css') }}?v={{ config('app.version', '1') }}">
+</head>
+<body class="tx tx-carte">
+
+<header class="tx-bandeau">
+    <div class="tx-bandeau-t">
+        <h1>Ma tournée</h1>
+        <small>
+            {{ $points->count() }} {{ $points->count() > 1 ? 'arrêts' : 'arrêt' }}
+            @if($withoutGps > 0) · {{ $withoutGps }} sans position @endif
+        </small>
     </div>
-</div>
+    <a class="tx-btn tx-btn-carre" href="{{ route('tech.space.route-sheet', $token) }}" target="_blank" rel="noopener"
+       aria-label="Ma feuille de route papier" title="Ma feuille de route papier">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>
+    </a>
+</header>
 
 <div id="map" style="position:relative">
     @if($points->isEmpty())
@@ -223,29 +229,45 @@
             <div class="icon">🗺</div>
             <h2>Aucun panneau sur la carte</h2>
             <p>
-                Tes panneaux n'ont pas encore d'adresse GPS enregistrée.
-                Touche « Retour » et utilise la liste pour les retrouver par leur numéro ou leur rue.
+                Tes panneaux n'ont pas encore de position enregistrée.
+                Retrouve-les dans « Ma journée » par leur numéro ou leur rue.
             </p>
         </div>
     @endif
 </div>
 
 <div class="map-controls">
-    <button type="button" class="map-ctrl-btn" id="ts-locate-btn" title="Voir où je suis">📍</button>
-    <button type="button" class="map-ctrl-btn" id="ts-fit-btn" title="Voir tous les panneaux">🔭</button>
+    <button type="button" class="map-ctrl-btn" id="ts-fit-btn" title="Voir tous les arrêts" aria-label="Voir tous les arrêts">🔭</button>
 </div>
 
-@if($points->isNotEmpty())
-<div class="bottom-panel">
-    <div class="stat">
-        <strong>{{ $points->count() }}</strong> panneau{{ $points->count() > 1 ? 'x' : '' }} sur la carte
-        @if($withoutGps > 0)
-            <div class="nogps">⚠ {{ $withoutGps }} sans position (cherche dans la liste)</div>
-        @endif
-    </div>
-    <button type="button" class="opt-btn" id="ts-optimize-btn">🚀 Mon chemin</button>
+@if($points->isNotEmpty() || $withoutGps > 0)
+<div class="tx-carte-bas">
+    @if($points->isNotEmpty())
+        <div class="tx-actions">
+            <button type="button" class="tx-btn" id="ts-locate-btn">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                <span data-libelle>Me localiser</span>
+            </button>
+            <button type="button" class="tx-btn tx-btn-encre" id="ts-optimize-btn">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 19c4 0 3-6 7-6s3-6 7-6"/><circle cx="5" cy="19" r="2" fill="currentColor"/><circle cx="19" cy="7" r="2" fill="currentColor"/></svg>
+                <span data-libelle>Mon chemin</span>
+            </button>
+        </div>
+    @endif
+    @if($withoutGps > 0)
+        <div class="tx-alerte tx-alerte-bleue" role="note">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 11v5M12 8v.01"/></svg>
+            <span>
+                <strong>{{ $withoutGps }} {{ $withoutGps > 1 ? 'panneaux' : 'panneau' }} sans position</strong>
+                {{ implode(', ', array_slice($sansPosition, 0, 3)) }}{{ count($sansPosition) > 3 ? '…' : '' }} :
+                « Y aller » cherche l'adresse dans Maps.
+            </span>
+        </div>
+    @endif
 </div>
 @endif
+
+@include('public.tech.partials._tx_nav', ['token' => $token, 'actif' => 'carte', 'tech' => $tech])
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
@@ -308,9 +330,11 @@ window.addEventListener('DOMContentLoaded', function () {
         const color = p.status_color || '#e8a020';
         const lateClass = p.is_late ? 'late' : '';
         const tourClass = opts.tourStep ? 'tour-step' : '';
-        const label = opts.tourStep ? String(opts.tourStep) : '';
-        const html = `<div class="ts-marker ${lateClass} ${tourClass}" style="--marker-color:${color}">${label}</div>`;
-        const icon = L.divIcon({ html, className: 'ts-marker-wrapper', iconSize: [26, 26] });
+        // Un arrêt d'axe (2026-11-12) : une pastille « ⛓ N » (ses pieds).
+        const axeClass = p.axe ? 'axe' : '';
+        const label = opts.tourStep ? String(opts.tourStep) : (p.axe ? `⛓ ${p.pieds}` : '');
+        const html = `<div class="ts-marker ${lateClass} ${tourClass} ${axeClass}" style="--marker-color:${color}">${label}</div>`;
+        const icon = L.divIcon({ html, className: 'ts-marker-wrapper', iconSize: p.axe && !opts.tourStep ? [46, 26] : [26, 26] });
         const m = L.marker([p.lat, p.lng], { icon });
         m.bindPopup(() => renderPopup(p), { closeButton: true, maxWidth: 280 });
         return m;
@@ -319,11 +343,18 @@ window.addEventListener('DOMContentLoaded', function () {
     function renderPopup(p) {
         const goUrl = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
         const lateHtml = p.is_late ? '<span class="pop-pill late">⏰ Retard</span>' : '';
-        const focusUrl = `${SPACE_URL}#pose-${p.id}`;
+        // « Voir » ouvre la fiche de la pose (pose-drawer.js, ?focus=task_…)
+        // ou la carte de l'axe (refonte.js, ?axe=…). Avant : une ancre
+        // « pose-{id} » qui n'existait plus — le bouton ne menait nulle part.
+        const focusUrl = p.axe
+            ? `${SPACE_URL}?axe=${encodeURIComponent(p.axe)}`
+            : `${SPACE_URL}?focus=task_${p.id}`;
+        const axeHtml = p.axe ? `<div class="pop-meta">⛓ Axe · ${p.pieds} pied${p.pieds > 1 ? 's' : ''} à poser</div>` : '';
         return `
             <div class="marker-popup">
                 <div class="pop-ref">${p.ref || ''} ${lateHtml}</div>
                 <div class="pop-name">${p.name || ''}</div>
+                ${axeHtml}
                 <div class="pop-meta">
                     📍 ${p.commune || '—'}${p.adresse ? ' · ' + p.adresse : ''}
                     ${p.campaign ? '<br>📢 ' + (p.campaign.length > 32 ? p.campaign.slice(0, 32) + '…' : p.campaign) : ''}
@@ -331,7 +362,7 @@ window.addEventListener('DOMContentLoaded', function () {
                 </div>
                 <div class="pop-actions">
                     <a class="go" href="${goUrl}" target="_blank" rel="noopener">🧭 Y aller</a>
-                    <a class="view" href="${focusUrl}">📋 Voir</a>
+                    <a class="view" href="${focusUrl}">📋 ${p.axe ? 'Voir l\'axe' : 'Voir'}</a>
                 </div>
             </div>`;
     }
@@ -348,6 +379,9 @@ window.addEventListener('DOMContentLoaded', function () {
         map.fitBounds(cluster.getBounds().pad(0.15));
     }
 
+    // Libellé d'un bouton de la refonte (texte à côté de son icône).
+    const libelle = (b, t) => { const s = b.querySelector('[data-libelle]'); if (s) s.textContent = t; else b.textContent = t; };
+
     // ─── 4. Bouton "Me localiser" ──────────────────────────────────
     let userMarker = null;
     let userCircle = null;
@@ -355,7 +389,7 @@ window.addEventListener('DOMContentLoaded', function () {
         if (!navigator.geolocation) return;
         const btn = document.getElementById('ts-locate-btn');
         btn.classList.add('is-active');
-        btn.textContent = '🛰';
+        libelle(btn, 'On te cherche…');
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const lat = pos.coords.latitude, lng = pos.coords.longitude;
@@ -373,11 +407,11 @@ window.addEventListener('DOMContentLoaded', function () {
                     color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: .1, weight: 1,
                 }).addTo(map);
                 map.setView([lat, lng], Math.max(14, map.getZoom()));
-                btn.textContent = '📍';
+                libelle(btn, 'Me localiser');
                 btn.classList.remove('is-active');
             },
             () => {
-                btn.textContent = '📍';
+                libelle(btn, 'Me localiser');
                 btn.classList.remove('is-active');
                 alert('On ne te trouve pas. Autorise le GPS sur ton téléphone.');
             },
@@ -401,7 +435,7 @@ window.addEventListener('DOMContentLoaded', function () {
             // Toggle off → restaure les markers classiques
             tourActive = false;
             optBtn.classList.remove('is-active');
-            optBtn.textContent = '🚀 Mon chemin';
+            libelle(optBtn, 'Mon chemin');
             if (tourLine) { map.removeLayer(tourLine); tourLine = null; }
             // Remet les markers normaux
             Object.values(markerByTaskId).forEach(m => map.removeLayer(m));
@@ -419,10 +453,10 @@ window.addEventListener('DOMContentLoaded', function () {
             return;
         }
         optBtn.disabled = true;
-        optBtn.textContent = '🛰 On te cherche…';
+        libelle(optBtn, 'On te cherche…');
         navigator.geolocation.getCurrentPosition(
             async (pos) => {
-                optBtn.textContent = '🔄 On calcule…';
+                libelle(optBtn, 'On calcule…');
                 try {
                     const u = new URL(OPTIMIZE_URL, location.origin);
                     u.searchParams.set('lat', pos.coords.latitude.toFixed(6));
@@ -433,17 +467,17 @@ window.addEventListener('DOMContentLoaded', function () {
                     displayTour(d.order, [pos.coords.latitude, pos.coords.longitude], d.total_meters);
                     tourActive = true;
                     optBtn.classList.add('is-active');
-                    optBtn.textContent = `✓ ${(d.total_meters/1000).toFixed(1).replace('.0', '')} km — touche pour annuler`;
+                    libelle(optBtn, `${(d.total_meters/1000).toFixed(1).replace('.0', '').replace('.', ',')} km · touche pour annuler`);
                 } catch (e) {
-                    optBtn.textContent = '❌ Réessaie';
-                    setTimeout(() => optBtn.textContent = '🚀 Mon chemin', 2000);
+                    libelle(optBtn, 'Réessaie');
+                    setTimeout(() => libelle(optBtn, 'Mon chemin'), 2000);
                 } finally {
                     optBtn.disabled = false;
                 }
             },
             () => {
                 optBtn.disabled = false;
-                optBtn.textContent = '🚀 Mon chemin';
+                libelle(optBtn, 'Mon chemin');
                 alert('On ne te trouve pas — autorise le GPS.');
             },
             { enableHighAccuracy: true, timeout: 10000 }
@@ -455,10 +489,12 @@ window.addEventListener('DOMContentLoaded', function () {
         // numérotés selon l'ordre TSP + une polyline qui relie tout.
         cluster.clearLayers();
         const latLngs = [L.latLng(startLatLng[0], startLatLng[1])];
-        order.forEach((step, idx) => {
+        // Numéros sans trou : un arrêt absent de la carte n'en consomme pas.
+        let etape = 0;
+        order.forEach((step) => {
             const p = POINTS.find(pt => pt.id === step.id);
             if (!p) return;
-            const m = makeMarker(p, { tourStep: idx + 1 });
+            const m = makeMarker(p, { tourStep: ++etape });
             cluster.addLayer(m);
             latLngs.push(L.latLng(p.lat, p.lng));
         });

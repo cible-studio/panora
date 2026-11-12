@@ -537,7 +537,9 @@ class TechSpaceController extends Controller
         $endOfDay   = $todayDate->copy()->endOfDay();
 
         $base = PoseTask::with([
-                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude',
+                // Axes (2026-11-12) : position de l'axe pour ses pieds (Panel::positionTerrain).
+                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude' . self::colonnesAxe(),
+                ...self::relationsAxe(),
                 'panel.commune:id,name',
                 'panel.format:id,name',
                 'panel.photos:id,panel_id,path,ordre',
@@ -602,9 +604,10 @@ class TechSpaceController extends Controller
             $tLat = (float) $request->input('lat');
             $tLng = (float) $request->input('lng');
             $tasks = $tasks->sortBy(function ($t) use ($tLat, $tLng) {
-                $pLat = $t->panel?->latitude; $pLng = $t->panel?->longitude;
-                if ($pLat === null || $pLng === null) return PHP_FLOAT_MAX;
-                return self::haversine($tLat, $tLng, (float) $pLat, (float) $pLng);
+                // Un pied sans position prend celle de son axe (2026-11-12).
+                $pos = $t->panel?->positionTerrain();
+                if (!$pos) return PHP_FLOAT_MAX;
+                return self::haversine($tLat, $tLng, $pos['lat'], $pos['lng']);
             })->values();
         }
 
@@ -639,8 +642,8 @@ class TechSpaceController extends Controller
                 'has_problem'  => $t->lastProblemReport !== null,
                 'has_reject'   => $t->latestRejectedPige !== null,
                 'reject_reason'=> $t->latestRejectedPige?->rejection_reason,
-                'lat'          => $t->panel?->latitude,
-                'lng'          => $t->panel?->longitude,
+                'lat'          => $t->panel?->positionTerrain()['lat'] ?? null,
+                'lng'          => $t->panel?->positionTerrain()['lng'] ?? null,
                 'thumb_url'    => $thumb,
                 'scheduled_at' => optional($t->scheduled_at)->toIso8601String(),
                 'format'       => $t->panel?->format?->name,
@@ -674,7 +677,9 @@ class TechSpaceController extends Controller
         // Sur la feuille de route on charge TOUT, pas le cap SSR. Le tech
         // imprime / sauvegarde en PDF et utilise ça comme référence terrain.
         $activeTasks = PoseTask::with([
-                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude',
+                // Axes (2026-11-12) : position de l'axe pour ses pieds (Panel::positionTerrain).
+                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude' . self::colonnesAxe(),
+                ...self::relationsAxe(),
                 'panel.commune:id,name',
                 'panel.format:id,name',
                 'campaign:id,name,client_id',
@@ -742,7 +747,9 @@ class TechSpaceController extends Controller
         // nécessaires au rendu carte : ref, name, commune, lat/lng,
         // status, échéance. Les markers sans GPS sont exclus côté front.
         $tasks = PoseTask::with([
-                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude',
+                // Axes (2026-11-12) : position de l'axe pour ses pieds (Panel::positionTerrain).
+                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude' . self::colonnesAxe(),
+                ...self::relationsAxe(),
                 'panel.commune:id,name',
                 'campaign:id,name',
             ])
@@ -758,39 +765,51 @@ class TechSpaceController extends Controller
 
         $lateThreshold = PoseTask::lateThreshold();
 
-        $points = $tasks->map(function ($t) use ($lateThreshold) {
-            $lat = $t->panel?->latitude;
-            $lng = $t->panel?->longitude;
-            if ($lat === null || $lng === null) return null;
-            $status = $t->status instanceof PoseTaskStatus
-                ? $t->status
-                : PoseTaskStatus::tryFrom((string) $t->status);
-            $sched = $t->scheduled_at;
-            return [
+        // Refonte, étape 3 (2026-11-12) : UN arrêt par axe (ses pieds, même
+        // campagne — même regroupement que « Ma journée », entreesParAxe), à
+        // la position terrain (Panel::positionTerrain : un pied sans position
+        // prend celle de son axe). Avant : seule la position propre du
+        // panneau comptait, et les pieds découpés disparaissaient de la carte.
+        $points = collect();
+        $sansPosition = [];
+        foreach (self::entreesParAxe($tasks) as $e) {
+            $t = $e['tasks']->first();
+            $pos = $e['tasks']->map(fn ($x) => $x->panel?->positionTerrain())->filter()->first();
+            $axe = $e['type'] === 'axe' ? $e['axe'] : null;
+            $ref = $axe?->reference ?? $t->panel?->reference ?? '#' . $t->id;
+            if (!$pos) {
+                $sansPosition[] = $ref;
+                continue;
+            }
+            $status = PoseTaskStatus::tryFrom(self::statutEntree($e['tasks']));
+            $sched = $e['tasks']->pluck('scheduled_at')->filter()->min();
+            $points->push([
                 'id'       => $t->id,
-                'lat'      => (float) $lat,
-                'lng'      => (float) $lng,
-                'ref'      => $t->panel?->reference ?? '#' . $t->id,
-                'name'     => $t->panel?->name ?? '',
+                'ids'      => $e['tasks']->pluck('id')->values()->all(),
+                'axe'      => $axe ? $axe->id . '-' . $t->campaign_id : null,
+                'pieds'    => $axe ? $e['tasks']->count() : null,
+                'lat'      => $pos['lat'],
+                'lng'      => $pos['lng'],
+                'ref'      => $ref,
+                'name'     => $axe ? app(\App\Services\Axes\AxeService::class)->nomCourt($axe->name) : ($t->panel?->name ?? ''),
                 'commune'  => $t->panel?->commune?->name ?? '',
                 'adresse'  => $t->panel?->adresse,
                 'campaign' => $t->campaign?->name,
                 'status'   => $status?->value,
                 'status_label' => $status?->label(),
                 'status_color' => $status?->color(),
-                'is_late'  => $sched && Carbon::parse($sched)->lt($lateThreshold),
-                'sched'    => optional($sched)->format('d/m H:i'),
-            ];
-        })->filter()->values();
-
-        $withoutGps = $tasks->count() - $points->count();
+                'is_late'  => $e['tasks']->contains(fn ($x) => $x->scheduled_at && Carbon::parse($x->scheduled_at)->lt($lateThreshold)),
+                'sched'    => $sched ? Carbon::parse($sched)->format('d/m H:i') : null,
+            ]);
+        }
 
         return view('public.tech-map', [
-            'tech'        => $tech,
-            'token'       => $token,
-            'points'      => $points,
-            'totalTasks'  => $tasks->count(),
-            'withoutGps'  => $withoutGps,
+            'tech'         => $tech,
+            'token'        => $token,
+            'points'       => $points->values(),
+            'totalTasks'   => $tasks->count(),
+            'withoutGps'   => count($sansPosition),
+            'sansPosition' => $sansPosition,
         ]);
     }
 
@@ -826,32 +845,40 @@ class TechSpaceController extends Controller
         $scope    = $request->input('scope', 'all');
         $renderedIds = collect((array) $request->input('ids', []))->map(fn($x) => (int) $x)->filter()->all();
 
-        $q = PoseTask::with(['panel:id,reference,latitude,longitude'])
+        $q = PoseTask::with([
+                'panel:id,reference,latitude,longitude' . self::colonnesAxe(),
+                ...self::relationsAxe(),
+            ])
             ->where('assigned_user_id', $tech->id)
             ->whereNotNull('panel_id')->whereNotNull('campaign_id')
             ->whereNotIn('status', [
                 PoseTaskStatus::COMPLETED->value,
                 PoseTaskStatus::CANCELLED->value,
-            ]);
+            ])
+            // 2026-11-12 : les mêmes poses que la carte et « Ma journée »
+            // (sans ce filtre, le chemin passait par des poses de campagnes
+            // en pause, absentes de la carte, et ses kilomètres mentaient).
+            ->onOperableCampaign();
         if ($scope === 'rendered' && !empty($renderedIds)) {
             $q->whereIn('id', $renderedIds);
         }
-        $tasks = $q->get(['id', 'panel_id']);
+        $tasks = $q->get(['id', 'panel_id', 'campaign_id']);
 
-        // Garde uniquement les tâches géolocalisées (sans GPS = ignorées
-        // du calcul mais retournées en fin de liste pour info).
+        // Garde uniquement les arrêts géolocalisés (sans GPS = ignorés du
+        // calcul mais retournés en fin de liste pour info). Refonte, étape 3 :
+        // un arrêt par axe (ses pieds sont un seul lieu, entreesParAxe), à la
+        // position terrain (un pied sans position prend celle de son axe).
         $geo  = [];
         $noGps = [];
-        foreach ($tasks as $t) {
-            if ($t->panel?->latitude !== null && $t->panel?->longitude !== null) {
-                $geo[] = [
-                    'id'  => $t->id,
-                    'lat' => (float) $t->panel->latitude,
-                    'lng' => (float) $t->panel->longitude,
-                    'ref' => $t->panel->reference,
-                ];
+        foreach (self::entreesParAxe($tasks) as $e) {
+            $t = $e['tasks']->first();
+            $pos = $e['tasks']->map(fn ($x) => $x->panel?->positionTerrain())->filter()->first();
+            $ref = $e['type'] === 'axe' ? $e['axe']->reference : $t->panel?->reference;
+            $ids = $e['tasks']->pluck('id')->values()->all();
+            if ($pos) {
+                $geo[] = ['id' => $t->id, 'ids' => $ids, 'lat' => $pos['lat'], 'lng' => $pos['lng'], 'ref' => $ref];
             } else {
-                $noGps[] = ['id' => $t->id, 'ref' => $t->panel?->reference];
+                $noGps[] = ['id' => $t->id, 'ids' => $ids, 'ref' => $ref];
             }
         }
 
@@ -872,6 +899,7 @@ class TechSpaceController extends Controller
             $cumulMeters += $bestD;
             $order[] = [
                 'id'           => $chosen['id'],
+                'ids'          => $chosen['ids'],   // les pieds d'un axe (ou la seule pose)
                 'ref'          => $chosen['ref'],
                 'leg_meters'   => (int) round($bestD),
                 'cumul_meters' => (int) round($cumulMeters),
@@ -1069,6 +1097,43 @@ class TechSpaceController extends Controller
             // … et propose la pose suivante, comme après une photo.
             ? $this->avecPoseSuivante($tech)
             : []));
+    }
+
+    /**
+     * Colonnes d'axe à ajouter à une projection `panel:…` — de quoi appeler
+     * Panel::positionTerrain() (un pied prend la position de son axe) et
+     * regrouper les pieds (entreesParAxe). Vide tant que la migration des
+     * axes n'est pas passée.
+     */
+    private static function colonnesAxe(): string
+    {
+        return app(\App\Services\Axes\AxeService::class)->colonnesPresentes() ? ',axe_id,pied_numero,est_axe' : '';
+    }
+
+    /**
+     * Statut affiché d'une entrée (une pose, ou les pieds d'un axe) : le plus
+     * avancé de ses tâches — sur place, sinon en route, sinon planifiée.
+     * Une seule règle pour la carte d'axe (_tx_axe) et l'arrêt sur la carte.
+     *
+     * @param \Illuminate\Support\Collection<int, PoseTask> $tasks
+     */
+    public static function statutEntree($tasks): string
+    {
+        $statuts = collect($tasks)->map(fn ($t) => (string) $t->status);
+
+        return match (true) {
+            $statuts->contains(PoseTaskStatus::IN_PROGRESS->value) => PoseTaskStatus::IN_PROGRESS->value,
+            $statuts->contains(PoseTaskStatus::EN_ROUTE->value)    => PoseTaskStatus::EN_ROUTE->value,
+            default                                                => PoseTaskStatus::PLANNED->value,
+        };
+    }
+
+    /** L'axe d'un pied (position, nom, photo) — à charger avec colonnesAxe(). */
+    private static function relationsAxe(): array
+    {
+        return app(\App\Services\Axes\AxeService::class)->colonnesPresentes()
+            ? ['panel.axe:id,reference,name,latitude,longitude']
+            : [];
     }
 
     /**
