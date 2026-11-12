@@ -21,17 +21,21 @@ function registerEndOfDay() {
         const overlay = document.getElementById('sm2c-b2-overlay');
         if (!overlay) return;
 
-        // Récupère le prénom du tech depuis le H1 du topbar (pattern SM2a)
+        // Prénom : publié par l'en-tête de la refonte (2026-11-12), sinon le
+        // H1 de l'ancien topbar (pattern SM2a).
         const hello = document.querySelector('.hero-text h1')?.textContent || '';
         const m = hello.match(/Bonjour\s+(\S+)/i);
-        const firstName = m ? m[1].replace(/[!.]/g, '') : '';
+        const firstName = document.querySelector('.tx-jour[data-prenom]')?.dataset.prenom
+                       || (m ? m[1].replace(/[!.]/g, '') : '');
         const nameEl = overlay.querySelector('[data-field="b2-first-name"]');
         if (nameEl) nameEl.textContent = firstName ? firstName + ' !' : '!';
 
         // Compteurs : total = somme des cards aujourd'hui (.pose-line +
         // .sm2-done-row), durée = depuis l'ouverture de l'app (approximation).
-        const total = document.querySelectorAll('.sm2-done-row').length
-                    + 1; // +1 pour la pose qu'on vient juste de finir
+        // 2026-11-12 : le compteur du jour du serveur quand la photo le
+        // renvoie (opts.jour, TechCarte::journee) ; sinon l'ancien calcul.
+        const total = opts.jour?.faites ?? (document.querySelectorAll('.sm2-done-row').length
+                    + 1); // +1 pour la pose qu'on vient juste de finir
         const totalEl = overlay.querySelector('[data-field="b2-total"]');
         if (totalEl) totalEl.textContent = String(total);
 
@@ -153,10 +157,17 @@ function formatRelTime(iso) {
 }
 
 function refreshHelpBadge() {
+    const unread = B3_STATE.notifs.filter(n => !n.read_at).length;
+    // Refonte 2026-11-12 : point rouge de la cloche + pastille « Alertes »
+    // de la barre du bas.
+    document.querySelectorAll('[data-notifs-dot]').forEach(el => { el.hidden = unread === 0; });
+    document.querySelectorAll('[data-notifs-count]').forEach(el => {
+        el.hidden = unread === 0;
+        el.textContent = unread > 9 ? '9+' : String(unread);
+    });
     const btn = document.querySelector('.sm2-help-btn');
     if (!btn) return;
-    const hasUnread = B3_STATE.notifs.some(n => !n.read_at);
-    btn.classList.toggle('has-notifs', hasUnread);
+    btn.classList.toggle('has-notifs', unread > 0);
 }
 
 function openB3() {
@@ -202,7 +213,14 @@ function initNotifications() {
     //   - Si notifs non lues → ouvre B3 au lieu de T8
     //   - Sinon → laisse passer pour T8 (help.js)
     document.addEventListener('click', (e) => {
-        const helpBtn = e.target.closest('[data-action="open-help"]');
+        // Refonte 2026-11-12 : la cloche et l'onglet « Alertes » ouvrent B3.
+        if (e.target.closest('[data-action="open-b3"]')) {
+            e.preventDefault(); openB3(); return;
+        }
+        // Le « ? » jaune de l'ancien topbar servait aussi d'entrée aux
+        // alertes. Le « ? » de la refonte ouvre toujours l'aide (la cloche
+        // a les alertes) : interception limitée à l'ancien bouton.
+        const helpBtn = e.target.closest('.sm2-help-btn[data-action="open-help"]');
         if (helpBtn) {
             const hasUnread = B3_STATE.notifs.some(n => !n.read_at);
             if (hasUnread) {

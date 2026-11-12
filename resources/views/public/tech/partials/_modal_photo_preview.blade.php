@@ -4,10 +4,12 @@
      voit :
        - sa photo en grand (aspect 3:4 portrait)
        - un bandeau noir GPS + heure overlay sur la photo
-       - une boîte de validation colorée selon distance haversine :
-           VERT  (< 100 m)   → "✓ Position bien enregistrée"
-           ORANGE (< 500 m)  → "⚠ Tu es à X m du panneau, vérifie"
-           ROUGE (≥ 500 m)   → "✗ Tu es à Y m du panneau, c'est pas le bon ?"
+       - une boîte de validation colorée selon distance haversine, avec
+         les seuils du SERVEUR (2026-11-12, GeoService::seuilsPour, publiés
+         en data-gps-ok / data-gps-warn sur la ligne de la pose) :
+           VERT   (≤ 50 m ; axe ≤ 500 m)    → "✓ Position bien enregistrée"
+           ORANGE (≤ 200 m ; axe ≤ 1000 m)  → "⚠ Tu es à X m du panneau, vérifie"
+           ROUGE  (au-delà)                 → "✗ Tu es à Y m du panneau, c'est pas le bon ?"
        - la case « 📍 Joindre ma position » (cochée par défaut, 2026-11-04)
        - 2 boutons : Refaire (1/3) + Envoyer la photo (2/3)
 

@@ -83,7 +83,12 @@ class TechSpaceController extends Controller
             ->pluck('id');
         if ($activeIdsOrdered->count() > 1) {
             $keepId = $activeIdsOrdered->first();
-            $revertIds = $activeIdsOrdered->skip(1)->values()->all();
+            // Axe (2026-11-12) : les pieds sœurs de la pose gardée sont le
+            // même lieu — on les garde avec elle.
+            $freres = PoseTask::find($keepId)?->idsFreresDAxe() ?? [];
+            $revertIds = $activeIdsOrdered->skip(1)->reject(fn ($id) => in_array((int) $id, $freres, true))->values()->all();
+        }
+        if (!empty($revertIds ?? [])) {
             PoseTask::whereIn('id', $revertIds)->update([
                 'status'           => PoseTaskStatus::PLANNED->value,
                 'progress_percent' => 0,
@@ -116,11 +121,19 @@ class TechSpaceController extends Controller
         // reste). Au-delà, la recherche Select2 (endpoint searchPoses())
         // sert de point d'entrée — elle requête la BDD complète et injecte
         // dynamiquement la carte sélectionnée si elle n'est pas en SSR.
-        $activeTasks = PoseTask::with([
-                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude',
+        // Axes (2026-11-12) : de quoi regrouper les pieds sous leur axe, et
+        // prendre la photo et la position de l'axe quand le pied n'en a pas.
+        $colonnesAxe = app(\App\Services\Axes\AxeService::class)->colonnesPresentes();
+        $activeTasks = PoseTask::with(array_merge([
+                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude'
+                    . ($colonnesAxe ? ',axe_id,pied_numero,est_axe' : ''),
                 'panel.commune:id,name',
                 'panel.format:id,name',
                 'panel.photos:id,panel_id,path,ordre',
+            ], $colonnesAxe ? [
+                'panel.axe:id,reference,name,latitude,longitude',
+                'panel.axe.photos:id,panel_id,path,ordre',
+            ] : [], [
                 'campaign:id,name,start_date,end_date,client_id,status',
                 'campaign.client:id,name',
                 'lastProblemReport',  // ⚠ pour le badge "déjà signalé"
@@ -133,7 +146,7 @@ class TechSpaceController extends Controller
                 // pose du tech — distingue solo (crédit perso) vs équipe
                 // (crédit collectif). Cf. _pose_card.blade.php.
                 'poseTeam:id,name,color_slug',
-            ])
+            ]))
             ->where('assigned_user_id', $tech->id)
             ->whereNotNull('panel_id')
             ->whereNotNull('campaign_id')
@@ -442,7 +455,19 @@ class TechSpaceController extends Controller
                   ?? $activeTasks->first(fn($t) => $isTodayTask($t))
                   ?? $activeTasks->first();
 
+        // ── Refonte 2026-11-12 ─────────────────────────────────────────
+        // Progression du JOUR, pour de vrai (TechCarte::journee, la même
+        // source que les réponses d'une photo et de « Terminé »).
+        $journee = \App\Support\TechCarte::journee($tech);
+
+        // Une entrée par panneau, ou par AXE pour ses pieds (même campagne),
+        // avec ses pieds déjà faits pour dessiner toute la route.
+        $itemsByCommune = $groupedByCommune->map(fn ($tasks) => self::completerAxes(self::entreesParAxe($tasks), $tech));
+
         return [
+            'jourFaites'       => $journee['faites'],
+            'jourTotal'        => $journee['total'],
+            'itemsByCommune'   => $itemsByCommune,
             'totalActive'      => $totalActive,
             'totalRendered'    => $totalRendered,
             'totalDone'        => $totalDone,
@@ -961,9 +986,13 @@ class TechSpaceController extends Controller
         // POST — mais on ne renvoie PAS 409 ici pour garder l'API idem-
         // potente. La confirmation UX est gérée côté modal T7.
         $revertedIds = [];
+        // Axe (2026-11-12) : ses pieds sont UN lieu — ils ne se repoussent
+        // pas entre eux, ils suivent (cf. PoseTask::idsFreresDAxe).
+        $freres = $task->idsFreresDAxe();
         if (in_array($newStatus, [PoseTaskStatus::EN_ROUTE, PoseTaskStatus::IN_PROGRESS], true)) {
             $revertedIds = PoseTask::where('assigned_user_id', $tech->id)
                 ->where('id', '!=', $task->id)
+                ->whereNotIn('id', $freres)
                 ->whereIn('status', [PoseTaskStatus::EN_ROUTE->value, PoseTaskStatus::IN_PROGRESS->value])
                 ->pluck('id')
                 ->all();
@@ -1009,6 +1038,12 @@ class TechSpaceController extends Controller
         }
 
         $task->update($update);
+
+        // Axe : « Y aller » / « Je suis arrivé » valent pour tous ses pieds
+        // (sans jamais en faire reculer un, ni en clore un sans sa photo).
+        if ($freres && in_array($newStatus, [PoseTaskStatus::EN_ROUTE, PoseTaskStatus::IN_PROGRESS], true)) {
+            $this->avancerFreresDAxe($freres, $newStatus);
+        }
         self::invalidateCache($tech->id);
 
         Log::info('tech.space.status_changed', [
@@ -1028,7 +1063,108 @@ class TechSpaceController extends Controller
             'is_terminal'   => $newStatus->isTerminal(),
             'message'       => "Statut mis à jour : {$newStatus->label()}.",
             'reverted_ids'  => $revertedIds,  // Poses "en route" reposées à planifiée (exclusivité)
+            // Refonte 2026-11-12 : « Terminé » (axe entier) met l'en-tête à jour.
+            'jour'          => $newStatus === PoseTaskStatus::COMPLETED ? \App\Support\TechCarte::journee($tech) : null,
         ]);
+    }
+
+    /**
+     * Refonte de l'espace technicien (2026-11-12) : les pieds d'un même axe
+     * (même campagne) deviennent UNE entrée, à la place du premier ; les
+     * autres poses restent une entrée chacune. L'ordre (retard, échéance)
+     * est conservé.
+     *
+     * @param  \Illuminate\Support\Collection<int, PoseTask> $tasks
+     * @return list<array{type: string, task: PoseTask, tasks: \Illuminate\Support\Collection, axe: ?\App\Models\Panel}>
+     */
+    public static function entreesParAxe($tasks): array
+    {
+        $entrees = [];
+        $position = [];
+        foreach ($tasks as $t) {
+            $axeId = $t->panel?->axe_id;
+            if (!$axeId || !$t->panel?->axe) {
+                $entrees[] = ['type' => 'pose', 'task' => $t, 'tasks' => collect([$t]), 'axe' => null];
+                continue;
+            }
+            $cle = $axeId . '-' . $t->campaign_id;
+            if (!isset($position[$cle])) {
+                $position[$cle] = count($entrees);
+                $entrees[] = ['type' => 'axe', 'task' => $t, 'tasks' => collect(), 'axe' => $t->panel->axe];
+            }
+            $entrees[$position[$cle]]['tasks']->push($t);
+        }
+        foreach ($entrees as &$e) {
+            if ($e['type'] === 'axe') {
+                $e['tasks'] = $e['tasks']->sortBy(fn ($t) => $t->panel?->pied_numero ?? 0)->values();
+            }
+        }
+        unset($e);
+
+        return $entrees;
+    }
+
+    /**
+     * Ajoute à chaque entrée d'axe ses pieds DÉJÀ FAITS par ce technicien sur
+     * cette campagne, avec l'état de leur dernière photo (envoyée / validée) :
+     * la carte dessine ainsi toute la route, pas seulement ce qui reste.
+     *
+     * @return list<array>  les entrées, avec 'faites' => list<array{task: PoseTask, pige: ?\App\Models\Pige}>
+     */
+    public static function completerAxes(array $entrees, User $tech): array
+    {
+        foreach ($entrees as &$e) {
+            $e['faites'] = [];
+            if ($e['type'] !== 'axe') {
+                continue;
+            }
+            $faites = PoseTask::where('assigned_user_id', $tech->id)
+                ->where('campaign_id', $e['task']->campaign_id)
+                ->where('status', PoseTaskStatus::COMPLETED->value)
+                ->whereHas('panel', fn ($q) => $q->where('axe_id', $e['axe']->id))
+                ->with('panel:id,reference,name,pied_numero,axe_id')
+                ->get();
+            $piges = \App\Models\Pige::whereIn('pose_task_id', $faites->pluck('id'))
+                ->orderByDesc('taken_at')->get()->groupBy('pose_task_id');
+            $e['faites'] = $faites
+                ->sortBy(fn ($t) => $t->panel?->pied_numero ?? 0)
+                ->map(fn ($t) => ['task' => $t, 'pige' => $piges->get($t->id)?->first()])
+                ->values()->all();
+        }
+        unset($e);
+
+        return $entrees;
+    }
+
+    /**
+     * Fait avancer les pieds sœurs d'un axe jusqu'au statut donné (2026-11-12) :
+     * en route ou sur place. Ne fait jamais reculer un pied, ne le clôt jamais
+     * (chaque pied se clôt par SA photo).
+     *
+     * @param int[] $ids  PoseTask::idsFreresDAxe()
+     */
+    private function avancerFreresDAxe(array $ids, PoseTaskStatus $cible): void
+    {
+        $rang = [
+            PoseTaskStatus::PLANNED->value     => 0,
+            PoseTaskStatus::EN_ROUTE->value    => 1,
+            PoseTaskStatus::IN_PROGRESS->value => 2,
+        ];
+        foreach (PoseTask::whereIn('id', $ids)->get() as $frere) {
+            $actuel = (string) $frere->status;
+            if (!isset($rang[$actuel]) || $rang[$actuel] >= $rang[$cible->value]) {
+                continue;
+            }
+            $maj = [
+                'status'           => $cible->value,
+                'started_at'       => $frere->started_at ?? now(),
+                'progress_percent' => max((int) $frere->progress_percent, $cible === PoseTaskStatus::IN_PROGRESS ? 50 : 25),
+            ];
+            if ($cible === PoseTaskStatus::IN_PROGRESS && !$frere->arrived_at) {
+                $maj['arrived_at'] = now();
+            }
+            $frere->update($maj);
+        }
     }
 
     /**
@@ -1119,9 +1255,11 @@ class TechSpaceController extends Controller
         // effacés. Sinon on se retrouvait avec plusieurs "en route" et
         // "sur place" en parallèle (bug capture patronne).
         $revertedIds = [];
+        $freres = $task->idsFreresDAxe(); // axe : ses pieds sont UN lieu (2026-11-12)
         if ($newPct >= 25) {
             $revertedIds = PoseTask::where('assigned_user_id', $tech->id)
                 ->where('id', '!=', $task->id)
+                ->whereNotIn('id', $freres)
                 ->whereIn('status', [PoseTaskStatus::EN_ROUTE->value, PoseTaskStatus::IN_PROGRESS->value])
                 ->pluck('id')
                 ->all();
@@ -1136,6 +1274,12 @@ class TechSpaceController extends Controller
         }
 
         $task->update($update);
+
+        // Axe : « Je suis arrivé » (50 %) démarre tous ses pieds — validé
+        // le 2026-11-12. On ne fait que monter, jamais reculer.
+        if ($freres && $newPct >= 25) {
+            $this->avancerFreresDAxe($freres, $newPct >= 50 ? PoseTaskStatus::IN_PROGRESS : PoseTaskStatus::EN_ROUTE);
+        }
         self::invalidateCache($tech->id);
 
         Log::info('tech.space.progress_updated', [
@@ -1492,7 +1636,11 @@ class TechSpaceController extends Controller
 
         $task = PoseTask::with([
                 'campaign:id,name,status,user_id',
-                'panel:id,reference',
+                // est_axe : un axe entier garde sa tâche ouverte (choix 4b) —
+                // sans la colonne chargée, estAxe() répondrait toujours non.
+                app(\App\Services\Axes\AxeService::class)->colonnesPresentes()
+                    ? 'panel:id,reference,est_axe'
+                    : 'panel:id,reference',
                 // Pour détecter le cas "tech a signalé un problème non résolu
                 // ET tente quand même d'envoyer une pige" → on force la
                 // justification de la contradiction (voir bloc plus bas).
@@ -1574,12 +1722,17 @@ class TechSpaceController extends Controller
             && \Illuminate\Support\Facades\Schema::hasColumn('piges', 'client_uuid')) {
             $existing = Pige::where('client_uuid', $data['client_uuid'])->first();
             if ($existing) {
+                // Axe entier (choix 4b) : la tâche reste ouverte, même ici.
+                $dejaAxeEntier = (bool) $task->panel?->estAxe();
                 return response()->json([
                     'ok'        => true,
                     'pige_id'   => $existing->id,
                     'photo_url' => Storage::url($existing->photo_path),
                     'message'   => 'Photo déjà envoyée.',
-                    'task_done' => true,
+                    'task_done' => !$dejaAxeEntier,
+                    'axe_entier'   => $dejaAxeEntier,
+                    'photos_count' => $dejaAxeEntier ? Pige::where('pose_task_id', $task->id)->count() : null,
+                    'deja_envoyee' => true,
                 ]);
             }
         }
@@ -1665,7 +1818,20 @@ class TechSpaceController extends Controller
         // isTerminal() on string" en prod, le tech voyait l'erreur PHP
         // alors que la pige était bel et bien créée.
         $currentStatus = PoseTaskStatus::tryFrom((string) $task->status);
-        if ($currentStatus && !$currentStatus->isTerminal()) {
+        // Axe entier d'un ancien contrat (2026-11-12, choix 4b) : la tâche
+        // reste ouverte, une photo par pied ; « Terminé » la ferme.
+        $axeEntier = (bool) $task->panel?->estAxe();
+        if ($axeEntier && in_array($currentStatus, [PoseTaskStatus::PLANNED, PoseTaskStatus::EN_ROUTE], true)) {
+            // Une photo prouve qu'il est sur place : « Terminé » (en_cours →
+            // réalisée) devient possible.
+            $task->update([
+                'status'           => PoseTaskStatus::IN_PROGRESS->value,
+                'progress_percent' => max(60, (int) $task->progress_percent),
+                'started_at'       => $task->started_at ?? now(),
+                'arrived_at'       => $task->arrived_at ?? now(),
+            ]);
+        }
+        if ($currentStatus && !$currentStatus->isTerminal() && !$axeEntier) {
             // Bump progression à 100% + done_at.
             // FIX 2026-07-01 — Ne PAS poser started_at=now() en fallback quand
             // il est NULL : ça produisait real_minutes = 0 min (durée bidon,
@@ -1735,12 +1901,20 @@ class TechSpaceController extends Controller
             'ok'        => true,
             'pige_id'   => $pige->id,
             'photo_url' => Storage::url($path),
-            'message'   => '✅ Photo envoyée. Pose validée — en attente vérification.',
-            'task_done' => true,
+            'message'   => $axeEntier
+                ? '✅ Photo envoyée. Continue avec les autres pieds, puis touche « Terminé ».'
+                : '✅ Photo envoyée. Pose validée — en attente vérification.',
+            'task_done' => !$axeEntier,
+            // Axe entier (choix 4b) : nombre de photos envoyées sur la tâche.
+            'axe_entier'   => $axeEntier,
+            'photos_count' => $axeEntier ? \App\Models\Pige::where('pose_task_id', $task->id)->count() : null,
             // SM2c B1 — informatif côté front
             'is_off_schedule'      => $isOffSchedule,
-            // SM2c B2 — true si plus aucune pose du jour à faire
-            'is_last_pose_of_day'  => $todayTasksRemaining === 0,
+            // SM2c B2 — true si plus aucune pose du jour à faire (jamais sur
+            // un axe entier : la photo ne clôt pas sa tâche).
+            'is_last_pose_of_day'  => !$axeEntier && $todayTasksRemaining === 0,
+            // Refonte 2026-11-12 : compteur du jour à jour (en-tête, « Bravo »).
+            'jour'                 => \App\Support\TechCarte::journee($tech),
         ]);
     }
 

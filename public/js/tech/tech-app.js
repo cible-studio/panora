@@ -28,6 +28,7 @@ import { init as initYAllerModal } from './features/y-aller-modal.js';
 import { init as initHelp }        from './features/help.js';
 import { init as initT9Rejected }  from './features/t9-rejected.js';
 import { init as initSm2c }        from './features/sm2c.js';
+import { init as initRefonte }     from './features/refonte.js';
 
 // Garde-fou : si TECH_CONFIG n'est pas là, on log mais on n'explose pas
 // (la page continue de fonctionner via le JS inline encore présent).
@@ -52,6 +53,7 @@ function bootstrap() {
     initHelp();           // [SM2a Lot 5.1] modale T8 aide (auto-open 1re visite)
     initT9Rejected();     // [SM2a Lot 5.2] drawer T9 photos refusées + redo
     initSm2c();           // [SM2c] B1 off-schedule + B2 end-of-day + B3 notifs + prefs
+    initRefonte();        // [Refonte 2026-11-12] Ma journée : recherche, axes, photo sans rechargement
 }
 
 if (document.readyState === 'loading') {

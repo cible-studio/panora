@@ -218,6 +218,39 @@ class Panel extends Model
     }
 
     /**
+     * Photo de référence (2026-11-12) : la sienne, sinon celle de son axe.
+     * Les pieds naissent sans photo — elles restent sur la ligne de l'axe
+     * (cf. DecouperAxesEnPieds). Charger `photos` et `axe.photos` avant.
+     */
+    public function photoDeReference(): ?PanelPhoto
+    {
+        return $this->photos->first() ?? $this->axe?->photos?->first();
+    }
+
+    /**
+     * Position terrain (2026-11-12) : la sienne, sinon celle de son axe.
+     * Un pied sans position (il l'apprend de sa première pige validée)
+     * prend celle de l'axe, avec une tolérance élargie (cf. GeoService).
+     * `axe` = la position est celle d'un AXE (tolérance de 500 m validée le
+     * 2026-11-12) : celle de l'axe d'un pied, ou celle d'un axe entier
+     * (ancien contrat) dont on photographie chaque pied le long de la route.
+     *
+     * @return array{lat: float, lng: float, axe: bool}|null
+     */
+    public function positionTerrain(): ?array
+    {
+        if ($this->latitude !== null && $this->longitude !== null) {
+            return ['lat' => (float) $this->latitude, 'lng' => (float) $this->longitude, 'axe' => $this->estAxe()];
+        }
+        $axe = $this->axe_id ? $this->axe : null;
+        if ($axe && $axe->latitude !== null && $axe->longitude !== null) {
+            return ['lat' => (float) $axe->latitude, 'lng' => (float) $axe->longitude, 'axe' => true];
+        }
+
+        return null;
+    }
+
+    /**
      * ODP et TM d'un axe : JAMAIS calculées par Panora (règle validée le
      * 2026-11-12). Les comptables les gèrent à la main, autrement que pour
      * les panneaux ordinaires. Vaut pour la ligne d'axe comme pour ses pieds.

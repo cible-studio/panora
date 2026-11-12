@@ -52,33 +52,34 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
 
     @include('public.tech.partials._styles')
+    {{-- Refonte 2026-11-12 (maquette validée) : styles de « Ma journée ». --}}
+    <link rel="stylesheet" href="{{ asset('css/tech/tx-refonte.css') }}?v={{ config('app.version', '1') }}">
 </head>
-<body>
+<body class="tx">
 
-{{-- ── 1. Header T1 (sticky) — avatar + greeting + bouton "?" ────── --}}
-@include('public.tech.partials._topbar', [
-    'tech'            => $tech,
-    'token'           => $token,
-    'pigesRejected'   => $pigesRejected ?? 0,
-    'pigesTotal'      => $pigesTotal ?? 0,
-    'totalActive'     => $totalActive ?? 0,
-    'activeToday'     => $activeToday ?? 0,
-    'pigesSentToday'  => $pigesSentToday ?? 0,
-    'doneToday'       => $doneToday ?? 0,
-    'zonesTodayCount' => $zonesTodayCount ?? 0,
-    'totalAssigned'   => $totalAssigned ?? 0,
-    'totalDone'       => $totalDone ?? 0,
-    'progressPct'     => $progressPct ?? 0,
-    'zonesTodayList'  => $zonesTodayList ?? [],
+{{-- ── 1. En-tête (refonte 2026-11-12) : menu, alertes, journée ────── --}}
+@include('public.tech.partials._tx_tete', [
+    'tech'           => $tech,
+    'jourFaites'     => $jourFaites ?? 0,
+    'jourTotal'      => $jourTotal ?? 0,
+    'zonesTodayList' => $zonesTodayList ?? [],
 ])
 
 {{-- ── 2. Bandeau live "nouvelle pose" (piloté par heartbeat.js) ── --}}
 @include('public.tech.partials._banner_new_task')
 
-<div class="container">
+<div class="container tx-corps">
 
     {{-- ── 3. Bandeau rouge "photos à refaire" si pige refusée ──── --}}
     @include('public.tech.partials._banner_t9_rejected')
+
+    {{-- Photos en attente d'envoi (sans réseau) : visibles et relançables
+         (upload.js : refreshSyncBadge / flushUploadQueue). Le badge vivait
+         dans une barre retirée — on ne voyait plus les photos en attente. --}}
+    <button type="button" id="ts-sync-badge" class="tx-alerte tx-alerte-ambre" style="display:none">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-4 4m4-4 4 4M4 16v4h16v-4"/></svg>
+        <span><strong><span id="ts-sync-count">0</span> photo(s) en attente d'envoi</strong>Pas de réseau tout à l'heure. Touche pour réessayer.</span>
+    </button>
 
     @if(($totalActive ?? 0) === 0)
         {{-- Empty state global : aucune pose active --}}
@@ -88,31 +89,26 @@
             <p>Tu es à jour. Tu recevras un message WhatsApp dès qu'il y aura un nouveau panneau.</p>
         </div>
     @else
-        {{-- ── Liste compacte des poses groupée par commune ──
-             2026-07-06 : la focus card "🔥 MAINTENANT" a été retirée
-             sur demande patronne — flux unifié : toutes les poses
-             passent par le drawer T2 pour éviter la double UX.
-             La pose la plus prioritaire est simplement highlightée
-             dans la liste via $highlightTaskId (badge orange + halo). --}}
-        @include('public.tech.partials._pose_list', [
-            'groupedByCommune' => $groupedByCommune,
-            'doneByCommune'    => $doneByCommune,
-            'today'            => $today,
-            'highlightTaskId'  => $nextTask?->id,
+        {{-- ── Ma journée (refonte 2026-11-12) : recherche, « Maintenant »,
+             poses par commune, une carte par axe. Remplace _pose_list. --}}
+        @include('public.tech.partials._tx_journee', [
+            'itemsByCommune' => $itemsByCommune ?? collect(),
+            'doneByCommune'  => $doneByCommune,
+            'nextTask'       => $nextTask,
         ])
-
-        {{-- ── 6. Section "🟢 Déjà faites" pliée par défaut ────── --}}
-        @include('public.tech.partials._done_section')
-
-        {{-- ── 7. Bouton "Voir ma tournée sur la carte" ────────── --}}
-        @include('public.tech.partials._tour_button')
     @endif
+
+    {{-- ── « Déjà faites » repliée — visible même sans pose à faire. ── --}}
+    @include('public.tech.partials._done_section')
 
     <div class="footer">
         Panora · CIBLE CI<br>
         <span style="opacity:.6">Lien personnel — ne pas partager</span>
     </div>
 </div>
+
+{{-- ── Barre du bas (refonte 2026-11-12) ─────────────────────────── --}}
+@include('public.tech.partials._tx_nav', ['token' => $token, 'pigesRejected' => $pigesRejected ?? 0])
 
 {{-- ── Conteneur des toasts (consommé par core/ui-helpers.js) ────── --}}
 <div id="toast-container"></div>

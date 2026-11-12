@@ -97,12 +97,11 @@ class GeoBackfill extends Command
                 $bar->start();
                 $base->chunkById(500, function ($piges) use ($geo, &$pigesClassified, $bar) {
                     foreach ($piges as $pige) {
-                        $panel = $pige->panel;
-                        $verdict = $geo->pigePanelCheck(
+                        // Même règle que PigeObserver (pied → position de l'axe).
+                        $verdict = $geo->verdictPourPanneau(
                             $pige->gps_lat !== null ? (float) $pige->gps_lat : null,
                             $pige->gps_lng !== null ? (float) $pige->gps_lng : null,
-                            ($panel && $panel->latitude  !== null) ? (float) $panel->latitude  : null,
-                            ($panel && $panel->longitude !== null) ? (float) $panel->longitude : null,
+                            $pige->panel,
                         );
 
                         // Écriture directe : pas de timestamps ni d'observer
