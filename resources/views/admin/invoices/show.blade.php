@@ -22,16 +22,13 @@
 </style>
 
 <x-slot name="topbarLeft">
-    {{-- Smart back prioritaire (depuis Finance, Performance, etc.).
-         Si pas de ?back=, fallback referer puis liste factures. --}}
-    @include('admin.partials._smart_back')
-    @if(!request()->query('back'))
-        <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('admin.invoices.index') }}"
-           class="btn btn-ghost btn-sm" title="Retour"
-           style="display:inline-flex;align-items:center;gap:4px;">
-            ← Retour
-        </a>
-    @endif
+    {{-- Un seul retour (2026-11-12, oublié lors du correctif du 2026-11-02) :
+         provenance (Finance, Performance…), sinon page précédente, sinon
+         « Factures ». Avant, un second bouton de retour écrit en dur s'ajoutait. --}}
+    @include('admin.partials._smart_back', ['defaut' => [
+        'url'   => route('admin.invoices.index'),
+        'label' => 'Factures',
+    ]])
 </x-slot>
 
 <x-slot name="topbarActions">
