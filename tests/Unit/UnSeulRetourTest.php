@@ -56,6 +56,7 @@ class UnSeulRetourTest extends TestCase
             'rapports/panneaux-classification.blade.php',
             'piges/archives.blade.php', 'messages/show.blade.php', 'renouvellements/modeles.blade.php',
             'dashboard/tech-live.blade.php', 'dashboard/team-live.blade.php', 'dashboard/map-live.blade.php',
+            'invoices/show.blade.php', // oubliée le 2026-11-02, corrigée le 2026-11-12
         ] as $vue) {
             $source = $vues[$vue] ?? '';
             $this->assertSame(1, substr_count($source, '_smart_back'), "{$vue} : le retour doit passer par _smart_back, une fois.");
