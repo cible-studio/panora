@@ -1502,7 +1502,7 @@ y arrivait comme un panneau ordinaire : ni badge « pied 3/11 », ni bouton
       une ligne par axe, avec les pieds cochés.
 - [ ] **Devis accepté → réservation** : la réservation porte les **pieds** de la
       ligne (pas l axe entier), le prix de la ligne réparti sur eux.
-- [ ] 🔧 Migration `2026_11_12_100000_add_axes_to_quote_lines` (3 colonnes
+- [x] 🔧 **Passée en production le 12/11 (lot 85).** Migration `2026_11_12_100000_add_axes_to_quote_lines` (3 colonnes
       facultatives sur `quote_lines`) : vérifier qu elle est passée après le
       déploiement (`php artisan migrate:status | grep axes_to_quote`). Tant
       qu elle ne l est pas, les devis s enregistrent mais sans les pieds.
