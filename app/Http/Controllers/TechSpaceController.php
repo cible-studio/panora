@@ -1097,7 +1097,7 @@ class TechSpaceController extends Controller
      */
     private static function colonnesAxe(): string
     {
-        return app(\App\Services\Axes\AxeService::class)->colonnesPresentes() ? ',axe_id,pied_numero,est_axe' : '';
+        return app(\App\Services\Axes\AxeService::class)->colonnesPanneau();
     }
 
     /**
@@ -1121,9 +1121,7 @@ class TechSpaceController extends Controller
     /** L'axe d'un pied (position, nom, photo) — à charger avec colonnesAxe(). */
     private static function relationsAxe(): array
     {
-        return app(\App\Services\Axes\AxeService::class)->colonnesPresentes()
-            ? ['panel.axe:id,reference,name,latitude,longitude']
-            : [];
+        return app(\App\Services\Axes\AxeService::class)->relationsAxe();
     }
 
     /**

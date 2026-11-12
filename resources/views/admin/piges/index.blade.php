@@ -349,6 +349,11 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
                     {{ $pige->panel?->reference ?? '—' }}
                 </a>
                 <div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $pige->panel?->name ?? '—' }}</div>
+                @if($pige->panel?->axe)
+                    {{-- Pied d'un axe (2026-11-12) : le filtre sur l'axe montre tous ses pieds. --}}
+                    <a href="{{ route('admin.piges.index', array_filter(['campaign_id' => $pige->campaign_id, 'panel_id' => $pige->panel->axe_id])) }}"
+                       style="font-size:10px;font-weight:700;color:var(--accent);text-decoration:none">⛓ Pied {{ $pige->panel->pied_numero }} · {{ $pige->panel->axe->reference }}</a>
+                @endif
                 @if($pige->panel?->commune)
                 <div style="font-size:10px;color:var(--text3)">📍 {{ $pige->panel->commune->name }}</div>
                 @endif

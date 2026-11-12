@@ -34,7 +34,9 @@ class PigeController extends Controller
         // a été supprimée ou cleanup manuel). Les archives sont accessibles
         // via la route dédiée `admin.piges.archives`.
         $query = Pige::with([
-            'panel:id,reference,name,commune_id',
+            // Axes (2026-11-12) : la carte d'une photo de pied dit « Pied 3 · CDYLUP-004 ».
+            'panel:id,reference,name,commune_id' . app(\App\Services\Axes\AxeService::class)->colonnesPanneau(),
+            ...app(\App\Services\Axes\AxeService::class)->relationsAxe(),
             'panel.commune:id,name',
             'campaign:id,name,status',
             'technicien:id,name',
@@ -569,7 +571,9 @@ class PigeController extends Controller
     public function validation(Request $request)
     {
         $piges = Pige::with([
-            'panel:id,reference,name,commune_id,latitude,longitude',
+            // Axes (2026-11-12) : position de l'axe pour un pied, « Pied 3 ».
+            'panel:id,reference,name,commune_id,latitude,longitude' . app(\App\Services\Axes\AxeService::class)->colonnesPanneau(),
+            ...app(\App\Services\Axes\AxeService::class)->relationsAxe(),
             'panel.commune:id,name',
             'campaign:id,name,status',
             'technicien:id,name,whatsapp_number',
@@ -836,7 +840,9 @@ class PigeController extends Controller
 
         try {
             $campaign = Campaign::with([
-                'panels:id,reference,name,commune_id',
+                // Axes (2026-11-12) : un pied se présente « Pied 3 · CDYLUP-004 ».
+                'panels:id,reference,name,commune_id' . app(\App\Services\Axes\AxeService::class)->colonnesPanneau(),
+                ...app(\App\Services\Axes\AxeService::class)->relationsAxe('panels'),
                 'panels.commune:id,name',
             ])->findOrFail($request->campaign_id);
 
@@ -883,6 +889,7 @@ class PigeController extends Controller
                     'id'            => $p->id,
                     'reference'     => $p->reference,
                     'name'          => $p->name,
+                    'axe'           => $p->axe ? 'Pied ' . $p->pied_numero . ' · ' . $p->axe->reference : null,
                     'commune'       => $p->commune?->name ?? '—',
                     // Stats pige (0 si aucune pige sur ce panneau)
                     'pige_total'    => (int) ($stat->total      ?? 0),

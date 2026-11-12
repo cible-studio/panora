@@ -196,6 +196,113 @@ class AxeService
     }
 
     /**
+     * Colonnes d'axe à ajouter à une projection `panel:…` — de quoi appeler
+     * Panel::positionTerrain() / photoDeReference() et dire « Pied 3 ».
+     * Vide tant que la migration des axes n'est pas passée.
+     */
+    public function colonnesPanneau(): string
+    {
+        return $this->colonnesPresentes() ? ',axe_id,pied_numero,est_axe' : '';
+    }
+
+    /**
+     * L'axe d'un pied (position, nom, photo) à charger avec colonnesPanneau().
+     *
+     * @param  string $chemin   relation du panneau (« panel », « poseTask.panel »…)
+     * @param  bool   $photos   aussi les photos de l'axe (photo de référence)
+     */
+    public function relationsAxe(string $chemin = 'panel', bool $photos = false): array
+    {
+        if (! $this->colonnesPresentes()) {
+            return [];
+        }
+        $relations = ["{$chemin}.axe:id,reference,name,latitude,longitude"];
+        if ($photos) {
+            $relations[] = "{$chemin}.axe.photos:id,panel_id,path,ordre";
+        }
+
+        return $relations;
+    }
+
+    /**
+     * Suivi des pieds d'axe sur leurs campagnes (2026-11-12, admin). Pour
+     * chaque couple (axe, campagne) présent dans `$taches` : combien de
+     * pieds ont une pose, combien sont posés, pigés (une photo non
+     * refusée), validés (une photo vérifiée) — sur TOUTES les poses du
+     * couple, pas seulement celles de la page. Poses annulées exclues.
+     *
+     * Les compteurs restent EN PIEDS (décision du 12/11) ; seul l'affichage
+     * regroupe : « CDYLUP-004 · 3/5 pieds pigés ». Une photo se rattache à
+     * sa pose comme PoseTask::piges() : par pose_task_id, sinon (ancienne
+     * photo, lien de campagne) par panneau + campagne.
+     *
+     * @param  iterable<\App\Models\PoseTask> $taches
+     * @return array{tache: array<int, array{cle: string, pied: ?int}>, axes: array<string, array{axe: Panel, pieds: int, poses: int, piges: int, validees: int}>}
+     */
+    public function suiviPoses(iterable $taches): array
+    {
+        $vide = ['tache' => [], 'axes' => []];
+        $taches = collect($taches);
+        if ($taches->isEmpty() || ! $this->colonnesPresentes()) {
+            return $vide;
+        }
+
+        $pieds = Panel::whereIn('id', $taches->pluck('panel_id')->filter()->unique()->values())
+            ->whereNotNull('axe_id')
+            ->get(['id', 'axe_id', 'pied_numero'])
+            ->keyBy('id');
+        if ($pieds->isEmpty()) {
+            return $vide;
+        }
+
+        $tache = [];
+        foreach ($taches as $t) {
+            $p = $pieds->get($t->panel_id);
+            if ($p && $t->campaign_id) {
+                $tache[$t->id] = ['cle' => $p->axe_id . '-' . $t->campaign_id, 'pied' => $p->pied_numero];
+            }
+        }
+        if (empty($tache)) {
+            return $vide;
+        }
+
+        $axeIds = $pieds->pluck('axe_id')->unique()->values();
+        $campagnes = $taches->pluck('campaign_id')->filter()->unique()->values();
+        $axes = Panel::whereIn('id', $axeIds)->get(['id', 'reference', 'name'])->keyBy('id');
+
+        $photo = fn (string $condition) => "EXISTS (SELECT 1 FROM piges
+            WHERE (piges.pose_task_id = pose_tasks.id
+                   OR (piges.pose_task_id IS NULL AND piges.panel_id = pose_tasks.panel_id
+                       AND piges.campaign_id = pose_tasks.campaign_id))
+              AND {$condition})";
+
+        $lignes = \Illuminate\Support\Facades\DB::table('pose_tasks')
+            ->join('panels', 'panels.id', '=', 'pose_tasks.panel_id')
+            ->whereIn('panels.axe_id', $axeIds)
+            ->whereIn('pose_tasks.campaign_id', $campagnes)
+            ->where('pose_tasks.status', '!=', \App\Enums\PoseTaskStatus::CANCELLED->value)
+            ->groupBy('panels.axe_id', 'pose_tasks.campaign_id')
+            ->selectRaw('panels.axe_id, pose_tasks.campaign_id, COUNT(DISTINCT pose_tasks.panel_id) AS pieds')
+            ->selectRaw('COUNT(DISTINCT CASE WHEN pose_tasks.status = ? THEN pose_tasks.panel_id END) AS poses',
+                [\App\Enums\PoseTaskStatus::COMPLETED->value])
+            ->selectRaw('COUNT(DISTINCT CASE WHEN ' . $photo("piges.status <> 'rejete'") . ' THEN pose_tasks.panel_id END) AS piges')
+            ->selectRaw('COUNT(DISTINCT CASE WHEN ' . $photo("piges.status = 'verifie'") . ' THEN pose_tasks.panel_id END) AS validees')
+            ->get();
+
+        $suivi = [];
+        foreach ($lignes as $l) {
+            if ($axe = $axes->get($l->axe_id)) {
+                $suivi[$l->axe_id . '-' . $l->campaign_id] = [
+                    'axe' => $axe, 'pieds' => (int) $l->pieds, 'poses' => (int) $l->poses,
+                    'piges' => (int) $l->piges, 'validees' => (int) $l->validees,
+                ];
+            }
+        }
+
+        return ['tache' => array_filter($tache, fn ($x) => isset($suivi[$x['cle']])), 'axes' => $suivi];
+    }
+
+    /**
      * Ligne de DEVIS pour un axe (2026-11-12) : une ligne par axe, qui
      * retient ses pieds proposés. Prix = somme des tarifs des pieds ; ODP
      * et TM à 0, saisies à la main (règles validées le 2026-11-12).

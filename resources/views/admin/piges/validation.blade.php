@@ -236,6 +236,8 @@
         'id'         => $p->id,
         'photo_url'  => $p->photo_path ? asset('storage/' . $p->photo_path) : null,
         'reference'  => $p->panel?->reference,
+        // Pied d'un axe (2026-11-12) : « Pied 3 · CDYLUP-004 ».
+        'axe'        => $p->panel?->axe ? ('Pied ' . $p->panel->pied_numero . ' · ' . $p->panel->axe->reference) : null,
         'name'       => $p->panel?->name,
         'commune'    => $p->panel?->commune?->name,
         'campaign'   => $p->campaign?->name,
@@ -243,8 +245,9 @@
         'taken'      => $p->taken_at?->format('d/m/Y H:i') ?? $p->created_at->format('d/m/Y H:i'),
         'gps_lat'    => $p->gps_lat,
         'gps_lng'    => $p->gps_lng,
-        'panel_lat'  => $p->panel?->latitude,
-        'panel_lng'  => $p->panel?->longitude,
+        // Position terrain : celle du panneau, sinon de son axe (pied).
+        'panel_lat'  => $p->panel?->positionTerrain()['lat'] ?? null,
+        'panel_lng'  => $p->panel?->positionTerrain()['lng'] ?? null,
         'geo_dist'   => $p->geo_distance_m,
         'geo_badge'  => $p->geoBadge(),
         'detail_url' => route('admin.piges.show', $p),
@@ -296,7 +299,8 @@
             $empty.textContent = 'Photo introuvable';
         }
         $ref.textContent      = p.reference ?? '—';
-        $name.textContent     = p.name ?? '—';
+        // Pied d'un axe (2026-11-12) : son axe sous le nom.
+        $name.textContent     = (p.name ?? '—') + (p.axe ? ' — ⛓ ' + p.axe : '');
         $commune.textContent  = p.commune ?? '—';
         $campaign.textContent = p.campaign ?? '—';
         $tech.textContent     = p.tech ?? '— Non assigné —';

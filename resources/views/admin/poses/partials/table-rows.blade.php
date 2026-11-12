@@ -50,7 +50,7 @@
         color: var(--text2);
         font-weight: 600;
     }
-    .pose-campaign-header .pch-pill {
+    .pose-campaign-header .pch-pill, .trow-axe .pch-pill {
         padding: 3px 10px;
         background: var(--surface);
         border: 1px solid var(--border);
@@ -59,7 +59,7 @@
         font-weight: 700;
         font-size: 11px;
     }
-    .pose-campaign-header .pch-pill-success {
+    .pose-campaign-header .pch-pill-success, .trow-axe .pch-pill-success {
         background: rgba(34,197,94,.10);
         border-color: rgba(34,197,94,.35);
         color: #16a34a;
@@ -225,7 +225,15 @@
             </tr>
         </thead>
         <tbody id="pose-tbody">
-        @php $lastCampaignId = '__INIT__'; @endphp
+        @php
+            $lastCampaignId = '__INIT__';
+            // Axes (2026-11-12) : les pieds d'un axe se suivent (tri par
+            // référence) ; une ligne d'axe les annonce, avec le suivi de
+            // TOUS ses pieds sur la campagne (AxeService::suiviPoses).
+            $suiviAxes = app(\App\Services\Axes\AxeService::class)->suiviPoses(
+                method_exists($poseTasks, 'items') ? $poseTasks->items() : $poseTasks);
+            $lastAxeCle = null;
+        @endphp
         @foreach($poseTasks as $task)
         @php
             // ── Header de groupe : insérer une ligne de séparation
@@ -234,6 +242,10 @@
             $currentCampaignId = $task->campaign_id ?? 'none';
             $showCampaignHeader = $currentCampaignId !== $lastCampaignId;
             $lastCampaignId = $currentCampaignId;
+            if ($showCampaignHeader) $lastAxeCle = null;
+            $axeTache = $suiviAxes['tache'][$task->id] ?? null;
+            $showAxeHeader = $axeTache && $axeTache['cle'] !== $lastAxeCle;
+            $lastAxeCle = $axeTache['cle'] ?? null;
 
             // Compteurs au sein du groupe (calculés à la volée la 1re ligne)
             if ($showCampaignHeader) {
@@ -338,6 +350,29 @@
             $needsPige = $task->status === 'realisee' && $task->campaign_id && $pigeCount === 0;
             $rowStyle = $isLate ? 'border-left:3px solid rgba(239,68,68,.5);background:rgba(239,68,68,.02)' : ($needsPige ? 'border-left:3px solid rgba(249,115,22,.4);background:rgba(249,115,22,.015)' : '');
         @endphp
+        @if($showAxeHeader)
+            @php
+                $sa = $suiviAxes['axes'][$axeTache['cle']];
+                $nomAxe = app(\App\Services\Axes\AxeService::class)->nomCourt($sa['axe']->name);
+            @endphp
+            {{-- Ligne d'axe (2026-11-12) : ses pieds suivent, décalés. --}}
+            <tr class="trow trow-axe" data-campaign-group="{{ $currentCampaignId }}">
+                <td colspan="9" style="padding:8px 14px 6px 14px;background:rgba(232,160,32,.05);border-top:1px solid var(--border)">
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px">
+                        <span style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:var(--accent);border-radius:6px;padding:2px 7px">⛓ Axe</span>
+                        <a href="{{ route('admin.panels.show', $sa['axe']->id) }}" style="font-family:monospace;font-weight:700;color:var(--accent);text-decoration:none">{{ $sa['axe']->reference }}</a>
+                        <span style="color:var(--text2)">{{ $nomAxe }}</span>
+                        <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+                            <span class="pch-pill">{{ $sa['pieds'] }} pied{{ $sa['pieds'] > 1 ? 's' : '' }}</span>
+                            <span class="pch-pill {{ $sa['poses'] === $sa['pieds'] ? 'pch-pill-success' : '' }}">{{ $sa['poses'] }}/{{ $sa['pieds'] }} posés</span>
+                            <span class="pch-pill {{ $sa['piges'] === $sa['pieds'] ? 'pch-pill-success' : '' }}">{{ $sa['piges'] }}/{{ $sa['pieds'] }} pigés</span>
+                            <span class="pch-pill {{ $sa['validees'] === $sa['pieds'] ? 'pch-pill-success' : '' }}">{{ $sa['validees'] }}/{{ $sa['pieds'] }} validés</span>
+                        </span>
+                    </div>
+                </td>
+            </tr>
+        @endif
+
         @php $isFinal = in_array($task->status, ['realisee', 'annulee']); @endphp
         {{-- Toute la ligne ouvre la pose, sauf les zones déjà interactives.
              Mécanisme : admin/partials/ligne-cliquable. --}}
@@ -360,7 +395,8 @@
                        title="{{ $isFinal ? 'Tâche terminée — non modifiable en masse' : 'Sélectionner' }}"
                        style="accent-color:var(--accent);width:14px;height:14px;cursor:{{ $isFinal ? 'not-allowed' : 'pointer' }};opacity:{{ $isFinal ? '.35' : '1' }};">
             </td>
-            <td style="padding:10px 12px">
+            <td style="padding:10px 12px;{{ $axeTache ? 'padding-left:28px;border-left:3px solid rgba(232,160,32,.35)' : '' }}">
+                @if($axeTache)<div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Pied {{ $axeTache['pied'] }}</div>@endif
                 <a href="{{ route('admin.pose-tasks.show', $task) }}" data-ligne-principal style="font-family:monospace;font-size:12px;font-weight:700;color:var(--accent);text-decoration:none;display:block">{{ $task->panel?->reference ?? '—' }}</a>
                 <div style="font-size:11px;color:var(--text2);margin-top:1px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ $task->panel?->name }}">{{ $task->panel?->name ?? '—' }}</div>
                 @if($task->panel?->commune)<div style="font-size:10px;color:var(--text3)">{{ $task->panel->commune->name }}</div>@endif

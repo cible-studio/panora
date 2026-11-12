@@ -571,6 +571,40 @@ class EspaceTechAxesTest extends TestCase
         $this->assertSame('axe', $json['panel']['repere']);
     }
 
+    // ── Phase B : l'admin regroupé par axe ─────────────────────────────
+
+    public function test_le_suivi_d_un_axe_compte_ses_pieds_sur_la_campagne(): void
+    {
+        $this->pige(['panel_id' => 13, 'pose_task_id' => 3, 'status' => 'verifie']);
+        $this->pige(['panel_id' => 11, 'pose_task_id' => 1, 'status' => 'en_attente']);
+        $this->pige(['panel_id' => 12, 'pose_task_id' => 2, 'status' => 'rejete']);
+
+        // Seule la tâche 1 est « affichée » : le suivi porte quand même sur
+        // TOUS les pieds de l'axe sur la campagne (la page peut couper l'axe).
+        $suivi = app(\App\Services\Axes\AxeService::class)->suiviPoses(PoseTask::whereIn('id', [1, 4])->get());
+
+        $this->assertSame(['cle' => '10-1', 'pied' => 1], $suivi['tache'][1]);
+        $this->assertArrayNotHasKey(4, $suivi['tache'], 'un panneau ordinaire n\'a pas d\'axe');
+        $axe = $suivi['axes']['10-1'];
+        $this->assertSame('CDYLUP-004', $axe['axe']->reference);
+        // Pieds 1, 2, 3 ; le 3 est posé ; une photo non refusée sur 1 et 3 ; validée sur 3.
+        $this->assertSame([3, 1, 2, 1], [$axe['pieds'], $axe['poses'], $axe['piges'], $axe['validees']]);
+    }
+
+    public function test_le_tableau_des_poses_annonce_l_axe_au_dessus_de_ses_pieds(): void
+    {
+        $taches = PoseTask::with(['panel.commune', 'campaign', 'technicien'])->whereIn('id', [1, 2, 3, 4])->orderBy('id')->get();
+        $page = new \Illuminate\Pagination\LengthAwarePaginator($taches, $taches->count(), 20);
+
+        $html = view('admin.poses.partials.table-rows', ['poseTasks' => $page])->render();
+
+        $this->assertSame(1, substr_count($html, 'class="trow trow-axe"'), 'une seule ligne pour l\'axe');
+        $this->assertStringContainsString('1/3 posés', $html);
+        $this->assertStringContainsString('Pied 2', $html);
+        // La ligne d'axe se replie avec sa campagne.
+        $this->assertMatchesRegularExpression('/class="trow trow-axe" data-campaign-group="1"/', $html);
+    }
+
     public function test_la_carte_admin_des_poses_garde_les_pieds_a_la_position_de_leur_axe(): void
     {
         $json = app(\App\Http\Controllers\Admin\PoseController::class)

@@ -442,6 +442,40 @@ $sIconLg = match($poseTask->status) {
         </div>
         @endif
 
+        {{-- Pieds de l'axe (2026-11-12) : PoseController::show. --}}
+        @if(($piedsDeLAxe ?? collect())->isNotEmpty() && $axeDuPied)
+        @php
+            $nbPieds = $piedsDeLAxe->count();
+            $nbPoses = $piedsDeLAxe->where('status', 'realisee')->count();
+            $nbPiges = $piedsDeLAxe->filter(fn ($t) => $t->piges_count > 0)->count();
+        @endphp
+        <div class="d-card">
+            <div class="d-card-header">
+                <div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px">
+                    ⛓ Les pieds de l'axe
+                    <a href="{{ route('admin.panels.show', $axeDuPied->id) }}" style="font-family:monospace;color:var(--accent);text-decoration:none">{{ $axeDuPied->reference }}</a>
+                </div>
+                <span style="font-size:11px;color:var(--text2);font-weight:600">{{ $nbPoses }}/{{ $nbPieds }} posés · {{ $nbPiges }}/{{ $nbPieds }} pigés</span>
+            </div>
+            <div style="padding:6px 0">
+                @foreach($piedsDeLAxe as $p)
+                    @php
+                        $c = match($p->status) { 'realisee' => '#16a34a', 'en_cours' => '#2563eb', 'en_route' => '#7c3aed', default => '#e8a020' };
+                        $lib = match($p->status) { 'realisee' => 'Réalisée', 'en_cours' => 'En cours', 'en_route' => 'En route', default => 'Planifiée' };
+                        $ici = $p->id === $poseTask->id;
+                    @endphp
+                    <a href="{{ route('admin.pose-tasks.show', $p) }}"
+                       style="display:grid;grid-template-columns:64px 1fr auto auto;gap:10px;align-items:center;padding:8px 18px;text-decoration:none;color:var(--text);{{ $ici ? 'background:rgba(232,160,32,.07)' : '' }}">
+                        <span style="font-size:11px;font-weight:800;color:var(--text3)">Pied {{ $p->panel?->pied_numero }}</span>
+                        <span style="font-family:monospace;font-size:12px;font-weight:700">{{ $p->panel?->reference }}{{ $ici ? ' · cette pose' : '' }}</span>
+                        <span style="font-size:11px;color:var(--text2)">📸 {{ $p->piges_count }}{{ $p->pige_verifie_count ? ' · ' . $p->pige_verifie_count . ' ✓' : '' }}</span>
+                        <span style="font-size:10px;font-weight:700;color:{{ $c }};border:1px solid {{ $c }}55;background:{{ $c }}12;border-radius:999px;padding:2px 8px">{{ $lib }}</span>
+                    </a>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
     </div>
 
     {{-- ══ SIDEBAR ══ --}}
