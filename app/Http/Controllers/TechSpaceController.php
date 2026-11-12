@@ -1065,7 +1065,10 @@ class TechSpaceController extends Controller
             'reverted_ids'  => $revertedIds,  // Poses "en route" reposées à planifiée (exclusivité)
             // Refonte 2026-11-12 : « Terminé » (axe entier) met l'en-tête à jour.
             'jour'          => $newStatus === PoseTaskStatus::COMPLETED ? \App\Support\TechCarte::journee($tech) : null,
-        ]);
+        ] + ($newStatus === PoseTaskStatus::COMPLETED
+            // … et propose la pose suivante, comme après une photo.
+            ? $this->avecPoseSuivante($tech)
+            : []));
     }
 
     /**
@@ -1134,6 +1137,73 @@ class TechSpaceController extends Controller
         unset($e);
 
         return $entrees;
+    }
+
+    /**
+     * ['suivante' => …] à ajouter à la réponse — ou RIEN si le calcul échoue :
+     * la photo (ou « Terminé ») est déjà enregistrée, une erreur ici ne doit
+     * ni la faire paraître ratée (le technicien la renverrait), ni vider
+     * « Maintenant » (sans la clé, la page garde sa liste).
+     */
+    private function avecPoseSuivante(User $tech, ?float $lat = null, ?float $lng = null): array
+    {
+        try {
+            return ['suivante' => $this->poseSuivante($tech, $lat, $lng)];
+        } catch (\Throwable $e) {
+            Log::warning('tech.space.pose_suivante_failed', ['tech_id' => $tech->id, 'error' => $e->getMessage()]);
+
+            return [];
+        }
+    }
+
+    /**
+     * La pose suivante après une photo ou « Terminé » (refonte, étape 2) : la nouvelle
+     * « Maintenant », choisie par la MÊME règle que la page (buildPayload →
+     * $nextTask) et rendue par le MÊME gabarit (_tx_maintenant_section). Le
+     * téléphone n'a ni règle ni gabarit à recopier : il remplace la section
+     * et affiche la feuille « Photo envoyée ».
+     *
+     * @return array{task_id: int, cle: ?string, reference: ?string, nom: ?string, commune: ?string, distance_m: ?int, photo_url: ?string, html: ?string}|null
+     */
+    private function poseSuivante(User $tech, ?float $lat, ?float $lng): ?array
+    {
+        $p = $this->buildPayload($tech);
+        $next = $p['nextTask'] ?? null;
+        if (!$next) {
+            return null;
+        }
+
+        $entree = null;
+        foreach ($p['itemsByCommune'] ?? [] as $entrees) {
+            foreach ($entrees as $e) {
+                if ($e['tasks']->contains('id', $next->id)) {
+                    $entree = $e;
+                    break 2;
+                }
+            }
+        }
+        $axe = ($entree && $entree['type'] === 'axe') ? $entree['axe'] : null;
+
+        // « à 3,4 km » : depuis l'endroit de la photo, à vol d'oiseau.
+        $pos = $next->panel?->positionTerrain();
+        $distance = ($lat !== null && $lng !== null && $pos)
+            ? (int) round(app(\App\Services\GeoService::class)->haversine($lat, $lng, $pos['lat'], $pos['lng']))
+            : null;
+
+        return [
+            'task_id'    => $next->id,
+            'cle'        => $axe ? $axe->id . '-' . $next->campaign_id : null,
+            'reference'  => $axe?->reference ?? $next->panel?->reference,
+            'nom'        => $axe ? app(\App\Services\Axes\AxeService::class)->nomCourt($axe->name) : $next->panel?->name,
+            'commune'    => $next->panel?->commune?->name,
+            'distance_m' => $distance,
+            'photo_url'  => \App\Support\TechCarte::donnees($next)['photoUrl'],
+            // Au-delà du plafond d'affichage, l'entrée n'est pas rendue :
+            // la feuille l'annonce quand même, la section reste telle quelle.
+            'html'       => $entree
+                ? view('public.tech.partials._tx_maintenant_section', ['entree' => $entree])->render()
+                : null,
+        ];
     }
 
     /**
@@ -1638,8 +1708,9 @@ class TechSpaceController extends Controller
                 'campaign:id,name,status,user_id',
                 // est_axe : un axe entier garde sa tâche ouverte (choix 4b) —
                 // sans la colonne chargée, estAxe() répondrait toujours non.
+                // axe_id : savoir s'il reste des pieds à faire sur l'axe.
                 app(\App\Services\Axes\AxeService::class)->colonnesPresentes()
-                    ? 'panel:id,reference,est_axe'
+                    ? 'panel:id,reference,est_axe,axe_id'
                     : 'panel:id,reference',
                 // Pour détecter le cas "tech a signalé un problème non résolu
                 // ET tente quand même d'envoyer une pige" → on force la
@@ -1897,7 +1968,21 @@ class TechSpaceController extends Controller
             ->whereNotIn('status', [PoseTaskStatus::COMPLETED->value, PoseTaskStatus::CANCELLED->value])
             ->count();
 
-        return response()->json([
+        // Refonte, étape 2 (2026-11-12) : plus de rechargement après une
+        // photo — la réponse porte la pose suivante (la nouvelle
+        // « Maintenant »). Pas pour un axe entier (sa tâche reste ouverte),
+        // ni pour un pied tant qu'il en reste sur l'axe (la carte suit).
+        $piedsRestants = (!$axeEntier && $task->panel?->axe_id) ? count($task->idsFreresDAxe()) : 0;
+        $suivante = (!$axeEntier && $piedsRestants === 0)
+            ? $this->avecPoseSuivante(
+                $tech,
+                isset($data['gps_lat']) ? (float) $data['gps_lat'] : null,
+                isset($data['gps_lng']) ? (float) $data['gps_lng'] : null,
+            )
+            : [];
+
+        return response()->json($suivante + [
+            'pieds_restants' => $piedsRestants,
             'ok'        => true,
             'pige_id'   => $pige->id,
             'photo_url' => Storage::url($path),

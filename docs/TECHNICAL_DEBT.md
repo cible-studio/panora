@@ -465,12 +465,18 @@ panneau** et sans message. Non corrigé (hors du périmètre demandé).
 « Ma journée » et les axes sont livrés sur develop (A_TESTER § 22). Restent,
 pour les étapes suivantes :
 
-- **Pose ordinaire** : toujours l'écran « Bravo » puis un rechargement après
-  la photo. Seuls les pieds d'axe et l'axe entier se mettent à jour sur place.
-- **Tiroir d'un pied** : « Y aller » / « Je suis arrivé » depuis le tiroir
-  font bien avancer tous les pieds côté serveur, mais la carte de l'axe ne le
-  montre qu'au rechargement. Même chose pour une photo partie plus tard de la
-  file hors ligne.
+- ~~Pose ordinaire : écran « Bravo » puis rechargement~~ — résolu à l'étape 2
+  (feuille « Photo envoyée », `TechSpaceController::poseSuivante`).
+- ~~Tiroir d'un pied : la carte de l'axe ne suivait qu'au rechargement~~ —
+  résolu à l'étape 2 (événement `tx:statut`).
+- **File hors ligne** : une photo renvoyée plus tard ne met pas la page à jour
+  (la pose reste dans la liste jusqu'au prochain chargement).
+- **« Déjà faites »** : une pose faite sans rechargement n'y apparaît qu'au
+  prochain chargement de la page.
+- **Préférence « Sauter la confirmation Y aller »** (tiroir des préférences,
+  `sm2c_pref_no_t7_confirm`) : aucun module ne la lit, elle est sans effet
+  (constaté le 2026-11-12, antérieur à la refonte). Laissée hors du nouveau
+  menu, qui suit la maquette.
 - **Recherche** : elle filtre les poses affichées. Au-delà du plafond
   d'affichage (`tech_space.ssr_cap`, 200), les poses non affichées ne sont
   pas trouvées. La recherche Select2 (`search.js`) et les modules `filters.js`

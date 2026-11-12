@@ -341,6 +341,69 @@ class EspaceTechAxesTest extends TestCase
         $this->assertSame('Rien de prévu aujourd\'hui', TechCarte::messageDuJour(0, 0, 'Yannick'));
     }
 
+    // ── Étape 2 : plus de rechargement, la pose suivante vient du serveur ──
+
+    public function test_apres_une_photo_la_reponse_porte_la_nouvelle_maintenant(): void
+    {
+        // L'axe entier, en retard, devient la plus urgente une fois COC-020 faite.
+        DB::table('pose_tasks')->where('id', 5)->update(['scheduled_at' => now()->subDays(10)->toDateTimeString()]);
+
+        $r = $this->postJson('/tech/' . self::TOKEN . '/poses/4/photo', $this->photo());
+
+        $r->assertOk()->assertJson(['ok' => true, 'task_done' => true]);
+        $s = $r->json('suivante');
+        $this->assertSame(5, $s['task_id']);
+        $this->assertSame('CDYLUP-009', $s['reference']);
+        $this->assertNull($s['cle']);
+        // Rendue par le gabarit de la page : le téléphone remplace la section.
+        $this->assertStringContainsString('data-tx-maintenant', $s['html']);
+        $this->assertStringContainsString('data-axe-entier="1"', $s['html']);
+    }
+
+    public function test_tant_qu_il_reste_des_pieds_la_carte_de_l_axe_suit_seule(): void
+    {
+        $r = $this->postJson('/tech/' . self::TOKEN . '/poses/1/photo', $this->photo());
+
+        $r->assertOk()->assertJson(['task_done' => true, 'pieds_restants' => 1]);
+        $this->assertArrayNotHasKey('suivante', $r->json());
+
+        // Le dernier pied : la suite est proposée (COC-020, en route).
+        $fin = $this->postJson('/tech/' . self::TOKEN . '/poses/2/photo', $this->aMetresDeLAxe(100) + $this->photo());
+        $fin->assertOk()->assertJson(['pieds_restants' => 0]);
+        $this->assertSame(4, $fin->json('suivante.task_id'));
+        $this->assertStringContainsString('tx-hero', $fin->json('suivante.html'));
+        // Distance depuis l'endroit de la photo (≈ 1,6 km de l'axe à COC-020).
+        $this->assertGreaterThan(1000, $fin->json('suivante.distance_m'));
+    }
+
+    public function test_si_la_suite_ne_se_calcule_pas_la_photo_reste_envoyee(): void
+    {
+        // Sans la table des communes, la page ne se construit plus : la photo,
+        // déjà enregistrée, doit quand même répondre « envoyée », sans la clé
+        // « suivante » (la page garde alors sa liste telle quelle).
+        Schema::drop('communes');
+
+        $r = $this->postJson('/tech/' . self::TOKEN . '/poses/4/photo', $this->photo());
+
+        $r->assertOk()->assertJson(['ok' => true, 'task_done' => true]);
+        $this->assertArrayNotHasKey('suivante', $r->json());
+        $this->assertSame('realisee', $this->statut(4));
+        $this->assertSame(1, Pige::count());
+    }
+
+    public function test_termine_sur_un_axe_entier_propose_aussi_la_suite(): void
+    {
+        $this->postJson('/tech/' . self::TOKEN . '/poses/5/photo', $this->photo())->assertOk();
+
+        $r = $this->postJson('/tech/' . self::TOKEN . '/poses/5/status', ['status' => 'realisee']);
+
+        $r->assertOk()->assertJson(['ok' => true]);
+        $this->assertArrayHasKey('suivante', $r->json());
+        $this->assertNotNull($r->json('suivante.task_id'));
+        // « Y aller » ne propose pas la suite (seul « Terminé » clôt).
+        $this->assertArrayNotHasKey('suivante', $this->postJson('/tech/' . self::TOKEN . '/poses/1/status', ['status' => 'en_route'])->json());
+    }
+
     public function test_ma_journee_affiche_une_carte_par_axe(): void
     {
         $r = $this->get('/tech/' . self::TOKEN . '/poses');
@@ -357,5 +420,11 @@ class EspaceTechAxesTest extends TestCase
         // déjà fait, dessine la route sans action.
         $r->assertSee('data-tx-jalon="3"', false);
         $this->assertSame(1, substr_count($r->getContent(), 'data-tx-segment="3"'));
+        // Étape 2 : le menu de l'initiale et la feuille « Photo envoyée ».
+        $r->assertSee('data-action="open-tx-menu"', false);
+        $r->assertSee('id="tx-menu"', false);
+        $r->assertSee('Ma feuille de route papier');
+        $r->assertSee('id="tx-envoi"', false);
+        $r->assertSee('EN VOITURE');
     }
 }

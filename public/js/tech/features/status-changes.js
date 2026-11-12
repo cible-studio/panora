@@ -74,6 +74,8 @@ function bindGoMaps() {
                 pose.dataset.taskStatus = 'en_route';
                 const dot = pose.querySelector('.pose-dot');
                 if (dot) dot.style.background = STATUS_TARGET.en_route.color;
+                // Refonte 2026-11-12 : la page suit (carte d'axe, « Maintenant »).
+                document.dispatchEvent(new CustomEvent('tx:statut', { detail: { taskId, status: 'en_route' } }));
 
                 // Exclusivité en_route (2026-07-07) : le serveur a reposé
                 // les autres poses en_route/en_cours du tech à planifiée.
@@ -126,6 +128,7 @@ function bindArrive() {
                 btn.innerHTML = '✓ Sur place';
                 const dot = pose.querySelector('.pose-dot');
                 if (dot) dot.style.background = STATUS_TARGET.en_cours.color;
+                document.dispatchEvent(new CustomEvent('tx:statut', { detail: { taskId, status: 'en_cours' } }));
                 toast('Tu es bien sur place — bonne pose !', 'success');
             } else {
                 btn.disabled = false; btn.innerHTML = original;

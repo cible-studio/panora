@@ -130,6 +130,12 @@ function renderNotifs() {
         const li = document.createElement('li');
         li.className = 'sm2c-b3-row' + (n.read_at ? '' : ' is-unread');
         li.dataset.notifId = n.id;
+        // Refonte 2026-11-12 : une alerte mène à sa pose (payload.task_id,
+        // posé par PigeController et PoseTask à la création).
+        li.dataset.notifType = n.type || '';
+        li.dataset.taskId = n.payload?.task_id || '';
+        li.tabIndex = 0;
+        li.setAttribute('role', 'button');
         const ico = ICONS[n.type] || { emoji: '🔔', cls: '' };
         li.innerHTML = `
             <span class="sm2c-b3-row-icon sm2c-b3-row-icon--${ico.cls}">${ico.emoji}</span>
@@ -208,6 +214,34 @@ function markAllRead() {
     });
 }
 
+// Une alerte touchée : lue (serveur + pastilles), tiroir fermé, et la page
+// mène à sa pose (événement « tx:alerte », features/refonte.js).
+function ouvrirAlerte(row) {
+    const id = row.dataset.notifId;
+    const notif = B3_STATE.notifs.find(n => String(n.id) === String(id));
+    if (notif && !notif.read_at) {
+        notif.read_at = new Date().toISOString();
+        refreshHelpBadge();
+        const url = window.TECH_CONFIG?.routes?.notificationsMarkRead;
+        if (url) {
+            fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': window.TECH_CONFIG?.csrfToken,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ id: Number(id) }),
+            }).catch(() => {});
+        }
+    }
+    closeB3();
+    document.dispatchEvent(new CustomEvent('tx:alerte', {
+        detail: { type: row.dataset.notifType, taskId: row.dataset.taskId || null },
+    }));
+}
+
 function initNotifications() {
     // Intercepte le tap sur le bouton aide "?" :
     //   - Si notifs non lues → ouvre B3 au lieu de T8
@@ -245,6 +279,8 @@ function initNotifications() {
         if (e.target.closest('[data-action="b3-mark-all"]')) {
             markAllRead(); return;
         }
+        const row = e.target.closest('.sm2c-b3-row[data-notif-id]');
+        if (row) { e.preventDefault(); ouvrirAlerte(row); return; }
         // Click sur overlay hors-drawer → close
         const overlay = e.target.closest('#sm2c-b3-overlay');
         if (overlay && !e.target.closest('.sm2c-b3-drawer')) closeB3();
@@ -252,6 +288,9 @@ function initNotifications() {
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && document.querySelector('#sm2c-b3-overlay.is-open')) closeB3();
+        // Alerte au clavier (Entrée / Espace), comme un bouton.
+        const row = (e.key === 'Enter' || e.key === ' ') && e.target.closest?.('.sm2c-b3-row[data-notif-id]');
+        if (row) { e.preventDefault(); ouvrirAlerte(row); }
     });
 
     // 1er fetch au load, puis refresh toutes les 60s

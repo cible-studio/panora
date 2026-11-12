@@ -1575,3 +1575,39 @@ Ouvrir son lien `/tech/{jeton}/poses` **sur un téléphone**.
       les a).
 - [ ] 🔧 `geo:backfill --force` (si on le relance) reclasse les anciennes
       piges des axes entiers avec la tolérance de 500 m.
+
+### 22 bis. Étape 2 : plus de rechargement, menu, alertes *(2026-11-12, develop seulement)*
+
+Même préparation que ci-dessus. Fermer l'onglet et le rouvrir une fois
+(nouvelle version du service worker, v2.11.0).
+
+- [ ] **Photo d'une pose ordinaire** : plus d'écran « Bravo » ni de
+      rechargement. La pose quitte la liste en fondu, et une feuille « Photo
+      envoyée » s'ouvre : « N / M poses faites aujourd'hui », puis la **pose
+      suivante** (photo, référence, nom, « Commune · à 1,6 km »).
+- [ ] La pose suivante est **celle que la page aurait mise en « Maintenant »**
+      après un rechargement : « Maintenant » est remplacée sous la feuille.
+      🔶 Avant, l'écran « Bravo » proposait une pose de la **même commune**,
+      puis la page rechargée en montrait parfois une autre (une pose en
+      retard ailleurs, par exemple). Voir la question à trancher dans le
+      rapport du 12/11.
+- [ ] « **Continuer** » ouvre la fiche de la pose suivante (pour un axe : la
+      carte se déplie sur le pied). « **Ma liste** » ferme la feuille.
+- [ ] **Dernier pied d'un axe** : la feuille s'intitule « Axe terminé » et
+      propose la suite. Tant qu'il reste des pieds : pas de feuille, la carte
+      avance seule (comme à l'étape 1).
+- [ ] **« Terminé » sur un axe entier** : même feuille « Axe terminé ».
+- [ ] **Dernière pose de la journée** : l'écran « fin de journée » (inchangé).
+- [ ] **Initiale** (en haut à gauche) : feuille « Aide : les 3 gestes »,
+      « Appeler mon chef » (si le numéro est configuré : `tech_space.chief_phone`),
+      « Ma feuille de route papier », « Texte plus gros », « Économie de
+      batterie » (interrupteurs qui restent dans leur position au retour).
+- [ ] **Alertes** : toucher une alerte la marque lue (la pastille baisse) et
+      mène à sa pose — « Nouvelle pose » ouvre la pose, « Photo refusée »
+      ouvre « Photos à refaire », « Photo validée » ouvre « Mes photos ».
+- [ ] **Y aller** : la confirmation affiche le temps **en voiture** (ordre de
+      grandeur : vol d'oiseau × 1,4 à 20 km/h). Second « Y aller » sur un axe
+      déjà en route : **plus** d'avertissement « tu es déjà en route vers une
+      autre pose » à propos de ses propres pieds.
+- [ ] « Y aller » / « Je suis arrivé » **depuis le tiroir d'un pied** : la
+      carte de l'axe passe « En route » / « Sur place » sans rechargement.

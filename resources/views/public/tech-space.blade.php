@@ -110,6 +110,9 @@
 {{-- ── Barre du bas (refonte 2026-11-12) ─────────────────────────── --}}
 @include('public.tech.partials._tx_nav', ['token' => $token, 'pigesRejected' => $pigesRejected ?? 0])
 
+{{-- ── Feuilles du bas (refonte, étape 2) : menu, « Photo envoyée » ── --}}
+@include('public.tech.partials._tx_feuilles', ['token' => $token])
+
 {{-- ── Conteneur des toasts (consommé par core/ui-helpers.js) ────── --}}
 <div id="toast-container"></div>
 
