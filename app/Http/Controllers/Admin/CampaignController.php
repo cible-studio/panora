@@ -2464,6 +2464,14 @@ class CampaignController extends Controller
         if ($mode === 'cards') {
             $relations['panels.photos'] = fn ($q) => $q->orderBy('ordre');
         }
+        // Axes (2026-11-12) : un pied (né sans photo) prend celle de son axe
+        // (Panel::photoDeReference) et se présente « Pied 3 · CDYLUP-004 ».
+        if (app(\App\Services\Axes\AxeService::class)->colonnesPresentes()) {
+            $relations['panels.axe'] = fn ($q) => $q->select('id', 'reference', 'name');
+            if ($mode === 'cards') {
+                $relations['panels.axe.photos'] = fn ($q) => $q->orderBy('ordre');
+            }
+        }
         $campaign->load($relations);
 
         // Map panel_id → la PoseTask la plus récente (1 panneau peut avoir

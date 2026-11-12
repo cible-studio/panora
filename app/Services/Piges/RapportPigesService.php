@@ -60,8 +60,12 @@ final class RapportPigesService
 
     public function relations(): array
     {
+        $axes = app(\App\Services\Axes\AxeService::class);
+
         return array_merge([
-            'panel:id,reference,name,commune_id,format_id',
+            // Axes (2026-11-12) : les photos des pieds d'un axe font UNE fiche.
+            'panel:id,reference,name,commune_id,format_id' . $axes->colonnesPanneau(),
+            ...$axes->relationsAxe('panel'),
             'panel.commune:id,name',
             'panel.format:id,name,width,height,surface', // dimensions sous chaque photo (2026-11-05)
             'campaign:id,name,client_id',
@@ -124,6 +128,36 @@ final class RapportPigesService
         return $p->panel?->commune?->name ?? 'Commune non renseignée';
     }
 
+    /**
+     * Les volumes du résumé de couverture : photos, panneaux (pieds compris),
+     * fiches (« emplacements » : un axe compte pour un, avec ses pieds),
+     * axes et leurs pieds photographiés.
+     *
+     * @return array{nbPhotos: int, nbPanneaux: int, nbFiches: int, nbAxes: int, nbPiedsAxes: int}
+     */
+    public function volumes(Collection $piges): array
+    {
+        $piedsDAxes = $piges->filter(fn ($p) => $p->panel?->axe_id);
+
+        return [
+            'nbPhotos'    => $piges->count(),
+            'nbPanneaux'  => $piges->pluck('panel_id')->unique()->count(),
+            'nbFiches'    => $piges->map(fn ($p) => $this->cleFiche($p))->unique()->count(),
+            'nbAxes'      => $piedsDAxes->map(fn ($p) => $p->panel->axe_id)->unique()->count(),
+            'nbPiedsAxes' => $piedsDAxes->pluck('panel_id')->unique()->count(),
+        ];
+    }
+
+    /**
+     * La fiche d'une photo (décision du 12/11) : les pieds d'un axe partagent
+     * UNE fiche « CDYLUP-004 · 5 pieds » ; un panneau ordinaire (ou un axe
+     * entier d'un ancien contrat) a la sienne.
+     */
+    public function cleFiche(Pige $p): string
+    {
+        return $p->panel?->axe_id ? 'axe-' . $p->panel->axe_id : 'p-' . $p->panel_id;
+    }
+
     /** Le PDF à télécharger. */
     public function pdf(Collection $piges, string $titre)
     {
@@ -141,11 +175,9 @@ final class RapportPigesService
             ? $piges->map(fn ($p) => $p->poseTask?->vague)->filter()->unique('id')->values()
             : collect();
 
-        $donnees = [
+        $donnees = $this->volumes($piges) + [
             'titre'      => $titre,
             'groupes'    => $groupes,
-            'nbPhotos'   => $piges->count(),
-            'nbPanneaux' => $piges->pluck('panel_id')->unique()->count(),
             'debut'      => $dates->min(),
             'fin'        => $dates->max(),
             'clients'    => $clients,

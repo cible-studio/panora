@@ -302,10 +302,16 @@ class ClientDashboardController extends Controller
             ? round(($pigesCount / $totalPanneauxPiges) * 100)
             : 0;
 
+        // Une carte par AXE (décision du 12/11), ses pieds dedans ; les
+        // compteurs ci-dessus restent en pieds (un pied = un support vendu).
+        $entrees = app(\App\Services\Axes\AxeService::class)
+            ->grouperParAxe($campaign->panels, fn ($p) => $p, photos: true);
+
         return view('client.campagne-detail', compact(
             'client', 'campaign',
             'poses', 'pigesVerif',
-            'totalPanneaux', 'posesCount', 'pigesCount', 'coveragePercent'
+            'totalPanneaux', 'posesCount', 'pigesCount', 'coveragePercent',
+            'entrees'
         ));
     }
 
@@ -435,8 +441,10 @@ class ClientDashboardController extends Controller
         $client = Auth::guard('client')->user();
         if ($campaign->client_id !== $client->id) abort(403);
 
+        $axes = app(\App\Services\Axes\AxeService::class);
         $piges = Pige::where('campaign_id', $campaign->id)
             ->where('status', 'verifie')
+            ->with(['panel:id,reference' . $axes->colonnesPanneau(), ...$axes->relationsAxe('panel')])
             ->get();
 
         if ($piges->isEmpty()) abort(404, 'Aucune pige disponible.');
@@ -445,11 +453,19 @@ class ClientDashboardController extends Controller
         $tmpPath = tempnam(sys_get_temp_dir(), 'piges_') . '.zip';
         $zip->open($tmpPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
 
+        // Noms lisibles (2026-11-12) : la référence du panneau, et un dossier
+        // par AXE pour les photos de ses pieds. Avant : « pige-{id} ».
+        $propre = fn (?string $s) => trim((string) preg_replace('/[^A-Za-z0-9._-]+/', '-', (string) $s), '-');
         foreach ($piges as $pige) {
             $filePath = Storage::disk('public')->path($pige->photo_path);
             if (file_exists($filePath)) {
-                $ext      = pathinfo($filePath, PATHINFO_EXTENSION) ?: 'jpg';
-                $zip->addFile($filePath, "pige-{$pige->id}.{$ext}");
+                $ext = pathinfo($filePath, PATHINFO_EXTENSION) ?: 'jpg';
+                $ref = $propre($pige->panel?->reference) ?: 'panneau';
+                $nom = "{$ref}_pige-{$pige->id}.{$ext}";
+                if ($pige->panel?->axe) {
+                    $nom = $propre($pige->panel->axe->reference) . '/Pied-' . str_pad((string) $pige->panel->pied_numero, 2, '0', STR_PAD_LEFT) . '_' . $nom;
+                }
+                $zip->addFile($filePath, $nom);
             }
         }
         $zip->close();
