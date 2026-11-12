@@ -341,13 +341,10 @@ class AxesMultiPiedsTest extends TestCase
 
     public function test_la_phase_1_ne_facture_pas_encore_au_pied(): void
     {
-        // La bascule est explicite et documentée : la passer à true
-        // multiplie l'ODP et la TM par le nombre de pieds, ce qui attend
-        // une décision de la direction (docs/A_TESTER.md § 18).
-        $this->assertFalse(
-            InvoiceFromCampaignBuilder::FACTURER_AU_PIED,
-            'Phase 1 : quantité 1 par axe, ODP et TM inchangées.'
-        );
+        // Bascule plus lue depuis le 2026-11-12 (prix = somme des pieds,
+        // ODP/TM à la main). Elle doit rester à false : la réactiver
+        // n'aurait plus de sens.
+        $this->assertFalse(InvoiceFromCampaignBuilder::FACTURER_AU_PIED);
     }
 
     public function test_les_pieds_d_un_axe_donnent_une_seule_ligne_de_facture(): void
@@ -371,15 +368,38 @@ class AxesMultiPiedsTest extends TestCase
         $parPorteur = collect($groupes)->keyBy(fn ($g) => $g['porteur']->reference);
 
         // Le porteur est la LIGNE DE L'AXE : même panel_id, même surface,
-        // même commune qu'avant le découpage → même calcul de taxe.
+        // même commune qu'avant le découpage.
         $this->assertTrue($parPorteur->has('AXE-10'));
         $this->assertSame(3, $parPorteur['AXE-10']['pieds']);
-        $this->assertSame(130000.0, $parPorteur['AXE-10']['pu'],
-            'Un pied à 0 ne doit pas effacer le tarif du groupe.');
+        // Règle du 2026-11-12 : somme des prix des pieds réservés ; le pied
+        // à 0 est un pied offert, il compte 0.
+        $this->assertSame(260000.0, $parPorteur['AXE-10']['pu']);
+        $this->assertSame('3 pieds', $parPorteur['AXE-10']['complement']);
+        $this->assertTrue($parPorteur['AXE-10']['taxes_a_la_main'], 'ODP/TM d\'un axe : à la main.');
 
         $this->assertTrue($parPorteur->has('P-30'));
         $this->assertSame(1, $parPorteur['P-30']['pieds']);
         $this->assertSame(450000.0, $parPorteur['P-30']['pu']);
+        $this->assertNull($parPorteur['P-30']['complement']);
+        $this->assertFalse($parPorteur['P-30']['taxes_a_la_main'], 'Panneau ordinaire : ODP/TM calculées.');
+    }
+
+    public function test_sans_contrat_chaque_pied_compte_son_tarif(): void
+    {
+        $builder = new class extends InvoiceFromCampaignBuilder {
+            public function __construct() {}
+            public function grouper($panels, array $negotiated): array
+            {
+                return $this->grouperParAxe($panels, $negotiated);
+            }
+        };
+
+        $groupes = $builder->grouper(Panel::whereIn('id', [11, 12])->get(), []);
+        $attendu = (float) Panel::whereIn('id', [11, 12])->sum('monthly_rate');
+
+        $this->assertCount(1, $groupes);
+        $this->assertSame($attendu, $groupes[0]['pu']);
+        $this->assertSame('2 pieds', $groupes[0]['complement']);
     }
 
     public function test_la_ligne_d_axe_d_un_ancien_contrat_porte_son_groupe(): void
@@ -399,7 +419,9 @@ class AxesMultiPiedsTest extends TestCase
         $this->assertCount(1, $groupes);
         $this->assertSame('AXE-10', $groupes[0]['porteur']->reference);
         $this->assertSame(1, $groupes[0]['pieds'], 'Aucun pied au contrat : quantité 1.');
-        $this->assertSame(130000.0, $groupes[0]['pu']);
+        $this->assertSame(130000.0, $groupes[0]['pu'], 'Axe entier : le prix de son contrat.');
+        $this->assertNull($groupes[0]['complement']);
+        $this->assertTrue($groupes[0]['taxes_a_la_main'], 'Même un ancien contrat : ODP/TM à la main.');
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -574,5 +596,66 @@ class AxesMultiPiedsTest extends TestCase
         // Et la disponibilité continue de répondre.
         $this->assertSame([], app(AvailabilityService::class)
             ->getUnavailablePanelIds([30], '2026-11-10', '2026-11-20'));
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ODP / TM d'un axe : à la main, jamais calculées (2026-11-12)
+    // ══════════════════════════════════════════════════════════════
+
+    public function test_les_axes_et_leurs_pieds_sortent_des_taxes_automatiques(): void
+    {
+        $ids = Panel::avecTaxesAutomatiques()->pluck('id')->all();
+
+        $this->assertContains(30, $ids, 'Un panneau ordinaire garde ses taxes calculées.');
+        foreach ([10, 11, 12, 13, 20, 21, 22] as $axeOuPied) {
+            $this->assertNotContains($axeOuPied, $ids);
+        }
+        $this->assertTrue(Panel::find(10)->taxesSaisiesALaMain(), 'ligne d\'axe');
+        $this->assertTrue(Panel::find(11)->taxesSaisiesALaMain(), 'pied');
+        $this->assertFalse(Panel::find(30)->taxesSaisiesALaMain());
+    }
+
+    public function test_le_module_taxes_applique_la_regle_partout(): void
+    {
+        // Canari : chaque calcul de taxes qui lit le parc passe par la règle.
+        // Sans elle, depuis le découpage, un axe de 11 pieds comptait 12 fois.
+        $sources = [
+            'app/Services/TaxCalculationService.php' => 2, // generateLines + panneauxPourCalcul
+            'app/Services/TaxAutoService.php'        => 1,
+            'app/Http/Controllers/Admin/TaxController.php' => 1,
+        ];
+        foreach ($sources as $fichier => $attendu) {
+            $this->assertSame($attendu, substr_count(file_get_contents(base_path($fichier)), '->avecTaxesAutomatiques()'), $fichier);
+        }
+        $this->assertStringContainsString('taxesSaisiesALaMain()', file_get_contents(base_path('app/Services/TaxReportService.php')));
+    }
+
+    public function test_deux_clients_sur_le_meme_axe_ne_se_bloquent_pas_a_la_facture(): void
+    {
+        Schema::create('invoices', function (Blueprint $t) {
+            $t->id(); $t->string('reference'); $t->string('status');
+            $t->unsignedBigInteger('campaign_id')->nullable(); $t->date('issued_at'); $t->timestamps();
+        });
+        Schema::create('invoice_lines', function (Blueprint $t) {
+            $t->id(); $t->unsignedBigInteger('invoice_id'); $t->unsignedBigInteger('panel_id')->nullable();
+            $t->unsignedBigInteger('external_panel_id')->nullable(); $t->decimal('duree_mois', 6, 2)->default(1); $t->timestamps();
+        });
+        DB::table('campaigns')->insert([
+            ['id' => 50, 'name' => 'Pieds 1 et 2 — ORANGE', 'client_id' => 1, 'status' => 'actif', 'start_date' => '2027-01-01', 'end_date' => '2027-03-31'],
+            ['id' => 51, 'name' => 'Pied 3 — MOOV',         'client_id' => 2, 'status' => 'actif', 'start_date' => '2027-01-01', 'end_date' => '2027-03-31'],
+        ]);
+        // La facture d'ORANGE porte l'axe 10 (ses pieds 1 et 2) et le panneau 30.
+        DB::table('invoices')->insert(['id' => 1, 'reference' => 'FAC-2027-001', 'status' => 'envoyee', 'campaign_id' => 50, 'issued_at' => '2027-01-05']);
+        DB::table('invoice_lines')->insert([['invoice_id' => 1, 'panel_id' => 10], ['invoice_id' => 1, 'panel_id' => 30]]);
+
+        $checker = app(\App\Services\PanelBillingChecker::class);
+        $emise   = \Carbon\Carbon::parse('2027-01-05');
+
+        // MOOV a un autre pied du même axe : sa facture passe.
+        $this->assertSame([], $checker->assertNotAlreadyBilled([['panel_id' => 10, 'designation' => 'AXE-10 — 1 pied', 'duree_mois' => 3]], $emise, 51));
+        // Mais la même campagne ne refacture pas son axe deux fois.
+        $this->assertCount(1, $checker->assertNotAlreadyBilled([['panel_id' => 10, 'designation' => 'AXE-10 — 2 pieds', 'duree_mois' => 3]], $emise, 50));
+        // Un panneau ordinaire garde la règle d'avant : une seule facture.
+        $this->assertCount(1, $checker->assertNotAlreadyBilled([['panel_id' => 30, 'designation' => 'P-30', 'duree_mois' => 3]], $emise, 51));
     }
 }

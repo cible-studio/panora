@@ -47,7 +47,12 @@ class TaxAutoService
     public function preview(int $year): array
     {
         // Compte des panneaux internes par commune (1 seule requête).
-        $panelCounts = DB::table('panels')
+        // Axes et leurs pieds exclus (2026-11-12) : ODP/TM à la main.
+        // withTrashed : la requête d'origine (DB::table) comptait aussi
+        // les panneaux supprimés — comportement conservé.
+        $panelCounts = \App\Models\Panel::withTrashed()
+            ->avecTaxesAutomatiques()
+            ->toBase()
             ->selectRaw('commune_id, COUNT(*) as cnt')
             ->whereNotNull('commune_id')
             ->groupBy('commune_id')

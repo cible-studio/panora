@@ -217,6 +217,28 @@ class Panel extends Model
             : $query->whereRaw('1 = 0');
     }
 
+    /**
+     * ODP et TM d'un axe : JAMAIS calculées par Panora (règle validée le
+     * 2026-11-12). Les comptables les gèrent à la main, autrement que pour
+     * les panneaux ordinaires. Vaut pour la ligne d'axe comme pour ses pieds.
+     */
+    public function taxesSaisiesALaMain(): bool
+    {
+        return $this->estAxe() || $this->estPied();
+    }
+
+    /**
+     * Panneaux dont Panora calcule l'ODP et la TM : tout sauf les axes et
+     * leurs pieds (cf. taxesSaisiesALaMain). À utiliser dans le module
+     * Taxes. Avant la migration des axes : tous les panneaux.
+     */
+    public function scopeAvecTaxesAutomatiques($query)
+    {
+        return app(\App\Services\Axes\AxeService::class)->colonnesPresentes()
+            ? $query->where('est_axe', false)->whereNull('axe_id')
+            : $query;
+    }
+
     // ───────────── Helpers ─────────────
 
     public function isAvailable(): bool

@@ -142,10 +142,10 @@ class InvoiceFromCampaignBuilder
             ]);
 
             // ─── Lignes panneaux internes ────────────────────────
-            // Axes multi-pieds (2026-11-11) : les pieds d'un même axe
-            // donnent UNE seule ligne, portée par la ligne de l'axe.
-            // C'est ce qui rend la phase 1 fiscalement neutre — cf.
-            // self::FACTURER_AU_PIED et docs/AXES_MULTI_PIEDS.md § 4.
+            // Axes multi-pieds : les pieds d'un même axe donnent UNE seule
+            // ligne, portée par la ligne de l'axe (choix du 2026-11-12).
+            // Prix = somme des prix HT des pieds réservés ; ODP et TM à 0,
+            // saisies à la main par le comptable (cf. grouperParAxe).
             $orderIdx = 0;
             foreach ($this->grouperParAxe($campaign->panels, $negotiated) as $groupe) {
                 $this->createLineForPanel(
@@ -158,7 +158,9 @@ class InvoiceFromCampaignBuilder
                     orderIdx: $orderIdx++,
                     campaign: $campaign,
                     puForce: $groupe['pu'],
-                    quantite: self::FACTURER_AU_PIED ? $groupe['pieds'] : 1,
+                    quantite: 1,
+                    complement: $groupe['complement'],
+                    taxesALaMain: $groupe['taxes_a_la_main'],
                 );
             }
 
@@ -201,6 +203,8 @@ class InvoiceFromCampaignBuilder
         ?Campaign $campaign = null,
         ?float $puForce = null,
         int $quantite = 1,
+        ?string $complement = null,
+        bool $taxesALaMain = false,
     ): InvoiceLine {
         // $puForce : prix déjà résolu par le regroupement des axes (le prix
         // négocié vit sur les pieds, pas sur la ligne de l'axe qui porte
@@ -221,7 +225,7 @@ class InvoiceFromCampaignBuilder
         $ref  = $panel->reference ?? ($isExternal ? 'EXT-' . $panel->id : 'PAN-' . $panel->id);
         $name = $panel->name ?? '—';
         $dim  = $panel->format?->dimensions_label ?? '';
-        $designation = trim("{$ref} — {$name}" . ($dim ? " {$dim}" : ''));
+        $designation = trim("{$ref} — {$name}" . ($dim ? " {$dim}" : '') . ($complement ? " — {$complement}" : ''));
 
         $line = new InvoiceLine([
             'panel_id'              => $isExternal ? null : $panel->id,
@@ -241,6 +245,13 @@ class InvoiceFromCampaignBuilder
             'order_index'           => $orderIdx,
         ]);
 
+        // Axe Lumipub (2026-11-12) : ODP et TM jamais calculées, 0 par
+        // défaut, le comptable saisit le montant sur la facture.
+        if ($taxesALaMain) {
+            $line->odp_amount_override = 0;
+            $line->tm_amount_override  = 0;
+        }
+
         // Pré-calcul des montants ligne via le calculateur
         $calc = $this->calculator->calculateLine($line->toArray());
         $line->forceFill($calc);
@@ -252,7 +263,13 @@ class InvoiceFromCampaignBuilder
     /**
      * ═══ AXES MULTI-PIEDS — LA BASCULE (2026-11-11) ═══
      *
-     * **false = phase 1.** Un axe donne UNE ligne de facture, quantité 1,
+     * ⚠ PLUS LUE depuis le 2026-11-12. La règle validée par l'utilisateur
+     * la remplace : une ligne par axe, quantité 1, prix = SOMME des pieds
+     * réservés, ODP et TM à 0 saisies à la main (cf. grouperParAxe). La
+     * question « 11 ODP ou 1 ? » ne se pose donc plus. Constante conservée
+     * pour ne rien casser chez d'éventuels lecteurs ; ne pas la réactiver.
+     *
+     * Historique — **false = phase 1.** Un axe donne UNE ligne de facture, quantité 1,
      * au prix d'UN pied — exactement ce que produisait Panora avant le
      * découpage. L'ODP et la TM sont donc inchangées au franc près, et le
      * découpage ne tranche pas à la place de la direction la question
@@ -280,37 +297,37 @@ class InvoiceFromCampaignBuilder
      * signés avant le découpage) tombe dans le même groupe que ses pieds.
      *
      * Le **porteur** du groupe est la ligne de l'axe : c'est elle qui donne
-     * `panel_id`, la référence, la surface et la commune de la ligne de
-     * facture — donc un calcul de taxe identique à avant.
+     * `panel_id`, la référence, la surface et la commune de la ligne.
      *
-     * Le **prix** vient des pieds, car c'est là que vit le prix négocié ;
-     * on prend le plus élevé du groupe pour qu'un pied à 0 n'efface pas le
-     * tarif, et on retombe sur le tarif catalogue de l'axe.
+     * **Prix (règle validée le 2026-11-12)** : la SOMME des prix HT des
+     * pieds réservés — le prix de chaque pied au contrat (négocié par la
+     * direction ; 0 = pied offert), à défaut son tarif catalogue. Une ligne
+     * d'axe d'un ancien contrat (l'axe entier) garde son propre prix.
+     * **ODP et TM** : jamais calculées pour un axe — `taxes_a_la_main`,
+     * la ligne naît à 0 et le comptable saisit les montants.
      *
      * @param  iterable<\App\Models\Panel> $panels
      * @param  array<string, float>        $negotiated
-     * @return list<array{porteur: \App\Models\Panel, pieds: int, pu: float}>
+     * @return list<array{porteur: \App\Models\Panel, pieds: int, pu: float, complement: ?string, taxes_a_la_main: bool}>
      */
-    protected function grouperParAxe($panels, array $negotiated): array
+    public function grouperParAxe($panels, array $negotiated): array
     {
         $groupes = [];
 
         foreach ($panels as $panel) {
             $cle = $panel->axe_id ?? $panel->id;
 
-            $groupes[$cle] ??= ['porteur' => null, 'membres' => [], 'prix' => []];
+            $groupes[$cle] ??= ['porteur' => null, 'membres' => []];
             $groupes[$cle]['membres'][] = $panel;
 
             // La ligne d'axe (axe_id null) porte le groupe si elle est là.
             if ($panel->axe_id === null) {
                 $groupes[$cle]['porteur'] = $panel;
             }
-
-            $prix = $negotiated['int_' . $panel->id] ?? null;
-            if ($prix !== null) {
-                $groupes[$cle]['prix'][] = (float) $prix;
-            }
         }
+
+        // Prix d'un membre : celui du contrat, sinon le tarif catalogue.
+        $prixDe = fn ($p) => (float) ($negotiated['int_' . $p->id] ?? $p->monthly_rate ?? 0);
 
         // Les axes dont seuls les pieds sont au contrat : charger la ligne
         // parente, avec ce dont createLineForPanel a besoin.
@@ -331,17 +348,28 @@ class InvoiceFromCampaignBuilder
         $resultat = [];
         foreach ($groupes as $g) {
             $porteur = $g['porteur'];
-            $pu = ! empty($g['prix'])
-                ? max($g['prix'])
-                : (float) ($porteur->monthly_rate ?? 0);
 
             // Les pieds du groupe, sans compter la ligne d'axe elle-même.
-            $pieds = count(array_filter($g['membres'], fn ($p) => $p->axe_id !== null));
+            $pieds = array_values(array_filter($g['membres'], fn ($p) => $p->axe_id !== null));
+
+            // La ligne d'axe est-elle elle-même au contrat (axe entier) ?
+            $axeEntier = collect($g['membres'])->contains(fn ($p) => $p->axe_id === null && $p->taxesSaisiesALaMain());
+
+            if ($pieds && ! $axeEntier) {
+                $pu = array_sum(array_map($prixDe, $pieds));
+                $complement = count($pieds) . (count($pieds) > 1 ? ' pieds' : ' pied');
+            } else {
+                // Panneau ordinaire, ou axe entier d'un ancien contrat.
+                $pu = $prixDe($porteur);
+                $complement = null;
+            }
 
             $resultat[] = [
-                'porteur' => $porteur,
-                'pieds'   => max(1, $pieds),
-                'pu'      => $pu,
+                'porteur'         => $porteur,
+                'pieds'           => max(1, count($pieds)),
+                'pu'              => $pu,
+                'complement'      => $complement,
+                'taxes_a_la_main' => $porteur->taxesSaisiesALaMain() || $pieds !== [],
             ];
         }
 

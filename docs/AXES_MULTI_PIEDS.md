@@ -115,6 +115,9 @@ Le découpage ne crée pas un besoin : **il régularise une pratique.**
 | 3 | ODP par pied ? | **Ne pas y toucher.** L'ODP est gérée autrement ; décision reportée | 2026-11-11 |
 | 4 | TM par pied ou par face ? | **Ne pas y toucher.** Décision reportée | 2026-11-11 |
 | 5 | Corriger la facture brouillon `FAC-2026-019` ? | **Non**, les brouillons attendent | 2026-11-11 |
+| 6 | Prix facturé d'un axe ? | **La somme des prix HT des pieds réservés** (prix négocié par la direction ; 0 = pied offert). Une ligne par axe, « … — 5 pieds » | 2026-11-12 |
+| 7 | ODP et TM d'un axe ? | **Jamais calculées par Panora**, ni sur les factures, ni sur les devis, ni dans le module Taxes : 0 par défaut, le comptable saisit les montants. Remplace les décisions 3 et 4, et rend la « phase 2 » sans objet | 2026-11-12 |
+| 8 | Deux clients sur un même axe ? | **Oui** : 5 pieds à l'un, 5 à l'autre, ou 2 pieds offerts à un gros client. Un axe ne se vend pas comme un panneau ordinaire | 2026-11-12 |
 
 ---
 

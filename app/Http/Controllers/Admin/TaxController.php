@@ -549,6 +549,7 @@ class TaxController extends Controller
         $panels = $commune->panels()
             ->whereNull('deleted_at')
             ->whereNotIn('status', ['maintenance'])
+            ->avecTaxesAutomatiques() // axes : ODP/TM à la main (2026-11-12)
             ->get();
         $nbPanneaux = $panels->count();
         $nbOccupes  = $panels->whereIn('status', ['occupe', 'confirme', 'option'])->count();
