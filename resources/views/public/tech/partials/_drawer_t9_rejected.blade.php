@@ -69,15 +69,14 @@
                                 <span class="sm2-t9-meta-label">ENVOYÉE</span>
                                 <span class="sm2-t9-meta-value">{{ optional($pige->taken_at)->diffForHumans() ?? '—' }}</span>
                             </div>
-                            @if($pige->gps_lat && $pige->gps_lng && $pige->panel?->latitude && $pige->panel?->longitude)
+                            {{-- 2026-11-12 : la distance enregistrée à l'envoi par le
+                                 serveur (PigeObserver → GeoService::verdictPourPanneau :
+                                 position du panneau, sinon celle de son axe). Avant :
+                                 recalculée ici avec la seule position du panneau —
+                                 rien pour un pied d'axe. --}}
+                            @if($pige->geo_distance_m !== null)
                                 @php
-                                    $R = 6371000;
-                                    $lat1 = deg2rad((float) $pige->gps_lat);
-                                    $lat2 = deg2rad((float) $pige->panel->latitude);
-                                    $dLat = $lat2 - $lat1;
-                                    $dLng = deg2rad(((float) $pige->panel->longitude) - ((float) $pige->gps_lng));
-                                    $a = sin($dLat/2)**2 + cos($lat1)*cos($lat2)*sin($dLng/2)**2;
-                                    $distM = (int) round($R * 2 * atan2(sqrt($a), sqrt(1-$a)));
+                                    $distM = (int) $pige->geo_distance_m;
                                     $distStr = $distM >= 950 ? round($distM/1000, 1) . ' km' : $distM . ' m';
                                 @endphp
                                 <div class="sm2-t9-meta-row">

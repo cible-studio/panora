@@ -235,8 +235,11 @@
                         $statusLabel = $task->status instanceof \App\Enums\PoseTaskStatus
                             ? $task->status->label()
                             : ucfirst($statusValue);
-                        $lat = $task->panel?->latitude;
-                        $lng = $task->panel?->longitude;
+                        // Un pied sans position prend celle de son axe
+                        // (Panel::positionTerrain, 2026-11-12).
+                        $pos = $task->panel?->positionTerrain();
+                        $lat = $pos['lat'] ?? null;
+                        $lng = $pos['lng'] ?? null;
                     @endphp
                     <tr class="pose-row {{ $late ? 'late' : '' }}">
                         <td><span class="checkbox"></span></td>

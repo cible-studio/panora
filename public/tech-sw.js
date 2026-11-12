@@ -89,7 +89,9 @@
 //   - v2.11.0 : refonte, étape 2 — plus de rechargement après une photo
 //               (feuille « Photo envoyée »), menu de l'initiale, alertes
 //               qui mènent à la pose, « Y aller » en voiture.
-const SW_VERSION = 'v2.11.0';
+//   - v2.12.0 : refonte, étape 3 — Carte (un arrêt par axe, « Voir »
+//               réparé) et Mes photos (galerie), barre du bas partout.
+const SW_VERSION = 'v2.12.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

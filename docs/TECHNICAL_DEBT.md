@@ -473,6 +473,15 @@ pour les étapes suivantes :
   (la pose reste dans la liste jusqu'au prochain chargement).
 - **« Déjà faites »** : une pose faite sans rechargement n'y apparaît qu'au
   prochain chargement de la page.
+- **Mes photos, compteur « Refusées »** : la page compte toutes les campagnes,
+  le heartbeat (et le bandeau de Ma journée) seulement celles en cours. Le
+  rafraîchissement automatique ne touche donc plus ce compteur (étape 3) ;
+  les deux règles restent à trancher.
+- **Barre du bas hors « Ma journée »** : pas de pastille « photos à refaire »
+  sur Carte et Mes photos (même raison : deux comptes différents).
+- **Admin / autres écrans** : la position terrain d'un pied (celle de son
+  axe) n'est appliquée que dans l'espace technicien. Les écrans admin qui
+  lisent `panels.latitude` (carte du réseau, fiches) n'ont pas été audités.
 - **Préférence « Sauter la confirmation Y aller »** (tiroir des préférences,
   `sm2c_pref_no_t7_confirm`) : aucun module ne la lit, elle est sans effet
   (constaté le 2026-11-12, antérieur à la refonte). Laissée hors du nouveau

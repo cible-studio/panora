@@ -228,105 +228,24 @@
            au lieu de s'afficher en pleine page. */
         .pagination svg { width: 14px; height: 14px; vertical-align: middle; }
     </style>
+    {{-- Refonte 2026-11-12 (maquette validée) : galerie, en-tête, barre du bas. --}}
+    <link rel="stylesheet" href="{{ asset('css/tech/tx-refonte.css') }}?v={{ config('app.version', '1') }}">
 </head>
-<body>
+<body class="tx tx-photos">
 
-<div class="header">
-    <div class="header-top">
-        <a href="{{ route('tech.space', $token) }}" class="back-btn">← Retour</a>
-        <h1 style="flex:1">📸 Mes photos</h1>
-        <span class="live-indicator" data-live-indicator>live</span>
-    </div>
-    {{-- KPI tiles cliquables comme filtres (server-side ?status=) +
-         polling 20s anime les valeurs au passage de chaque tick.
-         Le mode de vue (?view=current|all) est conservé sur chaque clic. --}}
-    @php $vp = $view === 'all' ? ['view' => 'all'] : []; @endphp
-    <div class="kpi-row" role="group" aria-label="Trier mes photos">
-        <a href="{{ route('tech.space.piges', array_merge([$token], $vp)) }}"
-           class="kpi-tile kt-total {{ !$statusFilter ? 'is-active' : '' }}"
-           aria-pressed="{{ !$statusFilter ? 'true' : 'false' }}">
-            <div class="kt-value" data-kpi-value="pigesTotal">{{ $kpi['total'] }}</div>
-            <div class="kt-label">Toutes</div>
-        </a>
-        <a href="{{ route('tech.space.piges', array_merge([$token, 'status' => 'en_attente'], $vp)) }}"
-           class="kpi-tile kt-pending {{ $statusFilter === 'en_attente' ? 'is-active' : '' }}"
-           aria-pressed="{{ $statusFilter === 'en_attente' ? 'true' : 'false' }}">
-            <div class="kt-value" data-kpi-value="pigesPending">{{ $kpi['pending'] }}</div>
-            <div class="kt-label">En attente</div>
-        </a>
-        <a href="{{ route('tech.space.piges', array_merge([$token, 'status' => 'verifie'], $vp)) }}"
-           class="kpi-tile kt-verified {{ $statusFilter === 'verifie' ? 'is-active' : '' }}"
-           aria-pressed="{{ $statusFilter === 'verifie' ? 'true' : 'false' }}">
-            <div class="kt-value" data-kpi-value="pigesVerified">{{ $kpi['verified'] }}</div>
-            <div class="kt-label">Validées</div>
-        </a>
-        <a href="{{ route('tech.space.piges', array_merge([$token, 'status' => 'rejete'], $vp)) }}"
-           class="kpi-tile kt-rejected {{ $statusFilter === 'rejete' ? 'is-active' : '' }}"
-           aria-pressed="{{ $statusFilter === 'rejete' ? 'true' : 'false' }}">
-            <div class="kt-value" data-kpi-value="pigesRejected">{{ $kpi['rejected'] }}</div>
-            <div class="kt-label">Refusées</div>
-        </a>
-    </div>
-
-    {{-- Toggle de vue : "Statut actuel" (déduplication par panneau, garde
-         la pige la plus récente) vs "Historique complet" (toutes les
-         piges, audit). Par défaut on est en "Statut actuel" pour éviter
-         qu'un panneau re-piggé apparaisse en double (refusée + en attente).
-         Le 2e bouton n'apparaît que s'il y a effectivement de l'historique
-         masqué — sinon il serait perçu comme inutile. --}}
-    @php
-        $currentLinkArgs = $statusFilter
-            ? [$token, 'status' => $statusFilter]
-            : [$token];
-        $allLinkArgs = array_merge($currentLinkArgs, ['view' => 'all']);
-        $hiddenInCurrent = max(0, $historyTotal - $kpi['total']);
-    @endphp
-    <div class="view-toggle" role="group" aria-label="Mode d'affichage">
-        <a href="{{ route('tech.space.piges', $currentLinkArgs) }}"
-           class="vt-chip {{ $view === 'current' ? 'is-active' : '' }}"
-           title="Une seule photo par panneau (la plus récente)">
-            📌 Photos d'aujourd'hui
-        </a>
-        @if($view === 'all' || $hiddenInCurrent > 0)
-        <a href="{{ route('tech.space.piges', $allLinkArgs) }}"
-           class="vt-chip {{ $view === 'all' ? 'is-active' : '' }}"
-           title="Voir toutes les photos, même celles refaites">
-            📜 Tout voir
-            @if($hiddenInCurrent > 0 && $view === 'current')
-                <span class="vt-badge">+{{ $hiddenInCurrent }}</span>
-            @endif
-        </a>
-        @endif
-    </div>
-</div>
-
-{{-- Bandeau explicatif 2026-08-10 : le mode "Photos d'aujourd'hui" cache
-     les anciennes piges quand une nouvelle a été prise sur le même panneau
-     (rechange). Sans ça, le tech croit que ses piges initiales validées
-     ont disparu — bug UX rapporté. --}}
-@if($view === 'current' && $hiddenInCurrent > 0)
-<div style="max-width:900px;margin:12px auto 0;padding:0 16px">
-    <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(59,130,246,.03));border:1px solid rgba(59,130,246,.25);border-radius:10px;font-size:13px;color:var(--text2);line-height:1.5">
-        <div style="flex-shrink:0;font-size:18px;line-height:1">💡</div>
-        <div style="flex:1;min-width:0">
-            <strong style="color:#1d4ed8">{{ $hiddenInCurrent }} pige{{ $hiddenInCurrent > 1 ? 's' : '' }} plus ancienne{{ $hiddenInCurrent > 1 ? 's' : '' }} sont masquée{{ $hiddenInCurrent > 1 ? 's' : '' }}</strong>
-            —
-            elles ont été remplacées par une nouvelle photo sur le même panneau (rechange).
-            Elles restent en base et sont visibles avec le bouton
-            <a href="{{ route('tech.space.piges', $allLinkArgs) }}"
-               style="color:#1d4ed8;font-weight:700;text-decoration:underline">📜 Tout voir</a>.
-        </div>
-    </div>
-</div>
-@endif
-
-{{-- Badge "Refaite après" 2026-08-10 : quand on est en mode "Tout voir",
-     les piges qui ont été remplacées par une plus récente ont un liseré
-     grisé + badge "↻ Refaite après" (déjà géré par la card via
-     `$p->is_superseded`). On calcule ici l'ensemble des IDs superseded
-     et on set l'attribut sur chaque pige — 1 seule requête pour toute
-     la page, pas N. --}}
+{{-- Refonte, étape 3 (2026-11-12, maquette validée) : « Mes photos » en
+     galerie, la barre du bas, et « Refaire » qui mène à la photo à refaire.
+     Les règles ne changent pas : la dernière photo par panneau par défaut
+     (?view=all : tout l'historique), filtres ?status=, compteurs du même
+     mode que la liste (TechSpaceController::piges). --}}
 @php
+    $vp = $view === 'all' ? ['view' => 'all'] : [];
+    $currentLinkArgs = $statusFilter ? [$token, 'status' => $statusFilter] : [$token];
+    $allLinkArgs = array_merge($currentLinkArgs, ['view' => 'all']);
+    $hiddenInCurrent = max(0, $historyTotal - $kpi['total']);
+
+    // Photos remplacées par une plus récente (mode « tout l'historique ») :
+    // une seule requête pour la page.
     if ($view === 'all' && $piges->isNotEmpty()) {
         $supersededIds = \App\Models\Pige::query()
             ->whereIn('id', $piges->pluck('id'))
@@ -343,93 +262,112 @@
             $_p->is_superseded = $supersededIds->has($_p->id);
         }
     }
+
+    $quand = function ($d) {
+        if (!$d) return '—';
+        $d = \Carbon\Carbon::parse($d);
+        return ($d->isToday() ? 'Aujourd’hui' : ($d->isYesterday() ? 'Hier' : $d->format('d/m'))) . ' ' . $d->format('H\hi');
+    };
+    $filtres = [
+        ['statut' => null,         'cle' => 'pigesTotal',    'nb' => $kpi['total'],    'libelle' => 'Toutes',    'cls' => ''],
+        ['statut' => 'en_attente', 'cle' => 'pigesPending',  'nb' => $kpi['pending'],  'libelle' => 'À valider', 'cls' => 'tx-chip-att'],
+        ['statut' => 'verifie',    'cle' => 'pigesVerified', 'nb' => $kpi['verified'], 'libelle' => 'Validées',  'cls' => 'tx-chip-ok'],
+        ['statut' => 'rejete',     'cle' => 'pigesRejected', 'nb' => $kpi['rejected'], 'libelle' => 'Refusées',  'cls' => 'tx-chip-refus'],
+    ];
 @endphp
 
-<div class="container">
-    @forelse($piges as $p)
-        @php
-            $statusCfg = match($p->status) {
-                'en_attente' => ['cls' => 's-pending', 'label' => '⏳ En attente'],
-                'verifie'    => ['cls' => 's-verified','label' => '✓ Validée'],
-                'rejete'     => ['cls' => 's-rejected','label' => '✕ Refusée'],
-                default      => ['cls' => '', 'label' => $p->status],
-            };
-            $photoUrl = $p->photo_path
-                ? \Illuminate\Support\Facades\Storage::url($p->photo_path)
-                : null;
-        @endphp
-<div class="pige-card {{ ($p->is_superseded ?? false) ? 'is-superseded' : '' }}"
-             title="{{ ($p->is_superseded ?? false) ? 'Tu as refait une photo de ce panneau après celle-ci.' : '' }}">
-            @if($photoUrl)
-                <a class="pige-thumb"
-                   style="background-image:url('{{ $photoUrl }}')"
-                   href="{{ $photoUrl }}" target="_blank" rel="noopener">
-                    <span class="pige-status-pill {{ $statusCfg['cls'] }}">
-                        {{ $statusCfg['label'] }}
-                    </span>
-                </a>
+<header class="tx-bandeau">
+    <div class="tx-bandeau-t">
+        <h1>Mes photos</h1>
+        <small>
+            @if($view === 'current')
+                La dernière par panneau
+                @if($hiddenInCurrent > 0) · <a href="{{ route('tech.space.piges', $allLinkArgs) }}">tout l'historique</a>@endif
             @else
-                <div class="pige-thumb" style="display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3)">
-                    📷
-                    <span class="pige-status-pill {{ $statusCfg['cls'] }}">
-                        {{ $statusCfg['label'] }}
-                    </span>
-                </div>
+                Tout l'historique · <a href="{{ route('tech.space.piges', $currentLinkArgs) }}">la dernière par panneau</a>
             @endif
-            <div class="pige-body">
-                <div class="pige-ref">
-                    {{ $p->panel?->reference ?? '—' }}
-                    @if($p->is_superseded ?? false)
-                        <span class="pige-superseded-badge">↻ Refaite après</span>
-                    @endif
-                </div>
-                <div class="pige-meta">
-                    @if($p->panel?->name)
-                        <span>{{ $p->panel->name }}</span>
-                    @endif
-                    @if($p->panel?->commune?->name)
-                        <span>📍 {{ $p->panel->commune->name }}</span>
-                    @endif
-                    @if($p->campaign?->name)
-                        <span>📢 {{ $p->campaign->name }}</span>
-                    @endif
-                    <span class="when">
-                        {{ $p->taken_at?->format('d/m/Y H:i') }}
-                        @if($p->verified_at && $p->status !== 'en_attente')
-                            · {{ $p->status === 'verifie' ? 'validée' : 'refusée' }}
-                            le {{ $p->verified_at->format('d/m H:i') }}
-                        @endif
-                    </span>
-                </div>
+        </small>
+    </div>
+    <span class="live-indicator" data-live-indicator>live</span>
+</header>
 
-                @if($p->status === 'rejete' && $p->rejection_reason)
-                    <div class="pige-rejected-msg">
-                        <strong>Pourquoi refusée :</strong>
-                        {{ $p->rejection_reason }}
-                        <div style="margin-top:4px;font-size:11px;color:#7f1d1d">
-                            Va dans <a href="{{ route('tech.space', $token) }}" style="color:#7f1d1d;font-weight:700">Mes panneaux</a> pour refaire la photo.
-                        </div>
-                    </div>
-                @endif
-            </div>
-        </div>
-    @empty
-        <div class="empty">
-            <div class="icon">📷</div>
-            <h2>Pas encore de photo</h2>
-            <p style="font-size:12.5px;margin:0">Dès que tu envoies ta première photo, elle apparaît ici.</p>
-        </div>
-    @endforelse
+<main class="tx-photos-corps">
+    <nav class="tx-chips" aria-label="Trier mes photos">
+        @foreach($filtres as $f)
+            @php $on = $statusFilter === $f['statut']; @endphp
+            <a href="{{ route('tech.space.piges', array_merge($f['statut'] ? [$token, 'status' => $f['statut']] : [$token], $vp)) }}"
+               class="tx-chip {{ $f['cls'] }} {{ $on ? 'on' : '' }}" aria-pressed="{{ $on ? 'true' : 'false' }}">
+                <b data-kpi-value="{{ $f['cle'] }}">{{ $f['nb'] }}</b><span>{{ $f['libelle'] }}</span>
+            </a>
+        @endforeach
+    </nav>
 
-    @if($piges->hasPages())
-        {{-- Vue dédiée : le thème Tailwind par défaut cassait l'affichage
-             (SVG géants, libellés anglais) car cette page n'a pas Tailwind.
-             Cf. resources/views/public/tech/partials/_pagination.blade.php --}}
-        <div class="pagination">
-            {{ $piges->links('public.tech.partials._pagination') }}
-        </div>
+    @if($view === 'current' && $hiddenInCurrent > 0)
+        <p class="tx-photos-info">
+            ⓘ {{ $hiddenInCurrent }} photo{{ $hiddenInCurrent > 1 ? 's' : '' }} plus ancienne{{ $hiddenInCurrent > 1 ? 's' : '' }}
+            masquée{{ $hiddenInCurrent > 1 ? 's' : '' }} : remplacée{{ $hiddenInCurrent > 1 ? 's' : '' }} par une nouvelle photo
+            du même panneau. <a href="{{ route('tech.space.piges', $allLinkArgs) }}">Tout l'historique</a>
+        </p>
     @endif
-</div>
+
+    @if($piges->isEmpty())
+        <div class="tx-photos-vide">
+            <div style="font-size:40px;opacity:.35">📷</div>
+            <strong>Pas encore de photo</strong>
+            <p style="margin:4px 0 0;font-size:13px">Dès que tu envoies ta première photo, elle apparaît ici.</p>
+        </div>
+    @else
+        <div class="tx-galerie">
+            @foreach($piges as $p)
+                @php
+                    [$pillCls, $pillTxt] = match($p->status) {
+                        'en_attente' => ['tx-pill-attente', 'À valider'],
+                        'verifie'    => ['tx-pill-fait', 'Validée'],
+                        'rejete'     => ['tx-pill-retard', 'Refusée'],
+                        default      => ['tx-pill-planifiee', (string) $p->status],
+                    };
+                    $vignette = $p->photo_path ? \Illuminate\Support\Facades\Storage::url($p->photo_thumb ?: $p->photo_path) : null;
+                    $grande = $p->photo_path ? \Illuminate\Support\Facades\Storage::url($p->photo_path) : null;
+                    $ancienne = (bool) ($p->is_superseded ?? false);
+                @endphp
+                <article class="tx-cliche {{ $ancienne ? 'tx-cliche-ancienne' : '' }}"
+                         @if($ancienne) title="Tu as refait une photo de ce panneau après celle-ci." @endif>
+                    @if($grande)
+                        <a class="tx-cliche-img" href="{{ $grande }}" target="_blank" rel="noopener"
+                           style="background-image:url('{{ $vignette }}')" aria-label="Voir la photo de {{ $p->panel?->reference }} en grand">
+                            <span class="tx-pill {{ $pillCls }}">{{ $pillTxt }}</span>
+                        </a>
+                    @else
+                        <div class="tx-cliche-img"><span class="tx-pill {{ $pillCls }}">{{ $pillTxt }}</span></div>
+                    @endif
+                    <div class="tx-cliche-txt">
+                        <span class="tx-ref">{{ $p->panel?->reference ?? '—' }}</span>
+                        <span>{{ $quand($p->taken_at) }}{{ $ancienne ? ' · ↻ refaite après' : '' }}</span>
+                        @if($p->panel?->name)<span class="tx-cliche-nom">{{ $p->panel->name }}</span>@endif
+                        @if($p->campaign?->name)<span class="tx-cliche-nom">{{ $p->campaign->name }}</span>@endif
+                        @if($p->status === 'rejete' && $p->rejection_reason)
+                            <span class="tx-cliche-motif">{{ $p->rejection_reason }}</span>
+                        @endif
+                        @if($p->status === 'rejete' && !$ancienne)
+                            {{-- « Photos à refaire » de Ma journée (t9-rejected.js) rouvre
+                                 l'appareil photo sur la bonne pose. --}}
+                            <a class="tx-mini tx-mini-refaire" href="{{ route('tech.space', ['token' => $token, 'refaire' => 1]) }}">Refaire</a>
+                        @endif
+                    </div>
+                </article>
+            @endforeach
+        </div>
+
+        @if($piges->hasPages())
+            {{-- Vue dédiée : cette page n'a pas Tailwind (cf. _pagination). --}}
+            <div class="pagination">
+                {{ $piges->links('public.tech.partials._pagination') }}
+            </div>
+        @endif
+    @endif
+</main>
+
+@include('public.tech.partials._tx_nav', ['token' => $token, 'actif' => 'photos', 'tech' => $tech])
 
 <script>
 // Polling heartbeat 20s — met à jour les KPI tiles sans reload.
@@ -438,6 +376,7 @@
 // le compteur en haut, pas le contenu en bas.
 (function () {
     const URL = "{{ route('tech.space.heartbeat', $token) }}";
+    const VUE_COURANTE = @json($view === 'current');
     const liveDot = document.querySelector('[data-live-indicator]');
 
     function bumpVal(name, newVal) {
@@ -464,10 +403,15 @@
                 liveDot.classList.add('is-pulsing');
                 setTimeout(() => liveDot.classList.remove('is-pulsing'), 600);
             }
+            // 2026-11-12 : le heartbeat compte « la dernière par panneau ».
+            // En mode « tout l'historique », il remplaçait les compteurs de
+            // la page par d'autres chiffres. « Refusées » : le heartbeat ne
+            // garde que les campagnes en cours (bandeau de Ma journée), la
+            // page les compte toutes — on laisse celui de la page.
+            if (!VUE_COURANTE) return;
             bumpVal('pigesTotal',    d.pigesTotal);
             bumpVal('pigesPending',  d.pigesPending);
             bumpVal('pigesVerified', d.pigesVerified);
-            bumpVal('pigesRejected', d.pigesRejected);
         } catch (e) { /* silencieux */ }
     }
     setTimeout(tick, 1500);

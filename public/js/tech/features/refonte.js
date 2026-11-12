@@ -518,6 +518,42 @@ function surAlerte(e) {
     toast('Cette pose n\'est plus dans ta liste.', 'info');
 }
 
+// ── 10. Liens d'autres pages (étape 3) ───────────────────────────────
+//   ?axe=<axe>-<campagne> : « Voir » sur un arrêt d'axe de la carte → la
+//                            carte de l'axe dépliée ;
+//   ?alertes=1            : « Alertes » depuis Carte / Mes photos → le tiroir ;
+//   ?refaire=1            : « Refaire » depuis Mes photos → « Photos à refaire ».
+// (?focus=task_<id> reste géré par pose-drawer.js.)
+function liensEntrants() {
+    const params = new URLSearchParams(location.search);
+    const cle = params.get('axe');
+    const alertes = params.get('alertes');
+    const refaire = params.get('refaire');
+    if (!cle && !alertes && !refaire) return;
+    params.delete('axe');
+    params.delete('alertes');
+    params.delete('refaire');
+    // Un rechargement ne doit pas rouvrir.
+    history.replaceState(null, '', location.pathname + (params.toString() ? `?${params}` : '') + location.hash);
+
+    if (cle) {
+        const carte = document.querySelector(`[data-axe-carte="${CSS.escape(cle)}"]`);
+        if (carte) {
+            if (!carte.classList.contains('ouvert')) basculerAxe(carte.querySelector('[data-tx-axe-toggle]'));
+            setTimeout(() => carte.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+            carte.classList.add('tx-vient');
+        } else {
+            toast('Cet axe n\'est plus dans ta liste.', 'info');
+        }
+    }
+    if (alertes) document.querySelector('.tx-cloche[data-action="open-b3"]')?.click();
+    if (refaire) {
+        const t9 = document.querySelector('[data-action="open-t9"]');
+        if (t9) t9.click();
+        else toast('Plus aucune photo à refaire : elles sont toutes reparties.', 'success');
+    }
+}
+
 // ── 8. Menu ──────────────────────────────────────────────────────────
 function ouvrirMenu() {
     const fond = document.getElementById('tx-menu');
@@ -572,4 +608,6 @@ export function init() {
     document.addEventListener('tx:statut', surStatut);
     document.addEventListener('tx:photo-envoyee', surPhotoEnvoyee);
     document.addEventListener('tx:alerte', surAlerte);
+
+    liensEntrants();
 }

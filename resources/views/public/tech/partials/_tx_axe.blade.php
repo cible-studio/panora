@@ -28,8 +28,8 @@
     $repTask = $entree['tasks']->first();            // porte « Y aller » / « Je suis arrivé »
     $suivantId = $repTask?->id;                      // le pied à faire en premier (mis en avant, comme refonte.js)
     $repData = \App\Support\TechCarte::donnees($repTask);
-    $statuts = $entree['tasks']->map(fn ($t) => (string) $t->status);
-    $statut = $statuts->contains('en_cours') ? 'place' : ($statuts->contains('en_route') ? 'route' : 'planifiee');
+    // Même règle que l'arrêt sur la carte (TechSpaceController::statutEntree).
+    $statut = ['en_cours' => 'place', 'en_route' => 'route'][\App\Http\Controllers\TechSpaceController::statutEntree($entree['tasks'])] ?? 'planifiee';
     $libelleStatut = ['place' => 'Sur place', 'route' => 'En route', 'planifiee' => 'Planifiée'][$statut];
     $photo = $axe->photos->first();
     $piedsDeLAxe = \App\Models\Panel::where('axe_id', $axe->id)->count();

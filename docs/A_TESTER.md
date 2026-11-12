@@ -1611,3 +1611,41 @@ Même préparation que ci-dessus. Fermer l'onglet et le rouvrir une fois
       autre pose » à propos de ses propres pieds.
 - [ ] « Y aller » / « Je suis arrivé » **depuis le tiroir d'un pied** : la
       carte de l'axe passe « En route » / « Sur place » sans rechargement.
+
+### 22 ter. Étape 3 : Carte et Mes photos *(2026-11-12, develop seulement)*
+
+Fermer l'onglet et le rouvrir une fois (service worker v2.12.0).
+
+**Défaut corrigé** : la carte, « Mon chemin » et la feuille de route ne
+lisaient que la position **propre** du panneau. Depuis le découpage des
+axes, leurs pieds (nés sans position) **avaient disparu de la carte** et
+de « Mon chemin ». Ils prennent maintenant la position de leur axe
+(`Panel::positionTerrain`, la même règle que « Ma journée » et le contrôle
+GPS).
+
+- [ ] **Carte** (« Ma tournée ») : un arrêt **par axe** — pastille « ⛓ 5 »
+      — à la position de l'axe ; les poses ordinaires comme avant. En-tête :
+      « N arrêts · M sans position » et le bouton feuille de route papier.
+- [ ] Toucher un arrêt d'axe : « ⛓ Axe · 5 pieds à poser », « Y aller »,
+      « Voir l'axe » → « Ma journée » avec la carte de l'axe dépliée.
+      Toucher une pose : « Voir » ouvre sa fiche. (Avant : « Voir » ne
+      menait nulle part.)
+- [ ] « **Me localiser** » et « **Mon chemin** » sous la carte. « Mon chemin »
+      passe **une fois** par axe, les étapes sont numérotées sans trou, et le
+      total en km ne compte plus les poses des campagnes en pause.
+- [ ] Panneau sans aucune position (ni lui ni son axe) : encadré bleu « N
+      panneau(x) sans position — REF : « Y aller » cherche l'adresse dans
+      Maps ».
+- [ ] **Mes photos** : en-tête « Mes photos — La dernière par panneau ·
+      tout l'historique », 4 filtres (Toutes / À valider / Validées /
+      Refusées), puis une **galerie** de photos (pastille d'état, référence,
+      « Aujourd'hui 10h47 », motif du refus en rouge).
+- [ ] Photo refusée → « **Refaire** » : « Ma journée » s'ouvre sur « Photos à
+      refaire », appareil photo à portée.
+- [ ] **Photos à refaire** (Ma journée) : « DISTANCE PANNEAU » s'affiche
+      aussi pour un pied d'axe (c'est la distance enregistrée à l'envoi).
+- [ ] **Barre du bas** sur les trois pages ; l'onglet de la page est en
+      orange. « Alertes » depuis Carte ou Mes photos ramène à « Ma journée »
+      avec le tiroir des alertes ouvert (et sa liste remplie).
+- [ ] **Feuille de route papier** : un pied d'axe affiche les coordonnées de
+      son axe (avant : vide).
