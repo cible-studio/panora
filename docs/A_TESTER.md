@@ -1649,3 +1649,27 @@ GPS).
       avec le tiroir des alertes ouvert (et sa liste remplie).
 - [ ] **Feuille de route papier** : un pied d'axe affiche les coordonnées de
       son axe (avant : vide).
+
+## 23. Suivi des axes côté admin *(2026-11-12, develop seulement)*
+
+Décisions du 12/11 : rapport PDF de piges = **une fiche par axe** ;
+compteurs côté client **en pieds** (affichage regroupé « 3/5 pieds
+pigés ») ; e-mail « photo validée » = **un seul par axe**, quand son
+dernier pied est validé ; pose suivante du technicien = règle « Maintenant ».
+
+### 23 a. Phase A : les défauts
+
+- [ ] **Carte des poses** (admin → Poses → Carte) : les pieds d'un axe
+      découpé y sont, à la position de leur axe (avant : absents). Le popup
+      porte la référence du pied.
+- [ ] **Modale de validation** d'une photo de pied : la photo de référence
+      (celle de l'axe) et la distance s'affichent (avant : vides).
+- [ ] **Fiche d'un axe** (admin → Panneaux → CDYLUP-004) : « Dernières piges »
+      montre les plus récentes, y compris celles de ses pieds (« · Pied 3 ») ;
+      une photo refusée est marquée « Refusée » (avant : « En attente »).
+- [ ] **Piges, filtre « panneau » = un axe** : on y trouve les photos de ses
+      pieds.
+- [ ] **Espace technicien → Mes photos**, axe entier : chaque photo (une par
+      pied) reste visible ; avant, il n'en restait qu'une. Une photo refusée
+      d'un axe entier disparaît de « Photos à refaire » quand une nouvelle
+      photo arrive sur l'axe **après** le refus.

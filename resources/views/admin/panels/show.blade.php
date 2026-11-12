@@ -526,13 +526,20 @@
                     <div class="card-title">📸 Dernières piges</div>
                 </div>
                 <div class="card-body">
-                    @forelse($panel->piges->take(3) as $pige)
+                    {{-- Les plus récentes ; pour un axe, aussi celles de ses pieds
+                         (PanelController::show, 2026-11-12). --}}
+                    @forelse(($dernieresPiges ?? $panel->piges->sortByDesc('taken_at')->take(3)) as $pige)
                         <div style="padding-bottom:10px; margin-bottom:10px; border-bottom:1px solid var(--border);">
                             <div style="font-size:12px; color:var(--text2);">
-                                {{ $pige->taken_at->format('d/m/Y') }}
+                                {{ $pige->taken_at?->format('d/m/Y') }}
+                                @if($pige->panel_id !== $panel->id && $pige->panel)
+                                    · Pied {{ $pige->panel->pied_numero ?? '' }} ({{ $pige->panel->reference }})
+                                @endif
                             </div>
                             @if ($pige->isVerifiee())
                                 <span class="badge badge-green" style="margin-top:4px;">✓ Vérifiée</span>
+                            @elseif ($pige->status === 'rejete')
+                                <span class="badge badge-red" style="margin-top:4px;">✕ Refusée</span>
                             @else
                                 <span class="badge badge-gray" style="margin-top:4px;">En attente</span>
                             @endif

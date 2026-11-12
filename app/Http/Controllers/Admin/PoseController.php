@@ -298,21 +298,40 @@ class PoseController extends Controller
     }
 
     /**
+     * Carte des poses (2026-11-12) : les poses dont la position terrain est
+     * connue — celle du panneau, sinon celle de son axe (Panel::positionTerrain).
+     * Avant, le filtre ne gardait que les panneaux à position propre : les
+     * pieds découpés disparaissaient de la carte.
+     */
+    private function positionAvecAxe($query)
+    {
+        $axes = app(\App\Services\Axes\AxeService::class)->colonnesPresentes();
+
+        return $query
+            ->join('panels', 'panels.id', '=', 'pose_tasks.panel_id')
+            ->when($axes, fn ($q) => $q
+                ->leftJoin('panels as axe_pos', 'axe_pos.id', '=', 'panels.axe_id')
+                ->where(fn ($w) => $w
+                    ->where(fn ($p) => $p->whereNotNull('panels.latitude')->whereNotNull('panels.longitude'))
+                    ->orWhere(fn ($p) => $p->whereNotNull('axe_pos.latitude')->whereNotNull('axe_pos.longitude'))))
+            ->when(!$axes, fn ($q) => $q->whereNotNull('panels.latitude')->whereNotNull('panels.longitude'))
+            ->with(array_merge([
+                'panel:id,reference,name,latitude,longitude,commune_id,gps_source,gps_dispersion_flag'
+                    . ($axes ? ',axe_id,pied_numero,est_axe' : ''),
+                'panel.commune:id,name',
+                'campaign:id,name,status',
+                'technicien:id,name,whatsapp_number',
+            ], $axes ? ['panel.axe:id,reference,name,latitude,longitude'] : []));
+    }
+
+    /**
      * JSON : pose-tasks avec GPS pour l'affichage carte.
      * Filtres optionnels : status, technicien_id, campaign_id.
      */
     public function mapData(Request $request)
     {
-        $query = PoseTask::query()
-            ->join('panels', 'panels.id', '=', 'pose_tasks.panel_id')
-            ->whereNotNull('panels.latitude')
-            ->whereNotNull('panels.longitude')
-            ->with([
-                'panel:id,reference,name,latitude,longitude,commune_id,gps_source,gps_dispersion_flag',
-                'panel.commune:id,name',
-                'campaign:id,name,status',
-                'technicien:id,name,whatsapp_number',
-            ]);
+        // Axes : un pied sans position prend celle de son axe (positionAvecAxe).
+        $query = $this->positionAvecAxe(PoseTask::query());
 
         // Cache 60s pour limiter la charge (markers peuvent être nombreux)
         // Même règle que la liste : sans filtre de statut, annulées masquées.
@@ -331,12 +350,15 @@ class PoseController extends Controller
                 default     => '#6b7280',
             };
             $isLate = $t->status === 'planifiee' && $t->scheduled_at?->lt(PoseTask::lateThreshold());
+            $pos = $t->panel->positionTerrain();
             return [
                 'id'         => $t->id,
-                'lat'        => (float) $t->panel->latitude,
-                'lng'        => (float) $t->panel->longitude,
+                'lat'        => $pos['lat'] ?? null,
+                'lng'        => $pos['lng'] ?? null,
                 'reference'  => $t->panel->reference,
                 'name'       => $t->panel->name,
+                // Pied d'un axe : son axe (le popup le dit, la position est la sienne).
+                'axe'        => $t->panel->axe?->reference,
                 'commune'    => $t->panel->commune?->name,
                 'campaign'   => $t->campaign?->name,
                 'tech'       => $t->technicien?->name,
