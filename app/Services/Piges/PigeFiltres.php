@@ -53,7 +53,16 @@ final class PigeFiltres
         if (!empty($f['commune_id'])) {
             $query->whereHas('panel', fn ($p) => $p->where('commune_id', $f['commune_id']));
         }
-        if (!empty($f['panel_id']))      $query->where('panel_id', $f['panel_id']);
+        // Un AXE (2026-11-12) : ses photos et celles de ses pieds — depuis le
+        // découpage, elles se prennent pied par pied. Avant : filtre exact,
+        // l'axe ne trouvait que les photos des anciens contrats.
+        if (!empty($f['panel_id'])) {
+            $ids = [(int) $f['panel_id']];
+            if (app(\App\Services\Axes\AxeService::class)->colonnesPresentes()) {
+                $ids = array_merge($ids, \App\Models\Panel::where('axe_id', $f['panel_id'])->pluck('id')->all());
+            }
+            $query->whereIn('panel_id', $ids);
+        }
         if (!empty($f['technicien_id'])) $query->where('user_id', $f['technicien_id']);
         if (!empty($f['geo_check']))     $query->where('geo_check', $f['geo_check']);
         if (!empty($f['date_from']))     $query->whereDate('taken_at', '>=', $f['date_from']);

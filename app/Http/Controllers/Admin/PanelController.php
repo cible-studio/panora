@@ -421,7 +421,20 @@ class PanelController extends Controller
             ]);
         }
 
-        return view('admin.panels.show', compact('panel', 'occupants', 'activeMaintenance'));
+        // « Dernières piges » (2026-11-12) : les plus récentes (avant : les 3
+        // premières sans ordre) et, pour un axe, aussi celles de ses pieds —
+        // depuis le découpage, les photos se prennent pied par pied.
+        $idsPiges = [$panel->id];
+        if ($panel->estAxe()) {
+            $idsPiges = array_merge($idsPiges, Panel::where('axe_id', $panel->id)->pluck('id')->all());
+        }
+        $dernieresPiges = \App\Models\Pige::whereIn('panel_id', $idsPiges)
+            ->with('panel:id,reference' . (app(\App\Services\Axes\AxeService::class)->colonnesPresentes() ? ',pied_numero' : ''))
+            ->orderByDesc('taken_at')
+            ->limit(3)
+            ->get();
+
+        return view('admin.panels.show', compact('panel', 'occupants', 'activeMaintenance', 'dernieresPiges'));
     }
     // ── FORMULAIRE MODIFICATION ──
     public function edit(Panel $panel)

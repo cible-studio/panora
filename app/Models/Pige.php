@@ -124,6 +124,46 @@ class Pige extends Model
     }
 
     /**
+     * « La dernière photo par panneau » d'une campagne : une photo refaite
+     * remplace l'ancienne. Règle UNIQUE (2026-11-12) de « Mes photos », de
+     * ses compteurs (heartbeat), du bandeau et du tiroir « Photos à refaire »
+     * de l'espace technicien — avant, recopiée cinq fois.
+     *
+     * Sauf l'AXE ENTIER (contrat d'avant le découpage, choix 4b) : ses photos
+     * sont une par pied, sur la même ligne — aucune ne remplace l'autre (la
+     * règle d'avant n'en gardait qu'une). Une photo REFUSÉE y est refaite
+     * quand une nouvelle photo arrive sur l'axe après le refus.
+     */
+    public function scopeDerniereParPanneau(Builder $q): Builder
+    {
+        $plusRecente = fn (string $colonne) => function ($sub) use ($colonne) {
+            $sub->from('piges as p2')
+                ->select(\Illuminate\Support\Facades\DB::raw(1))
+                ->whereColumn('p2.panel_id',    'piges.panel_id')
+                ->whereColumn('p2.campaign_id', 'piges.campaign_id')
+                ->whereColumn('p2.taken_at',    '>', $colonne);
+        };
+
+        if (!app(\App\Services\Axes\AxeService::class)->colonnesPresentes()) {
+            return $q->whereNotExists($plusRecente('piges.taken_at'));
+        }
+
+        $axesEntiers = fn ($s) => $s->select('id')->from('panels')->where('est_axe', true);
+
+        return $q->where(function ($w) use ($plusRecente, $axesEntiers) {
+            $w->where(fn ($ordinaire) => $ordinaire
+                    ->whereNotIn('piges.panel_id', $axesEntiers)
+                    ->whereNotExists($plusRecente('piges.taken_at')))
+              ->orWhere(fn ($axe) => $axe
+                    ->whereIn('piges.panel_id', $axesEntiers)
+                    ->where(fn ($p) => $p
+                        ->where('piges.status', '!=', 'rejete')
+                        ->orWhereNull('piges.verified_at')
+                        ->orWhereNotExists($plusRecente('piges.verified_at'))));
+        });
+    }
+
+    /**
      * Pige active (campagne vivante). Par défaut on n'affiche que celles-ci
      * dans la liste admin. Les piges archivées sont accessibles via la vue
      * dédiée /admin/piges/archives.

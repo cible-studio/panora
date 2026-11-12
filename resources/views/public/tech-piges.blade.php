@@ -246,20 +246,16 @@
 
     // Photos remplacées par une plus récente (mode « tout l'historique ») :
     // une seule requête pour la page.
+    // Règle unique : Pige::scopeDerniereParPanneau (un axe entier garde
+    // toutes ses photos, une par pied).
     if ($view === 'all' && $piges->isNotEmpty()) {
-        $supersededIds = \App\Models\Pige::query()
+        $courantes = \App\Models\Pige::query()
             ->whereIn('id', $piges->pluck('id'))
-            ->whereExists(function ($sub) {
-                $sub->from('piges as p2')
-                    ->select(\Illuminate\Support\Facades\DB::raw(1))
-                    ->whereColumn('p2.panel_id',    'piges.panel_id')
-                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
-                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
-            })
+            ->derniereParPanneau()
             ->pluck('id')
             ->flip();
         foreach ($piges as $_p) {
-            $_p->is_superseded = $supersededIds->has($_p->id);
+            $_p->is_superseded = !$courantes->has($_p->id);
         }
     }
 

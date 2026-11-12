@@ -360,13 +360,8 @@ class TechSpaceController extends Controller
             ->tap($pigesForTech)
             ->tap($onOperableCampaign)
             ->where('piges.status', 'rejete')
-            ->whereNotExists(function ($sub) {
-                $sub->from('piges as p2')
-                    ->select(\Illuminate\Support\Facades\DB::raw(1))
-                    ->whereColumn('p2.panel_id',    'piges.panel_id')
-                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
-                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
-            })
+            // Pas encore refaite (règle unique, Pige::scopeDerniereParPanneau).
+            ->derniereParPanneau()
             ->count();
 
         // SM2a Lot 5.2 — Liste des piges refusées en cours (pas encore
@@ -382,13 +377,8 @@ class TechSpaceController extends Controller
             ->tap($pigesForTech)
             ->tap($onOperableCampaign)
             ->where('piges.status', 'rejete')
-            ->whereNotExists(function ($sub) {
-                $sub->from('piges as p2')
-                    ->select(\Illuminate\Support\Facades\DB::raw(1))
-                    ->whereColumn('p2.panel_id',    'piges.panel_id')
-                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
-                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
-            })
+            // Pas encore refaite (règle unique, Pige::scopeDerniereParPanneau).
+            ->derniereParPanneau()
             ->with([
                 'panel:id,reference,name,commune_id,latitude,longitude',
                 'panel.commune:id,name',
@@ -1521,15 +1511,8 @@ class TechSpaceController extends Controller
         // le heartbeat écrase les valeurs SSR toutes les 20s avec des
         // chiffres "bruts" plus élevés → l'utilisateur voit les
         // compteurs sauter. Applique whereNotExists sur les 4.
-        $applyCurrentViewHb = function ($q) {
-            $q->whereNotExists(function ($sub) {
-                $sub->from('piges as p2')
-                    ->select(\Illuminate\Support\Facades\DB::raw(1))
-                    ->whereColumn('p2.panel_id',    'piges.panel_id')
-                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
-                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
-            });
-        };
+        // Même règle que la page « Mes photos » (Pige::scopeDerniereParPanneau).
+        $applyCurrentViewHb = fn ($q) => $q->derniereParPanneau();
 
         $pigesSentToday = \App\Models\Pige::query()->tap($pigesForTech)
             ->whereBetween('taken_at', [$startOfDay, $endOfDay])->count();
@@ -1691,15 +1674,9 @@ class TechSpaceController extends Controller
         // (cf. PoseTask unique par (panel, campaign)), donc toutes les
         // piges du même couple sont du même tech. Évite des jointures
         // corrélées coûteuses.
-        $applyCurrentView = function ($q) {
-            $q->whereNotExists(function ($sub) {
-                $sub->from('piges as p2')
-                    ->select(\Illuminate\Support\Facades\DB::raw(1))
-                    ->whereColumn('p2.panel_id',    'piges.panel_id')
-                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
-                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
-            });
-        };
+        // Règle unique (2026-11-12) : Pige::scopeDerniereParPanneau — un axe
+        // entier garde toutes ses photos (une par pied).
+        $applyCurrentView = fn ($q) => $q->derniereParPanneau();
 
         $piges = \App\Models\Pige::query()
             ->tap($pigesForTech)
@@ -1740,17 +1717,9 @@ class TechSpaceController extends Controller
         if ($view === 'all') {
             $idsOnPage = $piges->pluck('id')->all();
             if (!empty($idsOnPage)) {
-                $supersededIds = \Illuminate\Support\Facades\DB::table('piges as p1')
-                    ->whereIn('p1.id', $idsOnPage)
-                    ->whereExists(function ($sub) {
-                        $sub->from('piges as p2')
-                            ->select(\Illuminate\Support\Facades\DB::raw(1))
-                            ->whereColumn('p2.panel_id',    'p1.panel_id')
-                            ->whereColumn('p2.campaign_id', 'p1.campaign_id')
-                            ->whereColumn('p2.taken_at',    '>', 'p1.taken_at');
-                    })
-                    ->pluck('p1.id')
-                    ->all();
+                // Remplacées = celles de la page que la règle unique écarte.
+                $courantes = \App\Models\Pige::whereIn('id', $idsOnPage)->derniereParPanneau()->pluck('id')->all();
+                $supersededIds = array_values(array_diff($idsOnPage, $courantes));
                 $supersededSet = array_flip($supersededIds);
                 $piges->getCollection()->transform(function ($p) use ($supersededSet) {
                     $p->is_superseded = isset($supersededSet[$p->id]);

@@ -75,6 +75,7 @@ class EspaceTechAxesTest extends TestCase
             $t->decimal('latitude', 10, 7)->nullable(); $t->decimal('longitude', 10, 7)->nullable();
             $t->unsignedBigInteger('axe_id')->nullable(); $t->boolean('est_axe')->default(false);
             $t->unsignedSmallInteger('pied_numero')->nullable(); $t->unsignedSmallInteger('faces_par_pied')->nullable();
+            $t->string('gps_source')->nullable(); $t->boolean('gps_dispersion_flag')->default(false);
             $t->softDeletes(); $t->timestamps();
         });
         Schema::create('pose_teams', function (Blueprint $t) {
@@ -486,6 +487,100 @@ class EspaceTechAxesTest extends TestCase
 
         // Le pied n'a pas de position : l'ancien calcul en Blade n'affichait rien.
         $this->get('/tech/' . self::TOKEN . '/poses')->assertOk()->assertSee('À 300 m');
+    }
+
+    // ── Suivi des axes côté admin, phase A : les défauts ───────────────
+
+    /** Une pige, sans passer par l'observateur (pas de notification). */
+    private function pige(array $attributs): int
+    {
+        return DB::table('piges')->insertGetId($attributs + [
+            'campaign_id' => 1, 'user_id' => 2, 'photo_path' => 'piges/x.jpg', 'status' => 'en_attente',
+            'taken_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+
+    public function test_la_derniere_photo_par_panneau_garde_toutes_celles_d_un_axe_entier(): void
+    {
+        // Panneau ordinaire : la photo refaite remplace l'ancienne.
+        $ancienne = $this->pige(['panel_id' => 20, 'pose_task_id' => 4, 'taken_at' => now()->subHours(2)]);
+        $refaite  = $this->pige(['panel_id' => 20, 'pose_task_id' => 4, 'taken_at' => now()->subHour()]);
+        // Axe entier : une photo par pied, aucune ne remplace l'autre.
+        $p1 = $this->pige(['panel_id' => 30, 'campaign_id' => 2, 'pose_task_id' => 5, 'taken_at' => now()->subHours(3)]);
+        $p2 = $this->pige(['panel_id' => 30, 'campaign_id' => 2, 'pose_task_id' => 5, 'taken_at' => now()->subHours(2)]);
+        $p3 = $this->pige(['panel_id' => 30, 'campaign_id' => 2, 'pose_task_id' => 5, 'taken_at' => now()->subHour()]);
+
+        $courantes = Pige::derniereParPanneau()->pluck('id')->all();
+
+        $this->assertNotContains($ancienne, $courantes);
+        $this->assertContains($refaite, $courantes);
+        foreach ([$p1, $p2, $p3] as $id) {
+            $this->assertContains($id, $courantes, 'chaque photo d\'un pied reste');
+        }
+    }
+
+    public function test_une_photo_refusee_d_un_axe_entier_est_refaite_par_une_photo_posterieure_au_refus(): void
+    {
+        $refusee = $this->pige(['panel_id' => 30, 'campaign_id' => 2, 'pose_task_id' => 5, 'status' => 'rejete',
+            'taken_at' => now()->subHours(3), 'verified_at' => now()->subHours(2)]);
+        // Une photo d'un AUTRE pied prise avant le refus ne la remplace pas.
+        $this->pige(['panel_id' => 30, 'campaign_id' => 2, 'pose_task_id' => 5, 'taken_at' => now()->subHours(2)->subMinutes(30)]);
+        $this->assertContains($refusee, Pige::derniereParPanneau()->pluck('id')->all(), 'encore à refaire');
+
+        // Une nouvelle photo arrive après le refus : refaite.
+        $this->pige(['panel_id' => 30, 'campaign_id' => 2, 'pose_task_id' => 5, 'taken_at' => now()->subHour()]);
+        $this->assertNotContains($refusee, Pige::derniereParPanneau()->pluck('id')->all());
+    }
+
+    public function test_mes_photos_montre_toutes_les_photos_d_un_axe_entier(): void
+    {
+        foreach ([3, 2, 1] as $h) {
+            $this->pige(['panel_id' => 30, 'campaign_id' => 2, 'pose_task_id' => 5, 'taken_at' => now()->subHours($h)]);
+        }
+
+        $r = $this->get('/tech/' . self::TOKEN . '/piges');
+
+        // Avant : les trois photos (une par pied) se réduisaient à une.
+        $this->assertSame(3, $r->viewData('kpi')['total']);
+        $this->assertSame(0, max(0, $r->viewData('historyTotal') - $r->viewData('kpi')['total']));
+    }
+
+    public function test_filtrer_les_piges_sur_un_axe_trouve_celles_de_ses_pieds(): void
+    {
+        $surLePied = $this->pige(['panel_id' => 11, 'pose_task_id' => 1]);
+        $surLAxe   = $this->pige(['panel_id' => 10, 'pose_task_id' => null]);
+        $ailleurs  = $this->pige(['panel_id' => 20, 'pose_task_id' => 4]);
+
+        $ids = \App\Services\Piges\PigeFiltres::appliquer(Pige::query(), ['panel_id' => 10])->pluck('id')->all();
+
+        $this->assertEqualsCanonicalizing([$surLePied, $surLAxe], $ids);
+        $this->assertNotContains($ailleurs, $ids);
+    }
+
+    public function test_la_modale_de_validation_d_un_pied_compare_a_son_axe(): void
+    {
+        DB::table('panel_photos')->insert(['panel_id' => 10, 'path' => 'panels/axe.jpg', 'ordre' => 0]);
+        $id = $this->pige(['panel_id' => 11, 'pose_task_id' => 1] + $this->aMetresDeLAxe(300));
+
+        $json = app(\App\Http\Controllers\Admin\PigeController::class)->detailJson(Pige::find($id))->getData(true);
+
+        // Avant : ni photo de référence ni distance pour un pied.
+        $this->assertStringEndsWith('storage/panels/axe.jpg', $json['ref_photo_url']);
+        $this->assertEqualsWithDelta(300, $json['gps']['dist_m'], 3);
+        $this->assertSame('CDYLUP-004', $json['panel']['axe']);
+        $this->assertSame('axe', $json['panel']['repere']);
+    }
+
+    public function test_la_carte_admin_des_poses_garde_les_pieds_a_la_position_de_leur_axe(): void
+    {
+        $json = app(\App\Http\Controllers\Admin\PoseController::class)
+            ->mapData(\Illuminate\Http\Request::create('/admin/poses/map-data'))->getData(true);
+
+        $pied = collect($json['markers'])->firstWhere('id', 1);
+        // Avant : les pieds (sans position propre) n'étaient pas sur la carte.
+        $this->assertNotNull($pied);
+        $this->assertEqualsWithDelta(self::AXE_LAT, $pied['lat'], 0.000001);
+        $this->assertSame('CDYLUP-004', $pied['axe']);
     }
 
     public function test_ma_journee_affiche_une_carte_par_axe(): void

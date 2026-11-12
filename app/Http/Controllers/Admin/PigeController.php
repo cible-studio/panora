@@ -488,28 +488,30 @@ class PigeController extends Controller
      */
     public function detailJson(Pige $pige)
     {
-        $pige->load([
+        $parOrdre = fn ($q) => $q->orderBy('ordre');
+        $pige->load(array_merge([
             'panel.commune', 'panel.format',
-            'panel.photos',
+            'panel.photos' => $parOrdre,
             'campaign.client',
             'technicien:id,name,whatsapp_number',
             'verificateur:id,name',
-        ]);
+        ], app(\App\Services\Axes\AxeService::class)->colonnesPresentes() ? ['panel.axe.photos' => $parOrdre] : []));
 
         $photoUrl = $pige->photo_path ? asset('storage/' . $pige->photo_path) : null;
-        $refPhoto = $pige->panel?->photos?->sortBy('ordre')->first();
+        // Photo de référence : celle du panneau, sinon celle de son axe — un
+        // pied naît sans photo (Panel::photoDeReference, 2026-11-12). Avant :
+        // rien à comparer pour un pied dans la modale de validation.
+        $refPhoto = $pige->panel?->photoDeReference();
         $refPhotoUrl = $refPhoto ? asset('storage/' . $refPhoto->path) : null;
 
-        // Distance haversine GPS pige ↔ GPS panneau (si les 2 dispos)
+        // Distance pige ↔ position terrain (celle du panneau, sinon de son
+        // axe : Panel::positionTerrain). Calcul de GeoService — avant, une
+        // copie de la formule ici, et rien pour un pied sans position.
         $distM = null;
-        if ($pige->gps_lat && $pige->gps_lng && $pige->panel?->latitude && $pige->panel?->longitude) {
-            $R = 6371000;
-            $lat1 = deg2rad((float) $pige->gps_lat);
-            $lat2 = deg2rad((float) $pige->panel->latitude);
-            $dLat = $lat2 - $lat1;
-            $dLng = deg2rad(((float) $pige->panel->longitude) - ((float) $pige->gps_lng));
-            $a = sin($dLat/2)**2 + cos($lat1)*cos($lat2)*sin($dLng/2)**2;
-            $distM = (int) round($R * 2 * atan2(sqrt($a), sqrt(1-$a)));
+        $pos = $pige->panel?->positionTerrain();
+        if ($pige->gps_lat && $pige->gps_lng && $pos) {
+            $distM = (int) round(app(\App\Services\GeoService::class)->haversine(
+                (float) $pige->gps_lat, (float) $pige->gps_lng, $pos['lat'], $pos['lng']));
         }
 
         return response()->json([
@@ -528,6 +530,9 @@ class PigeController extends Controller
                 'reference' => $pige->panel?->reference,
                 'name'      => $pige->panel?->name,
                 'commune'   => $pige->panel?->commune?->name,
+                // Pied d'un axe (2026-11-12) : la distance est mesurée sur l'axe.
+                'axe'       => $pige->panel?->axe?->reference,
+                'repere'    => ($pos['axe'] ?? false) ? 'axe' : 'panneau',
             ],
             'campaign' => [
                 'id'     => $pige->campaign?->id,
