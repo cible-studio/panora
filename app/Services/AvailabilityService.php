@@ -111,6 +111,87 @@ class AvailabilityService
     }
 
     /**
+     * AXE ENTIER → PIEDS LIBRES (règle validée le 2026-11-12, point 1a).
+     *
+     * Les contrats signés avant le découpage tiennent la LIGNE d'un axe,
+     * c'est-à-dire tous ses pieds d'un coup. Reprendre cette ligne telle
+     * quelle (renouvellement, import) revendrait les pieds déjà pris par un
+     * autre client sur la période — le contrôle ne les voit pas, puisqu'il
+     * interroge la ligne d'axe. On la remplace donc par ses pieds encore
+     * libres, et on dit lesquels manquent.
+     *
+     * @return array{ids: int[], axes: list<array{axe: string, total: int, repris: int, pris: list<string>}>}
+     */
+    public function remplacerAxesParPiedsLibres(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $clientId,
+        ?int   $excludeReservationId = null,
+        ?int   $excludeCampaignId    = null,
+    ): array {
+        $panelIds = array_values(array_unique(array_filter(array_map('intval', $panelIds))));
+        if (!$panelIds || !$this->axes()->colonnesPresentes()) {
+            return ['ids' => $panelIds, 'axes' => []];
+        }
+
+        $axes = Panel::whereIn('id', $panelIds)->where('est_axe', true)->get(['id', 'reference']);
+        if ($axes->isEmpty()) {
+            return ['ids' => $panelIds, 'axes' => []];
+        }
+
+        $ids   = array_values(array_diff($panelIds, $axes->pluck('id')->all()));
+        $bilan = [];
+        foreach ($axes as $axe) {
+            $pieds = Panel::where('axe_id', $axe->id)->orderBy('pied_numero')->pluck('reference', 'id');
+            if ($pieds->isEmpty()) {
+                // Axe sans pieds (découpage pas joué) : on garde la ligne.
+                $ids[] = (int) $axe->id;
+                continue;
+            }
+
+            $bloques = $this->getUnavailablePanelIds(
+                $pieds->keys()->all(), $startDate, $endDate, $excludeReservationId, $excludeCampaignId, $clientId
+            );
+            $motifs = $bloques
+                ? $this->getInternalConflictMap($bloques, $startDate, $endDate, $excludeReservationId, $excludeCampaignId, $clientId)
+                : collect();
+
+            $pris = [];
+            foreach ($pieds as $pid => $ref) {
+                if (in_array((int) $pid, $bloques, true)) {
+                    $m = $motifs->get($pid);
+                    $pris[] = $ref . ($m && $m->conflicting_ref ? ' (' . $m->conflicting_ref . ')' : '');
+                } else {
+                    $ids[] = (int) $pid;
+                }
+            }
+
+            $bilan[] = [
+                'axe'    => $axe->reference,
+                'total'  => $pieds->count(),
+                'repris' => $pieds->count() - count($pris),
+                'pris'   => $pris,
+            ];
+        }
+
+        return ['ids' => array_values(array_unique($ids)), 'axes' => $bilan];
+    }
+
+    /** « CDYLUP-001 : 6 pieds sur 10 repris, 4 déjà pris (P02 (RES-12), …) ». */
+    public static function messageAxesRemplaces(array $axes): ?string
+    {
+        $parts = [];
+        foreach ($axes as $a) {
+            $parts[] = $a['pris']
+                ? "{$a['axe']} : {$a['repris']} pied(s) sur {$a['total']} repris, " . count($a['pris']) . ' déjà pris (' . implode(', ', $a['pris']) . ')'
+                : "{$a['axe']} : les {$a['total']} pieds repris un par un";
+        }
+
+        return $parts ? 'Axes : ' . implode(' · ', $parts) . '.' : null;
+    }
+
+    /**
      * Panneaux retenus par le renouvellement confirmé d'un AUTRE client.
      *
      * @return array<int, array>  panel_id => retenue

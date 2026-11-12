@@ -112,6 +112,17 @@
     </div>
     @endif
 
+    {{-- Axes repris pied par pied (2026-11-12, point 1a) — information --}}
+    @if(!empty($messageAxes))
+    <div style="background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.3);border-radius:12px;padding:12px 18px;margin-bottom:18px;font-size:12px;color:var(--text2);display:flex;gap:8px;align-items:flex-start">
+        <span>⛓</span>
+        <span>{{ $messageAxes }}
+            <span title="Un code d'axe désigne tous ses pieds. Panora importe les pieds encore libres sur la période, un par un ; ceux déjà pris par un autre client sont laissés de côté."
+                  style="cursor:help;color:var(--text3);">ⓘ</span>
+        </span>
+    </div>
+    @endif
+
     {{-- Panneaux déjà pris sur la période (bloquant, 2026-10-30) --}}
     @if(!empty($conflits))
     <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:12px;padding:18px 22px;margin-bottom:18px">
