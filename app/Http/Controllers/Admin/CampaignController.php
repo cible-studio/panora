@@ -704,6 +704,9 @@ class CampaignController extends Controller
                 'release_date'    => self::formatReleaseLabel($a['release_date'] ?? null),
                 'blocking_status' => $a['blocking_status'] ?? null,
                 'occupations'     => $a['occupations'] ?? [],
+                // Axes (2026-11-12) : de quoi regrouper les pieds plus bas.
+                'axe_id'          => $p->axe_id,
+                'pied_numero'     => $p->pied_numero,
             ];
         })->values();
 
@@ -767,8 +770,35 @@ class CampaignController extends Controller
             'external_attached'   => count($existingExtIds),
         ]);
 
+        // Axes (2026-11-12, demande du MP) : une entrée par axe, avec la
+        // liste de ses pieds à cocher. Les compteurs ci-dessus restent en
+        // pieds ; seul l'affichage regroupe.
+        $lignesInternes = app(\App\Services\Axes\AxeService::class)->regrouperLignes(
+            $internal,
+            fn ($axe, array $pieds, int $total) => [
+                'id'              => 'axe_' . $axe->id,
+                'source'          => 'internal',
+                'est_axe'         => true,
+                'axe_id'          => $axe->id,
+                'reference'       => $axe->reference,
+                'name'            => app(\App\Services\Axes\AxeService::class)->nomCourt($axe->name),
+                'commune'         => $axe->commune?->name ?? '',
+                'format'          => $axe->format?->name ?? '',
+                'monthly_rate'    => (float) ($axe->monthly_rate ?? 0),
+                'is_lit'          => (bool) $axe->is_lit,
+                'agency_name'     => null,
+                'available'       => collect($pieds)->contains('available', true),
+                'release_date'    => null,
+                'blocking_status' => null,
+                'occupations'     => [],
+                'pieds_total'     => $total,
+                'pieds_libres'    => collect($pieds)->where('available', true)->count(),
+                'pieds'           => $pieds,
+            ]
+        );
+
         return response()->json([
-            'panels'          => $internal->concat($external)->values(),
+            'panels'          => $lignesInternes->concat($external)->values(),
             'period'          => ['start' => $startDate, 'end' => $endDate],
             'totals'          => [
                 'internal' => $internal->count(),

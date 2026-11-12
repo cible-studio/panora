@@ -1933,6 +1933,7 @@
                         }
                         this._syncSelBar();
                         this._syncSelectAllLabel();
+                        this._syncAxeCards();
                     },
 
                     clearSelection() {
@@ -1952,6 +1953,7 @@
                         S._toutIds = null;
                         this._syncSelBar();
                         this._syncSelectAllLabel();
+                        this._syncAxeCards();
                     },
 
                     // Toggle "Tout sélectionner" / "Tout désélectionner" (2026-10-28) :
@@ -1965,7 +1967,10 @@
                         if (btn) btn.disabled = true;
                         if (lbl) lbl.textContent = 'Chargement…';
                         try {
-                            const all = (await this._chargerTout()).filter(p => p.is_selectable);
+                            // Axes (2026-11-12) : ce sont leurs pieds qui se cochent.
+                            const all = (await this._chargerTout())
+                                .flatMap(p => p.est_axe ? (p.pieds || []).map(x => ({ ...x, source: 'internal' })) : [p])
+                                .filter(p => p.is_selectable);
                             if (all.length === 0) return;
                             const allSelected = all.every(p => S.sel.ids.includes(String(p.id)));
                             all.forEach(p => {
@@ -2567,9 +2572,109 @@
                             if (chk) chk.checked = true;
                         });
                         this._syncSelBar();
+                        this._syncAxeCards();
+                    },
+
+                    // ── AXES (2026-11-12, demande du MP) ──────────────────
+                    // Une carte par axe ; ses pieds se cochent dans une liste
+                    // déroulante. Les statuts viennent du serveur, pied par
+                    // pied : rien n'est recalculé ici. Un pied coché suit le
+                    // circuit habituel (toggle → S.sel), comme un panneau.
+                    _axePiedsHtml(p) {
+                        const axeId = String(p.axe_id);
+                        const ouvert = !!(S._axesOuverts || {})[axeId];
+                        const pieds = p.pieds || [];
+                        const libres = pieds.filter(x => x.is_selectable);
+                        const lignes = pieds.map(x => {
+                            const sc = STATUS_CFG[x.display_status] || STATUS_CFG.libre;
+                            const coche = S.sel.ids.includes(String(x.id));
+                            const sf = (x.is_future_selectable && x.selectable_from) ? x.selectable_from : '';
+                            const etat = sf ? `Dès le ${_h(x.selectable_from_label)}` : sc.l;
+                            return `<label style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 2px;font-size:11px;border-bottom:1px solid var(--border);opacity:${x.is_selectable ? 1 : .55};cursor:${x.is_selectable ? 'pointer' : 'not-allowed'};" onclick="event.stopPropagation()">`
+                                + `<input type="checkbox" class="axe-pied-chk" data-id="${x.id}" style="accent-color:var(--accent);" ${coche ? 'checked' : ''} ${x.is_selectable ? '' : 'disabled'} onclick="event.stopPropagation();DISPO.toggle('${x.id}',${x.monthly_rate},'internal','${x.display_status}','${sf}')">`
+                                + `<span style="font-weight:700;color:var(--text);">Pied ${x.numero || '?'}</span>`
+                                + `<span style="color:${sc.c};font-weight:600;">${etat}</span>`
+                                + ((!x.is_selectable && x.release_label) ? `<span style="color:var(--text3);">· ${_h(x.release_label)}</span>` : '')
+                                + (x.renouvellement ? _renouvBadge(x, true) : '')
+                                + `</label>`;
+                        }).join('');
+                        return `<div style="margin-bottom:6px;" onclick="event.stopPropagation()">`
+                            + `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">`
+                            + `<button type="button" style="font-size:11px;padding:5px 9px;border-radius:7px;background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.35);color:var(--accent);cursor:pointer;" onclick="event.stopPropagation();DISPO.ouvrirAxe('${axeId}')">⛓ Choisir les pieds ${ouvert ? '▴' : '▾'}</button>`
+                            + `<span class="axe-compteur" data-axe="${axeId}" data-pieds="${pieds.map(x => x.id).join(',')}" data-libres="${libres.map(x => x.id).join(',')}" style="font-size:10px;color:var(--text2);"></span>`
+                            + `</div>`
+                            + `<div class="axe-pieds" data-axe="${axeId}" style="display:${ouvert ? 'block' : 'none'};margin-top:6px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);max-height:220px;overflow:auto;">`
+                            + (libres.length > 1 ? `<button type="button" style="font-size:10px;padding:3px 8px;margin-bottom:4px;border-radius:6px;background:var(--surface3);border:1px solid var(--border2);color:var(--text);cursor:pointer;" onclick="event.stopPropagation();DISPO.cocherAxe('${axeId}')">Tout cocher / décocher (${libres.length})</button>` : '')
+                            + lignes
+                            + `</div></div>`;
+                    },
+
+                    _axeCardHtml(p) {
+                        const sc = STATUS_CFG[p.display_status] || STATUS_CFG.libre;
+                        const bg = D.colors[p.card_color_idx || 0] || '#3b82f6';
+                        const thumbSt = p.photo_url ? `background:url('${p.photo_url}') center/cover no-repeat;` : `background:${bg};`;
+                        const faces = p.faces_par_pied > 1 ? ` · ${p.faces_par_pied} faces` : '';
+                        const safeP = encodeURIComponent(JSON.stringify(p));
+                        const tags = [
+                            p.format ? `<span class="tag">${p.format}</span>` : '',
+                            p.dimensions ? `<span class="tag">${p.dimensions}</span>` : '',
+                            p.is_lit ? `<span class="tag" style="color:var(--accent)">💡</span>` : '',
+                        ].filter(Boolean).join('');
+                        return `<div class="panel-card axe-card" data-id="${p.id}" data-axe="${p.axe_id}">`
+                            + `<div style="position:absolute;top:8px;left:8px;z-index:2;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--accent);color:#fff;letter-spacing:.5px;">⛓ AXE · ${p.pieds_total} PIEDS${faces.toUpperCase()}</div>`
+                            + `<div style="position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${sc.c};color:white;text-transform:uppercase;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.3);" title="Pieds libres sur la période / pieds de l'axe">${p.pieds_libres} / ${p.pieds_total} libres</div>`
+                            + `<div style="height:96px;flex-shrink:0;position:relative;overflow:hidden;${thumbSt}"><div style="position:absolute;inset:0;background:${p.photo_url ? 'linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))' : 'rgba(0,0,0,.15)'}"></div><div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border-radius:7px;padding:4px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#fff;letter-spacing:1.5px;white-space:nowrap;">${p.reference}</div></div>`
+                            + `<div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;">`
+                            + `<div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${p.commune}${p.zone && p.zone !== '—' ? ' · ' + p.zone : ''}</div>`
+                            + `<div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${_h(p.name)}">${_h(p.name)}</div>`
+                            + `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${tags}</div>`
+                            + this._axePiedsHtml(p)
+                            + `<div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">`
+                            + `<div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">${p.monthly_rate ? Math.round(p.monthly_rate / 1000).toLocaleString('fr-FR') + 'K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois par pied</span>' : '<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>'}</div>`
+                            + `<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" style="flex:none;font-size:10px;padding:6px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></div>`
+                            + `</div></div></div>`;
+                    },
+
+                    ouvrirAxe(axeId) {
+                        S._axesOuverts = S._axesOuverts || {};
+                        S._axesOuverts[axeId] = !S._axesOuverts[axeId];
+                        document.querySelectorAll(`.axe-pieds[data-axe="${axeId}"]`).forEach(el => {
+                            el.style.display = S._axesOuverts[axeId] ? 'block' : 'none';
+                        });
+                    },
+
+                    // « Tout cocher » : les pieds libres de l'axe, ou les
+                    // décoche s'ils l'étaient tous.
+                    cocherAxe(axeId) {
+                        const axe = (S._lastPanels || []).find(p => p.est_axe && String(p.axe_id) === String(axeId));
+                        if (!axe) return;
+                        const libres = (axe.pieds || []).filter(x => x.is_selectable);
+                        const tous = libres.every(x => S.sel.ids.includes(String(x.id)));
+                        libres.forEach(x => {
+                            if (tous === S.sel.ids.includes(String(x.id))) {
+                                this.toggle(x.id, x.monthly_rate, 'internal', x.display_status,
+                                    (x.is_future_selectable && x.selectable_from) ? x.selectable_from : '');
+                            }
+                        });
+                    },
+
+                    // Cases et compteurs « 2 sélectionnés · 4 disponibles »
+                    // remis d'accord avec la sélection, cartes et liste.
+                    _syncAxeCards() {
+                        document.querySelectorAll('.axe-pied-chk').forEach(chk => {
+                            chk.checked = S.sel.ids.includes(String(chk.dataset.id));
+                        });
+                        document.querySelectorAll('.axe-compteur').forEach(el => {
+                            const libres = (el.dataset.libres || '').split(',').filter(Boolean).length;
+                            const n = (el.dataset.pieds || '').split(',').filter(id => id && S.sel.ids.includes(id)).length;
+                            el.textContent = `${n} sélectionné${n > 1 ? 's' : ''} · ${libres} disponible${libres > 1 ? 's' : ''}`;
+                            const carte = el.closest('.axe-card');
+                            if (carte) carte.classList.toggle('selected', n > 0);
+                        });
                     },
 
                     _cardHtml(p) {
+                        if (p.est_axe) return this._axeCardHtml(p);
                         const _ax = this._axeInfo(p);
                         const sc = STATUS_CFG[p.display_status] || STATUS_CFG.libre;
                         const bg = D.colors[p.card_color_idx || 0] || '#3b82f6';
@@ -2624,7 +2729,7 @@
                             if (p.is_selectable) tr.onclick = () => DISPO.toggle(p.id, p.monthly_rate, p.source, p.display_status, (p.is_future_selectable ? p.selectable_from : null));
                             const safeP = encodeURIComponent(JSON.stringify(p));
                             tr.innerHTML =
-                                `<td style="padding:10px 8px;width:36px;text-align:center;">${p.is_selectable?`<input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')">`:`<span style="font-size:12px;opacity:.4;">🔒</span>`}</td><td style="padding:10px 8px;"><span style="font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:${sc.b};color:${sc.c}">${p.reference}</span>${p.source==='external'?`<span style="display:block;font-size:9px;color:#60a5fa;margin-top:2px;">🤝 ${p.agency_name}</span>`:''}</td><td style="padding:10px 8px;"><div style="font-weight:600;font-size:13px;color:var(--text);">${p.name}</div>${DISPO._axeInfo(p).badgeLigne || ''}${p.renouvellement?`<div style="margin:2px 0;">${_renouvBadge(p, true)}</div>`:''}<div style="font-size:11px;color:var(--text3);">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div></td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.format||'—'}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.dimensions||'—'}${p.is_lit?' 💡':''}</td><td style="padding:10px 8px;"><div style="font-weight:700;color:var(--accent);font-size:13px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K':'—'} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></div></td><td style="padding:10px 8px;"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">${sc.l}</span>${p.release_info?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">📅 ${p.release_info.label}</div>`:''}</td><td style="padding:10px 8px;"><button type="button" style="font-size:10px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></td>`;
+                                `<td style="padding:10px 8px;width:36px;text-align:center;">${p.est_axe?`<span style="font-size:12px;color:var(--accent);" title="Axe : cochez ses pieds dans la liste">⛓</span>`:p.is_selectable?`<input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')">`:`<span style="font-size:12px;opacity:.4;">🔒</span>`}</td><td style="padding:10px 8px;"><span style="font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:${sc.b};color:${sc.c}">${p.reference}</span>${p.source==='external'?`<span style="display:block;font-size:9px;color:#60a5fa;margin-top:2px;">🤝 ${p.agency_name}</span>`:''}</td><td style="padding:10px 8px;"><div style="font-weight:600;font-size:13px;color:var(--text);">${p.name}</div>${DISPO._axeInfo(p).badgeLigne || ''}${p.renouvellement?`<div style="margin:2px 0;">${_renouvBadge(p, true)}</div>`:''}<div style="font-size:11px;color:var(--text3);">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div>${p.est_axe?`<div style="margin-top:6px;">${DISPO._axePiedsHtml(p)}</div>`:''}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.format||'—'}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.dimensions||'—'}${p.is_lit?' 💡':''}</td><td style="padding:10px 8px;"><div style="font-weight:700;color:var(--accent);font-size:13px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K':'—'} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></div></td><td style="padding:10px 8px;"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">${p.est_axe?`${p.pieds_libres} / ${p.pieds_total} libres`:sc.l}</span>${p.release_info?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">📅 ${p.release_info.label}</div>`:''}</td><td style="padding:10px 8px;"><button type="button" style="font-size:10px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></td>`;
                             frag.appendChild(tr);
                         });
                         tbody.innerHTML = '';
@@ -2637,6 +2742,7 @@
                                 if (chk) chk.checked = true;
                             }
                         });
+                        this._syncAxeCards();
                     },
 
                     _renderStats(stats, hasPeriod) {

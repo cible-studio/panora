@@ -216,10 +216,39 @@
                         </thead>
                         <tbody>
                             <template x-for="panel in paginatedPanels" :key="panel.id">
-                                <tr @click="togglePanel(panel.id)" :class="{ 'selected': selectedIds.includes(panel.id) }">
-                                    <td @click.stop><input type="checkbox" :checked="selectedIds.includes(panel.id)" @change="togglePanel(panel.id)" class="checkbox"></td>
+                                <tr @click="!panel.est_axe && togglePanel(panel.id)" :class="{ 'selected': panel.est_axe ? piedsCoches(panel) > 0 : selectedIds.includes(panel.id) }">
+                                    <td @click.stop>
+                                        <template x-if="!panel.est_axe"><input type="checkbox" :checked="selectedIds.includes(panel.id)" @change="togglePanel(panel.id)" class="checkbox"></template>
+                                        <template x-if="panel.est_axe"><span title="Axe : cochez ses pieds dans la liste" style="color:var(--accent)">⛓</span></template>
+                                    </td>
                                     <td><span class="reference" x-text="panel.reference"></span></td>
-                                    <td class="font-medium" x-text="panel.name"></td>
+                                    <td class="font-medium">
+                                        <span x-text="panel.name"></span>
+                                        {{-- Axe (2026-11-12, demande du MP) : liste déroulante de ses
+                                             pieds, statut de chacun calculé par le serveur. --}}
+                                        <template x-if="panel.est_axe">
+                                            <div class="mt-1" @click.stop>
+                                                <button type="button" @click="axesOuverts[panel.axe_id] = !axesOuverts[panel.axe_id]"
+                                                        style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.35);color:var(--accent);">
+                                                    ⛓ Choisir les pieds <span x-text="axesOuverts[panel.axe_id] ? '▴' : '▾'"></span>
+                                                </button>
+                                                <span style="font-size:11px;color:var(--text2)"
+                                                      x-text="piedsCoches(panel) + ' sélectionné(s) · ' + panel.pieds_libres + ' libre(s) sur ' + panel.pieds_total"></span>
+                                                <div x-show="axesOuverts[panel.axe_id]" style="margin-top:4px;">
+                                                    <template x-for="x in panel.pieds" :key="x.id">
+                                                        <label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0;"
+                                                               :style="!x.available ? 'opacity:.55' : ''">
+                                                            <input type="checkbox" class="checkbox" :checked="selectedIds.includes(x.id)" @change="togglePanel(x.id)"
+                                                                   :disabled="!x.available && !selectedIds.includes(x.id)">
+                                                            <span x-text="'Pied ' + (x.pied_numero || '?') + ' — ' + x.reference"></span>
+                                                            <span :style="x.available ? 'color:#10b981' : 'color:#ef4444'"
+                                                                  x-text="x.available ? 'Libre' : (x.release_date ? x.release_date : 'Occupé')"></span>
+                                                        </label>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </td>
                                     <td>
                                         <div x-text="panel.commune || '—'"></div>
                                         <small class="text-muted" x-text="panel.zone ? 'Zone: ' + panel.zone : ''"></small>
@@ -854,8 +883,19 @@
                 return this.searchTerm || Object.values(this.filters).some(v => v !== '');
             },
             get allSelected() {
-                return this.filteredPanels.length > 0 && 
-                       this.filteredPanels.every(p => this.selectedIds.includes(p.id));
+                const ids = this.idsCochables();
+                return ids.length > 0 && ids.every(id => this.selectedIds.includes(id));
+            },
+
+            // Axes (2026-11-12) : un axe se coche par ses pieds.
+            axesOuverts: {},
+            idsCochables() {
+                return this.filteredPanels.flatMap(p => p.est_axe
+                    ? (p.pieds || []).filter(x => x.available).map(x => x.id)
+                    : [p.id]);
+            },
+            piedsCoches(p) {
+                return (p.pieds || []).filter(x => this.selectedIds.includes(x.id)).length;
             },
 
             prevPage() { if (this.currentPage > 1) this.currentPage--; },
@@ -941,7 +981,7 @@
             },
 
             toggleAll() {
-                const ids = this.filteredPanels.map(p => p.id);
+                const ids = this.idsCochables();
                 const allSelected = ids.every(id => this.selectedIds.includes(id));
                 if (allSelected) {
                     this.selectedIds = this.selectedIds.filter(id => !ids.includes(id));
@@ -977,8 +1017,10 @@
             formatTotal() {
                 if (!this.duree) return '—';
                 const m = this.duree.mois;
+                // Axes (2026-11-12) : les pieds sont rangés sous leur axe.
+                const tous = this.allPanels.flatMap(x => x.est_axe ? (x.pieds || []) : [x]);
                 const total = this.selectedIds.reduce((sum, id) => {
-                    const p = this.allPanels.find(x => x.id === id);
+                    const p = tous.find(x => x.id === id);
                     return sum + (p ? (parseFloat(p.monthly_rate) || 0) * m : 0);
                 }, 0);
                 return Math.round(total).toLocaleString('fr-FR');

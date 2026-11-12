@@ -141,6 +141,60 @@ class AxeService
         return sprintf('%s — pied %d/%d', trim($base), $numero, $total);
     }
 
+    /** « Axe St Jean – Carrefour Lavie » : le nom sans « (11P x 3F) ». */
+    public function nomCourt(?string $nom): string
+    {
+        $court = trim(preg_replace(
+            ['/\(\s*\d+\s*P\s*x\s*\d+\s*F\s*\)/i', '/\(\s*\d+\s*panneaux?[^)]*\)/i'], '', (string) $nom
+        ) ?? '');
+
+        return $court !== '' ? $court : (string) $nom;
+    }
+
+    /**
+     * Sélecteurs de panneaux (2026-11-12, demande du MP) : les pieds d'un
+     * même axe deviennent UNE entrée, à la place du premier, avec la liste
+     * de ses pieds. Les autres lignes passent telles quelles.
+     *
+     * Purement de l'affichage : chaque ligne de pied garde le statut que
+     * l'appelant a calculé (AvailabilityService) — rien n'est recalculé.
+     *
+     * @param  Collection<int, array>                    $lignes  lignes portant 'axe_id' et 'pied_numero'
+     * @param  callable(Panel $axe, array $pieds, int $total): array $entree
+     */
+    public function regrouperLignes(Collection $lignes, callable $entree): Collection
+    {
+        $axeIds = $lignes->pluck('axe_id')->filter()->unique()->values()->all();
+        if (empty($axeIds) || ! $this->colonnesPresentes()) {
+            return $lignes->values();
+        }
+
+        $axes = Panel::with(['commune:id,name', 'format:id,name,width,height', 'photos'])
+            ->whereIn('id', $axeIds)->get()->keyBy('id');
+        $totaux = Panel::whereIn('axe_id', $axeIds)
+            ->selectRaw('axe_id, COUNT(*) as total')->groupBy('axe_id')->pluck('total', 'axe_id');
+        $parAxe = $lignes->filter(fn ($l) => ! empty($l['axe_id']))->groupBy('axe_id');
+
+        $resultat = collect();
+        $poses = [];
+        foreach ($lignes as $ligne) {
+            $axe = ! empty($ligne['axe_id']) ? $axes->get($ligne['axe_id']) : null;
+            if ($axe === null) {
+                $resultat->push($ligne);
+                continue;
+            }
+            if (isset($poses[$axe->id])) {
+                continue;
+            }
+            $poses[$axe->id] = true;
+
+            $pieds = $parAxe->get($axe->id)->sortBy('pied_numero')->values()->all();
+            $resultat->push($entree($axe, $pieds, (int) ($totaux[$axe->id] ?? count($pieds))));
+        }
+
+        return $resultat->values();
+    }
+
     // ══════════════════════════════════════════════════════════════
     // RÈGLE 2 — un pied hérite du blocage de son axe
     // ══════════════════════════════════════════════════════════════
