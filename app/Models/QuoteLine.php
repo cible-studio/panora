@@ -25,6 +25,8 @@ class QuoteLine extends Model implements Auditable
         'odp_rate_applique', 'tm_rate_applique',
         'odp_ligne', 'tm_ligne',
         'order_index',
+        // Axes Lumipub (2026-11-12) : pieds proposés, ODP/TM saisies à la main.
+        'pieds', 'odp_amount_override', 'tm_amount_override',
     ];
 
     protected $casts = [
@@ -40,7 +42,16 @@ class QuoteLine extends Model implements Auditable
         'odp_ligne'         => 'integer',
         'tm_ligne'          => 'integer',
         'order_index'       => 'integer',
+        'pieds'               => 'array',
+        'odp_amount_override' => 'integer',
+        'tm_amount_override'  => 'integer',
     ];
+
+    /** Ids des pieds proposés sur cette ligne d'axe (vide = ligne ordinaire). */
+    public function idsPieds(): array
+    {
+        return array_values(array_map('intval', (array) ($this->pieds ?? [])));
+    }
 
     public function quote(): BelongsTo         { return $this->belongsTo(Quote::class); }
     public function panel(): BelongsTo         { return $this->belongsTo(Panel::class); }

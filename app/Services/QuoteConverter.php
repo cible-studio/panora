@@ -49,7 +49,12 @@ class QuoteConverter
             $quote->loadMissing(['lines', 'services']);
 
             // 1) Récupérer les panneaux internes + externes des lignes
-            $panelIds    = $quote->lines->pluck('panel_id')->filter()->unique()->all();
+            // Axe Lumipub (2026-11-12) : une ligne d'axe réserve SES PIEDS
+            // proposés, pas la ligne de l'axe (qui tiendrait tous les pieds
+            // et échapperait au contrôle des pieds déjà pris).
+            $panelIds    = $quote->lines
+                ->flatMap(fn ($l) => $l->idsPieds() ?: array_filter([$l->panel_id]))
+                ->unique()->values()->all();
             $extPanelIds = $quote->lines->pluck('external_panel_id')->filter()->unique()->all();
 
             // 2) Verrouillage pessimiste des panneaux (anti-double-booking)
@@ -130,7 +135,20 @@ class QuoteConverter
 
             // Attach panneaux avec prix négocié
             foreach ($quote->lines as $line) {
-                if ($line->panel_id) {
+                if ($pieds = $line->idsPieds()) {
+                    // Le prix de la ligne (somme des pieds, éventuellement
+                    // négocié) est réparti sur ses pieds ; le reste de la
+                    // division va au premier, pour que la somme tombe juste.
+                    $n     = count($pieds);
+                    $base  = intdiv((int) $line->pu_ht_mensuel, $n);
+                    $reste = (int) $line->pu_ht_mensuel - $base * $n;
+                    foreach ($pieds as $k => $piedId) {
+                        $reservation->panels()->attach($piedId, [
+                            'unit_price' => $base + ($k === 0 ? $reste : 0),
+                            'quantity'   => $line->quantite,
+                        ]);
+                    }
+                } elseif ($line->panel_id) {
                     $reservation->panels()->attach($line->panel_id, [
                         'unit_price' => $line->pu_ht_mensuel,
                         'quantity'   => $line->quantite,

@@ -410,6 +410,24 @@ Audit complet des rôles pour la Direction générale (PDF à cases remis le
   propositions consultables après échéance.
 - **Copie commerciale** en Cc visible ; **avoirs** impossibles à émettre.
 
+### Axes Lumipub : ce qui reste après le 2026-11-12
+
+- **Devis** : un devis ne vérifie toujours aucune disponibilité. Un axe
+  dont tous les pieds sont pris peut y être proposé ; le refus ne vient
+  qu'à la conversion en réservation (`QuoteConverter`).
+- **Prolongation** d'une campagne qui tient un axe entier : refusée si un
+  pied est pris sur la prolongation (la campagne garde son historique sur
+  la ligne d'axe, on ne la redécoupe pas en cours de route). Seul
+  « Renouveler la campagne » reprend les pieds libres.
+- **Code laissé sans usage** : `DISPO._axeInfo()` / `DISPO.selectAxe()`
+  (badge « ⛓ pied 3/11 » et bouton « ⛓ N » sur une carte de pied) ne
+  servent plus depuis que l'écran montre une carte par axe. Conservés
+  (règle n°3) ; à retirer lors d'un nettoyage.
+- **Suivi des piges par axe** (« 3 / 5 pieds pigés ») : pas fait. Chaque
+  pied a sa pose et sa pige, mais aucun écran ne les regroupe par axe.
+- **PDF liste et Excel des disponibilités** : un pied par ligne, pas
+  regroupés comme le PDF images et le catalogue.
+
 ### Deux tests font planter PHP sous Windows (constaté 2026-11-12)
 
 `RelanceFinCampagneServiceTest::test_brevo_ne_repond_pas_le_mail_compte_parti_et_n_est_jamais_renvoye`

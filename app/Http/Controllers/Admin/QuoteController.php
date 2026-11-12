@@ -143,7 +143,16 @@ class QuoteController extends Controller
         $panelIds = array_filter(array_map('intval', (array) $request->query('panel_ids', [])));
         if (!empty($panelIds)) {
             $panels = \App\Models\Panel::with(['commune', 'format'])->whereIn('id', $panelIds)->get();
-            foreach ($panels as $p) {
+            // Axes (2026-11-12) : les pieds cochés dans Disponibilités font
+            // UNE ligne par axe, qui retient ses pieds.
+            $axes = app(\App\Services\Axes\AxeService::class);
+            foreach ($panels->whereNotNull('axe_id')->groupBy('axe_id') as $axeId => $pieds) {
+                $axe = \App\Models\Panel::find($axeId);
+                if ($axe) {
+                    $prefilledLines[] = $axes->ligneDevis($axe, $pieds->sortBy('pied_numero')->values());
+                }
+            }
+            foreach ($panels->whereNull('axe_id') as $p) {
                 $addr    = $p->adresse ?: $p->quartier ?: $p->name;
                 $surface = (float) ($p->format?->surface ?? (($p->format?->width ?? 0) * ($p->format?->height ?? 0)));
                 $prefilledLines[] = [
@@ -253,14 +262,63 @@ class QuoteController extends Controller
         // Axes multi-pieds (2026-11-11) : un devis se fait au pied.
         $requete = \App\Models\Panel::vendables()
             ->with(['commune:id,name', 'format:id,width,height,surface,name']);
+        $colonnesAxe = app(\App\Services\Axes\AxeService::class)->colonnesPresentes();
         $panels = \App\Support\RecherchePanneaux::appliquer($requete, $q)
             ->whereNull('deleted_at')
             ->orderBy('reference')
             ->limit(30)
-            ->get(['id', 'reference', 'name', 'adresse', 'quartier', 'commune_id', 'format_id', 'monthly_rate', 'status']);
+            ->get(array_merge(
+                ['id', 'reference', 'name', 'adresse', 'quartier', 'commune_id', 'format_id', 'monthly_rate', 'status'],
+                $colonnesAxe ? ['axe_id', 'pied_numero'] : []
+            ));
+
+        // Axes (2026-11-12) : un résultat par AXE, avec tous ses pieds à
+        // cocher dans la ligne — une ligne de devis par axe.
+        $axes = app(\App\Services\Axes\AxeService::class);
+        $axeIds = $colonnesAxe ? $panels->pluck('axe_id')->filter()->unique()->values()->all() : [];
+        $resultatsAxes = [];
+        if ($axeIds) {
+            $piedsParAxe = \App\Models\Panel::whereIn('axe_id', $axeIds)->whereNull('deleted_at')
+                ->orderBy('pied_numero')->get(['id', 'reference', 'axe_id', 'pied_numero', 'monthly_rate'])->groupBy('axe_id');
+            foreach (\App\Models\Panel::with(['commune:id,name', 'format:id,width,height,surface,name'])->whereIn('id', $axeIds)->get() as $axe) {
+                $ligne = $axes->ligneDevis($axe, $piedsParAxe->get($axe->id, collect()));
+                $resultatsAxes[$axe->id] = [
+                    'id'           => $axe->id,
+                    'text'         => $ligne['designation'],
+                    'reference'    => $axe->reference,
+                    'name'         => $axes->nomCourt($axe->name),
+                    'address'      => $axes->nomCourt($axe->name),
+                    'commune_id'   => $axe->commune_id,
+                    'commune_name' => $axe->commune?->name,
+                    'dimension_m2' => $ligne['dimension_m2'],
+                    'monthly_rate' => (int) ($axe->monthly_rate ?? 0),
+                    'status'       => null,
+                    'est_axe'      => true,
+                    'pieds'        => $piedsParAxe->get($axe->id, collect())->map(fn ($x) => [
+                        'id' => $x->id, 'reference' => $x->reference,
+                        'numero' => $x->pied_numero, 'monthly_rate' => (int) ($x->monthly_rate ?? 0),
+                    ])->values()->all(),
+                ];
+            }
+        }
+
+        $resultats = collect();
+        $poses = [];
+        foreach ($panels as $p) {
+            $axeId = $colonnesAxe ? $p->axe_id : null;
+            if ($axeId && isset($resultatsAxes[$axeId])) {
+                if (!isset($poses[$axeId])) {
+                    $poses[$axeId] = true;
+                    $resultats->push($resultatsAxes[$axeId]);
+                }
+                continue;
+            }
+            $resultats->push($p);
+        }
 
         return response()->json([
-            'results' => $panels->map(function ($p) {
+            'results' => $resultats->map(function ($p) {
+                if (is_array($p)) return $p; // entrée d'axe, déjà prête
                 $addr    = $p->adresse ?: $p->quartier ?: $p->name;
                 $surface = (float) ($p->format?->surface ?? (($p->format?->width ?? 0) * ($p->format?->height ?? 0)));
                 return [
@@ -537,6 +595,11 @@ class QuoteController extends Controller
             'lines.*.duree_mois'           => 'required|numeric|min:0.5',
             'lines.*.panel_id'             => 'nullable|exists:panels,id',
             'lines.*.external_panel_id'    => 'nullable|exists:external_panels,id',
+            // Axes Lumipub (2026-11-12) : pieds proposés, ODP/TM saisies.
+            'lines.*.pieds'                => 'nullable|array',
+            'lines.*.pieds.*'              => 'integer|exists:panels,id',
+            'lines.*.odp_amount_override'  => 'nullable|numeric|min:0',
+            'lines.*.tm_amount_override'   => 'nullable|numeric|min:0',
 
             'services'                     => 'nullable|array|max:30',
             'services.*.label'             => 'required_with:services|string|max:200',
@@ -555,6 +618,18 @@ class QuoteController extends Controller
         $seenPanels = [];
         $seenExtern = [];
         foreach (($data['lines'] ?? []) as $i => $l) {
+            // Axe (2026-11-12) : les pieds cochés doivent être ceux de l'axe
+            // de la ligne — sinon la réservation prendrait d'autres pieds.
+            if (!empty($l['pieds'])) {
+                $pieds = array_values(array_unique(array_map('intval', $l['pieds'])));
+                $justes = !empty($l['panel_id'])
+                    && \App\Models\Panel::whereIn('id', $pieds)->where('axe_id', (int) $l['panel_id'])->count() === count($pieds);
+                if (!$justes) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "lines.$i.pieds" => "Ligne " . ($i + 1) . " : les pieds cochés n'appartiennent pas à l'axe choisi.",
+                    ]);
+                }
+            }
             if (!empty($l['panel_id'])) {
                 if (isset($seenPanels[$l['panel_id']])) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
@@ -580,14 +655,46 @@ class QuoteController extends Controller
         return $data;
     }
 
+    /**
+     * Axes Lumipub (2026-11-12) : ODP et TM jamais calculées pour un axe —
+     * 0 tant que rien n'est saisi. Les autres lignes : NULL = calcul auto.
+     * Utilisé par syncLines() ET totaux(), pour que l'aperçu dise la même
+     * chose que le devis enregistré.
+     *
+     * @return array{0: ?int, 1: ?int}  [odp, tm]
+     */
+    protected function taxesSaisies(array $l): array
+    {
+        $lire = fn ($v) => ($v !== null && $v !== '') ? (int) round((float) $v) : null;
+        $odp = $lire($l['odp_amount_override'] ?? null);
+        $tm  = $lire($l['tm_amount_override'] ?? null);
+
+        if (!empty($l['panel_id'])
+            && \App\Models\Panel::withTrashed()->find((int) $l['panel_id'])?->taxesSaisiesALaMain()) {
+            $odp ??= 0;
+            $tm  ??= 0;
+        }
+
+        return [$odp, $tm];
+    }
+
     protected function syncLines(Quote $quote, array $lines): void
     {
         $orderIdx = 0;
+        // Colonnes du 2026-11-12 : tant que la migration n'est pas jouée,
+        // on n'y écrit pas (le devis doit continuer de s'enregistrer).
+        $colonnesAxes = \Illuminate\Support\Facades\Schema::hasColumn('quote_lines', 'pieds');
         foreach ($lines as $l) {
             $commune = !empty($l['commune_id']) ? Commune::find($l['commune_id']) : null;
             $rates   = $commune?->ratesAt(now()->toDateString()) ?? ['odp' => 0, 'tm' => (float) config('billing.tm_default', 1000)];
+            [$odpSaisie, $tmSaisie] = $this->taxesSaisies($l);
+            $axes = $colonnesAxes ? [
+                'pieds'               => !empty($l['pieds']) ? array_values(array_unique(array_map('intval', $l['pieds']))) : null,
+                'odp_amount_override' => $odpSaisie,
+                'tm_amount_override'  => $tmSaisie,
+            ] : [];
 
-            $quote->lines()->create([
+            $quote->lines()->create($axes + [
                 'panel_id'              => !empty($l['panel_id']) ? (int) $l['panel_id'] : null,
                 'external_panel_id'     => !empty($l['external_panel_id']) ? (int) $l['external_panel_id'] : null,
                 'commune_id'            => $commune?->id,
@@ -656,6 +763,8 @@ class QuoteController extends Controller
                 'campaign_start'        => $debut,
                 'campaign_end'          => $fin,
             ];
+            // Axe Lumipub (2026-11-12) : même règle qu'à l'enregistrement.
+            [$ligne['odp_amount_override'], $ligne['tm_amount_override']] = $this->taxesSaisies($l);
 
             $lignes[] = $ligne + $calculator->calculateLine($ligne);
         }
