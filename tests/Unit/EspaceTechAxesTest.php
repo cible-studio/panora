@@ -50,19 +50,35 @@ class EspaceTechAxesTest extends TestCase
             $t->string('whatsapp_number')->nullable(); $t->softDeletes(); $t->timestamps();
         });
         Schema::create('clients', function (Blueprint $t) {
-            $t->id(); $t->string('name'); $t->softDeletes(); $t->timestamps();
+            $t->id(); $t->string('name'); $t->string('email')->nullable(); $t->string('contact_name')->nullable();
+            $t->softDeletes(); $t->timestamps();
         });
         Schema::create('campaigns', function (Blueprint $t) {
             $t->id(); $t->string('name'); $t->unsignedBigInteger('client_id')->nullable();
             $t->unsignedBigInteger('user_id')->nullable(); $t->string('status')->default('actif');
             $t->date('start_date')->nullable(); $t->date('end_date')->nullable();
+            $t->unsignedBigInteger('client_contact_id')->nullable();
             $t->string('pige_token')->nullable(); $t->softDeletes(); $t->timestamps();
+        });
+        Schema::create('campaign_panels', function (Blueprint $t) {
+            $t->id(); $t->unsignedBigInteger('campaign_id'); $t->unsignedBigInteger('panel_id');
+            $t->string('type')->default('interne'); $t->timestamps();
+        });
+        Schema::create('public_links', function (Blueprint $t) {
+            $t->id(); $t->string('token'); $t->string('type'); $t->string('target_type'); $t->unsignedBigInteger('target_id');
+            $t->unsignedBigInteger('client_id')->nullable(); $t->timestamp('expires_at')->nullable();
+            $t->timestamp('revoked_at')->nullable(); $t->unsignedBigInteger('revoked_by_user_id')->nullable(); $t->string('revoked_reason')->nullable();
+            $t->unsignedInteger('max_uses')->nullable(); $t->unsignedInteger('use_count')->default(0); $t->timestamp('used_at')->nullable();
+            $t->unsignedInteger('access_count')->default(0); $t->timestamp('last_accessed_at')->nullable();
+            $t->string('last_accessed_ip')->nullable(); $t->string('last_accessed_ua')->nullable();
+            $t->unsignedBigInteger('created_by_user_id')->nullable(); $t->text('metadata')->nullable(); $t->timestamps();
         });
         Schema::create('communes', function (Blueprint $t) {
             $t->id(); $t->string('name'); $t->timestamps();
         });
         Schema::create('panel_formats', function (Blueprint $t) {
-            $t->id(); $t->string('name'); $t->timestamps();
+            $t->id(); $t->string('name'); $t->decimal('width', 8, 2)->nullable(); $t->decimal('height', 8, 2)->nullable();
+            $t->decimal('surface', 8, 2)->nullable(); $t->timestamps();
         });
         Schema::create('panel_photos', function (Blueprint $t) {
             $t->id(); $t->unsignedBigInteger('panel_id'); $t->string('path');
@@ -603,6 +619,105 @@ class EspaceTechAxesTest extends TestCase
         $this->assertStringContainsString('Pied 2', $html);
         // La ligne d'axe se replie avec sa campagne.
         $this->assertMatchesRegularExpression('/class="trow trow-axe" data-campaign-group="1"/', $html);
+    }
+
+    // ── Phase C : ce que voit le client ────────────────────────────────
+
+    public function test_le_rapport_de_piges_fait_une_fiche_par_axe(): void
+    {
+        $ids = [];
+        foreach ([[11, 1], [13, 3], [20, 4]] as [$panneau, $tache]) {
+            $ids[] = $this->pige(['panel_id' => $panneau, 'pose_task_id' => $tache, 'status' => 'verifie']);
+        }
+        $rapport = app(\App\Services\Piges\RapportPigesService::class);
+        $piges = $rapport->choisies($ids);
+
+        // 2 emplacements : l'axe (2 pieds photographiés) et COC-020.
+        $volumes = $rapport->volumes($piges);
+        $this->assertSame(['nbPhotos' => 3, 'nbPanneaux' => 3, 'nbFiches' => 2, 'nbAxes' => 1, 'nbPiedsAxes' => 2], $volumes);
+
+        $groupes = $rapport->grouper($piges)->map(fn ($l) => $l->map(fn ($p) => ['pige' => $p, 'photo' => null])->values());
+        $html = view('pdf.rapport-piges', $volumes + [
+            'titre' => 'MOOV 2026', 'groupes' => $groupes, 'debut' => now(), 'fin' => now(),
+            'clients' => collect(['MOOV AFRICA']), 'campagnes' => collect(['MOOV 2026']), 'vagues' => collect(),
+        ])->render();
+
+        $this->assertSame(2, substr_count($html, '<div class="lieu">'), 'une fiche pour l\'axe, une pour COC-020');
+        $this->assertStringContainsString('<td class="etiquette">Axe</td><td>CDYLUP-004 · 2 pieds</td>', $html);
+        $this->assertStringContainsString('<td class="etiquette">Pied 1</td>', $html);
+        $this->assertStringContainsString('<td class="etiquette">Pied 3</td>', $html);
+        $this->assertStringContainsString('<strong>2</strong> emplacements, dont <strong>1</strong> axe (2 pieds),', $html);
+    }
+
+    public function test_un_axe_n_envoie_qu_un_e_mail_au_dernier_pied_valide(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+        DB::table('clients')->where('id', 1)->update(['email' => 'pub@moov.ci']);
+        foreach ([11, 12, 13, 20] as $panneau) {
+            DB::table('campaign_panels')->insert(['campaign_id' => 1, 'panel_id' => $panneau]);
+        }
+        $avis = app(\App\Services\Piges\AvisPigeValidee::class);
+        $valider = fn (int $panneau, int $tache) => Pige::find($this->pige([
+            'panel_id' => $panneau, 'pose_task_id' => $tache, 'status' => 'verifie', 'verified_at' => now(),
+        ]));
+
+        $this->assertSame($avis::AXE_EN_ATTENTE, $avis->apresValidation($valider(11, 1)));
+        $this->assertSame($avis::AXE_EN_ATTENTE, $avis->apresValidation($valider(12, 2)));
+        \Illuminate\Support\Facades\Mail::assertNothingSent();
+
+        // Le dernier pied : UN e-mail avec les trois photos.
+        $this->assertSame($avis::AXE_ENVOYE, $avis->apresValidation($valider(13, 3)));
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\PigeValidatedMail::class, 1);
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\PigeValidatedMail::class,
+            fn ($m) => $m->axe?->reference === 'CDYLUP-004' && $m->photosAxe->count() === 3);
+        // Un pied revalidé plus tard ne renvoie pas tout l'axe.
+        $this->assertSame($avis::AXE_DEJA_ENVOYE, $avis->apresValidation($valider(12, 2)));
+
+        // Un panneau ordinaire garde son e-mail par photo.
+        $this->assertSame($avis::ENVOYE, $avis->apresValidation($valider(20, 4)));
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\PigeValidatedMail::class, 2);
+    }
+
+    public function test_le_lien_de_l_e_mail_montre_les_photos_de_l_axe(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+        DB::table('clients')->where('id', 1)->update(['email' => 'pub@moov.ci']);
+        foreach ([11, 12, 13] as $p) {
+            DB::table('campaign_panels')->insert(['campaign_id' => 1, 'panel_id' => $p]);
+            $this->pige(['panel_id' => $p, 'pose_task_id' => $p - 10, 'status' => 'verifie', 'verified_at' => now()]);
+        }
+        app(\App\Services\Piges\AvisPigeValidee::class)->apresValidation(Pige::where('panel_id', 13)->first());
+        $lien = \App\Models\PublicLink::where('type', 'pige_bundle')->sole();
+
+        $r = $this->get('/p/' . $lien->token);
+
+        $r->assertOk();
+        $r->assertSee('Axe CDYLUP-004');
+        foreach (['Pied 1', 'Pied 2', 'Pied 3'] as $pied) {
+            $r->assertSee($pied);
+        }
+    }
+
+    public function test_le_portail_client_montre_une_carte_par_axe(): void
+    {
+        DB::table('panel_photos')->insert(['panel_id' => 10, 'path' => 'panels/axe.jpg', 'ordre' => 0]);
+        $verifiee = $this->pige(['panel_id' => 13, 'pose_task_id' => 3, 'status' => 'verifie', 'verified_at' => now()]);
+        $panneaux = Panel::with('commune', 'format')->whereIn('id', [11, 12, 13, 20])->get();
+
+        $entrees = app(\App\Services\Axes\AxeService::class)->grouperParAxe($panneaux, fn ($p) => $p, photos: true);
+        $this->assertCount(2, $entrees, 'l\'axe et COC-020');
+
+        $html = view('client.partials._carte_axe', [
+            'entree' => $entrees->first(fn ($e) => $e['axe'] !== null),
+            'poses' => PoseTask::where('status', 'realisee')->get()->keyBy('panel_id'),
+            'pigesVerif' => Pige::where('status', 'verifie')->get()->groupBy('panel_id'),
+            'pigeIndexMap' => [$verifiee => 0],
+        ])->render();
+
+        $this->assertStringContainsString('⛓ Axe · 3 pieds', $html);
+        $this->assertStringContainsString('1/3 pigés', $html);
+        $this->assertStringContainsString('Pied 2', $html);
+        $this->assertStringContainsString('storage/panels/axe.jpg', $html, 'la photo de l\'axe');
     }
 
     public function test_la_carte_admin_des_poses_garde_les_pieds_a_la_position_de_leur_axe(): void

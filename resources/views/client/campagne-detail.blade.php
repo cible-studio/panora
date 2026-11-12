@@ -263,8 +263,14 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
     @endif
 
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;">
-        @foreach($campaign->panels as $panel)
+        {{-- Une carte par AXE, ses pieds dedans (2026-11-12, décision du 12/11). --}}
+        @foreach(($entrees ?? collect($campaign->panels)->map(fn ($p) => ['axe' => null, 'items' => collect([$p])])) as $entree)
+        @if($entree['axe'])
+            @include('client.partials._carte_axe', ['entree' => $entree])
+            @continue
+        @endif
         @php
+            $panel      = $entree['items']->first();
             $photo      = $panel->photos->sortBy('ordre')->first();
             $panelPose  = $poses[$panel->id] ?? null;
             $panelPiges = $pigesVerif[$panel->id] ?? collect();

@@ -1135,29 +1135,17 @@ class TechSpaceController extends Controller
      */
     public static function entreesParAxe($tasks): array
     {
-        $entrees = [];
-        $position = [];
-        foreach ($tasks as $t) {
-            $axeId = $t->panel?->axe_id;
-            if (!$axeId || !$t->panel?->axe) {
-                $entrees[] = ['type' => 'pose', 'task' => $t, 'tasks' => collect([$t]), 'axe' => null];
-                continue;
-            }
-            $cle = $axeId . '-' . $t->campaign_id;
-            if (!isset($position[$cle])) {
-                $position[$cle] = count($entrees);
-                $entrees[] = ['type' => 'axe', 'task' => $t, 'tasks' => collect(), 'axe' => $t->panel->axe];
-            }
-            $entrees[$position[$cle]]['tasks']->push($t);
-        }
-        foreach ($entrees as &$e) {
-            if ($e['type'] === 'axe') {
-                $e['tasks'] = $e['tasks']->sortBy(fn ($t) => $t->panel?->pied_numero ?? 0)->values();
-            }
-        }
-        unset($e);
-
-        return $entrees;
+        // Règle unique de regroupement : AxeService::grouperParAxe (par axe
+        // ET par campagne pour des poses).
+        return app(\App\Services\Axes\AxeService::class)
+            ->grouperParAxe($tasks, fn ($t) => $t->panel, fn ($t) => $t->campaign_id)
+            ->map(fn ($e) => [
+                'type'  => $e['axe'] ? 'axe' : 'pose',
+                'task'  => $e['items']->first(),
+                'tasks' => $e['items'],
+                'axe'   => $e['axe'],
+            ])
+            ->all();
     }
 
     /**

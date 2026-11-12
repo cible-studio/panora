@@ -31,12 +31,24 @@
     $nbCommunes = $groupes->count();
     $numero = 0;   // numéro de fiche, continu sur tout le document
 
+    // Axes (décision du 12/11) : UNE fiche par axe, ses pieds dedans. Sans
+    // axe dans le document, rien ne change (« N panneaux »).
+    $nbAxes = (int) ($nbAxes ?? 0);
+    $nbFiches = (int) ($nbFiches ?? $nbPanneaux);
+    $rapportPiges = app(\App\Services\Piges\RapportPigesService::class);
+    $nomCourt = fn ($nom) => app(\App\Services\Axes\AxeService::class)->nomCourt($nom);
+    $unite = $nbAxes > 0 ? ['emplacement', 'emplacements'] : ['panneau', 'panneaux'];
+    $volume = $nbAxes > 0
+        ? '<strong>' . $nbFiches . '</strong> ' . ($nbFiches > 1 ? $unite[1] : $unite[0])
+            . ', dont <strong>' . $nbAxes . '</strong> axe' . ($nbAxes > 1 ? 's' : '')
+            . ' (' . (int) ($nbPiedsAxes ?? 0) . ' pieds),'
+        : '<strong>' . $nbPanneaux . '</strong> panneau' . ($nbPanneaux > 1 ? 'x' : '');
+
     // Synthèse sous le titre : valeurs échappées, mise en gras.
     $synthese = implode(' · ', array_filter([
         $clients->count() === 1 ? 'Client <strong>' . e($clients->first()) . '</strong>' : null,
         $vagues->count() === 1 ? e($vagues->first()->libelle()) : null,
-        '<strong>' . $nbPanneaux . '</strong> panneau' . ($nbPanneaux > 1 ? 'x' : '')
-            . ' dans <strong>' . $nbCommunes . '</strong> commune' . ($nbCommunes > 1 ? 's' : ''),
+        $volume . ' dans <strong>' . $nbCommunes . '</strong> commune' . ($nbCommunes > 1 ? 's' : ''),
         $periode ? 'photos prises ' . e($periode) : null,
     ]));
 @endphp
@@ -85,12 +97,21 @@
 ])
 
 @foreach($groupes as $commune => $items)
-    @php $parPanneau = $items->groupBy(fn ($item) => $item['pige']->panel_id); @endphp
+    @php $parPanneau = $items->groupBy(fn ($item) => $rapportPiges->cleFiche($item['pige'])); @endphp
     @foreach($parPanneau as $photos)
         @php
             $numero++;
+            $axe = $photos->first()['pige']->panel?->axe;
+            if ($axe) {
+                // Les pieds dans l'ordre du terrain, puis par heure.
+                $photos = $photos->sortBy([
+                    fn ($a, $b) => ($a['pige']->panel?->pied_numero ?? 0) <=> ($b['pige']->panel?->pied_numero ?? 0),
+                    fn ($a, $b) => ($a['pige']->taken_at ?? $a['pige']->created_at) <=> ($b['pige']->taken_at ?? $b['pige']->created_at),
+                ])->values();
+            }
             $pige    = $photos->first()['pige'];
             $panneau = $pige->panel;
+            $nbPiedsFiche = $axe ? $photos->pluck('pige.panel_id')->unique()->count() : 0;
             // Dimensions : source unique PanelFormat::dimensions_label / surface_label.
             $dimensions = implode(' · ', array_filter([
                 $panneau?->format?->dimensions_label,
@@ -102,7 +123,7 @@
         <div class="bloc">
             @if($loop->first)
                 <div class="commune">{{ $commune }}
-                    <span class="nb">· {{ $parPanneau->count() }} panneau{{ $parPanneau->count() > 1 ? 'x' : '' }}</span>
+                    <span class="nb">· {{ $parPanneau->count() }} {{ $parPanneau->count() > 1 ? $unite[1] : $unite[0] }}</span>
                 </div>
             @endif
             @foreach($photos as $item)
@@ -117,14 +138,29 @@
                             @endif
                         </td>
                         <td class="infos">
+                            @php $piedPhoto = $axe ? ('Pied ' . ($item['pige']->panel?->pied_numero ?? '?')) : null; @endphp
                             @if($loop->first)
                                 <div class="num">{{ str_pad((string) $numero, 2, '0', STR_PAD_LEFT) }}</div>
-                                <div class="lieu">{{ $panneau?->name ?: $panneau?->reference }}</div>
+                                @if($axe)
+                                    <div class="lieu">{{ $nomCourt($axe->name) ?: $axe->reference }}</div>
+                                    <table class="detail">
+                                        <tr><td class="etiquette">Axe</td><td>{{ $axe->reference }} · {{ $nbPiedsFiche }} pied{{ $nbPiedsFiche > 1 ? 's' : '' }}</td></tr>
+                                        @if($dimensions)<tr><td class="etiquette">Dimensions</td><td>{{ $dimensions }} (par pied)</td></tr>@endif
+                                        <tr><td class="etiquette">{{ $piedPhoto }}</td><td>{{ $panneau?->reference }}{{ $prise ? ' · ' . $prise->format('d/m/Y à H:i') : '' }}</td></tr>
+                                        @if($campagnes->count() > 1 && $item['pige']->campaign)<tr><td class="etiquette">Campagne</td><td>{{ $item['pige']->campaign->name }}</td></tr>@endif
+                                    </table>
+                                @else
+                                    <div class="lieu">{{ $panneau?->name ?: $panneau?->reference }}</div>
+                                    <table class="detail">
+                                        <tr><td class="etiquette">Référence</td><td>{{ $panneau?->reference ?? '—' }}</td></tr>
+                                        @if($dimensions)<tr><td class="etiquette">Dimensions</td><td>{{ $dimensions }}</td></tr>@endif
+                                        @if($prise)<tr><td class="etiquette">Photo</td><td>{{ $prise->format('d/m/Y à H:i') }}</td></tr>@endif
+                                        @if($campagnes->count() > 1 && $item['pige']->campaign)<tr><td class="etiquette">Campagne</td><td>{{ $item['pige']->campaign->name }}</td></tr>@endif
+                                    </table>
+                                @endif
+                            @elseif($axe)
                                 <table class="detail">
-                                    <tr><td class="etiquette">Référence</td><td>{{ $panneau?->reference ?? '—' }}</td></tr>
-                                    @if($dimensions)<tr><td class="etiquette">Dimensions</td><td>{{ $dimensions }}</td></tr>@endif
-                                    @if($prise)<tr><td class="etiquette">Photo</td><td>{{ $prise->format('d/m/Y à H:i') }}</td></tr>@endif
-                                    @if($campagnes->count() > 1 && $item['pige']->campaign)<tr><td class="etiquette">Campagne</td><td>{{ $item['pige']->campaign->name }}</td></tr>@endif
+                                    <tr><td class="etiquette">{{ $piedPhoto }}</td><td>{{ $item['pige']->panel?->reference }}{{ $prise ? ' · ' . $prise->format('d/m/Y à H:i') : '' }}</td></tr>
                                 </table>
                             @else
                                 <table class="detail">

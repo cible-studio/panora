@@ -1693,3 +1693,33 @@ dernier pied est validé ; pose suivante du technicien = règle « Maintenant »
       « ⛓ Pied 3 · CDYLUP-004 ».
 - [ ] Inchangé (décision du 12/11, compteurs en pieds) : tuiles de la fiche
       campagne, tableau des vagues, pilotage en direct, performance.
+
+### 23 c. Phase C : ce que voit le client
+
+- [ ] **Rapport PDF de piges** (Piges → Exporter) avec des photos de pieds :
+      **une fiche par axe** — « Riviera 3 », « Axe : CDYLUP-004 · 3 pieds »,
+      puis chaque photo légendée « Pied 1 · CDYLUP-004-P01 · 12/11/2026 à
+      10:42 ». Résumé du haut : « N emplacements, dont X axe(s) (Y pieds),
+      dans M communes ». Sans axe dans le rapport : inchangé (« N panneaux »).
+- [ ] Écran de préparation de l'export : chaque photo de pied porte « ⛓ Pied
+      3 · CDYLUP-004 ».
+- [ ] **E-mail « photo validée »** (avec un client qui a une adresse) : valider
+      les pieds d'un axe **un par un** — aucun e-mail tant qu'il en reste un ;
+      au **dernier** pied validé, **un seul** e-mail « Photos de l'axe
+      CDYLUP-004 disponibles » avec la photo de chaque pied. Revalider un pied
+      plus tard : pas de nouvel e-mail. Un panneau ordinaire : un e-mail par
+      photo, comme avant. (Journal : `pige.notify.axe_en_attente`.)
+- [ ] Le bouton de l'e-mail ouvre une page « Axe CDYLUP-004 » avec les photos
+      de tous les pieds (lien `/p/…`, valable 30 jours).
+- [ ] **Espace client → une campagne** : **une carte par axe** (photo de l'axe,
+      « ⛓ Axe · 5 pieds », « 3/5 posés », « 2/5 pigés »), et dedans chaque
+      pied : sa vignette validée (clic = agrandir), « Posé · photo en
+      validation » ou « À poser ». Les compteurs du haut restent en pieds.
+- [ ] **ZIP des photos** (espace client) : un dossier par axe, fichiers
+      « Pied-03_CDYLUP-004-P03_pige-123.jpg » ; panneaux ordinaires
+      « COC-020_pige-45.jpg » (avant : « pige-45.jpg »).
+- [ ] **Lien de pige de campagne** (`/pige/{jeton}`) : dans chaque commune, les
+      pieds d'un axe sous une ligne « ⛓ CDYLUP-004 · Riviera 3 — 5 pieds · 2/5
+      pigés » ; chaque carte « Pied 3 · CDYLUP-004-P03 ».
+- [ ] **Fiche de pose PDF** (campagne → Fiche de pose) : un pied a la photo de
+      son axe et « ⛓ Pied 3 · CDYLUP-004 » ; en mode liste, même mention.

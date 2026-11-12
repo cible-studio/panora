@@ -501,7 +501,26 @@
                     <span class="arrow">▾</span>
                 </div>
                 <div class="commune-body">
-                    @foreach($panels as $panel)
+                    {{-- Axes (2026-11-12) : les pieds d'un axe sous une ligne d'axe,
+                         dans l'ordre du terrain (AxeService::grouperParAxe). --}}
+                    @php
+                        $axeService = app(\App\Services\Axes\AxeService::class);
+                        $entreesCommune = $axeService->grouperParAxe($panels->sortBy('reference')->values(), fn ($p) => $p);
+                    @endphp
+                    @foreach($entreesCommune as $entreeAxe)
+                    @if($entreeAxe['axe'])
+                        @php
+                            $nbPiedsAxe = $entreeAxe['items']->count();
+                            $nbPigesAxe = $entreeAxe['items']->filter(fn ($p) => ($existingPiges[$p->id] ?? collect())->contains(fn ($x) => $x->status === 'verifie'))->count();
+                        @endphp
+                        <div class="axe-header" style="margin:12px 0 6px;padding:8px 12px;border-radius:10px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);font-size:13px">
+                            ⛓ <strong style="font-family:ui-monospace,monospace">{{ $entreeAxe['axe']->reference }}</strong>
+                            · {{ $axeService->nomCourt($entreeAxe['axe']->name) }}
+                            — {{ $nbPiedsAxe }} pied{{ $nbPiedsAxe > 1 ? 's' : '' }} · {{ $nbPigesAxe }}/{{ $nbPiedsAxe }} pigés
+                            <div style="font-size:11px;opacity:.75;margin-top:2px">Une photo par pied, chacun dans sa carte ci-dessous.</div>
+                        </div>
+                    @endif
+                    @foreach($entreeAxe['items'] as $panel)
                         @php
                             $panelPiges = $existingPiges[$panel->id] ?? collect();
                             $hasVerified = $panelPiges->contains(fn($p) => $p->status === 'verifie');
@@ -540,7 +559,7 @@
                              data-search="{{ $haystack }}">
                             <div class="panel-head">
                                 <div style="min-width:0;">
-                                    <div class="panel-ref">{{ $panel->reference }}</div>
+                                    <div class="panel-ref">@if($entreeAxe['axe'])Pied {{ $panel->pied_numero }} · @endif{{ $panel->reference }}</div>
                                     <div class="panel-name">{{ \Illuminate\Support\Str::limit($panel->name, 60) }}</div>
                                     <div class="panel-meta">
                                         @if($panel->format?->name){{ $panel->format->name }}@endif
@@ -606,6 +625,7 @@
                                 @endif
                             </div>
                         </div>
+                    @endforeach
                     @endforeach
                 </div>
             </div>

@@ -196,6 +196,60 @@ class AxeService
     }
 
     /**
+     * Regroupe des éléments (poses, panneaux, photos…) par AXE (2026-11-12) :
+     * les éléments des pieds d'un même axe — et de même `$cle` (la campagne
+     * pour des poses) — deviennent UNE entrée, à la place du premier ; les
+     * autres restent une entrée chacun. L'ordre d'arrivée est conservé ; les
+     * pieds sont rangés dans l'ordre du terrain (pied_numero).
+     *
+     * Règle unique : « Ma journée » (TechSpaceController::entreesParAxe), le
+     * portail client (une carte par axe)…
+     *
+     * @param  iterable                 $items
+     * @param  callable(mixed): ?Panel  $panneau  le panneau d'un élément (axe_id, pied_numero chargés)
+     * @param  callable(mixed): mixed   $cle      clé supplémentaire de regroupement (défaut : aucune)
+     * @param  bool                     $photos   charger les photos de l'axe (photo de la carte)
+     * @return Collection<int, array{axe: ?Panel, items: Collection}>
+     */
+    public function grouperParAxe(iterable $items, callable $panneau, ?callable $cle = null, bool $photos = false): Collection
+    {
+        $items = collect($items);
+        // Les axes déjà chargés (relation « axe » du panneau) servent tels
+        // quels ; les autres en une requête.
+        $aCharger = $items->map(fn ($i) => $panneau($i))
+            ->filter(fn ($p) => $p?->axe_id && ! $p->relationLoaded('axe'))
+            ->pluck('axe_id')->unique()->values();
+        $axes = ($aCharger->isNotEmpty() && $this->colonnesPresentes())
+            ? Panel::with($photos ? ['photos' => fn ($q) => $q->orderBy('ordre')] : [])
+                ->whereIn('id', $aCharger)->get()->keyBy('id')
+            : collect();
+
+        $entrees = [];
+        $position = [];
+        foreach ($items as $item) {
+            $p = $panneau($item);
+            $axe = ! $p?->axe_id ? null : ($p->relationLoaded('axe') ? $p->axe : $axes->get($p->axe_id));
+            if (! $axe) {
+                $entrees[] = ['axe' => null, 'items' => collect([$item])];
+                continue;
+            }
+            $k = $axe->id . '-' . ($cle ? $cle($item) : '');
+            if (! isset($position[$k])) {
+                $position[$k] = count($entrees);
+                $entrees[] = ['axe' => $axe, 'items' => collect()];
+            }
+            $entrees[$position[$k]]['items']->push($item);
+        }
+
+        return collect($entrees)->map(function ($e) use ($panneau) {
+            if ($e['axe']) {
+                $e['items'] = $e['items']->sortBy(fn ($i) => $panneau($i)?->pied_numero ?? 0)->values();
+            }
+            return $e;
+        });
+    }
+
+    /**
      * Colonnes d'axe à ajouter à une projection `panel:…` — de quoi appeler
      * Panel::positionTerrain() / photoDeReference() et dire « Pied 3 ».
      * Vide tant que la migration des axes n'est pas passée.

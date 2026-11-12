@@ -128,7 +128,8 @@
 
 @forelse($panels as $i => $panel)
     @php
-        $photo = $panel->photos->first();
+        // Un pied prend la photo de son axe (Panel::photoDeReference, 2026-11-12).
+        $photo = $panel->photoDeReference();
         $photoPath = $photo ? public_path('storage/' . $photo->path) : null;
         $hasPhoto  = $photo && file_exists($photoPath);
         $pose      = $poseByPanel[$panel->id] ?? null;
@@ -145,6 +146,7 @@
             <div>
                 <span class="num">{{ $i + 1 }}</span>
                 <span class="panel-ref">{{ $panel->reference }}</span>
+                @if($panel->axe_id && $panel->axe)<span style="font-size:9px;font-weight:700"> · ⛓ Pied {{ $panel->pied_numero }} · {{ $panel->axe->reference }}</span>@endif
             </div>
             <div class="panel-name">{{ $panel->name ?? '—' }}</div>
             <div class="panel-meta">

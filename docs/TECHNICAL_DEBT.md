@@ -423,8 +423,22 @@ Audit complet des rôles pour la Direction générale (PDF à cases remis le
   (badge « ⛓ pied 3/11 » et bouton « ⛓ N » sur une carte de pied) ne
   servent plus depuis que l'écran montre une carte par axe. Conservés
   (règle n°3) ; à retirer lors d'un nettoyage.
-- **Suivi des piges par axe** (« 3 / 5 pieds pigés ») : pas fait. Chaque
-  pied a sa pose et sa pige, mais aucun écran ne les regroupe par axe.
+- ~~Suivi des piges par axe (« 3 / 5 pieds pigés »)~~ — fait le 2026-11-12
+  (A_TESTER § 23) : admin (poses, piges, validation), rapport PDF (une
+  fiche par axe), portail client (une carte par axe), e-mail (un par axe),
+  lien de pige de campagne, fiche de pose. Restent :
+  - **Page publique d'une pose d'axe entier** (`/pige/{jeton pose}`) : la
+    photo ne clôt plus la tâche (choix 4b) et la page n'a pas de bouton
+    « Terminé » — à fermer par l'espace technicien ou l'admin. Ses photos
+    n'y portent pas de numéro de pied (rien ne le dit à l'envoi).
+  - **E-mail d'axe** : envoyé une fois par axe et par campagne ; une
+    rechange posée plus tard sur l'axe n'en renvoie pas.
+  - **Listes du portail client** (tableau de bord, Poses, Piges) : une ligne
+    par pied, sans regroupement — la référence (`…-P03`) et le nom (« pied
+    3/11 ») disent l'axe. Compteurs en pieds (décision du 12/11).
+  - **Pilotage en direct / performance** : comptent les pieds (une pose de
+    pied est une pose) ; « en cours » compte chacun des pieds démarrés
+    ensemble par « Je suis arrivé ».
 - **PDF liste et Excel des disponibilités** : un pied par ligne, pas
   regroupés comme le PDF images et le catalogue.
 

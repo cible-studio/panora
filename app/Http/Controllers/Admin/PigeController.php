@@ -433,38 +433,9 @@ class PigeController extends Controller
      */
     protected function notifyClientPigeValidated(\App\Models\Pige $pige): void
     {
-        $client = $pige->campaign?->client;
-        // Fiche + interlocuteur de la campagne (Client::destinatairesDocuments, 2026-10-29).
-        $adresses = $client ? array_column($client->destinatairesDocuments($pige->campaign?->interlocuteur), 'email') : [];
-        if (!$adresses) {
-            \Illuminate\Support\Facades\Log::info('pige.notify.skipped', [
-                'pige_id' => $pige->id, 'reason' => 'no_client_email',
-            ]);
-            return;
-        }
-
-        try {
-            $link = \App\Services\PublicLinkService::create(
-                target:   $pige,
-                type:     'pige',
-                expiresAt: now()->addDays(30),
-                clientId: $client->id,
-                metadata: ['campaign_id' => $pige->campaign_id, 'panel_id' => $pige->panel_id],
-            );
-
-            $mailer = app(\App\Services\NotificationMailer::class);
-            $mailer->sendSilently(
-                $adresses,
-                new \App\Mail\PigeValidatedMail($pige->loadMissing('panel.commune','campaign.client'), $link),
-                cc: null,
-                context: ['pige_id' => $pige->id, 'client_id' => $client->id],
-            );
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('pige.notify.failed', [
-                'pige_id' => $pige->id,
-                'error'   => $e->getMessage(),
-            ]);
-        }
+        // Source unique (2026-11-12) : un panneau = un e-mail ; un axe = UN
+        // e-mail quand son dernier pied est validé (AvisPigeValidee).
+        app(\App\Services\Piges\AvisPigeValidee::class)->apresValidation($pige);
     }
 
     // ══════════════════════════════════════════════════════════════

@@ -109,8 +109,31 @@ class PublicLinkController extends Controller
         if (!$campaign) {
             return response()->view('public.link-invalid', ['reason' => 'Campagne introuvable.'], 410);
         }
+
+        // 2026-11-12 : un lot = les photos d'un AXE (e-mail envoyé au dernier
+        // pied validé, App\Services\Piges\AvisPigeValidee) — leurs ids dans
+        // metadata.pige_ids. Seules les photos validées de la campagne du
+        // lien s'affichent. Sans ids : toutes les photos validées de la
+        // campagne. (La vue de ce type de lien n'existait pas : rien ne le
+        // créait avant.)
+        $ids = array_map('intval', (array) ($link->metadata['pige_ids'] ?? []));
+        $piges = \App\Models\Pige::where('campaign_id', $campaign->id)
+            ->where('status', 'verifie')
+            ->when($ids, fn ($q) => $q->whereIn('id', $ids))
+            ->with('panel:id,reference,name,commune_id' . app(\App\Services\Axes\AxeService::class)->colonnesPanneau(), 'panel.commune:id,name')
+            ->orderBy('taken_at')
+            ->limit(200)
+            ->get()
+            ->sortBy(fn ($p) => [$p->panel?->pied_numero ?? 0, $p->taken_at?->getTimestamp() ?? 0])
+            ->values();
+        $axe = !empty($link->metadata['axe_id'])
+            ? \App\Models\Panel::find($link->metadata['axe_id'], ['id', 'reference', 'name'])
+            : null;
+
         return response()->view('public.pige-bundle', [
-            'campaign' => $campaign->loadMissing('client', 'panels'),
+            'campaign' => $campaign->loadMissing('client'),
+            'piges'    => $piges,
+            'axe'      => $axe,
             'link'     => $link,
         ]);
     }

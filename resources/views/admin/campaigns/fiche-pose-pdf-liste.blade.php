@@ -99,7 +99,7 @@
             @php $pose = $poseByPanel[$panel->id] ?? null; @endphp
             <tr>
                 <td><span class="num">{{ $i + 1 }}</span></td>
-                <td class="ref">{{ $panel->reference }}</td>
+                <td class="ref">{{ $panel->reference }}@if($panel->axe_id && $panel->axe)<br><span style="font-size:8px;font-weight:700">⛓ Pied {{ $panel->pied_numero }} · {{ $panel->axe->reference }}</span>@endif</td>
                 <td>
                     {{ $panel->name ?? '—' }}
                     {{-- 2026-11-04 : la vague = le visuel à poser. --}}
