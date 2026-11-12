@@ -1507,7 +1507,15 @@ y arrivait comme un panneau ordinaire : ni badge « pied 3/11 », ni bouton
       déploiement (`php artisan migrate:status | grep axes_to_quote`). Tant
       qu elle ne l est pas, les devis s enregistrent mais sans les pieds.
 
-## 22. Espace technicien — refonte, étape 1 : « Ma journée » et les axes *(2026-11-12, develop seulement)*
+## 22. Espace technicien — refonte, étape 1 : « Ma journée » et les axes *(2026-11-12 — en production le 12/11 au soir, main ddcd7312)*
+
+> **Passé en production le 12/11 au soir** avec les § 22 bis, 22 ter, 23 et 24
+> (8 commits reportés sur main, aucune migration). Sur chaque téléphone de
+> technicien : fermer l'onglet de l'espace technicien et le rouvrir une fois
+> (service worker v2.13.0). Les cases ci-dessous restent à cocher en production.
+> Positions : 10 axes sur 12 sans position (relevé sur dev le 12/11) — leurs
+> pieds affichent « Position du panneau inconnue » ; laissé de côté pour
+> l'instant (décision du 12/11), cf. `geo:backfill --panels`.
 
 Livré sur **develop** pour essai sur **dev.panora-cible.com**. Pas en
 production tant que ce n'est pas validé (maquette validée :
@@ -1650,7 +1658,7 @@ GPS).
 - [ ] **Feuille de route papier** : un pied d'axe affiche les coordonnées de
       son axe (avant : vide).
 
-## 23. Suivi des axes côté admin *(2026-11-12, develop seulement)*
+## 23. Suivi des axes côté admin *(2026-11-12 — en production le 12/11 au soir)*
 
 Décisions du 12/11 : rapport PDF de piges = **une fiche par axe** ;
 compteurs côté client **en pieds** (affichage regroupé « 3/5 pieds
@@ -1724,7 +1732,7 @@ dernier pied est validé ; pose suivante du technicien = règle « Maintenant »
 - [ ] **Fiche de pose PDF** (campagne → Fiche de pose) : un pied a la photo de
       son axe et « ⛓ Pied 3 · CDYLUP-004 » ; en mode liste, même mention.
 
-## 24. Retours du test sur dev du 12/11 *(develop seulement)*
+## 24. Retours du test sur dev du 12/11 *(en production le 12/11 au soir)*
 
 Fermer l'onglet de l'espace technicien et le rouvrir une fois (service
 worker v2.13.0).
