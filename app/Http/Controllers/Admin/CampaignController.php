@@ -881,8 +881,9 @@ class CampaignController extends Controller
             ? \Carbon\Carbon::parse($data['end_date'])
             : $newStart->copy()->addDays($duration);
 
+        $messageAxes = null;
         try {
-            $newCampaign = DB::transaction(function () use ($source, $newStart, $newEnd) {
+            $newCampaign = DB::transaction(function () use ($source, $newStart, $newEnd, &$messageAxes) {
                 $baseName = $source->name . ' (renouvelée)';
                 $name = $baseName;
                 $i = 2;
@@ -911,6 +912,16 @@ class CampaignController extends Controller
                 // Réattache les panneaux internes via le service (qui crée
                 // la résa technique + recalcule + applique les conflits).
                 $internalIds = $source->panels()->pluck('panels.id')->all();
+
+                // Axes (2026-11-12, point 1a) : un axe entier de l'ancien
+                // contrat est repris pied par pied, sans ceux déjà pris par
+                // un autre client sur la nouvelle période.
+                $remplacement = $this->availability->remplacerAxesParPiedsLibres(
+                    $internalIds, $newStart->format('Y-m-d'), $newEnd->format('Y-m-d'), (int) $source->client_id
+                );
+                $internalIds = $remplacement['ids'];
+                $messageAxes = AvailabilityService::messageAxesRemplaces($remplacement['axes']);
+
                 if (!empty($internalIds)) {
                     $this->campaignService->addPanels($newCampaign, $internalIds);
                 }
@@ -946,9 +957,15 @@ class CampaignController extends Controller
                 Log::warning('campaign.duplicate.renouvellement', ['source_id' => $source->id, 'error' => $e->getMessage()]);
             }
 
-            return redirect()
+            $redirect = redirect()
                 ->route('admin.campaigns.show', $newCampaign)
                 ->with('success', "✅ Campagne dupliquée avec mêmes panneaux + commercial. Ajustez si besoin puis cliquez « ▶ Démarrer la campagne ».");
+
+            // Axes repris pied par pied : le dire, et le prix change (un
+            // pied = un tarif ; l'ancien contrat tenait l'axe à un seul prix).
+            return $messageAxes
+                ? $redirect->with('warning', "⛓ {$messageAxes} Chaque pied est désormais au tarif d'un pied : vérifiez le prix avec la direction.")
+                : $redirect;
 
         } catch (\Throwable $e) {
             Log::error('campaign.duplicate.failed', [
@@ -2284,6 +2301,24 @@ class CampaignController extends Controller
             $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
             return back()->with('error',
                 "Impossible de prolonger — conflits sur la nouvelle période : {$refs}");
+        }
+
+        // Axe entier d'un ancien contrat (2026-11-12, point 1a) : le
+        // contrôle ci-dessus interroge la ligne d'axe et ne voit pas ses
+        // pieds vendus à d'autres. La campagne garde son historique sur
+        // cette ligne : on ne la redécoupe pas, on refuse et on oriente.
+        $axesPris = array_filter(
+            $this->availability->remplacerAxesParPiedsLibres(
+                $panelIds, $campaign->end_date->format('Y-m-d'), $newEndDate->format('Y-m-d'),
+                (int) $campaign->client_id, $campaign->reservation_id, $campaign->id
+            )['axes'],
+            fn ($a) => $a['pris'] !== []
+        );
+        if ($axesPris) {
+            return back()->with('error',
+                'Impossible de prolonger — des pieds de cet axe sont déjà pris sur la nouvelle période. '
+                . AvailabilityService::messageAxesRemplaces($axesPris)
+                . ' Utilisez « 🔁 Renouveler la campagne » : elle reprend les pieds encore libres.');
         }
 
         $oldEnd = $campaign->end_date->format('d/m/Y');

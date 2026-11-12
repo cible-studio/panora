@@ -1444,3 +1444,22 @@ php artisan tinker --execute="
 - [ ] ⚠ Remplace le contrôle du § 18 bis sur **102 LADILI** : la facture
       propose PU 130 000, qté 1, mais **ODP et TM à 0**, à saisir à la main
       (avant : 15 000 et 3 000 calculés).
+
+#### Axe entier d'un ancien contrat — repris pied par pied (point 1a)
+
+BEM (4 axes), MOOV (1) et LADILI (1) tiennent encore la **ligne** de l'axe,
+c'est-à-dire tous ses pieds. Règle du 12/11 : on ne la reprend plus telle
+quelle, sinon on revendrait les pieds déjà pris par un autre client.
+
+- [ ] **🔁 Renouveler la campagne** sur une campagne qui tient un axe : la
+      nouvelle campagne reçoit les **pieds** un par un, sans ceux déjà pris,
+      avec l'avertissement « ⛓ Axes : CDYLUP-001 : 6 pied(s) sur 10 repris… ».
+- [ ] 🔶 **Prix** : chaque pied repris est au tarif d'un pied (130 000).
+      Un axe de 10 pieds tenu à 130 000/mois sur l'ancien contrat passe donc à
+      1 300 000/mois sur la campagne renouvelée. **Voir le prix avec la
+      direction avant tout envoi au client.**
+- [ ] **📅 Prolonger** une campagne qui tient un axe entier, alors qu'un de ses
+      pieds est pris par un autre client sur la prolongation : **refus**, avec
+      la liste des pieds pris et l'invitation à passer par « Renouveler ».
+- [ ] **Import PDF** avec un code d'axe : l'aperçu annonce « ⛓ Axes : … »,
+      et la campagne importée porte les pieds libres.

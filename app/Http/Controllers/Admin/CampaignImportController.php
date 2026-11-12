@@ -65,10 +65,21 @@ class CampaignImportController extends Controller
         // Panneaux déjà pris fermement sur la période (2026-10-30) : l'import
         // est refusé tant qu'il en reste — sinon deux dossiers tiennent le
         // même panneau (c'est ainsi que sont nés les doublons ADDOHA, AH…).
+        // Axe entier (2026-11-12, point 1a) : un code d'axe devient ses
+        // pieds encore libres sur la période — l'aperçu le dit.
+        $dispo = app(\App\Services\AvailabilityService::class);
+        $remplacement = $dispo->remplacerAxesParPiedsLibres(
+            $foundPanels->pluck('id')->all(),
+            $data['start_date']->format('Y-m-d'),
+            $data['end_date']->format('Y-m-d'),
+            $existingClient?->id,
+        );
+        $messageAxes = \App\Services\AvailabilityService::messageAxesRemplaces($remplacement['axes']);
+
         // Le renouvellement confirmé du client importé ne le bloque pas
         // (2026-11-11) ; client inconnu ou nouveau : la retenue vaut.
-        $conflits = app(\App\Services\AvailabilityService::class)->conflitsFermes(
-            $foundPanels->pluck('id')->all(),
+        $conflits = $dispo->conflitsFermes(
+            $remplacement['ids'],
             $data['start_date']->format('Y-m-d'),
             $data['end_date']->format('Y-m-d'),
             null,
@@ -104,6 +115,7 @@ class CampaignImportController extends Controller
             'missingCodes'     => $missingCodes,
             'existingCampaign' => $existingCampaign,
             'conflits'         => $conflits,
+            'messageAxes'      => $messageAxes,
             'canImport'        => empty($missingCodes) && empty($conflits),
         ]);
     }
@@ -141,9 +153,18 @@ class CampaignImportController extends Controller
             ? (int) $choix
             : app(NomEntreprise::class)->identique(mb_strtoupper(trim($session['client'])));
 
-        // Revérifié ici : un panneau a pu être pris depuis l'aperçu (2026-10-30).
-        $conflits = app(\App\Services\AvailabilityService::class)->conflitsFermes(
+        // Axe entier → ses pieds encore libres (2026-11-12, point 1a).
+        $dispo = app(\App\Services\AvailabilityService::class);
+        $remplacement = $dispo->remplacerAxesParPiedsLibres(
             $foundPanels->pluck('id')->all(), $session['start_date'], $session['end_date'],
+            $clientVise !== null ? (int) $clientVise : null,
+        );
+        $idsAImporter = $remplacement['ids'];
+        $messageAxes  = \App\Services\AvailabilityService::messageAxesRemplaces($remplacement['axes']);
+
+        // Revérifié ici : un panneau a pu être pris depuis l'aperçu (2026-10-30).
+        $conflits = $dispo->conflitsFermes(
+            $idsAImporter, $session['start_date'], $session['end_date'],
             null, null, $clientVise !== null ? (int) $clientVise : null,
         );
         if ($conflits) {
@@ -158,7 +179,7 @@ class CampaignImportController extends Controller
         }
 
         try {
-            $campaign = DB::transaction(function () use ($session, $foundPanels, $proches, $choix) {
+            $campaign = DB::transaction(function () use ($session, $foundPanels, $proches, $choix, $idsAImporter) {
                 // 1. Client : fiche choisie, sinon même nom (même écrit
                 //    autrement), sinon créée.
                 $clientName = mb_strtoupper(trim($session['client']));
@@ -190,7 +211,8 @@ class CampaignImportController extends Controller
                 ]);
 
                 // 3. Attache les panneaux (pivot campaign_panels type='interne')
-                $panelIds = $foundPanels->pluck('id')->toArray();
+                // — les axes entiers remplacés par leurs pieds libres.
+                $panelIds = $idsAImporter;
                 $pivotData = [];
                 foreach ($panelIds as $pid) {
                     $pivotData[$pid] = ['type' => 'interne'];
@@ -204,7 +226,7 @@ class CampaignImportController extends Controller
                 $endDay   = \Carbon\Carbon::parse($session['end_date'])->startOfDay();
                 $days     = (int) round($startDay->diffInDays($endDay));
                 $months   = max(1, (int) ceil($days / 30));
-                $total    = (float) $foundPanels->sum('monthly_rate') * $months;
+                $total    = (float) Panel::whereIn('id', $panelIds)->sum('monthly_rate') * $months;
                 $campaign->update(['total_amount' => $total]);
 
                 return $campaign;
@@ -219,9 +241,11 @@ class CampaignImportController extends Controller
                 'user_id'     => auth()->id(),
             ]);
 
-            return redirect()->route('admin.campaigns.show', $campaign)
+            $redirect = redirect()->route('admin.campaigns.show', $campaign)
                 ->with('success', "Campagne « {$campaign->name } » importée — " .
-                    count($foundPanels) . " panneau(x) lié(s).");
+                    count($idsAImporter) . " panneau(x) lié(s).");
+
+            return $messageAxes ? $redirect->with('warning', "⛓ {$messageAxes}") : $redirect;
 
         } catch (\Throwable $e) {
             Log::error('campaigns.import_pdf.failed', [

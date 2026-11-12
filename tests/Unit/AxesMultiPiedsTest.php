@@ -630,6 +630,40 @@ class AxesMultiPiedsTest extends TestCase
         $this->assertStringContainsString('taxesSaisiesALaMain()', file_get_contents(base_path('app/Services/TaxReportService.php')));
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // Point 1a (2026-11-12) — un axe entier repris = ses pieds libres
+    // ══════════════════════════════════════════════════════════════
+
+    public function test_un_axe_entier_repris_devient_ses_pieds_libres(): void
+    {
+        // AXE-20 libre : ses 2 pieds sont repris, le panneau simple aussi.
+        $r = $this->dispo()->remplacerAxesParPiedsLibres([20, 30], '2027-01-01', '2027-03-31', 1);
+        $this->assertEqualsCanonicalizing([21, 22, 30], $r['ids']);
+        $this->assertSame([['axe' => 'AXE-20', 'total' => 2, 'repris' => 2, 'pris' => []]], $r['axes']);
+
+        // MOOV a déjà pris le pied 1 en janvier : ORANGE ne récupère que le pied 2.
+        DB::table('reservations')->insert(['id' => 61, 'reference' => 'RES-MOOV', 'client_id' => 2, 'status' => 'confirme', 'start_date' => '2027-01-01', 'end_date' => '2027-01-31']);
+        DB::table('reservation_panels')->insert(['reservation_id' => 61, 'panel_id' => 21, 'unit_price' => 130000, 'total_price' => 130000]);
+
+        $r = $this->dispo()->remplacerAxesParPiedsLibres([20], '2027-01-01', '2027-03-31', 1);
+        $this->assertSame([22], $r['ids']);
+        $this->assertSame(['AXE-20-P01 (RES-MOOV)'], $r['axes'][0]['pris']);
+        $this->assertSame(
+            'Axes : AXE-20 : 1 pied(s) sur 2 repris, 1 déjà pris (AXE-20-P01 (RES-MOOV)).',
+            AvailabilityService::messageAxesRemplaces($r['axes'])
+        );
+
+        // Sans ligne d'axe, rien ne bouge.
+        $this->assertSame(['ids' => [30], 'axes' => []], $this->dispo()->remplacerAxesParPiedsLibres([30], '2027-01-01', '2027-03-31', 1));
+    }
+
+    public function test_le_renouvellement_la_prolongation_et_l_import_passent_par_le_remplacement(): void
+    {
+        // Canari : les trois chemins qui reprennent un axe entier.
+        $this->assertStringContainsString('remplacerAxesParPiedsLibres', file_get_contents(base_path('app/Http/Controllers/Admin/CampaignImportController.php')));
+        $this->assertSame(2, substr_count(file_get_contents(base_path('app/Http/Controllers/Admin/CampaignController.php')), 'remplacerAxesParPiedsLibres('));
+    }
+
     public function test_deux_clients_sur_le_meme_axe_ne_se_bloquent_pas_a_la_facture(): void
     {
         Schema::create('invoices', function (Blueprint $t) {
