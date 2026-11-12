@@ -115,6 +115,10 @@ class EspaceTechAxesTest extends TestCase
             $t->string('actor')->nullable(); $t->string('ip_address')->nullable(); $t->timestamp('created_at')->nullable();
             $t->timestamp('resolved_at')->nullable();
         });
+        Schema::create('tech_notifications', function (Blueprint $t) {
+            $t->id(); $t->unsignedBigInteger('user_id'); $t->string('type'); $t->string('title');
+            $t->text('detail')->nullable(); $t->text('payload')->nullable(); $t->timestamp('read_at')->nullable(); $t->timestamps();
+        });
         Schema::create('piges', function (Blueprint $t) {
             $t->id(); $t->unsignedBigInteger('panel_id'); $t->unsignedBigInteger('campaign_id')->nullable();
             $t->unsignedBigInteger('pose_task_id')->nullable(); $t->unsignedBigInteger('user_id')->nullable();
@@ -516,11 +520,15 @@ class EspaceTechAxesTest extends TestCase
         ]);
     }
 
-    public function test_la_derniere_photo_par_panneau_garde_toutes_celles_d_un_axe_entier(): void
+    public function test_la_derniere_photo_par_panneau_garde_toutes_celles_d_une_meme_pose(): void
     {
-        // Panneau ordinaire : la photo refaite remplace l'ancienne.
-        $ancienne = $this->pige(['panel_id' => 20, 'pose_task_id' => 4, 'taken_at' => now()->subHours(2)]);
-        $refaite  = $this->pige(['panel_id' => 20, 'pose_task_id' => 4, 'taken_at' => now()->subHour()]);
+        // Même pose : 2 photos (photos multiples, validé le 12/11), les deux restent.
+        $photo1 = $this->pige(['panel_id' => 20, 'pose_task_id' => 4, 'taken_at' => now()->subHours(3)]);
+        $photo2 = $this->pige(['panel_id' => 20, 'pose_task_id' => 4, 'taken_at' => now()->subHours(2)]);
+        // Une rechange (AUTRE pose du panneau) remplace les photos d'avant.
+        DB::table('pose_tasks')->insert(['id' => 8, 'panel_id' => 20, 'campaign_id' => 1, 'assigned_user_id' => 2,
+            'status' => 'planifiee', 'pose_kind' => 'rechange', 'scheduled_at' => now()->toDateTimeString()]);
+        $rechange = $this->pige(['panel_id' => 20, 'pose_task_id' => 8, 'taken_at' => now()->subHour()]);
         // Axe entier : une photo par pied, aucune ne remplace l'autre.
         $p1 = $this->pige(['panel_id' => 30, 'campaign_id' => 2, 'pose_task_id' => 5, 'taken_at' => now()->subHours(3)]);
         $p2 = $this->pige(['panel_id' => 30, 'campaign_id' => 2, 'pose_task_id' => 5, 'taken_at' => now()->subHours(2)]);
@@ -528,11 +536,18 @@ class EspaceTechAxesTest extends TestCase
 
         $courantes = Pige::derniereParPanneau()->pluck('id')->all();
 
-        $this->assertNotContains($ancienne, $courantes);
-        $this->assertContains($refaite, $courantes);
+        $this->assertNotContains($photo1, $courantes, 'remplacée par la rechange');
+        $this->assertNotContains($photo2, $courantes, 'remplacée par la rechange');
+        $this->assertContains($rechange, $courantes);
         foreach ([$p1, $p2, $p3] as $id) {
             $this->assertContains($id, $courantes, 'chaque photo d\'un pied reste');
         }
+
+        // Sans rechange : les 2 photos de la même pose restent.
+        DB::table('piges')->where('id', $rechange)->delete();
+        $courantes = Pige::derniereParPanneau()->pluck('id')->all();
+        $this->assertContains($photo1, $courantes);
+        $this->assertContains($photo2, $courantes);
     }
 
     public function test_une_photo_refusee_d_un_axe_entier_est_refaite_par_une_photo_posterieure_au_refus(): void
@@ -718,6 +733,76 @@ class EspaceTechAxesTest extends TestCase
         $this->assertStringContainsString('1/3 pigés', $html);
         $this->assertStringContainsString('Pied 2', $html);
         $this->assertStringContainsString('storage/panels/axe.jpg', $html, 'la photo de l\'axe');
+    }
+
+    // ── Retours du test sur dev (12/11) ────────────────────────────────
+
+    public function test_trois_photos_au_plus_par_pose_la_premiere_la_realise(): void
+    {
+        $url = '/tech/' . self::TOKEN . '/poses/4/photo';
+
+        $this->postJson($url, $this->photo())->assertOk()->assertJson(['photos_pose' => 1, 'photos_max' => 3, 'task_done' => true]);
+        $this->assertSame('realisee', $this->statut(4), 'la 1re photo réalise la pose');
+        $this->postJson($url, $this->photo())->assertOk()->assertJson(['photos_pose' => 2]);
+        $this->postJson($url, $this->photo())->assertOk()->assertJson(['photos_pose' => 3]);
+
+        // La 4e est refusée…
+        $this->postJson($url, $this->photo())->assertStatus(422)->assertJson(['ok' => false]);
+        $this->assertSame(3, Pige::where('pose_task_id', 4)->count());
+
+        // … sauf si une photo a été refusée : on peut la refaire.
+        DB::table('piges')->where('pose_task_id', 4)->limit(1)->update(['status' => 'rejete', 'verified_at' => now()]);
+        $this->postJson($url, $this->photo())->assertOk()->assertJson(['photos_pose' => 3]);
+    }
+
+    public function test_les_listes_de_poses_comptent_les_photos_de_chaque_pose(): void
+    {
+        $this->pige(['panel_id' => 11, 'pose_task_id' => 1, 'status' => 'verifie']);
+        $this->pige(['panel_id' => 11, 'pose_task_id' => 1, 'status' => 'en_attente']);
+        // Une ancienne photo sans pose, rattachée par panneau + campagne.
+        $this->pige(['panel_id' => 12, 'pose_task_id' => null]);
+
+        // Comme la liste : un select('pose_tasks.*') AVANT le comptage.
+        $taches = PoseTask::query()->select('pose_tasks.*')->avecComptePiges()->get()->keyBy('id');
+
+        // Avant : withCount('piges') effacé par le select, et faux (0) pour
+        // toute photo rattachée à sa pose.
+        $this->assertSame([2, 1], [(int) $taches[1]->pige_count, (int) $taches[1]->pige_verifie_count]);
+        $this->assertSame(1, (int) $taches[2]->pige_count);
+        $this->assertSame(0, (int) $taches[4]->pige_count);
+    }
+
+    public function test_une_pose_reprogrammee_previent_le_technicien_et_ses_alertes_suivent(): void
+    {
+        $tache = PoseTask::find(1);
+        $tache->update(['scheduled_at' => now()->setTime(19, 0)]);
+
+        $notif = DB::table('tech_notifications')->where('type', 'pose_rescheduled')->sole();
+        $this->assertSame(2, (int) $notif->user_id);
+        $this->assertStringContainsString('CDYLUP-004-P01', $notif->title);
+        $this->assertSame('Prévue le ' . now()->format('d/m') . ' à 19h00', $notif->detail);
+
+        // Une alerte « Nouvelle pose » d'origine suit la date réelle.
+        DB::table('tech_notifications')->insert(['user_id' => 2, 'type' => 'new_pose', 'title' => '🆕 Nouvelle pose : CDYLUP-004-P01',
+            'detail' => 'Prévue le 01/01 à 00h00', 'payload' => json_encode(['task_id' => 1]), 'created_at' => now()->subDay()]);
+        $items = collect($this->getJson('/tech/' . self::TOKEN . '/notifications')->json('items'));
+        $this->assertSame('Prévue le ' . now()->format('d/m') . ' à 19h00', $items->firstWhere('type', 'new_pose')['detail']);
+
+        // Minuit = date seule ; autre année = année affichée.
+        $tache->update(['scheduled_at' => now()->addYear()->startOfYear()]);
+        $this->assertSame('Prévue le 01/01/' . now()->addYear()->year, $tache->fresh()->libelleEcheance());
+    }
+
+    public function test_la_feuille_de_route_regroupe_les_pieds_sous_leur_axe(): void
+    {
+        $r = $this->get('/tech/' . self::TOKEN . '/poses/route-sheet');
+
+        $r->assertOk();
+        $r->assertSee('⛓ Axe · 2 pieds');
+        $r->assertSee('Pied 1');
+        $r->assertSee('Pied 2');
+        $r->assertSee('COC-020');
+        $this->assertSame(1, substr_count($r->getContent(), 'class="axe"'));
     }
 
     public function test_la_carte_admin_des_poses_garde_les_pieds_a_la_position_de_leur_axe(): void

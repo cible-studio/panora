@@ -612,7 +612,7 @@ class PigeController extends Controller
                     userId:  $pige->user_id,
                     type:    'photo_validated',
                     title:   '✓ Photo validée : ' . $panelRef,
-                    detail:  'Le chef a validé ta photo. Bon boulot !',
+                    detail:  'Le Media Planner a validé ta photo. Bon boulot !',
                     payload: ['pige_id' => $pige->id, 'task_id' => $pige->pose_task_id],
                 );
             }

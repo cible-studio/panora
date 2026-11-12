@@ -1774,6 +1774,11 @@
         .sm2-t3-photo-wrap {
             position: relative;
             background: #000;
+            /* 2026-11-12 : largeur imposée. Avec seulement aspect-ratio +
+               max-height, le navigateur réduisait la LARGEUR pour garder le
+               3:4 — la photo se calait à gauche avec une bande blanche. */
+            width: 100%;
+            flex-shrink: 0;
             aspect-ratio: 3 / 4;
             max-height: 55vh;
             overflow: hidden;

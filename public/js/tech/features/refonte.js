@@ -55,7 +55,9 @@ function ouvrirFeuille(id) {
 }
 
 function fermerFeuille(fond) {
-    if (fond) fond.hidden = true;
+    if (!fond || fond.hidden) return;
+    fond.hidden = true;
+    if (fond.id === 'tx-envoi') apresEnvoi();
 }
 
 // ── 1. Recherche ─────────────────────────────────────────────────────
@@ -309,11 +311,12 @@ const heureCourte = () => {
 };
 
 // Un pied photographié : sa ligne devient « Envoyée », la route avance, le
-// pied suivant passe devant. Rend true quand l'axe n'a plus de pied à faire.
+// pied suivant passe devant. Rend le pied suivant (null : l'axe est fini).
 function piedEnvoye(carte, ligne, taskId) {
     const n = ligne.dataset.txPied || '';
     const fait = document.createElement('div');
     fait.className = 'tx-pied tx-pied-fait envoyee tx-vient';
+    fait.dataset.txFait = taskId;   // ses photos suivantes (2/3, 3/3) le mettent à jour
     fait.innerHTML = `
         <span class="tx-pied-num tx-pied-num-ok">✓</span>
         <span class="tx-pied-lib"><strong></strong><span class="tx-att"></span></span>
@@ -340,7 +343,7 @@ function piedEnvoye(carte, ligne, taskId) {
         carte.classList.add('tx-axe-fini');
         if (actions) actions.hidden = true;
         poserPilule(carte.querySelector('[data-tx-axe-statut]'), 'realisee');
-        return true;
+        return null;
     }
     suivant.classList.add('suivant');
     carte.querySelector(`[data-tx-jalon="${suivant.dataset.taskId}"]`)?.classList.add('suivant');
@@ -353,10 +356,7 @@ function piedEnvoye(carte, ligne, taskId) {
         const lien = actions.querySelector('[data-go-maps]');
         if (lien && suivant.dataset.goUrl) lien.href = suivant.dataset.goUrl;
     }
-    const reste = carte.querySelectorAll('.tx-pied.pose-line[data-task-id]').length;
-    toast(`Pied ${n} envoyé · plus que ${pluriel(reste, 'pied')}`, 'success');
-    suivant.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    return false;
+    return suivant;
 }
 
 // Axe entier : la tâche reste ouverte (choix 4b), on compte ses photos.
@@ -428,38 +428,97 @@ const distanceLisible = (m) => (m < 950
     ? `${Math.max(10, Math.round(m / 10) * 10)} m`
     : `${(m / 1000).toFixed(1).replace('.', ',')} km`);
 
-// Feuille « Photo envoyée » : le compteur du jour et la pose suivante.
-let suivanteProposee = null;
+// Feuille « Photo envoyée » (étape 2) — et photos multiples (validé le
+// 12/11) : jusqu'à 3 par panneau ou pied. La 1re réalise la pose (elle
+// quitte la liste) ; « Ajouter une photo (2/3) » envoie sur la MÊME pose,
+// avec ses attributs recopiés sur le porteur de la feuille ; « Terminer »
+// passe à la suite (pose suivante, ou pied suivant de l'axe).
+let suite = null;   // { source, n, max, ref, titre, jour, suivante, continuer, dernierDuJour }
 
-function feuilleEnvoi(data, titre) {
+// Le porteur reprend les attributs de la pose (TechCarte::attributs) : upload.js
+// y lit la tâche, la position, les seuils GPS, le souci signalé.
+const ATTRIBUTS_ECARTES = ['data-tx-pied', 'data-axe-entier', 'data-axe-carte', 'data-search', 'data-tx-envoi-porteur', 'data-tx-fait'];
+function armerPorteur(porteur, source, ref) {
+    if (source === porteur) return;
+    Array.from(porteur.attributes)
+        .filter((a) => a.name.startsWith('data-') && a.name !== 'data-tx-envoi-porteur')
+        .forEach((a) => porteur.removeAttribute(a.name));
+    Array.from(source.attributes)
+        .filter((a) => a.name.startsWith('data-') && !ATTRIBUTS_ECARTES.includes(a.name))
+        .forEach((a) => porteur.setAttribute(a.name, a.value));
+    const r = porteur.querySelector('.pose-ref');
+    if (r) r.textContent = ref || '';
+}
+
+function feuilleSuite(ctx) {
     const fond = document.getElementById('tx-envoi');
     if (!fond) return;
-    const s = data.suivante || null;
-    suivanteProposee = s;
-    fond.querySelector('[data-tx-envoi-titre]').textContent = titre;
-    fond.querySelector('[data-tx-envoi-jour]').textContent = data.jour
-        ? `${data.jour.faites} / ${data.jour.total} poses faites aujourd'hui` : '';
-    const bloc = fond.querySelector('[data-tx-envoi-suivante]');
-    bloc.hidden = !s;
-    fond.querySelector('[data-tx-envoi-fini]').hidden = !!s;
-    fond.querySelector('[data-tx-envoi-continuer]').hidden = !s;
+    suite = ctx;
+    fond.querySelector('[data-tx-envoi-titre]').textContent = ctx.titre;
+    fond.querySelector('[data-tx-envoi-jour]').textContent = ctx.jour
+        ? `${ctx.jour.faites} / ${ctx.jour.total} poses faites aujourd'hui` : '';
+
+    // « 1/3 photos · CDYLUP-004-P01 » et « Ajouter une photo (2/3) ».
+    const photos = fond.querySelector('[data-tx-envoi-photos]');
+    photos.hidden = !ctx.max;
+    if (ctx.max) photos.textContent = `${ctx.n}/${ctx.max} photo${ctx.n > 1 ? 's' : ''}${ctx.ref ? ' · ' + ctx.ref : ''}`;
+    const porteur = fond.querySelector('[data-tx-envoi-porteur]');
+    const peutAjouter = !!(ctx.max && ctx.n < ctx.max && ctx.source);
+    porteur.hidden = !peutAjouter;
+    if (peutAjouter) {
+        armerPorteur(porteur, ctx.source, ctx.ref);
+        const txt = porteur.querySelector('[data-tx-envoi-ajouter-txt]');
+        if (txt) txt.textContent = `Ajouter une photo (${ctx.n + 1}/${ctx.max})`;
+    }
+
+    // La suite : la pose suivante (serveur) ou le pied suivant (carte d'axe).
+    const s = ctx.suivante;
+    fond.querySelector('[data-tx-envoi-suivante]').hidden = !s;
+    fond.querySelector('[data-tx-envoi-fini]').hidden = !!s || !ctx.finiSiRien;
+    const continuer = fond.querySelector('[data-tx-envoi-continuer]');
+    continuer.hidden = !s;
+    continuer.textContent = ctx.continuer || 'Continuer';
     if (s) {
-        fond.querySelector('[data-tx-envoi-ref]').textContent = `${s.reference || '—'} · pose suivante`;
+        fond.querySelector('[data-tx-envoi-ref]').textContent = `${s.reference || '—'} · ${s.etiquette || 'pose suivante'}`;
         fond.querySelector('[data-tx-envoi-nom]').textContent = s.nom || '';
-        fond.querySelector('[data-tx-envoi-sous]').textContent = [s.commune,
-            s.distance_m != null ? `à ${distanceLisible(s.distance_m)}` : null].filter(Boolean).join(' · ');
+        fond.querySelector('[data-tx-envoi-sous]').textContent = s.sous || '';
         fond.querySelector('[data-tx-envoi-photo]').style.backgroundImage = s.photo_url ? `url('${s.photo_url}')` : '';
     }
     ouvrirFeuille('tx-envoi');
 }
 
+// La feuille se ferme (Terminer, Ma liste, fond, Échap) : la dernière pose
+// du jour amène l'écran « fin de journée » (sm2c.js) — pas avant, pour
+// laisser ajouter les photos 2 et 3.
+function apresEnvoi() {
+    const fini = suite?.dernierDuJour;
+    const jour = suite?.jour;
+    suite = null;
+    if (fini && typeof window.__sm2cShowEndOfDay === 'function') window.__sm2cShowEndOfDay({ sourcePose: null, jour });
+}
+
+const suivanteServeur = (s) => (s ? {
+    task_id: s.task_id,
+    reference: s.reference,
+    nom: s.nom,
+    photo_url: s.photo_url,
+    sous: [s.commune, s.distance_m != null ? `à ${distanceLisible(s.distance_m)}` : null].filter(Boolean).join(' · '),
+} : null);
+
 // Pose faite (photo, dernier pied d'un axe, « Terminé ») : même suite.
-function poseFaite(entreeOuLigne, data, titre) {
+function poseFaite(entreeOuLigne, data, titre, photo = {}) {
     retirerEntree(entreeOuLigne?.closest('.tx-liste > *'));
-    if (!('suivante' in data)) { toast(data.message || 'Photo envoyée.', 'success'); return; }
-    majMaintenant(data.suivante);
-    // Dernière pose du jour : sm2c.js affiche l'écran « fin de journée ».
-    if (!data.is_last_pose_of_day) feuilleEnvoi(data, titre);
+    const connue = 'suivante' in data;   // sans la clé (doublon, calcul en échec) : la liste reste telle quelle
+    if (connue) majMaintenant(data.suivante);
+    feuilleSuite({
+        ...photo,
+        titre,
+        jour: data.jour,
+        suivante: connue ? suivanteServeur(data.suivante) : null,
+        finiSiRien: connue,
+        continuer: 'Continuer',
+        dernierDuJour: !!data.is_last_pose_of_day,
+    });
 }
 
 function surPhotoEnvoyee(e) {
@@ -471,13 +530,47 @@ function surPhotoEnvoyee(e) {
         return;
     }
     if (data.task_done === false) return;
-    compterCommune(pose);
-    const carte = pose?.closest('[data-axe-carte]');
-    if (carte && pose.matches('.tx-pied.pose-line')) {
-        if (piedEnvoye(carte, pose, taskId)) poseFaite(carte, data, 'Axe terminé');
+    const n = data.photos_pose || 1;
+    const max = data.photos_max || 0;
+
+    // Une photo de plus sur la MÊME pose (bouton de la feuille) : la pose
+    // est déjà réalisée et comptée ; on met à jour son compteur.
+    if (pose?.matches?.('[data-tx-envoi-porteur]')) {
+        const fait = document.querySelector(`[data-tx-fait="${taskId}"] .tx-att`);
+        if (fait) fait.textContent = `${n} photos envoyées, à valider`;
+        feuilleSuite({ ...(suite || {}), source: pose, n, max, jour: data.jour ?? suite?.jour,
+            dernierDuJour: data.is_last_pose_of_day ?? suite?.dernierDuJour, titre: suite?.titre || 'Photo envoyée' });
         return;
     }
-    poseFaite(pose, data, 'Photo envoyée');
+
+    if (n === 1) compterCommune(pose);
+    const ref = pose?.querySelector('.pose-ref')?.textContent?.trim() || '';
+    const carte = pose?.closest('[data-axe-carte]');
+    if (carte && pose.matches('.tx-pied.pose-line')) {
+        const piedN = pose.dataset.txPied;
+        const suivant = piedEnvoye(carte, pose, taskId);   // `pose` (détachée) garde ses attributs
+        if (!suivant) {
+            poseFaite(carte, data, 'Axe terminé', { source: pose, n, max, ref });
+            return;
+        }
+        feuilleSuite({
+            source: pose, n, max, ref,
+            titre: `Pied ${piedN} · photo envoyée`,
+            jour: data.jour,
+            suivante: {
+                reference: suivant.querySelector('.pose-ref')?.textContent?.trim(),
+                etiquette: 'pied suivant',
+                nom: `Pied ${suivant.dataset.txPied} · même axe`,
+                sous: `Plus que ${pluriel(carte.querySelectorAll('.tx-pied.pose-line[data-task-id]').length, 'pied')}`,
+                photo_url: null,
+                pied: suivant,
+            },
+            continuer: 'Pied suivant',
+            dernierDuJour: false,
+        });
+        return;
+    }
+    poseFaite(pose, data, 'Photo envoyée', { source: pose, n, max, ref });
 }
 
 // ── Ouvrir une pose (feuille « Continuer », alertes) ─────────────────
@@ -584,8 +677,14 @@ export function init() {
 
         // Feuilles : « Continuer », fermer, fond.
         if (e.target.closest('[data-tx-envoi-continuer]')) {
+            const s = suite?.suivante;
             fermerFeuille(document.getElementById('tx-envoi'));
-            if (suivanteProposee && !ouvrirPose(suivanteProposee.task_id)) {
+            if (s?.pied) {
+                // Pied suivant : la carte de l'axe le montre, prêt pour sa photo.
+                s.pied.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                s.pied.classList.add('tx-vient');
+                setTimeout(() => s.pied.classList.remove('tx-vient'), 1300);
+            } else if (s && !ouvrirPose(s.task_id)) {
                 document.querySelector('[data-tx-maintenant]')?.scrollIntoView({ behavior: 'smooth' });
             }
             return;

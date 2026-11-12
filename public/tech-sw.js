@@ -91,7 +91,10 @@
 //               qui mènent à la pose, « Y aller » en voiture.
 //   - v2.12.0 : refonte, étape 3 — Carte (un arrêt par axe, « Voir »
 //               réparé) et Mes photos (galerie), barre du bas partout.
-const SW_VERSION = 'v2.12.0';
+//   - v2.13.0 : retours du test sur dev — aperçu photo pleine largeur,
+//               carte « Maintenant » et filtres des alertes réparés, jusqu'à
+//               3 photos par pose (« Ajouter une photo (2/3) »).
+const SW_VERSION = 'v2.13.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

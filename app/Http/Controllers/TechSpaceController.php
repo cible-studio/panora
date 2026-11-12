@@ -1568,15 +1568,27 @@ class TechSpaceController extends Controller
             ->first();
         if (!$tech) return response()->json(['items' => []], 404);
 
-        $items = \App\Models\TechNotification::where('user_id', $tech->id)
+        $notifs = \App\Models\TechNotification::where('user_id', $tech->id)
             ->orderByDesc('created_at')
             ->limit(30)
-            ->get(['id', 'type', 'title', 'detail', 'payload', 'read_at', 'created_at'])
+            ->get(['id', 'type', 'title', 'detail', 'payload', 'read_at', 'created_at']);
+
+        // « Nouvelle pose » (2026-11-12) : l'échéance est relue sur la pose
+        // (PoseTask::libelleEcheance) — reprogrammée, annulée ou faite, la
+        // notification le dit. Avant : figée au texte de l'attribution.
+        $taches = PoseTask::whereIn('id', $notifs->whereIn('type', ['new_pose', 'pose_rescheduled'])
+                ->map(fn ($n) => (int) ($n->payload['task_id'] ?? 0))->filter()->unique()->values())
+            ->get(['id', 'status', 'scheduled_at', 'done_at'])
+            ->keyBy('id');
+
+        $items = $notifs
             ->map(fn($n) => [
                 'id'         => $n->id,
                 'type'       => $n->type,
                 'title'      => $n->title,
-                'detail'     => $n->detail,
+                'detail'     => (in_array($n->type, ['new_pose', 'pose_rescheduled'], true) && ($t = $taches->get((int) ($n->payload['task_id'] ?? 0))))
+                    ? $t->libelleEcheance()
+                    : $n->detail,
                 'payload'    => $n->payload,
                 'read_at'    => optional($n->read_at)->toIso8601String(),
                 'created_at' => $n->created_at?->toIso8601String(),
@@ -1828,6 +1840,18 @@ class TechSpaceController extends Controller
             }
         }
 
+        // Plusieurs photos par pose (2026-11-12, validé le 12/11) : jusqu'à
+        // PoseTask::PHOTOS_MAX par panneau ou pied. Une photo refusée ne
+        // compte pas (on peut toujours la refaire). Axe entier : une photo
+        // par pied sur la même pose, pas de plafond ici.
+        $photosAvant = Pige::forPoseTask($task)->where('status', '!=', 'rejete')->count();
+        if (!$task->panel?->estAxe() && $photosAvant >= PoseTask::PHOTOS_MAX) {
+            return response()->json([
+                'ok'    => false,
+                'error' => PoseTask::PHOTOS_MAX . ' photos au maximum pour ce panneau : celle-ci n\'est pas envoyée.',
+            ], 422);
+        }
+
         // Stockage photo — compression côté serveur AVANT persistance.
         // Les photos brutes smartphone font typiquement 3-10 MB en JPEG
         // (ou jusqu'à 30+ MB en HEIC/PRO). On les réduit à 1920px de
@@ -2003,6 +2027,10 @@ class TechSpaceController extends Controller
 
         return response()->json($suivante + [
             'pieds_restants' => $piedsRestants,
+            // Photos de cette pose, celle-ci comprise (« 1/3 ») ; null pour
+            // un axe entier (une par pied, pas de plafond).
+            'photos_pose'    => $axeEntier ? null : $photosAvant + 1,
+            'photos_max'     => $axeEntier ? null : PoseTask::PHOTOS_MAX,
             'ok'        => true,
             'pige_id'   => $pige->id,
             'photo_url' => Storage::url($path),

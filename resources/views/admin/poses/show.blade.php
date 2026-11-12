@@ -445,9 +445,10 @@ $sIconLg = match($poseTask->status) {
         {{-- Pieds de l'axe (2026-11-12) : PoseController::show. --}}
         @if(($piedsDeLAxe ?? collect())->isNotEmpty() && $axeDuPied)
         @php
-            $nbPieds = $piedsDeLAxe->count();
-            $nbPoses = $piedsDeLAxe->where('status', 'realisee')->count();
-            $nbPiges = $piedsDeLAxe->filter(fn ($t) => $t->piges_count > 0)->count();
+            // Mêmes chiffres que la ligne d'axe de la liste (AxeService::suiviPoses).
+            $nbPieds = $suiviAxe['pieds'] ?? $piedsDeLAxe->count();
+            $nbPoses = $suiviAxe['poses'] ?? $piedsDeLAxe->where('status', 'realisee')->count();
+            $nbPiges = $suiviAxe['piges'] ?? $piedsDeLAxe->filter(fn ($t) => $t->pige_count > 0)->count();
         @endphp
         <div class="d-card">
             <div class="d-card-header">
@@ -468,7 +469,7 @@ $sIconLg = match($poseTask->status) {
                        style="display:grid;grid-template-columns:64px 1fr auto auto;gap:10px;align-items:center;padding:8px 18px;text-decoration:none;color:var(--text);{{ $ici ? 'background:rgba(232,160,32,.07)' : '' }}">
                         <span style="font-size:11px;font-weight:800;color:var(--text3)">Pied {{ $p->panel?->pied_numero }}</span>
                         <span style="font-family:monospace;font-size:12px;font-weight:700">{{ $p->panel?->reference }}{{ $ici ? ' · cette pose' : '' }}</span>
-                        <span style="font-size:11px;color:var(--text2)">📸 {{ $p->piges_count }}{{ $p->pige_verifie_count ? ' · ' . $p->pige_verifie_count . ' ✓' : '' }}</span>
+                        <span style="font-size:11px;color:var(--text2)">📸 {{ $p->pige_count }}{{ $p->pige_verifie_count ? ' · ' . $p->pige_verifie_count . ' ✓' : '' }}</span>
                         <span style="font-size:10px;font-weight:700;color:{{ $c }};border:1px solid {{ $c }}55;background:{{ $c }}12;border-radius:999px;padding:2px 8px">{{ $lib }}</span>
                     </a>
                 @endforeach

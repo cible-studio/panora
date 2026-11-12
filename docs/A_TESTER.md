@@ -1723,3 +1723,39 @@ dernier pied est validé ; pose suivante du technicien = règle « Maintenant »
       pigés » ; chaque carte « Pied 3 · CDYLUP-004-P03 ».
 - [ ] **Fiche de pose PDF** (campagne → Fiche de pose) : un pied a la photo de
       son axe et « ⛓ Pied 3 · CDYLUP-004 » ; en mode liste, même mention.
+
+## 24. Retours du test sur dev du 12/11 *(develop seulement)*
+
+Fermer l'onglet de l'espace technicien et le rouvrir une fois (service
+worker v2.13.0).
+
+- [ ] **Aperçu de la photo** (avant « Envoyer ») : la photo occupe toute la
+      largeur, bandes noires si besoin ; plus de bande blanche à droite.
+- [ ] **Carte « Maintenant »** : grande photo sur toute la largeur, pastille
+      « Sur place » visible en bas à droite (avant : photo écrasée à gauche).
+- [ ] **Alertes** : la rangée « Toutes / Refusées / Nouvelles poses » n'est
+      plus coupée, même avec une longue liste.
+- [ ] **Pose reprogrammée** (admin : changer la date d'une pose attribuée, à
+      l'unité ou en lot) : le technicien reçoit « 📅 Pose reprogrammée : REF —
+      Prévue le 13/11 à 19h00 », et l'alerte « Nouvelle pose » d'origine
+      affiche la nouvelle date. Minuit = date seule ; autre année = année
+      affichée (« Prévue le 01/01/2027 »).
+- [ ] **Photo validée** (côté technicien) : « Le Media Planner a validé ta
+      photo. Bon boulot ! » (les anciennes alertes gardent leur texte).
+- [ ] **Jusqu'à 3 photos** par panneau ou pied : après la 1re, la feuille
+      « Photo envoyée » affiche « 1/3 photos · REF » et « 📷 Ajouter une photo
+      (2/3) » ; la pose est déjà réalisée. « Terminer » ferme ; « Continuer »
+      (ou « Pied suivant » sur un axe) passe à la suite. À 3/3, plus de bouton
+      « Ajouter » ; une 4e photo est refusée. Une photo refusée ne compte pas.
+- [ ] **Mes photos** : les 2 ou 3 photos d'une même pose apparaissent toutes ;
+      une rechange (autre pose) remplace les anciennes.
+- [ ] **Admin, fiche d'une pose de pied → « Les pieds de l'axe »** : 📸 et
+      « N/5 pigés » justes (avant : 0 partout).
+- [ ] **Admin, liste des poses et onglet Poses** : la pastille photos (« N ·
+      M validées ») est juste ; avant elle valait toujours 0.
+- [ ] **Feuille de route papier** : en-tête « Feuille de route — Nom », pastilles
+      « N à poser · M communes · X axes · Y en retard », une fiche par pose avec
+      sa case ; les pieds d'un axe sous l'axe, une case par pied. Lisible sur
+      téléphone, propre à l'impression.
+- [ ] 🔧 « Position du panneau inconnue » sur CDYLUP-004-P01 : l'axe CDYLUP-004
+      n'a pas de position sur dev (vérifier ses latitude / longitude).

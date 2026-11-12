@@ -447,12 +447,11 @@ class CampaignController extends Controller
                 'campaign' => fn($q) => $q->withTrashed()->select('id', 'name', 'status', 'deleted_at'),
                 'technicien:id,name,whatsapp_number',
             ])
-            ->withCount([
-                'piges as pige_count',
-                'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
-            ])
             ->leftJoin('panels', 'panels.id', '=', 'pose_tasks.panel_id')
             ->select('pose_tasks.*')
+            // Photos de chaque pose (PoseTask::scopeAvecComptePiges) — le
+            // withCount d'avant était effacé par ce select() : toujours 0.
+            ->avecComptePiges()
             ->orderBy('panels.reference')
             ->orderByDesc('pose_tasks.scheduled_at')
             ->paginate(50)->withQueryString();

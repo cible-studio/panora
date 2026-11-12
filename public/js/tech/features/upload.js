@@ -713,18 +713,22 @@ function bindMainUpload() {
             // à jour SUR PLACE : ni écran T4, ni rechargement (étape 2 : la
             // feuille propose la pose suivante, choisie par le serveur).
             const surPlace = document.body.classList.contains('tx');
-            document.dispatchEvent(new CustomEvent('tx:photo-envoyee', {
-                detail: { taskId, data, pose: sourcePose, photo: blob instanceof Blob ? blob : file },
-            }));
             if (surPlace) {
+                // Le bouton retrouve son contenu AVANT que la page le mette à
+                // jour (« Ajouter une photo (3/3) » de la feuille, refonte.js).
                 label.innerHTML = originalLabel;
                 label.style.pointerEvents = '';
                 // Pas d'écran T4 pour rendre le défilement : on le rend ici
                 // (le tiroir T2 a pu le bloquer).
                 document.body.style.overflow = '';
-                if (data.is_last_pose_of_day && typeof window.__sm2cShowEndOfDay === 'function') {
-                    window.__sm2cShowEndOfDay({ sourcePose: null, jour: data.jour });
-                }
+            }
+            document.dispatchEvent(new CustomEvent('tx:photo-envoyee', {
+                detail: { taskId, data, pose: sourcePose, photo: blob instanceof Blob ? blob : file },
+            }));
+            if (surPlace) {
+                // Dernière pose du jour : l'écran « fin de journée » vient quand
+                // la feuille « Photo envoyée » se ferme (refonte.js), pour
+                // laisser ajouter les photos 2 et 3 (validé le 12/11).
                 return;
             }
 
