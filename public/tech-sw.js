@@ -81,7 +81,12 @@
 //               après le choix du motif → tech restait coincé sur T5.
 //   - v2.9.0  : case « 📍 Joindre ma position » dans l'aperçu photo T3
 //               (cochée par défaut ; décochée = photo sans GPS).
-const SW_VERSION = 'v2.9.0';
+//   - v2.10.0 : refonte « Ma journée » et les axes (2026-11-12) — nouveau
+//               module features/refonte.js, upload.js / sm2c.js modifiés,
+//               css/tech/tx-refonte.css. Sans ce changement de version,
+//               les modules importés (sans ?v=) restaient servis depuis
+//               l'ancien cache à la première ouverture.
+const SW_VERSION = 'v2.10.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
