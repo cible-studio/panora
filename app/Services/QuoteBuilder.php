@@ -42,6 +42,10 @@ class QuoteBuilder
                 // si les lignes ont été créées sans dates persistées).
                 'campaign_start'     => $line->campaign_start ?? $quote->period_start,
                 'campaign_end'       => $line->campaign_end   ?? $quote->period_end,
+                // Axe Lumipub (2026-11-12) : ODP/TM saisies à la main (NULL
+                // = calcul auto ; colonnes absentes avant la migration).
+                'odp_amount_override' => $line->odp_amount_override,
+                'tm_amount_override'  => $line->tm_amount_override,
             ]);
             $line->forceFill([
                 'montant_ht_ligne' => $calc['montant_ht_ligne'],

@@ -195,6 +195,35 @@ class AxeService
         return $resultat->values();
     }
 
+    /**
+     * Ligne de DEVIS pour un axe (2026-11-12) : une ligne par axe, qui
+     * retient ses pieds proposés. Prix = somme des tarifs des pieds ; ODP
+     * et TM à 0, saisies à la main (règles validées le 2026-11-12).
+     *
+     * @param  Collection<int, Panel> $pieds  pieds proposés
+     * @return array  au format des lignes du formulaire de devis
+     */
+    public function ligneDevis(Panel $axe, Collection $pieds): array
+    {
+        $axe->loadMissing(['commune', 'format']);
+        $n = $pieds->count();
+        $surface = (float) ($axe->format?->surface ?? (($axe->format?->width ?? 0) * ($axe->format?->height ?? 0)));
+
+        return [
+            'panel_id'            => $axe->id,
+            'designation'         => mb_substr(trim($axe->reference . ' — ' . $this->nomCourt($axe->name) . ' — ' . $n . ($n > 1 ? ' pieds' : ' pied')), 0, 200),
+            'dimension_m2'        => $surface,
+            'pu_ht_mensuel'       => (int) $pieds->sum(fn (Panel $p) => (int) ($p->monthly_rate ?? 0)),
+            'quantite'            => 1,
+            'duree_mois'          => 1,
+            'commune_id'          => $axe->commune_id,
+            'commune_name'        => $axe->commune?->name,
+            'pieds'               => $pieds->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
+            'odp_amount_override' => 0,
+            'tm_amount_override'  => 0,
+        ];
+    }
+
     // ══════════════════════════════════════════════════════════════
     // RÈGLE 2 — un pied hérite du blocage de son axe
     // ══════════════════════════════════════════════════════════════

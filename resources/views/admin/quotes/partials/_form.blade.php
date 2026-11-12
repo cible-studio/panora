@@ -42,10 +42,29 @@
             'panel_id'      => $l->panel_id,
             'panel_label'   => $panelNames[$l->panel_id] ?? null,
             'external_panel_id' => $l->external_panel_id,
+            // Axe Lumipub (2026-11-12) : pieds proposés, ODP/TM saisies.
+            'pieds'               => $l->idsPieds(),
+            'odp_amount_override' => $l->odp_amount_override,
+            'tm_amount_override'  => $l->tm_amount_override,
         ])->all()
         : (!empty($prefilled)
             ? $prefilled
             : [['designation'=>'', 'dimension_m2'=>0, 'pu_ht_mensuel'=>0, 'quantite'=>1, 'duree_mois'=>1, 'panel_id'=>null, 'external_panel_id'=>null]]));
+
+    // Axes Lumipub (2026-11-12) : pour chaque ligne qui porte un axe, tous
+    // ses pieds (à cocher) — une ligne de devis par axe.
+    $piedsDesAxes = collect();
+    if (app(\App\Services\Axes\AxeService::class)->colonnesPresentes()) {
+        $idsLignes = collect($lines)->pluck('panel_id')->filter()->map(fn ($id) => (int) $id)->unique()->all();
+        $idsAxes = $idsLignes
+            ? \App\Models\Panel::whereIn('id', $idsLignes)->where('est_axe', true)->pluck('id')->all()
+            : [];
+        if ($idsAxes) {
+            $piedsDesAxes = \App\Models\Panel::whereIn('axe_id', $idsAxes)->whereNull('deleted_at')
+                ->orderBy('pied_numero')->get(['id', 'reference', 'axe_id', 'pied_numero', 'monthly_rate'])
+                ->groupBy('axe_id');
+        }
+    }
 
     $oldServices = old('services');
     $services = $oldServices ?: ($isEdit && $quote->services->count() > 0
@@ -223,6 +242,30 @@
                                         @endif
                                     </select>
                                     <input type="text" name="lines[{{ $i }}][designation]" required maxlength="200" value="{{ $l['designation'] ?? '' }}" placeholder="ex. SP-001 — San-Pedro Triangle (ou saisie libre)" class="ql-input ql-designation">
+                                    {{-- Axe Lumipub (2026-11-12) : pieds proposés + ODP/TM saisies
+                                         à la main. Rempli par QuoteForm.setAxe() à la sélection. --}}
+                                    @php
+                                        $piedsAxe = !empty($l['panel_id']) ? ($piedsDesAxes[(int) $l['panel_id']] ?? collect()) : collect();
+                                        $coches   = array_map('intval', (array) ($l['pieds'] ?? []));
+                                    @endphp
+                                    <div class="ql-axe" style="display:{{ $piedsAxe->isNotEmpty() ? 'block' : 'none' }};margin-top:6px;font-size:11px;color:var(--text2);">
+                                        <div class="ql-axe-pieds" style="display:flex;flex-wrap:wrap;gap:4px 10px;">
+                                            @foreach($piedsAxe as $pied)
+                                                <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+                                                    <input type="checkbox" class="ql-pied" name="lines[{{ $i }}][pieds][]" value="{{ $pied->id }}"
+                                                           data-rate="{{ (int) $pied->monthly_rate }}" @checked(in_array((int) $pied->id, $coches, true))>
+                                                    Pied {{ $pied->pied_numero }}
+                                                </label>
+                                            @endforeach
+                                        </div>
+                                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;">
+                                            <span style="cursor:help;" title="Axe Lumipub : l'ODP et la TM ne sont pas calculées par Panora. Saisis les montants (FCFA) donnés par la comptabilité.">ⓘ</span>
+                                            <label>ODP <input type="number" min="0" step="1" name="lines[{{ $i }}][odp_amount_override]" class="ql-input ql-num ql-odp" style="width:100px;display:inline-block;"
+                                                   value="{{ $piedsAxe->isNotEmpty() ? (int) ($l['odp_amount_override'] ?? 0) : '' }}"></label>
+                                            <label>TM <input type="number" min="0" step="1" name="lines[{{ $i }}][tm_amount_override]" class="ql-input ql-num ql-tm" style="width:100px;display:inline-block;"
+                                                   value="{{ $piedsAxe->isNotEmpty() ? (int) ($l['tm_amount_override'] ?? 0) : '' }}"></label>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                             <td class="ql-td" data-label="Commune">
@@ -878,8 +921,11 @@ window.QuoteForm = (function() {
             if (Number(p.monthly_rate) > 0) {
                 $row.find('input[name="lines[' + idx + '][pu_ht_mensuel]"]').val(p.monthly_rate);
             }
+            // Axe Lumipub (2026-11-12) : ses pieds à cocher + ODP/TM à saisir.
+            setAxe(row, p.est_axe ? p : null);
         }).on('select2:clear', function() {
             // Réinit hidden panel_id — le champ désignation reste (le user peut vouloir le garder)
+            setAxe(row, null);
         });
 
         // Select2 sur la commune de la ligne (recherche parmi la liste locale)
@@ -896,6 +942,40 @@ window.QuoteForm = (function() {
         });
     }
 
+    // ── Axe Lumipub (2026-11-12) ──
+    // Une ligne par axe : ses pieds à cocher (tous par défaut), prix proposé
+    // = somme des pieds cochés (modifiable, comme le tarif d'un panneau),
+    // ODP et TM à 0 à saisir. Le récapitulatif reste calculé par le serveur.
+    const echapperPied = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+    function setAxe(row, p) {
+        const bloc = row.querySelector('.ql-axe');
+        if (!bloc) return;
+        const zone = bloc.querySelector('.ql-axe-pieds');
+        if (!p) {
+            bloc.style.display = 'none';
+            zone.innerHTML = '';
+            bloc.querySelectorAll('.ql-odp, .ql-tm').forEach(inp => { inp.value = ''; });
+            return;
+        }
+        const idx = row.getAttribute('data-index');
+        zone.innerHTML = (p.pieds || []).map(x =>
+            `<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">`
+            + `<input type="checkbox" class="ql-pied" name="lines[${idx}][pieds][]" value="${Number(x.id)}" data-rate="${Number(x.monthly_rate) || 0}" checked>`
+            + ` Pied ${echapperPied(x.numero)}</label>`
+        ).join('');
+        bloc.querySelectorAll('.ql-odp, .ql-tm').forEach(inp => { if (inp.value === '') inp.value = '0'; });
+        bloc.style.display = 'block';
+        majPiedsAxe(row);
+    }
+    function majPiedsAxe(row) {
+        const coches = [...row.querySelectorAll('.ql-pied:checked')];
+        const somme  = coches.reduce((s, c) => s + (parseInt(c.dataset.rate, 10) || 0), 0);
+        const pu = row.querySelector('input[name$="[pu_ht_mensuel]"]');
+        if (pu) { pu.value = somme; pu.dispatchEvent(new Event('input', { bubbles: true })); }
+        const d = row.querySelector('.ql-designation');
+        if (d) d.value = d.value.replace(/\s—\s\d+\spieds?$/, '') + ` — ${coches.length} ${coches.length > 1 ? 'pieds' : 'pied'}`;
+    }
+
     // ── Ajout d'une nouvelle ligne panneau ──
     function addLine() {
         const tbody = document.getElementById('quote-lines-tbody');
@@ -910,6 +990,14 @@ window.QuoteForm = (function() {
                 <div class="ql-cell-stack">
                     <select name="lines[${i}][panel_id]" class="ql-panel-search" data-line-index="${i}" data-placeholder="🔍 Rechercher un panneau du parc…"><option value=""></option></select>
                     <input type="text" name="lines[${i}][designation]" required maxlength="200" placeholder="ex. SP-001 — San-Pedro Triangle (ou saisie libre)" class="ql-input ql-designation">
+                    <div class="ql-axe" style="display:none;margin-top:6px;font-size:11px;color:var(--text2);">
+                        <div class="ql-axe-pieds" style="display:flex;flex-wrap:wrap;gap:4px 10px;"></div>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;">
+                            <span style="cursor:help;" title="Axe Lumipub : l'ODP et la TM ne sont pas calculées par Panora. Saisis les montants (FCFA) donnés par la comptabilité.">ⓘ</span>
+                            <label>ODP <input type="number" min="0" step="1" name="lines[${i}][odp_amount_override]" class="ql-input ql-num ql-odp" style="width:100px;display:inline-block;" value=""></label>
+                            <label>TM <input type="number" min="0" step="1" name="lines[${i}][tm_amount_override]" class="ql-input ql-num ql-tm" style="width:100px;display:inline-block;" value=""></label>
+                        </div>
+                    </div>
                 </div>
             </td>
             <td class="ql-td" data-label="Commune">
@@ -1004,6 +1092,8 @@ window.QuoteForm = (function() {
         });
         document.addEventListener('change', e => {
             if (e.target.matches('.qs-tva, [name="tva"]')) recalcServices();
+            // Axe Lumipub : un pied coché / décoché → prix et désignation.
+            if (e.target.matches('.ql-pied')) majPiedsAxe(e.target.closest('tr'));
         });
         recalcServices();
 

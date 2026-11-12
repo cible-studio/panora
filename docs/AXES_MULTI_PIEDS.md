@@ -354,6 +354,16 @@ le service, comme les 22 autres appelants.
 
 Rien. La phase 2 (le prix au pied) attend la décision ODP / TM.
 
+> **Mise à jour du 2026-11-12** — la question ODP / TM est tranchée
+> autrement (décisions 6 à 8, § 3) : ODP et TM d'un axe à la main, prix =
+> somme des pieds. Livré le même jour : module Taxes sans axes, factures et
+> devis à une ligne par axe avec cases ODP/TM, axe entier repris pied par
+> pied (renouvellement, import), une carte par axe et la liste déroulante
+> des pieds (Disponibilités, campagne, réservation, devis). Défaut corrigé :
+> l'écran Disponibilités ne lisait pas `axe_id` — en production, chaque
+> pied s'y affichait comme un panneau ordinaire. Contrôles :
+> `docs/A_TESTER.md` § 20 et § 21. Ce qui reste : `docs/TECHNICAL_DEBT.md`.
+
 ### Non régression attendue
 
 Le test le plus important n'est pas automatisable ici (base locale vide) :

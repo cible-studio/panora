@@ -1494,4 +1494,15 @@ y arrivait comme un panneau ordinaire : ni badge « pied 3/11 », ni bouton
 - [ ] **Fiche réservation → Ajouter un panneau** (menu déroulant) : un groupe
       par axe, ses pieds dessous, les pieds pris grisés.
 - [ ] **Modifier une réservation** : même liste déroulante dans le tableau.
-- [ ] **Devis** : pas encore — à venir (une ligne par axe + cases ODP/TM).
+- [ ] **Devis** : la recherche propose **un résultat par axe** (« … — 11 pieds »). Le
+      choisir affiche ses pieds, tous cochés : en décocher met à jour le prix (somme
+      des pieds cochés) et « — N pieds » dans la désignation. Dessous : ⓘ + cases
+      **ODP** et **TM** à 0, à saisir ; le récapitulatif les reprend.
+- [ ] **Devis depuis Disponibilités** (« Créer un devis » avec des pieds cochés) :
+      une ligne par axe, avec les pieds cochés.
+- [ ] **Devis accepté → réservation** : la réservation porte les **pieds** de la
+      ligne (pas l axe entier), le prix de la ligne réparti sur eux.
+- [ ] 🔧 Migration `2026_11_12_100000_add_axes_to_quote_lines` (3 colonnes
+      facultatives sur `quote_lines`) : vérifier qu elle est passée après le
+      déploiement (`php artisan migrate:status | grep axes_to_quote`). Tant
+      qu elle ne l est pas, les devis s enregistrent mais sans les pieds.

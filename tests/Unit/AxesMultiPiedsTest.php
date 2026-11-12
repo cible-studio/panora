@@ -730,6 +730,59 @@ class AxesMultiPiedsTest extends TestCase
         $this->assertSame(2, substr_count(file_get_contents(base_path('app/Http/Controllers/Admin/CampaignController.php')), 'remplacerAxesParPiedsLibres('));
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // Devis (2026-11-12) : une ligne par axe, ses pieds, ODP/TM à la main
+    // ══════════════════════════════════════════════════════════════
+
+    public function test_une_ligne_de_devis_par_axe_retient_ses_pieds(): void
+    {
+        $ligne = (new AxeService())->ligneDevis(Panel::find(20), Panel::whereIn('id', [21, 22])->orderBy('pied_numero')->get());
+
+        $this->assertSame(20, $ligne['panel_id'], 'La ligne porte l\'axe…');
+        $this->assertSame([21, 22], $ligne['pieds'], '… et retient ses pieds.');
+        $this->assertSame('AXE-20 — Axe Libre — 2 pieds', $ligne['designation']);
+        $this->assertSame(260000, $ligne['pu_ht_mensuel'], 'Somme des tarifs des pieds.');
+        $this->assertSame([1, 0, 0], [$ligne['quantite'], $ligne['odp_amount_override'], $ligne['tm_amount_override']]);
+    }
+
+    public function test_le_devis_ne_calcule_pas_l_odp_ni_la_tm_d_un_axe(): void
+    {
+        $controleur = app(\App\Http\Controllers\Admin\QuoteController::class);
+        $taxes = \Closure::bind(fn (array $l) => $this->taxesSaisies($l), $controleur, $controleur);
+
+        $this->assertSame([0, 0], $taxes(['panel_id' => 20]), 'Axe : 0 tant que rien n\'est saisi.');
+        $this->assertSame([15000, 3000], $taxes(['panel_id' => 20, 'odp_amount_override' => '15000', 'tm_amount_override' => 3000]));
+        $this->assertSame([null, null], $taxes(['panel_id' => 30]), 'Panneau ordinaire : calcul automatique.');
+    }
+
+    public function test_la_migration_des_lignes_de_devis_est_rejouable(): void
+    {
+        Schema::create('quote_lines', function (Blueprint $t) {
+            $t->id(); $t->unsignedBigInteger('quote_id'); $t->unsignedBigInteger('panel_id')->nullable(); $t->timestamps();
+        });
+        $migration = require base_path('database/migrations/2026_11_12_100000_add_axes_to_quote_lines.php');
+
+        $migration->up();
+        $migration->up(); // rejouée : sans effet
+        foreach (['pieds', 'odp_amount_override', 'tm_amount_override'] as $col) {
+            $this->assertTrue(Schema::hasColumn('quote_lines', $col), $col);
+        }
+
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('quote_lines', 'pieds'));
+    }
+
+    public function test_un_devis_accepte_reserve_les_pieds_de_la_ligne(): void
+    {
+        // Canari : la conversion lit les pieds de la ligne, pas l'axe.
+        $source = file_get_contents(base_path('app/Services/QuoteConverter.php'));
+        $this->assertSame(2, substr_count($source, '->idsPieds()'));
+
+        $ligne = new \App\Models\QuoteLine(['panel_id' => 20, 'pieds' => [21, 22]]);
+        $this->assertSame([21, 22], $ligne->idsPieds());
+        $this->assertSame([], (new \App\Models\QuoteLine(['panel_id' => 30]))->idsPieds());
+    }
+
     public function test_deux_clients_sur_le_meme_axe_ne_se_bloquent_pas_a_la_facture(): void
     {
         Schema::create('invoices', function (Blueprint $t) {
