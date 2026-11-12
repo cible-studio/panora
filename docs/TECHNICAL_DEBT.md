@@ -410,6 +410,18 @@ Audit complet des rôles pour la Direction générale (PDF à cases remis le
   propositions consultables après échéance.
 - **Copie commerciale** en Cc visible ; **avoirs** impossibles à émettre.
 
+### Deux tests font planter PHP sous Windows (constaté 2026-11-12)
+
+`RelanceFinCampagneServiceTest::test_brevo_ne_repond_pas_le_mail_compte_parti_et_n_est_jamais_renvoye`
+et `::test_sans_reponse_pour_l_un_refus_pour_l_autre` — les deux qui
+simulent un Brevo qui ne répond pas — tuent le processus PHP
+(« Segmentation fault », PHP 8.3.14 ZTS de WAMP) sur le poste de
+développement. Vérifié sur `main` **avant** le commit de la retenue des
+renouvellements : ce n'est pas lui. Conséquence : `phpunit` lancé d'un bloc
+s'arrête vers 590 tests sans résumé. En attendant, lancer les fichiers un
+par un, ou exclure ces deux tests :
+`--filter '/^(?!.*(test_brevo_ne_repond_pas|test_sans_reponse_pour_l_un)).*$/'`.
+
 ### Retenue des renouvellements : ce qui n'a pas été branché (2026-11-11)
 
 La retenue des panneaux d'un renouvellement confirmé
