@@ -460,6 +460,30 @@ campagne ») ignore le résultat de `CampaignService::addPanels()`. Si un
 panneau est pris entre-temps, la nouvelle campagne est créée **sans aucun
 panneau** et sans message. Non corrigé (hors du périmètre demandé).
 
+### Espace technicien, refonte étape 1 : ce qui reste (2026-11-12)
+
+« Ma journée » et les axes sont livrés sur develop (A_TESTER § 22). Restent,
+pour les étapes suivantes :
+
+- **Pose ordinaire** : toujours l'écran « Bravo » puis un rechargement après
+  la photo. Seuls les pieds d'axe et l'axe entier se mettent à jour sur place.
+- **Tiroir d'un pied** : « Y aller » / « Je suis arrivé » depuis le tiroir
+  font bien avancer tous les pieds côté serveur, mais la carte de l'axe ne le
+  montre qu'au rechargement. Même chose pour une photo partie plus tard de la
+  file hors ligne.
+- **Recherche** : elle filtre les poses affichées. Au-delà du plafond
+  d'affichage (`tech_space.ssr_cap`, 200), les poses non affichées ne sont
+  pas trouvées. La recherche Select2 (`search.js`) et les modules `filters.js`
+  / `geolocate.js` restent chargés sans élément à piloter.
+- **Partials sans usage** depuis la refonte : `_topbar`, `_progress_bar`,
+  `_pose_list`, `_pose_card`, `_tour_button`. Conservés (règle n°3) ; à
+  retirer quand la refonte sera en production.
+- **Requêtes par carte** : `_tx_axe` compte les pieds de l'axe et
+  `_tx_axe_entier` lit ses piges — une requête par carte. Négligeable pour
+  quelques axes ; à charger d'avance si un technicien en a des dizaines.
+- **Admin** (poses, piges, PDF regroupés par axe, « N pieds pigés ») : étape
+  suivante, cf. « Axes Lumipub : ce qui reste ».
+
 ---
 
 ## Résolues

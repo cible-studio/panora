@@ -1506,3 +1506,72 @@ y arrivait comme un panneau ordinaire : ni badge « pied 3/11 », ni bouton
       facultatives sur `quote_lines`) : vérifier qu elle est passée après le
       déploiement (`php artisan migrate:status | grep axes_to_quote`). Tant
       qu elle ne l est pas, les devis s enregistrent mais sans les pieds.
+
+## 22. Espace technicien — refonte, étape 1 : « Ma journée » et les axes *(2026-11-12, develop seulement)*
+
+Livré sur **develop** pour essai sur **dev.panora-cible.com**. Pas en
+production tant que ce n'est pas validé (maquette validée :
+https://claude.ai/artifact/NmxHhUh7yyjZHVqZVRj1RY).
+
+Règles validées le 12/11 : « Je suis arrivé » sur l'axe démarre tous ses
+pieds ; un pied sans position est contrôlé sur celle de l'axe à ± 500 m ;
+axe entier d'un ancien contrat (choix 4b) : une photo par pied sur la même
+tâche, fermée par le technicien avec « Terminé ».
+
+**Préparer** sur dev : un technicien qui a (a) des pieds d'un axe découpé sur
+une campagne active (ex. `CDYLUP-004` après `axes:decouper`), (b) une pose
+ordinaire, (c) si possible une pose sur un axe entier (BEM, MOOV, LADILI).
+Ouvrir son lien `/tech/{jeton}/poses` **sur un téléphone**.
+
+- [ ] **En-tête** : l'initiale ouvre les préférences, « Bonjour Prénom »,
+      date et zones, « ? » ouvre l'aide, la cloche ouvre les alertes (point
+      rouge s'il y a du non-lu). « N / M aujourd'hui » ne compte que la
+      journée (l'ancienne barre comptait depuis toujours).
+- [ ] **Barre du bas** : Ma journée · Carte · Mes photos (pastille si des
+      photos sont à refaire) · Alertes (pastille du nombre de non-lus).
+- [ ] **Recherche** : une référence, une rue ou une campagne → seules les
+      poses concernées restent, les communes vides disparaissent ; « Aucune
+      pose ne correspond » sinon.
+- [ ] **Maintenant** : la pose la plus urgente en grand (photo du panneau,
+      « Y aller », « Photo ») ; elle n'est pas répétée plus bas.
+- [ ] **Carte d'axe** : « CDYLUP-004 · Axe · N pieds », les segments, « x / N
+      pieds photographiés ». Toucher l'en-tête plie / déplie la route ; le
+      pied à faire en premier est en bleu.
+- [ ] « **Y aller** » sur l'axe → confirmation → Maps ; la carte passe « En
+      route ». Côté admin (poses de la campagne) : **tous** les pieds de
+      l'axe sont en route.
+- [ ] « **Je suis arrivé** » → « Sur place » ; admin : tous les pieds sur
+      place (50 %), **aucun** terminé sans sa photo.
+- [ ] **Photo d'un pied** : l'aperçu dit « Tu es à X m **de l'axe** », vert
+      jusqu'à 500 m. Après l'envoi : ni écran « Bravo » ni rechargement ; le
+      pied passe « Envoyée, à valider », son segment orange, le compteur et
+      l'en-tête +1, le pied suivant passe en bleu, message « Pied 2 envoyé ·
+      plus que 3 pieds ».
+- [ ] Dernier pied envoyé : « Axe terminé », la carte passe « Terminé ».
+- [ ] Toucher un pied (hors bouton Photo) ouvre le tiroir de la pose, avec la
+      photo de l'axe.
+- [ ] **Pose ordinaire** : comme avant (écran « Bravo » puis rechargement),
+      mais l'écran « Bravo » donne le vrai compteur du jour (il affichait
+      « 0 / 0 » depuis le retrait de l'ancien en-tête).
+- [ ] 🔶 **GPS d'une pose ordinaire** : l'aperçu suit maintenant les seuils du
+      serveur — vert ≤ 50 m, orange ≤ 200 m, rouge au-delà — au lieu de
+      100 / 500 m. C'est ce que l'admin voyait déjà sur la pige (« bien
+      enregistrée » sur le téléphone, « à vérifier » chez l'admin). **À
+      confirmer sur le terrain** : si c'est trop strict, c'est le serveur
+      (`GeoService::FRAUD_OK_M` / `FRAUD_WARN_M`) qu'il faut changer, le
+      téléphone suivra.
+- [ ] **Axe entier** (ancien contrat) : encadré orange « Contrat signé avant
+      le découpage » ; chaque photo s'ajoute (vignettes, « N photo(s)
+      envoyée(s) »), la tâche reste ouverte et passe « Sur place ».
+      « Terminé » avec moins de photos que de pieds → « Il manque N photos…
+      Terminer quand même ? ». Après « Terminé » : pose réalisée côté admin.
+- [ ] Admin : une pige saisie par l'admin sur une pose d'**axe entier** ne la
+      clôt plus non plus (même règle).
+- [ ] **Hors réseau** : photo d'un pied → « 📤 En attente » ; au retour du
+      réseau, elle part **une seule fois** (pas de doublon dans les piges).
+- [ ] **Photos à refaire** → « Refaire » sur un pied refusé : l'appareil photo
+      s'ouvre sur ce pied.
+- [ ] « ? » ouvre toujours l'aide, même avec des alertes non lues (la cloche
+      les a).
+- [ ] 🔧 `geo:backfill --force` (si on le relance) reclasse les anciennes
+      piges des axes entiers avec la tolérance de 500 m.

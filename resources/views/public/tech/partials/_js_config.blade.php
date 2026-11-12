@@ -28,6 +28,8 @@
             statusTpl:   @json(route('tech.space.status', ['token' => $token, 'task' => '__TASK__'])),
             photoTpl:    @json(route('tech.space.photo',  ['token' => $token, 'task' => '__TASK__'])),
             reportTpl:   @json(route('tech.space.report', ['token' => $token, 'task' => '__TASK__'])),
+            {{-- Refonte 2026-11-12 : « Je suis arrivé » d'un axe (refonte.js). --}}
+            progressTpl: @json(route('tech.space.progress', ['token' => $token, 'task' => '__TASK__'])),
         },
         {{-- Labels DelayReason FR (utilisés par le bandeau "déjà signalé" en JS) --}}
         motifLabels: @json(collect(\App\Enums\DelayReason::cases())->mapWithKeys(fn($m) => [$m->value => $m->label()])),

@@ -78,15 +78,12 @@ class PigeObserver
         // traversé par les 4 chemins d'upload (creating). Best-effort : un
         // échec ne doit jamais empêcher l'enregistrement de la pige.
         try {
-            $panel    = $pige->panel; // lazy-load via panel_id
-            $panelLat = ($panel && $panel->latitude  !== null) ? (float) $panel->latitude  : null;
-            $panelLng = ($panel && $panel->longitude !== null) ? (float) $panel->longitude : null;
-
-            $verdict = app(\App\Services\GeoService::class)->pigePanelCheck(
+            // Pied d'axe sans position : celle de l'axe, tolérance 500 m
+            // (2026-11-12, GeoService::verdictPourPanneau).
+            $verdict = app(\App\Services\GeoService::class)->verdictPourPanneau(
                 $pige->gps_lat !== null ? (float) $pige->gps_lat : null,
                 $pige->gps_lng !== null ? (float) $pige->gps_lng : null,
-                $panelLat,
-                $panelLng,
+                $pige->panel, // lazy-load via panel_id
             );
 
             $pige->geo_distance_m = $verdict['distance'];
@@ -255,6 +252,13 @@ class PigeObserver
                 \App\Enums\PoseTaskStatus::COMPLETED->value,
                 \App\Enums\PoseTaskStatus::CANCELLED->value,
             ], true)) {
+                return;
+            }
+
+            // Axe entier d'un ancien contrat (2026-11-12, choix 4b) : une
+            // photo par pied sur la même tâche ; c'est le technicien qui la
+            // ferme avec « Terminé ». La première photo ne la clôt donc pas.
+            if ($task->panel?->estAxe()) {
                 return;
             }
 

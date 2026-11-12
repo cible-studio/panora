@@ -1,0 +1,226 @@
+/* ══════════════════════════════════════════════════════════════════
+   Refonte de l'espace technicien — « Ma journée » et les axes
+   (2026-11-12, maquette validée par l'utilisateur).
+   Portée : body.tx (la page /tech/{token}/poses). Les écrans, tiroirs et
+   modales existants (tech-app.css, sm2c.css) gardent leur style.
+   Couleurs : celles de tech-app.css (--accent, --done…), plus quelques
+   tons propres à la refonte, déclarés ici.
+   ══════════════════════════════════════════════════════════════════ */
+body.tx {
+    --tx-surface2: #f2f4f7;
+    --tx-texte2: #475467;
+    --tx-texte3: #8a94a6;
+    --tx-route: #7c3aed;
+    --tx-place: #2563eb;
+    --tx-ok: #16a34a;
+    --tx-ok-bg: #ecfdf3;
+    --tx-att: #d97706;
+    --tx-att-bg: #fffbeb;
+    --tx-ko: #dc2626;
+    --tx-ko-bg: #fef2f2;
+    --tx-afaire: #cfd5de;
+    --tx-encre: #0f172a;
+    background: #f7f8fa;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+}
+body.tx .tx-corps { display: grid; gap: 12px; padding-top: 12px; }
+
+/* ── En-tête ── */
+.tx-tete { position: sticky; top: 0; z-index: 40; background: linear-gradient(180deg, #fff, #fffaf1);
+    border-bottom: 1px solid var(--border); padding: 14px 16px 12px; padding-top: max(14px, env(safe-area-inset-top));
+    display: grid; gap: 11px; }
+.tx-tete-l { display: flex; align-items: center; gap: 12px; }
+.tx-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; border: 0;
+    display: grid; place-items: center; font: 800 16px/1 inherit; cursor: pointer; flex: none; }
+.tx-salut { flex: 1; min-width: 0; display: grid; }
+.tx-salut strong { font-size: 16px; letter-spacing: -.01em; }
+.tx-salut span { font-size: 12px; color: var(--tx-texte2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-cloche { position: relative; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--border);
+    background: #fff; display: grid; place-items: center; cursor: pointer; flex: none; color: var(--text); }
+.tx-cloche svg { width: 20px; height: 20px; }
+.tx-cloche i { position: absolute; top: 7px; right: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--tx-ko); border: 2px solid #fff; }
+.tx-jour { display: grid; gap: 5px; }
+.tx-jour-t { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--tx-texte2); }
+.tx-jour-t b { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tx-barre { height: 7px; border-radius: 7px; background: var(--tx-surface2); overflow: hidden; }
+.tx-barre i { display: block; height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--accent), var(--tx-ok)); transition: width .45s ease; }
+
+/* ── Bandeaux ── */
+.tx-alerte { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; border-radius: 14px;
+    padding: 11px 12px; border: 1px solid; cursor: pointer; font: inherit; }
+.tx-alerte svg { width: 20px; height: 20px; flex: none; }
+.tx-alerte span { display: grid; font-size: 12px; }
+.tx-alerte strong { font-size: 13px; }
+.tx-alerte-ambre { background: var(--tx-att-bg); border-color: #fde68a; color: #92400e; }
+
+/* ── Recherche ── */
+.tx-chercher { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--border);
+    border-radius: 12px; padding: 0 12px; }
+.tx-chercher svg { width: 17px; height: 17px; color: var(--tx-texte3); flex: none; }
+.tx-chercher input { border: 0; outline: 0; background: none; font: inherit; font-size: 15px; padding: 11px 0; flex: 1; min-width: 0; }
+.tx-vide-recherche { text-align: center; color: var(--tx-texte3); font-size: 13px; margin: 6px 0; }
+
+.tx-section-titre { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 4px 0; }
+.tx-section-titre h3 { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--tx-texte2); }
+.tx-section-titre span { font-size: 12px; color: var(--tx-texte3); font-variant-numeric: tabular-nums; }
+.tx-commune { display: grid; gap: 8px; }
+.tx-liste { display: grid; gap: 8px; }
+
+/* ── Badges et pilules ── */
+.tx-badges { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.tx-badge { font-size: 10px; font-weight: 800; letter-spacing: .03em; padding: 2px 7px; border-radius: 6px;
+    background: var(--tx-surface2); color: var(--tx-texte2); white-space: nowrap; }
+.tx-badge-rechange { background: #fef3c7; color: #92400e; }
+.tx-badge-retouche { background: #dbeafe; color: #1e40af; }
+.tx-badge-vague { background: #e0e7ff; color: #3730a3; }
+.tx-badge-retard { background: var(--tx-ko-bg); color: var(--tx-ko); }
+.tx-badge-axe { background: var(--accent); color: #fff; text-transform: uppercase; }
+.tx-pill { font-size: 11px; font-weight: 800; color: #fff; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+.tx-pill-planifiee { background: var(--planned, #e8a020); }
+.tx-pill-route { background: var(--tx-route); }
+.tx-pill-place { background: var(--tx-place); }
+.tx-pill-retard { background: var(--tx-ko); }
+
+/* ── Boutons ── */
+.tx-btn { position: relative; border: 1px solid var(--border); background: #fff; color: var(--text); font: 700 14px/1.2 inherit;
+    padding: 12px; border-radius: 13px; display: inline-flex; justify-content: center; align-items: center; gap: 7px;
+    cursor: pointer; text-decoration: none; min-height: 46px; }
+.tx-btn svg { width: 18px; height: 18px; flex: none; }
+.tx-btn-orange { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tx-btn-bleu { background: var(--tx-place); border-color: var(--tx-place); color: #fff; }
+.tx-btn-vert { background: var(--tx-ok); border-color: var(--tx-ok); color: #fff; }
+.tx-btn[disabled] { opacity: .55; cursor: default; }
+.tx-actions, .tx-axe-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* Champ photo dans un bouton : invisible mais actif (pas display:none —
+   « Refaire la photo » le déclenche par .click(), refusé sur un champ caché). */
+.tx-btn input[type="file"], .tx-mini input[type="file"], .tx-photo-discrete input[type="file"] {
+    position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.tx-photo-discrete { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+:is(.tx-btn, .tx-mini, .tx-avatar, .tx-cloche, .tx-axe-tete):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* ── « Maintenant » (pose ordinaire) ── */
+.tx-hero { background: #fff; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 18px;
+    overflow: hidden; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); cursor: pointer; }
+.tx-hero-photo { position: relative; height: 130px; background: #a8cbe8 center/cover no-repeat; }
+.tx-hero-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(15,23,42,.65)); }
+.tx-hero-ref { position: absolute; left: 12px; bottom: 10px; z-index: 1; font: 700 12px/1 ui-monospace, 'SF Mono', Menlo, monospace;
+    color: #fff; background: rgba(15,23,42,.72); padding: 5px 9px; border-radius: 8px; letter-spacing: .04em; }
+.tx-hero-photo .tx-pill { position: absolute; right: 12px; bottom: 10px; z-index: 1; }
+.tx-hero-corps { padding: 12px 14px 14px; display: grid; gap: 8px; }
+.tx-hero-nom { font-size: 15px; letter-spacing: -.01em; }
+
+/* ── Ligne d'une pose ── */
+.tx-ligne { background: #fff; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; position: relative; }
+.tx-ligne-corps { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 9px 12px 9px 10px; cursor: pointer; }
+.tx-vignette { width: 48px; height: 48px; border-radius: 10px; flex: none; display: block;
+    background: linear-gradient(180deg, #c7dcef 0 50%, #8592a6 50%) center/cover no-repeat; }
+.tx-ligne-inf { display: grid; min-width: 0; text-align: left; }
+.tx-ligne-l1 { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tx-ligne .pose-ref, .tx-ref { font: 700 12px/1.4 ui-monospace, 'SF Mono', Menlo, monospace; color: var(--text); }
+.tx-ligne .pose-name, .tx-axe-nom { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-ligne-sous { font-size: 11px; color: var(--tx-texte3); display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.tx-tard { color: var(--tx-ko); font-weight: 700; }
+.tx-pastille { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ── Carte d'axe ── */
+.tx-axe { background: #fff; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; display: grid; }
+.tx-axe.tx-maintenant { border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+.tx-axe-tete { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 11px; align-items: center;
+    padding: 10px 12px 6px 10px; background: none; border: 0; width: 100%; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.tx-axe-avance { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 2px 12px 10px; font-size: 12px; color: var(--tx-texte2); }
+.tx-axe-avance b { color: var(--text); font-variant-numeric: tabular-nums; }
+.tx-segments { display: flex; gap: 3px; width: 120px; flex: none; }
+.tx-segments i { flex: 1; height: 6px; border-radius: 3px; background: var(--tx-afaire); }
+.tx-segments i.envoyee { background: var(--tx-att); }
+.tx-segments i.validee { background: var(--tx-ok); }
+.tx-segments i.refusee { background: var(--tx-ko); }
+.tx-axe-actions { padding: 0 12px 12px; }
+.tx-axe-route { display: none; border-top: 1px dashed var(--border); padding: 4px 12px 12px; }
+.tx-axe.ouvert .tx-axe-route { display: grid; gap: 4px; }
+
+/* La route : l'axe dessiné comme une voie jalonnée de ses pieds. */
+.tx-voie { position: relative; display: flex; justify-content: space-between; gap: 4px; padding: 12px 4px 6px; overflow-x: auto; }
+.tx-voie::before { content: ""; position: absolute; left: 20px; right: 20px; top: 27px; height: 6px; border-radius: 6px;
+    background: repeating-linear-gradient(90deg, #d4d9e1 0 10px, transparent 10px 16px), #eceff3; }
+.tx-jalon { position: relative; display: grid; justify-items: center; gap: 3px; flex: none; }
+.tx-jalon > span { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 12px;
+    background: #fff; border: 2.5px solid var(--tx-afaire); color: var(--tx-texte2); }
+.tx-jalon small { font-size: 10px; color: var(--tx-texte3); font-weight: 600; }
+.tx-jalon.envoyee > span { border-color: var(--tx-att); background: var(--tx-att-bg); color: var(--tx-att); }
+.tx-jalon.validee > span { border-color: var(--tx-ok); background: var(--tx-ok); color: #fff; }
+.tx-jalon.refusee > span { border-color: var(--tx-ko); background: var(--tx-ko-bg); color: var(--tx-ko); }
+.tx-jalon.suivant > span { border-color: var(--tx-place); color: var(--tx-place); box-shadow: 0 0 0 5px rgba(37,99,235,.18); }
+
+.tx-pieds { display: grid; }
+.tx-pied { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 2px;
+    border-bottom: 1px solid var(--tx-surface2); position: relative; }
+.tx-pied:last-child { border-bottom: 0; }
+.tx-pied.suivant { background: linear-gradient(90deg, rgba(37,99,235,.07), transparent); border-radius: 10px; }
+.tx-pied-num { width: 34px; height: 34px; border-radius: 9px; background: var(--tx-surface2); display: grid; place-items: center;
+    color: var(--tx-texte2); font-weight: 800; font-size: 13px; }
+.tx-pied-num-ok { background: var(--tx-ok-bg); color: var(--tx-ok); }
+.tx-pied.envoyee .tx-pied-num-ok { background: var(--tx-att-bg); color: var(--tx-att); }
+.tx-pied-lib { display: grid; min-width: 0; }
+.tx-pied-lib strong { font-size: 13px; }
+.tx-pied-lib > span { font-size: 11px; color: var(--tx-texte3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-pied .pose-ref { font: 600 11px/1.4 ui-monospace, 'SF Mono', Menlo, monospace; color: var(--tx-texte3); }
+.tx-ok { color: var(--tx-ok) !important; font-weight: 600; }
+.tx-att { color: var(--tx-att) !important; font-weight: 600; }
+.tx-ko { color: var(--tx-ko) !important; font-weight: 600; }
+.tx-mini { position: relative; font: 700 12px/1 inherit; border-radius: 10px; padding: 9px 11px; border: 1px solid var(--border);
+    background: #fff; display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+.tx-mini svg { width: 15px; height: 15px; }
+.tx-mini-photo { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tx-mini-refaire { background: var(--tx-ko); border-color: var(--tx-ko); color: #fff; }
+.tx-aide { margin: 4px 0 0; font-size: 11px; color: var(--tx-texte3); }
+
+/* Axe entier (ancien contrat) */
+.tx-ancien { margin: 0 12px 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 9px 11px;
+    font-size: 12px; color: #9a3412; display: grid; gap: 2px; }
+.tx-photos-envoyees { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 12px 10px; }
+.tx-photos-envoyees i { width: 34px; height: 34px; border-radius: 7px; background: #c7dcef center/cover no-repeat; }
+.tx-axe-entier .tx-aide { padding: 0 12px 10px; }
+
+/* Une pose dont la photo vient de partir (sans rechargement). */
+.tx-envoyee { opacity: .5; filter: grayscale(1); pointer-events: none; transition: opacity .4s, filter .4s; }
+
+/* ── Barre du bas ── */
+.tx-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: grid; grid-template-columns: repeat(4, 1fr);
+    background: #fff; border-top: 1px solid var(--border); padding: 6px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -8px 24px -18px rgba(15,23,42,.35); }
+.tx-nav a, .tx-nav button { position: relative; display: grid; justify-items: center; gap: 2px; font: 600 11px/1.2 inherit;
+    color: var(--tx-texte3); text-decoration: none; background: none; border: 0; cursor: pointer; padding: 4px 0; }
+.tx-nav svg { width: 23px; height: 23px; }
+.tx-nav .actif { color: var(--accent-dark, #c2570d); }
+.tx-nav-pastille { position: absolute; top: 0; left: calc(50% + 7px); min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px;
+    background: var(--tx-ko); color: #fff; font-size: 10px; font-weight: 800; display: grid; place-items: center; }
+.tx-nav :focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; border-radius: 10px; }
+
+/* L'attribut hidden doit gagner sur les display: grid/flex de la refonte
+   (recherche, pastilles, actions d'un axe terminé). */
+body.tx :is(.tx-corps, .tx-tete, .tx-nav) [hidden] { display: none !important; }
+
+.tx-pill-fait { background: var(--tx-ok); }
+.tx-axe-fini { border-color: #bbf7d0; }
+.tx-axe-fini .tx-axe-tete .tx-vignette { filter: grayscale(.4); }
+/* Le pied qui vient de partir : un bref éclat vert. */
+.tx-vient { animation: tx-eclat 1.2s ease-out; }
+@keyframes tx-eclat { from { background: var(--tx-ok-bg); } to { background: transparent; } }
+/* « Terminé » quand chaque pied a sa photo. */
+.tx-a-toucher { box-shadow: 0 0 0 0 rgba(22,163,74,.5); animation: tx-pouls 1.6s ease-out infinite; }
+@keyframes tx-pouls { 70% { box-shadow: 0 0 0 10px rgba(22,163,74,0); } 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); } }
+
+/* Feuille de confirmation (« Terminé » avec des photos manquantes). */
+.tx-feuille-fond { position: fixed; inset: 0; z-index: 90; background: rgba(15,23,42,.45); display: flex; align-items: flex-end;
+    justify-content: center; padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.tx-feuille { width: 100%; max-width: 440px; background: #fff; border-radius: 20px; padding: 18px 16px 16px; display: grid; gap: 8px;
+    box-shadow: 0 20px 50px -20px rgba(15,23,42,.5); animation: tx-monte .22s ease-out; }
+.tx-feuille h2 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
+.tx-feuille p { margin: 0 0 6px; font-size: 14px; color: var(--tx-texte2); line-height: 1.45; }
+@keyframes tx-monte { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .tx-barre i, .tx-envoyee { transition: none; }
+    .tx-vient, .tx-a-toucher, .tx-feuille { animation: none; }
+}

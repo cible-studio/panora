@@ -445,6 +445,35 @@ class PoseTask extends Model
      * Concrètement : piges.pose_task_id = X OU (pose_task_id IS NULL
      * AND panel_id + campaign_id matchent).
      */
+    /**
+     * Pieds du MÊME axe, même campagne, même technicien, encore ouverts
+     * (2026-11-12, validé : « Je suis arrivé » sur l'axe démarre tous ses
+     * pieds). Un axe est UN lieu : ses pieds avancent ensemble, et la règle
+     * « une seule pose en cours à la fois » les compte comme une seule.
+     *
+     * @return int[]  ids des tâches sœurs (sans celle-ci)
+     */
+    public function idsFreresDAxe(): array
+    {
+        $axeId = $this->panel?->axe_id;
+        if (!$axeId || !$this->assigned_user_id || !$this->campaign_id) {
+            return [];
+        }
+
+        return self::query()
+            ->where('id', '!=', $this->id)
+            ->where('assigned_user_id', $this->assigned_user_id)
+            ->where('campaign_id', $this->campaign_id)
+            ->whereNotIn('status', [
+                \App\Enums\PoseTaskStatus::COMPLETED->value,
+                \App\Enums\PoseTaskStatus::CANCELLED->value,
+            ])
+            ->whereHas('panel', fn ($q) => $q->where('axe_id', $axeId))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
     public function piges(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Pige::class, 'panel_id', 'panel_id')

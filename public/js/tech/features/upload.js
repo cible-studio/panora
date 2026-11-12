@@ -79,7 +79,13 @@ export async function refreshSyncBadge() {
     else badge.style.display = 'none';
 }
 
-export async function queueOfflinePhoto(taskId, file, gps, contradictionReason) {
+// Identifiant unique d'une tentative d'envoi (idempotence côté serveur :
+// Pige.client_uuid).
+function nouvelUuid() {
+    return crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(16).slice(2));
+}
+
+export async function queueOfflinePhoto(taskId, file, gps, contradictionReason, clientUuid = null) {
     try {
         const db = await openDb();
         const tx = db.transaction(SYNC_STORE, 'readwrite');
@@ -91,6 +97,12 @@ export async function queueOfflinePhoto(taskId, file, gps, contradictionReason) 
             fileType: file.type || 'image/jpeg',
             gps,
             contradictionReason,
+            // 2026-11-12 : l'identifiant de la tentative ratée, gardé pour le
+            // renvoi. Si le serveur l'avait reçue (réponse perdue), il ne la
+            // double pas. Avant : « queue-{n° IndexedDB} », qui repart de 1
+            // quand le navigateur vide sa base — une nouvelle photo pouvait
+            // alors être prise pour une ancienne et jetée.
+            clientUuid: clientUuid || nouvelUuid(),
             queuedAt: new Date().toISOString(),
             token: window.TECH_CONFIG?.techToken,
         });
@@ -128,7 +140,9 @@ export async function flushUploadQueue() {
                 if (entry.contradictionReason) {
                     fd.append('contradicts_signalement_reason', entry.contradictionReason);
                 }
-                fd.append('client_uuid', 'queue-' + entry.id);
+                // Anciennes entrées (d'avant le 2026-11-12) : sans identifiant
+                // gardé, on garde l'ancien « queue-{id} ».
+                fd.append('client_uuid', entry.clientUuid || ('queue-' + entry.id));
                 const url = `/tech/${entry.token}/poses/${entry.taskId}/photo`;
                 const r = await fetch(url, {
                     method: 'POST',
@@ -229,13 +243,28 @@ function formatDistanceT3(m) {
     return (m / 1000).toFixed(1).replace('.0', '') + ' km';
 }
 
-function verdictForDistance(m) {
+// Seuils du verdict (2026-11-12) : ceux du SERVEUR, publiés sur la ligne de
+// la pose (data-gps-ok / data-gps-warn, GeoService::seuilsPour) — 50/200 m
+// pour un panneau, 500/1000 m pour un axe. Le téléphone affichait 100/500
+// quand le serveur classait à 50/200 : « bien enregistrée » ici, « à
+// vérifier » chez l'admin. Sans ces attributs : les anciens seuils.
+function seuilsGps(ligne) {
+    const ok = parseFloat(ligne?.dataset.gpsOk);
+    const warn = parseFloat(ligne?.dataset.gpsWarn);
+    const repere = ligne?.dataset.gpsRepere === 'axe' ? 'de l\'axe' : 'du panneau';
+    return (isFinite(ok) && isFinite(warn) && ok > 0 && warn > ok)
+        ? { ok, warn, repere }
+        : { ok: 100, warn: 500, repere };
+}
+
+function verdictForDistance(m, seuils = seuilsGps(null)) {
     if (m == null || isNaN(m)) return null;
-    if (m <  100) return { v: 'ok',   t: '✓ Position GPS bien enregistrée',
-                           s: `Tu es à ${formatDistanceT3(m)} du panneau.`,   icon: '✓' };
-    if (m <  500) return { v: 'warn', t: `⚠ Tu es à ${formatDistanceT3(m)} du panneau`,
+    const { ok, warn, repere } = seuils;
+    if (m <= ok)  return { v: 'ok',   t: '✓ Position GPS bien enregistrée',
+                           s: `Tu es à ${formatDistanceT3(m)} ${repere}.`,   icon: '✓' };
+    if (m <= warn) return { v: 'warn', t: `⚠ Tu es à ${formatDistanceT3(m)} ${repere}`,
                            s: 'Vérifie que c\'est bien le bon avant d\'envoyer.', icon: '⚠' };
-    return            { v: 'bad',  t: `✗ Tu es à ${formatDistanceT3(m)} du panneau`,
+    return            { v: 'bad',  t: `✗ Tu es à ${formatDistanceT3(m)} ${repere}`,
                            s: 'C\'est probablement pas le bon — refais sur place.', icon: '✗' };
 }
 
@@ -246,7 +275,9 @@ function joindreGps(racine) {
     return window.PanoraGps ? window.PanoraGps.joindre(racine) : true;
 }
 
-function askPhotoPreview(file, pose) {
+// ligne : la .pose-line de la tâche (porte les seuils GPS) — `pose` peut
+// être le tiroir T2, qui ne recopie que la position.
+function askPhotoPreview(file, pose, ligne = pose) {
     return new Promise((resolve) => {
         const overlay = document.getElementById('sm2-t3-overlay');
         if (!overlay) {
@@ -345,7 +376,7 @@ function askPhotoPreview(file, pose) {
                 return;
             }
             const m = haversineMetersT3(gps.lat, gps.lng, lat, lng);
-            const ver = verdictForDistance(m);
+            const ver = verdictForDistance(m, seuilsGps(ligne));
             if (ver) {
                 setVerdict({ v: ver.v, icon: ver.icon, title: ver.t, sub: ver.s, gpsText });
             } else {
@@ -394,13 +425,19 @@ function pickNextPose(currentPose) {
 }
 
 function getTechFirstName() {
+    // Refonte 2026-11-12 : l'en-tête publie le prénom (data-prenom).
+    const prenom = document.querySelector('.tx-jour[data-prenom]')?.dataset.prenom;
+    if (prenom) return prenom;
     // Lit le prénom depuis le H1 "Bonjour {name}" du topbar.
     const hello = document.querySelector('.hero-text h1')?.textContent || '';
     const m = hello.match(/Bonjour\s+(\S+)/i);
     return m ? m[1].replace(/[!.]/g, '') : '';
 }
 
-function showSuccessScreenT4(currentPose) {
+// jour (2026-11-12) : compteur du jour renvoyé par le serveur avec la photo
+// (TechCarte::journee). Sans lui (ancien en-tête) : le calcul d'avant, qui
+// lisait un compteur retiré de la page et affichait « 0 / 0 ».
+function showSuccessScreenT4(currentPose, jour = null) {
     const overlay = document.getElementById('sm2-t4-overlay');
     if (!overlay) {
         flashSuccess('Photo envoyée&nbsp;! Bravo 🎉');
@@ -422,8 +459,8 @@ function showSuccessScreenT4(currentPose) {
     // décrémenter quand la card sera retirée. Pour T4, on affiche
     // l'état "après cette photo" = totalRemaining - 1 (cette photo est
     // en train d'être validée par l'admin, donc encore en remainingNow).
-    const totalActive = parseInt(totalActiveEl?.textContent || '0', 10);
-    const done = Math.max(0, totalActive - (remainingNow - 1));
+    const totalActive = jour ? jour.total : parseInt(totalActiveEl?.textContent || '0', 10);
+    const done = jour ? jour.faites : Math.max(0, totalActive - (remainingNow - 1));
     if (doneEl)  doneEl.textContent  = String(done);
     if (totalEl) totalEl.textContent = String(totalActive);
 
@@ -559,7 +596,9 @@ function bindMainUpload() {
         //    La modale retourne { gps } pour qu'on réutilise la position
         //    captée pendant la preview (évite un 2e prompt GPS).
         const preview = input.files[0];
-        const previewResult = await askPhotoPreview(preview, pose);
+        // La ligne de la tâche (même quand la photo part du tiroir T2).
+        const ligne = document.querySelector(`.pose-line[data-task-id="${taskId}"]`) || pose;
+        const previewResult = await askPhotoPreview(preview, pose, ligne);
         if (!previewResult) { input.value = ''; return; }
 
         // Garde-fou contradiction : signalement non résolu sur cette pose
@@ -601,7 +640,8 @@ function bindMainUpload() {
             form.append('gps_lat', gps.lat.toFixed(6));
             form.append('gps_lng', gps.lng.toFixed(6));
         }
-        form.append('client_uuid', (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(16).slice(2))));
+        const clientUuid = nouvelUuid();
+        form.append('client_uuid', clientUuid);
         if (contradictionReason) {
             form.append('contradicts_signalement_reason', contradictionReason);
         }
@@ -658,13 +698,42 @@ function bindMainUpload() {
             // les "pose-line" représentent les cards encore actives.
             const sourcePose = document.querySelector(`.pose-line[data-task-id="${taskId}"]`) || pose;
 
+            // Ferme le drawer T2 si la pose était ouverte dedans.
+            if (document.querySelector('#sm2-t2-overlay.is-open')) {
+                document.querySelector('#sm2-t2-overlay')?.classList.remove('is-open');
+                setTimeout(() => {
+                    const ov = document.querySelector('#sm2-t2-overlay');
+                    if (ov) ov.hidden = true;
+                }, 220);
+            }
+
+            // Refonte 2026-11-12 : la page est prévenue (en-tête, commune,
+            // carte de l'axe — features/refonte.js). Un pied d'axe ou un axe
+            // entier se met à jour SUR PLACE : ni écran T4, ni rechargement
+            // (le technicien enchaîne les pieds sans perdre sa carte).
+            const surPlace = !!(sourcePose?.closest?.('[data-axe-carte]') || sourcePose?.dataset?.axeEntier === '1');
+            document.dispatchEvent(new CustomEvent('tx:photo-envoyee', {
+                detail: { taskId, data, pose: sourcePose, photo: blob instanceof Blob ? blob : file },
+            }));
+            if (surPlace) {
+                label.innerHTML = originalLabel;
+                label.style.pointerEvents = '';
+                // Pas d'écran T4 pour rendre le défilement : on le rend ici
+                // (le tiroir T2 a pu le bloquer).
+                document.body.style.overflow = '';
+                if (data.is_last_pose_of_day && typeof window.__sm2cShowEndOfDay === 'function') {
+                    window.__sm2cShowEndOfDay({ sourcePose: null, jour: data.jour });
+                }
+                return;
+            }
+
             // SM2c B2 — Si c'était la dernière pose du jour, on affiche
             // l'écran "Fin de journée" plein écran avec confettis au
             // lieu de l'écran T4 succès standard.
             if (data.is_last_pose_of_day && typeof window.__sm2cShowEndOfDay === 'function') {
-                window.__sm2cShowEndOfDay({ sourcePose });
+                window.__sm2cShowEndOfDay({ sourcePose, jour: data.jour });
             } else {
-                showSuccessScreenT4(sourcePose);
+                showSuccessScreenT4(sourcePose, data.jour);
             }
 
             // Pose réalisée → retire la card avec une petite animation
@@ -673,14 +742,6 @@ function bindMainUpload() {
             // $nextTask (la "Card MAINTENANT" doit afficher la pose
             // suivante, pas rester figée sur la pose qu'on vient de
             // terminer).
-            // Ferme aussi le drawer T2 si la pose était ouverte dedans.
-            if (document.querySelector('#sm2-t2-overlay.is-open')) {
-                document.querySelector('#sm2-t2-overlay')?.classList.remove('is-open');
-                setTimeout(() => {
-                    const ov = document.querySelector('#sm2-t2-overlay');
-                    if (ov) ov.hidden = true;
-                }, 220);
-            }
             if (sourcePose) {
                 // 2026-07-06 (feedback patronne) : restaure l'animation
                 // douce de l'ancienne focus card (opacity 0.4 + désactivé
@@ -706,7 +767,7 @@ function bindMainUpload() {
             // un panneau dans une zone sans réseau.
             if (navigator.onLine === false || err.name === 'TypeError') {
                 try {
-                    await queueOfflinePhoto(taskId, blob instanceof Blob ? blob : file, gps, contradictionReason);
+                    await queueOfflinePhoto(taskId, blob instanceof Blob ? blob : file, gps, contradictionReason, clientUuid);
                     label.innerHTML = '📤 En attente';
                     setTimeout(() => { label.innerHTML = originalLabel; label.style.pointerEvents = ''; input.value = ''; }, 1500);
                     return;

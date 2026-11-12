@@ -119,7 +119,7 @@ class GeoService
      *
      * @return array{distance: int|null, check: string}
      */
-    public function pigePanelCheck(?float $pigeLat, ?float $pigeLng, ?float $panelLat, ?float $panelLng): array
+    public function pigePanelCheck(?float $pigeLat, ?float $pigeLng, ?float $panelLat, ?float $panelLng, bool $toleranceAxe = false): array
     {
         if ($pigeLat === null || $pigeLng === null) {
             return ['distance' => null, 'check' => 'no_gps'];
@@ -132,8 +132,54 @@ class GeoService
 
         return [
             'distance' => min(self::DISTANCE_CAP_M, (int) round($d)),
-            'check'    => $this->classify($d),
+            'check'    => $toleranceAxe ? $this->classifyAxe($d) : $this->classify($d),
         ];
+    }
+
+    /**
+     * Pied d'axe sans position propre (2026-11-12) : on compare à la
+     * position de l'AXE, qui s'étend sur des centaines de mètres —
+     * tolérance validée par l'utilisateur : 500 m.
+     */
+    public const AXE_OK_M   = 500.0;
+    public const AXE_WARN_M = 1000.0;
+
+    public function classifyAxe(float $distanceMeters): string
+    {
+        return match (true) {
+            $distanceMeters <= self::AXE_OK_M   => 'ok',
+            $distanceMeters <= self::AXE_WARN_M => 'warn',
+            default                             => 'out',
+        };
+    }
+
+    /**
+     * Verdict d'une pige pour SON panneau — point unique (PigeObserver,
+     * geo:backfill). Position du panneau, sinon celle de son axe avec la
+     * tolérance élargie (Panel::positionTerrain).
+     *
+     * @return array{distance: int|null, check: string}
+     */
+    public function verdictPourPanneau(?float $pigeLat, ?float $pigeLng, ?\App\Models\Panel $panel): array
+    {
+        $pos = $panel?->positionTerrain();
+
+        return $this->pigePanelCheck($pigeLat, $pigeLng, $pos['lat'] ?? null, $pos['lng'] ?? null, (bool) ($pos['axe'] ?? false));
+    }
+
+    /**
+     * Seuils (en mètres) que le téléphone doit appliquer pour ce panneau :
+     * les mêmes que le serveur — une seule source (2026-11-12).
+     *
+     * @return array{ok: float, warn: float}
+     */
+    public static function seuilsPour(?\App\Models\Panel $panel): array
+    {
+        $axe = (bool) ($panel?->positionTerrain()['axe'] ?? false);
+
+        return $axe
+            ? ['ok' => self::AXE_OK_M, 'warn' => self::AXE_WARN_M]
+            : ['ok' => self::FRAUD_OK_M, 'warn' => self::FRAUD_WARN_M];
     }
 
     /**
