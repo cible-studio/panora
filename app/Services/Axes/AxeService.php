@@ -324,11 +324,9 @@ class AxeService
         $campagnes = $taches->pluck('campaign_id')->filter()->unique()->values();
         $axes = Panel::whereIn('id', $axeIds)->get(['id', 'reference', 'name'])->keyBy('id');
 
-        $photo = fn (string $condition) => "EXISTS (SELECT 1 FROM piges
-            WHERE (piges.pose_task_id = pose_tasks.id
-                   OR (piges.pose_task_id IS NULL AND piges.panel_id = pose_tasks.panel_id
-                       AND piges.campaign_id = pose_tasks.campaign_id))
-              AND {$condition})";
+        // « Les photos d'une pose » : règle unique (PoseTask::sqlPhotosDeLaPose).
+        $photo = fn (string $condition) => 'EXISTS (SELECT 1 FROM piges WHERE '
+            . \App\Models\PoseTask::sqlPhotosDeLaPose('pose_tasks', $condition) . ')';
 
         $lignes = \Illuminate\Support\Facades\DB::table('pose_tasks')
             ->join('panels', 'panels.id', '=', 'pose_tasks.panel_id')

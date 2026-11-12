@@ -124,43 +124,40 @@ class Pige extends Model
     }
 
     /**
-     * « La dernière photo par panneau » d'une campagne : une photo refaite
-     * remplace l'ancienne. Règle UNIQUE (2026-11-12) de « Mes photos », de
-     * ses compteurs (heartbeat), du bandeau et du tiroir « Photos à refaire »
-     * de l'espace technicien — avant, recopiée cinq fois.
+     * « Les photos en cours » d'un panneau sur une campagne — règle UNIQUE
+     * (2026-11-12) de « Mes photos », de ses compteurs (heartbeat), du
+     * bandeau et du tiroir « Photos à refaire » de l'espace technicien
+     * (avant : recopiée cinq fois, « la dernière par panneau »).
      *
-     * Sauf l'AXE ENTIER (contrat d'avant le découpage, choix 4b) : ses photos
-     * sont une par pied, sur la même ligne — aucune ne remplace l'autre (la
-     * règle d'avant n'en gardait qu'une). Une photo REFUSÉE y est refaite
-     * quand une nouvelle photo arrive sur l'axe après le refus.
+     * Une photo est remplacée :
+     *   - par une photo d'une AUTRE pose du panneau (rechange, nouvelle
+     *     phase) prise après elle ;
+     *   - REFUSÉE : par une photo prise après le refus (elle est refaite).
+     * Les photos d'une MÊME pose ne se remplacent pas entre elles : jusqu'à
+     * 3 par panneau ou pied (PoseTask::PHOTOS_MAX, validé le 12/11), et une
+     * par pied sur un axe entier d'ancien contrat. Les anciennes photos sans
+     * pose (pose_task_id vide) se remplacent comme avant.
      */
     public function scopeDerniereParPanneau(Builder $q): Builder
     {
-        $plusRecente = fn (string $colonne) => function ($sub) use ($colonne) {
+        $plusRecente = fn (string $colonne, bool $autrePose) => function ($sub) use ($colonne, $autrePose) {
             $sub->from('piges as p2')
                 ->select(\Illuminate\Support\Facades\DB::raw(1))
                 ->whereColumn('p2.panel_id',    'piges.panel_id')
                 ->whereColumn('p2.campaign_id', 'piges.campaign_id')
-                ->whereColumn('p2.taken_at',    '>', $colonne);
+                ->whereColumn('p2.taken_at',    '>', $colonne)
+                ->when($autrePose, fn ($s) => $s->where(fn ($d) => $d
+                    ->whereNull('p2.pose_task_id')
+                    ->orWhereNull('piges.pose_task_id')
+                    ->orWhereColumn('p2.pose_task_id', '!=', 'piges.pose_task_id')));
         };
 
-        if (!app(\App\Services\Axes\AxeService::class)->colonnesPresentes()) {
-            return $q->whereNotExists($plusRecente('piges.taken_at'));
-        }
-
-        $axesEntiers = fn ($s) => $s->select('id')->from('panels')->where('est_axe', true);
-
-        return $q->where(function ($w) use ($plusRecente, $axesEntiers) {
-            $w->where(fn ($ordinaire) => $ordinaire
-                    ->whereNotIn('piges.panel_id', $axesEntiers)
-                    ->whereNotExists($plusRecente('piges.taken_at')))
-              ->orWhere(fn ($axe) => $axe
-                    ->whereIn('piges.panel_id', $axesEntiers)
-                    ->where(fn ($p) => $p
-                        ->where('piges.status', '!=', 'rejete')
-                        ->orWhereNull('piges.verified_at')
-                        ->orWhereNotExists($plusRecente('piges.verified_at'))));
-        });
+        return $q
+            ->whereNotExists($plusRecente('piges.taken_at', true))
+            ->where(fn ($p) => $p
+                ->where('piges.status', '!=', 'rejete')
+                ->orWhereNull('piges.verified_at')
+                ->orWhereNotExists($plusRecente('piges.verified_at', false)));
     }
 
     /**

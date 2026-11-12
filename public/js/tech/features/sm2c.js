@@ -108,7 +108,8 @@ function renderNotifs() {
     const filtered = B3_STATE.notifs.filter(n => {
         if (B3_STATE.filter === 'all') return true;
         if (B3_STATE.filter === 'rejects')  return n.type === 'photo_rejected';
-        if (B3_STATE.filter === 'newposes') return n.type === 'new_pose';
+        // 2026-11-12 : une pose reprogrammée se range avec les nouvelles poses.
+        if (B3_STATE.filter === 'newposes') return n.type === 'new_pose' || n.type === 'pose_rescheduled';
         return true;
     });
 
@@ -123,6 +124,7 @@ function renderNotifs() {
     const ICONS = {
         photo_rejected:  { emoji: '🚫', cls: 'reject'    },
         new_pose:        { emoji: '🆕', cls: 'newpose'   },
+        pose_rescheduled:{ emoji: '📅', cls: 'newpose'   },
         photo_validated: { emoji: '✓',  cls: 'validated' },
     };
 

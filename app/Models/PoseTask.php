@@ -37,6 +37,13 @@ class PoseTask extends Model
     public const LATE_GRACE_DAYS = 2;
 
     /**
+     * Photos par pose (2026-11-12, validé le 12/11) : jusqu'à 3 pour un
+     * panneau ou un pied d'axe — la 1re réalise la pose, les suivantes
+     * s'y ajoutent. Les photos refusées ne comptent pas.
+     */
+    public const PHOTOS_MAX = 3;
+
+    /**
      * Retourne la borne date à partir de laquelle une pose planifiée
      * est "en retard". Utilisable en SQL via ->format('Y-m-d H:i:s').
      */
@@ -314,19 +321,45 @@ class PoseTask extends Model
             if (!$task->assigned_user_id) return;
             $wasFreshlyAssigned = $task->wasRecentlyCreated
                 || ($task->wasChanged('assigned_user_id') && $task->getOriginal('assigned_user_id') === null);
-            if (!$wasFreshlyAssigned) return;
+
+            // Pose reprogrammée (2026-11-12, validé le 12/11) : le technicien
+            // déjà en charge est prévenu de la nouvelle date. Fiche ou lot
+            // (PoseService::bulkUpdate sauve pose par pose) : même crochet.
+            if (!$wasFreshlyAssigned) {
+                $statut = (string) ($task->status instanceof \App\Enums\PoseTaskStatus ? $task->status->value : $task->status);
+                $terminee = in_array($statut, [\App\Enums\PoseTaskStatus::COMPLETED->value, \App\Enums\PoseTaskStatus::CANCELLED->value], true);
+                if ($task->wasChanged('scheduled_at') && !$terminee) {
+                    try {
+                        \App\Models\TechNotification::notify(
+                            userId:  $task->assigned_user_id,
+                            type:    'pose_rescheduled',
+                            title:   '📅 Pose reprogrammée : ' . ($task->panel?->reference
+                                        ?? \App\Models\Panel::query()->whereKey($task->panel_id)->value('reference')
+                                        ?? 'un panneau'),
+                            detail:  $task->libelleEcheance(),
+                            payload: ['task_id' => $task->id, 'panel_id' => $task->panel_id],
+                        );
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning('TechNotification pose_rescheduled failed', [
+                            'task_id' => $task->id, 'err' => $e->getMessage(),
+                        ]);
+                    }
+                }
+                return;
+            }
 
             $panelRef = $task->panel?->reference
                      ?? \App\Models\Panel::query()->whereKey($task->panel_id)->value('reference')
                      ?? 'un panneau';
-            $sched = $task->scheduled_at ? $task->scheduled_at->format('d/m à H\hi') : null;
 
             try {
                 \App\Models\TechNotification::notify(
                     userId:  $task->assigned_user_id,
                     type:    'new_pose',
                     title:   '🆕 Nouvelle pose : ' . $panelRef,
-                    detail:  $sched ? 'Prévue le ' . $sched : 'À programmer dans ton carnet.',
+                    // Texte du moment ; l'écran des alertes le recalcule
+                    // d'après la date réelle (libelleEcheance, 2026-11-12).
+                    detail:  $task->libelleEcheance(),
                     payload: ['task_id' => $task->id, 'panel_id' => $task->panel_id],
                 );
             } catch (\Throwable $e) {
@@ -472,6 +505,67 @@ class PoseTask extends Model
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
+    }
+
+    /**
+     * L'échéance d'une pose telle que la lit le technicien — UNE source
+     * (2026-11-12) : la notification « Nouvelle pose » à l'attribution, et
+     * l'écran des alertes, qui la recalcule à chaque affichage
+     * (TechSpaceController::notifications). Avant, le texte était figé à
+     * l'attribution : une pose reprogrammée gardait son ancienne date.
+     * L'année n'apparaît que si ce n'est pas celle en cours ; l'heure, que si
+     * elle est fixée (minuit = date seule).
+     */
+    public function libelleEcheance(): string
+    {
+        $statut = (string) ($this->status instanceof \App\Enums\PoseTaskStatus ? $this->status->value : $this->status);
+        if ($statut === \App\Enums\PoseTaskStatus::CANCELLED->value) {
+            return 'Pose annulée.';
+        }
+        if ($statut === \App\Enums\PoseTaskStatus::COMPLETED->value && $this->done_at) {
+            return 'Posée le ' . $this->done_at->format('d/m') . '.';
+        }
+        if (!$this->scheduled_at) {
+            return 'À programmer dans ton carnet.';
+        }
+        $d = $this->scheduled_at;
+        $jour = $d->year === now()->year ? $d->format('d/m') : $d->format('d/m/Y');
+
+        return 'Prévue le ' . $jour . ($d->format('H:i') === '00:00' ? '' : ' à ' . $d->format('H\hi'));
+    }
+
+    /**
+     * « Les photos d'une pose » en SQL (2026-11-12) — même règle que piges() :
+     * par pose_task_id, sinon (ancienne photo) par panneau + campagne.
+     * Pour les comptes groupés : piges() s'appuie sur $this, vide dans un
+     * withCount — les listes comptaient 0 photo pour toute photo rattachée.
+     *
+     * @param string $taches   table (ou alias) des poses dans la requête
+     * @param string $condition condition SQL ajoutée sur la photo
+     */
+    public static function sqlPhotosDeLaPose(string $taches = 'pose_tasks', string $condition = '1 = 1'): string
+    {
+        return "(piges.pose_task_id = {$taches}.id
+                 OR (piges.pose_task_id IS NULL AND piges.panel_id = {$taches}.panel_id
+                     AND (piges.campaign_id = {$taches}.campaign_id OR {$taches}.campaign_id IS NULL)))
+                AND ({$condition})";
+    }
+
+    /**
+     * Compte les photos de chaque pose : `pige_count` (toutes) et
+     * `pige_verifie_count` (validées). À appeler APRÈS un éventuel
+     * select('pose_tasks.*') — un select() remplace les colonnes déjà
+     * ajoutées (c'est ce qui vidait le withCount des listes de poses).
+     */
+    public function scopeAvecComptePiges(\Illuminate\Database\Eloquent\Builder $q): \Illuminate\Database\Eloquent\Builder
+    {
+        if ($q->getQuery()->columns === null) {
+            $q->select('pose_tasks.*');
+        }
+
+        return $q
+            ->selectRaw('(SELECT COUNT(*) FROM piges WHERE ' . self::sqlPhotosDeLaPose() . ') AS pige_count')
+            ->selectRaw('(SELECT COUNT(*) FROM piges WHERE ' . self::sqlPhotosDeLaPose('pose_tasks', "piges.status = 'verifie'") . ') AS pige_verifie_count');
     }
 
     public function piges(): \Illuminate\Database\Eloquent\Relations\HasMany

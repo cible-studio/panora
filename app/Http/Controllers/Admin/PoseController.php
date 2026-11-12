@@ -54,10 +54,10 @@ class PoseController extends Controller
         ])->when(\App\Services\Vagues\VagueService::disponible(),
             // 2026-11-04 : badge de la vague sous la campagne.
             fn ($q) => $q->with('vague:id,numero,nom')
-        )->withCount([
-            'piges as pige_count',
-            'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
-        ]);
+        );
+        // Photos de chaque pose : PoseTask::scopeAvecComptePiges, appliqué
+        // après le select() du tri (2026-11-12). Le withCount d'avant était
+        // effacé par ce select() et comptait mal : toujours 0.
 
         // 2026-09-24 — Extrait dans applyIndexFilters() : la validation
         // groupée « toutes les poses du filtre » doit rejouer EXACTEMENT
@@ -92,6 +92,7 @@ class PoseController extends Controller
             ->leftJoin('campaigns', 'campaigns.id', '=', 'pose_tasks.campaign_id')
             ->leftJoin('panels',    'panels.id',    '=', 'pose_tasks.panel_id')
             ->select('pose_tasks.*')
+            ->avecComptePiges()
             ->orderByRaw('campaigns.created_at IS NULL')      // nulls last
             ->orderByDesc('campaigns.created_at')
             ->orderBy('panels.reference')
@@ -642,7 +643,7 @@ class PoseController extends Controller
         if ($poseTask->campaign_id && $poseTask->panel?->axe_id) {
             $axeDuPied = \App\Models\Panel::find($poseTask->panel->axe_id, ['id', 'reference', 'name']);
             $piedsDeLAxe = PoseTask::with(['panel:id,reference,pied_numero', 'technicien:id,name'])
-                ->withCount(['piges', 'piges as pige_verifie_count' => fn ($q) => $q->where('status', 'verifie')])
+                ->avecComptePiges()
                 ->where('campaign_id', $poseTask->campaign_id)
                 ->where('status', '!=', \App\Enums\PoseTaskStatus::CANCELLED->value)
                 ->whereHas('panel', fn ($q) => $q->where('axe_id', $poseTask->panel->axe_id))
@@ -650,8 +651,12 @@ class PoseController extends Controller
                 ->sortBy(fn ($t) => $t->panel?->pied_numero ?? 0)
                 ->values();
         }
+        // « 3/5 posés · 2/5 pigés » : les mêmes chiffres que la ligne d'axe
+        // de la liste des poses (AxeService::suiviPoses).
+        $suivi = app(\App\Services\Axes\AxeService::class)->suiviPoses([$poseTask]);
+        $suiviAxe = $suivi['axes'][$suivi['tache'][$poseTask->id]['cle'] ?? ''] ?? null;
 
-        return view('admin.poses.show', compact('poseTask', 'pigeStats', 'isLate', 'taskAlerts', 'piedsDeLAxe', 'axeDuPied'));
+        return view('admin.poses.show', compact('poseTask', 'pigeStats', 'isLate', 'taskAlerts', 'piedsDeLAxe', 'axeDuPied', 'suiviAxe'));
     }
 
     // ══════════════════════════════════════════════════════════════

@@ -214,7 +214,11 @@
     background: var(--surface2);
     border-bottom: 1px solid var(--border);
     overflow-x: auto;
+    /* 2026-11-12 : sans ça, une longue liste écrasait la rangée de filtres
+       (elle défile en largeur, donc sa hauteur minimale tombait à 0). */
+    flex-shrink: 0;
 }
+.sm2c-b3-head { flex-shrink: 0; }
 .sm2c-b3-filter {
     flex: 0 0 auto;
     background: var(--surface);

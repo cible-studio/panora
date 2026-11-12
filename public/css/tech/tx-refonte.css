@@ -102,6 +102,10 @@ body.tx .tx-corps { display: grid; gap: 12px; padding-top: 12px; }
 .tx-hero { background: #fff; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 18px;
     overflow: hidden; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); cursor: pointer; }
 .tx-hero-photo { position: relative; height: 130px; background: #a8cbe8 center/cover no-repeat; }
+/* La photo porte aussi .pose-thumb (lue par le tiroir) : on annule ses
+   68 × 68 px de vignette (tech-app.css), qui écrasaient la carte (2026-11-12). */
+.tx-hero .tx-hero-photo.pose-thumb { display: block; flex: none; width: 100%; height: 150px; border: 0; border-radius: 0;
+    box-shadow: none; background-color: #a8cbe8; background-size: cover; background-position: center; }
 .tx-hero-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(15,23,42,.65)); }
 .tx-hero-ref { position: absolute; left: 12px; bottom: 10px; z-index: 1; font: 700 12px/1 ui-monospace, 'SF Mono', Menlo, monospace;
     color: #fff; background: rgba(15,23,42,.72); padding: 5px 9px; border-radius: 8px; letter-spacing: .04em; }
@@ -231,6 +235,10 @@ body.tx :is(.tx-corps, .tx-tete, .tx-nav) [hidden] { display: none !important; }
 .tx-rond { width: 44px; height: 44px; border-radius: 50%; background: var(--tx-ok); color: #fff; display: grid; place-items: center; flex: none; }
 .tx-rond svg { width: 24px; height: 24px; }
 .tx-envoi-suivante .tx-ligne-corps { cursor: default; }
+/* Dans les feuilles, hidden gagne sur les display des boutons (inline-flex). */
+.tx-feuille [hidden] { display: none !important; }
+.tx-envoi-photos { margin: 0; font-size: 13px; font-weight: 700; color: var(--tx-texte2); }
+.tx-envoi-ajouter { width: 100%; }
 .tx-envoi-fini { margin: 2px 0 4px; font-size: 14px; color: var(--tx-texte2); }
 /* Alertes : une ligne mène à sa pose (sm2c.js). */
 body.tx .sm2c-b3-row[data-notif-id] { cursor: pointer; }

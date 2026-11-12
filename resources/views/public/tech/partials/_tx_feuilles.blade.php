@@ -49,6 +49,19 @@
             <span class="tx-rond" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg></span>
             <div><strong id="tx-envoi-titre" data-tx-envoi-titre>Photo envoyée</strong><span data-tx-envoi-jour></span></div>
         </div>
+        {{-- Photos multiples (validé le 12/11) : « 1/3 photos · réf. » et une
+             photo de plus sur la MÊME pose. Le porteur reçoit les attributs de
+             la pose (refonte.js) ; le bouton est un <label> : l'appareil photo
+             s'ouvre au toucher, sans script. --}}
+        <p class="tx-envoi-photos" data-tx-envoi-photos hidden></p>
+        <div data-tx-envoi-porteur hidden>
+            <span class="pose-ref" hidden></span>
+            <label class="tx-btn tx-btn-orange tx-envoi-ajouter">
+                <input type="file" accept="image/*" data-photo-input>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                <span data-tx-envoi-ajouter-txt>Ajouter une photo</span>
+            </label>
+        </div>
         <div class="tx-ligne tx-envoi-suivante" data-tx-envoi-suivante hidden>
             <div class="tx-ligne-corps">
                 <span class="tx-vignette" data-tx-envoi-photo></span>
@@ -62,8 +75,8 @@
         </div>
         <p class="tx-envoi-fini" data-tx-envoi-fini hidden>Plus rien à faire pour l'instant. Bravo !</p>
         <div class="tx-actions">
-            <button type="button" class="tx-btn" data-tx-fermer>Ma liste</button>
-            <button type="button" class="tx-btn tx-btn-orange" data-tx-envoi-continuer>Continuer</button>
+            <button type="button" class="tx-btn" data-tx-fermer>Terminer</button>
+            <button type="button" class="tx-btn tx-btn-vert" data-tx-envoi-continuer>Continuer</button>
         </div>
     </div>
 </div>
