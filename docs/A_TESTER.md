@@ -1414,7 +1414,7 @@ automatique (liste, fiche commune, taxes de l'année, rapports).
 - [ ] Toute déclaration ou tout export taxes fait entre le 11/11 au soir et
       le déploiement de ce correctif, sur Cocody, Treichville ou
       Adiaké-Assinie : **à refaire**.
-- [ ] Contrôle après déploiement — doit afficher `dont pieds : 0` et
+- [x] **Fait le 12/11 en production : pieds 0, lignes d axe 0.** Contrôle après déploiement — doit afficher `dont pieds : 0` et
       `dont lignes d axe : 0` :
 
 ```
@@ -1427,7 +1427,7 @@ php artisan tinker --execute="
   echo 'dont lignes d axe : ', \$a->sum('amount'), \"\n\";"
 ```
 
-- [ ] Total noté : …… (il doit être **plus bas** qu'avant, et proche de ce
+- [x] Total noté le 12/11 : **104 026 000 FCFA** de taxes 2026 (pas de relevé d avant le correctif pour comparer). À rapprocher du total que la direction obtenait en retirant les Lumipub à la main (il doit être **plus bas** qu'avant, et proche de ce
       que la direction obtenait en retirant les Lumipub à la main).
 
 #### Factures
