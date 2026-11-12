@@ -83,7 +83,8 @@ class PropositionService
             // Overlap INCLUSIF (<= >=), cf. AvailabilityService::conflitsFermes().
             if (!empty($panelIds)) {
                 \App\Models\Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
-                $availability->assertLibresFermement($panelIds, $start, $end, $reservation->id, $reservation->campaign()->value('id'));
+                // Son propre renouvellement confirmé ne bloque pas le client (2026-11-11).
+                $availability->assertLibresFermement($panelIds, $start, $end, $reservation->id, $reservation->campaign()->value('id'), (int) $reservation->client_id);
             }
 
             if (!empty($extIds)) {

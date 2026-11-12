@@ -65,10 +65,15 @@ class CampaignImportController extends Controller
         // Panneaux déjà pris fermement sur la période (2026-10-30) : l'import
         // est refusé tant qu'il en reste — sinon deux dossiers tiennent le
         // même panneau (c'est ainsi que sont nés les doublons ADDOHA, AH…).
+        // Le renouvellement confirmé du client importé ne le bloque pas
+        // (2026-11-11) ; client inconnu ou nouveau : la retenue vaut.
         $conflits = app(\App\Services\AvailabilityService::class)->conflitsFermes(
             $foundPanels->pluck('id')->all(),
             $data['start_date']->format('Y-m-d'),
             $data['end_date']->format('Y-m-d'),
+            null,
+            null,
+            $existingClient?->id,
         );
 
         // Détection de campagne homonyme existante (pour avertir l'utilisateur)
@@ -128,9 +133,18 @@ class CampaignImportController extends Controller
             ]);
         }
 
+        // Fiche client visée, résolue comme dans la transaction ci-dessous :
+        // son propre renouvellement confirmé ne la bloque pas (2026-11-11).
+        $proches = $session['proches_ids'] ?? [];
+        $choix = (string) $request->input('client_choix', '');
+        $clientVise = in_array((int) $choix, $proches, true)
+            ? (int) $choix
+            : app(NomEntreprise::class)->identique(mb_strtoupper(trim($session['client'])));
+
         // Revérifié ici : un panneau a pu être pris depuis l'aperçu (2026-10-30).
         $conflits = app(\App\Services\AvailabilityService::class)->conflitsFermes(
             $foundPanels->pluck('id')->all(), $session['start_date'], $session['end_date'],
+            null, null, $clientVise !== null ? (int) $clientVise : null,
         );
         if ($conflits) {
             return back()->withErrors([
@@ -139,8 +153,6 @@ class CampaignImportController extends Controller
         }
 
         // Nom proche de fiches existantes : choix obligatoire (fiche ou nouvelle).
-        $proches = $session['proches_ids'] ?? [];
-        $choix = (string) $request->input('client_choix', '');
         if ($proches && $choix !== 'nouveau' && !in_array((int) $choix, $proches, true)) {
             return back()->withErrors(['pdf' => 'Choisissez la fiche du client : une fiche existante ou « Nouvelle fiche ».']);
         }

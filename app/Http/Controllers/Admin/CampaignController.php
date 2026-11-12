@@ -679,11 +679,13 @@ class CampaignController extends Controller
             true,                  // includeCampaignBlockings : critique pour
                                    // ne pas afficher comme « libre » un panneau
                                    // engagé dans une autre campagne directe.
-            $campaign->id          // excludeCampaignId : la campagne courante
+            $campaign->id,         // excludeCampaignId : la campagne courante
                                    // ne doit pas se bloquer elle-même (de
                                    // toute façon ses panneaux sont déjà
                                    // exclus par $existingIds, mais on est
                                    // explicite et défensif).
+            (int) $campaign->client_id // son propre renouvellement confirmé
+                                       // ne le bloque pas (2026-11-11).
         );
 
         $internal = $internalPanels->map(function ($p) use ($internalAvail) {
@@ -2273,7 +2275,9 @@ class CampaignController extends Controller
             // la campagne entrait en conflit avec ses propres panneaux (le
             // jour de fin actuel est inclus dans la période vérifiée) et
             // toute prolongation d'une campagne avec panneaux était refusée.
-            $campaign->id
+            $campaign->id,
+            // Son propre renouvellement confirmé ne bloque pas le client (2026-11-11).
+            (int) $campaign->client_id
         );
 
         if (!empty($conflicts)) {

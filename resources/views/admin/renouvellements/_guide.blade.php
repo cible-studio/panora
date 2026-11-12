@@ -39,7 +39,7 @@
             <h3>🧑‍💼 Qui fait quoi</h3>
             <ul>
                 <li><strong>Commercial</strong> : reçoit chaque matin ses clients à appeler (sans réponse dès J-25, rappels prévus) et les réponses. Après un appel, il ouvre le dossier et note le résultat (statut, note, date de rappel).</li>
-                <li><strong>MP</strong> : confirme le renouvellement. Les panneaux sortent alors du catalogue des disponibilités.</li>
+                <li><strong>MP</strong> : confirme le renouvellement. Les panneaux sont alors réservés à ce client jusqu'à {{ \App\Services\Diffusion\RenouvellementService::joursRetenue() }} jours après la fin de sa campagne : retirés du catalogue, « Renouvellement confirmé » dans l'écran Disponibilités, refusés pour tout autre client.</li>
                 <li><strong>Renouveler la campagne</strong> (fiche campagne) : crée la campagne suivante avec les mêmes panneaux ; le dossier passe en « confirmé ».</li>
                 <li><strong>Admin</strong> : modifie les textes des mails, avec aperçu immédiat.</li>
             </ul>

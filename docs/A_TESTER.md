@@ -1330,3 +1330,71 @@ mais trois jours avant un envoi réel n'est pas le moment de découvrir un
       `AvailabilityService` — le défaut est corrigé, mais c'est le test qui
       le prouve. S'ils apparaissent, ne pas réserver : on revendrait un axe
       déjà vendu.
+
+## 19. Panneaux d'un renouvellement confirmé retenus dans Panora *(2026-11-11)*
+
+Règle validée le 11/11 (« 1a 2a 3oui ») : après « Renouvellement
+confirmé », les panneaux de la campagne sont réservés à **son client** du
+lendemain de la fin jusqu'à **30 jours après**. Un autre client est refusé
+comme sur un panneau occupé ; le même client passe. « Veut renouveler » :
+simple information, rien n'est bloqué. Source unique :
+`RenouvellementService::retenues()`.
+
+#### D'abord, sur la vraie base : des engagements déjà pris ?
+
+Avant ce correctif, rien n'empêchait un autre client de prendre ces
+panneaux. Ce contrôle liste, pour chaque renouvellement confirmé, les
+réservations et campagnes d'**autres clients** qui tombent dans la retenue :
+
+```
+php artisan tinker --execute="
+  \$j = (int) config('diffusion.renouvellement.retenue_jours', 30);
+  foreach (App\Models\Renouvellement::where('statut','confirme')
+      ->whereDate('fin_campagne','>=',now()->subDays(\$j)->toDateString())->get() as \$r) {
+    \$du = \$r->fin_campagne->copy()->addDay()->toDateString();
+    \$au = \$r->fin_campagne->copy()->addDays(\$j)->toDateString();
+    \$ids = DB::table('campaign_panels')->where('campaign_id',\$r->campaign_id)->where('type','interne')->pluck('panel_id')->filter()->all();
+    \$resa = DB::table('reservation_panels as rp')->join('reservations as x','x.id','=','rp.reservation_id')
+      ->whereIn('rp.panel_id',\$ids)->whereIn('x.status',['en_attente','confirme'])->whereNull('x.deleted_at')
+      ->where('x.client_id','!=',\$r->client_id)->where('x.start_date','<=',\$au)->where('x.end_date','>=',\$du)->pluck('x.reference');
+    \$camp = DB::table('campaign_panels as cp')->join('campaigns as c','c.id','=','cp.campaign_id')
+      ->whereIn('cp.panel_id',\$ids)->whereIn('c.status',['planifie','actif','pause'])->whereNull('c.deleted_at')
+      ->where('c.client_id','!=',\$r->client_id)->where('c.start_date','<=',\$au)->where('c.end_date','>=',\$du)->pluck('c.name');
+    echo 'Campagne ',\$r->campaign_id,' (retenue ',\$du,' -> ',\$au,') : ',
+      \$resa->merge(\$camp)->unique()->implode(', ') ?: 'rien', \"\n\";
+  }"
+```
+
+- [ ] Résultat noté : ……
+- [ ] Toute ligne autre que « rien » est un panneau promis à deux clients :
+      à régler avec le commercial **avant** la date de la retenue.
+
+#### Écrans à ouvrir
+
+- [ ] **Disponibilités**, période juste après la fin d'une campagne au
+      renouvellement confirmé : ses panneaux portent « Renouvellement » et le
+      badge vert foncé « 🔁 Renouvellement confirmé · client ». L'ⓘ donne la
+      date de fin de retenue. La case ne se coche pas ; si la période dépasse
+      la retenue, le bouton propose « 📅 Dès le … » (le lendemain).
+- [ ] Même écran, client qui a répondu « Je souhaite renouveler » sans
+      confirmation : badge clair « Renouvellement demandé · client », panneau
+      **toujours cochable**.
+- [ ] Filtre « Libre » : les panneaux retenus n'y sont plus. Filtre
+      « Occupé » : ils y sont.
+- [ ] Fiche de la campagne qui renouvelle → **🔁 Renouveler la campagne** :
+      la nouvelle campagne garde **tous** ses panneaux (le même client passe).
+- [ ] Réservation d'un **autre** client sur un panneau retenu (ajout de
+      panneau, confirmation, proposition acceptée, import PDF) : refus
+      « retenu pour le renouvellement de … ».
+- [ ] PDF et Excel des disponibilités avec statut affiché : le panneau est
+      « Occupé » jusqu'à la fin de la retenue, **sans** nom de client.
+
+#### Ce qui n'a pas changé
+
+- Les devis ne vérifient toujours aucune disponibilité.
+- La carte et l'inventaire montrent le statut enregistré du panneau, pas la
+  période.
+- Le client concerné ne peut pas cocher ses propres panneaux retenus dans
+  l'écran Disponibilités (le client n'y est choisi qu'à la fin) : il passe
+  par « Renouveler la campagne ». Si le renouvellement est annulé (statut
+  changé dans le dossier), la retenue tombe aussitôt.

@@ -64,7 +64,11 @@ class QuoteConverter
 
             $conflicts = [];
             if (!empty($panelIds)) {
-                $unavailable = $this->availability->getUnavailablePanelIds($panelIds, $periodStart, $periodEnd);
+                // Son propre renouvellement confirmé ne bloque pas le client (2026-11-11).
+                $unavailable = $this->availability->getUnavailablePanelIds(
+                    $panelIds, $periodStart, $periodEnd, null, null,
+                    $quote->client_id ? (int) $quote->client_id : null
+                );
                 if (!empty($unavailable)) {
                     $conflicts['internal'] = $unavailable;
                 }

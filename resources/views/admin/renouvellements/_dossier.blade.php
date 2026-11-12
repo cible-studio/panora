@@ -119,7 +119,7 @@
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border);">
                 @if($peutConfirmer && $l['statut'] !== 'confirme')
                     <form method="POST" action="{{ route('admin.renouvellements.confirmer', $c) }}"
-                          onsubmit="return confirm('Confirmer le renouvellement ? Les panneaux ne seront plus proposés dans le catalogue des disponibilités.')">
+                          onsubmit="return confirm('Confirmer le renouvellement ? Les panneaux seront réservés à ce client jusqu\'à {{ \App\Services\Diffusion\RenouvellementService::joursRetenue() }} jours après la fin de sa campagne : plus proposés dans le catalogue, refusés pour un autre client.')">
                         @csrf
                         <button class="rn-btn vert">✓ Confirmer le renouvellement</button>
                     </form>

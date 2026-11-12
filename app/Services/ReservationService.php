@@ -34,7 +34,11 @@ class ReservationService
             $conflicts = $this->availability->getUnavailablePanelIds(
                 $panelIds,
                 $data['start_date'],
-                $data['end_date']
+                $data['end_date'],
+                null,
+                null,
+                // Son propre renouvellement confirmé ne bloque pas le client (2026-11-11).
+                isset($data['client_id']) ? (int) $data['client_id'] : null
             );
 
             if (!empty($conflicts)) {
@@ -113,7 +117,10 @@ class ReservationService
                 $data['panel_ids'],
                 $data['start_date'],
                 $data['end_date'],
-                $reservation->id
+                $reservation->id,
+                null,
+                // Son propre renouvellement confirmé ne bloque pas le client (2026-11-11).
+                (int) ($data['client_id'] ?? $reservation->client_id)
             );
 
             if (!empty($conflicts)) {
@@ -203,6 +210,7 @@ class ReservationService
                 \Carbon\Carbon::parse($reservation->end_date)->toDateString(),
                 $reservation->id,
                 $reservation->campaign()->value('id'),
+                (int) $reservation->client_id,
             );
         }
 

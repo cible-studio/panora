@@ -141,6 +141,8 @@ class ReservationController extends Controller
         $occupiedIds = collect();
         $optionIds = collect();
         $releaseDates = collect();
+        $retenues = [];          // renouvellements (2026-11-11)
+        $retenuIds = collect();  // … dont confirmés : bloquants
 
         // ══ PANNEAUX INTERNES ════════════════════════════════════════
         if (in_array($source, ['internal', 'all'])) {
@@ -305,17 +307,34 @@ class ReservationController extends Controller
                             $releaseDates->put($piedId, $dateAxe);
                         }
                     }
+
+                    // Renouvellements (2026-11-11) : « confirmé » retient le
+                    // panneau jusqu'à 30 jours après la fin de la campagne,
+                    // « demandé » est une simple information. Le client n'est
+                    // choisi qu'à la confirmation : ici la retenue vaut pour
+                    // tous, le serveur laisse passer le client concerné.
+                    $retenues = $this->availability->retenuesRenouvellement(
+                        $panels->pluck('id')->all(), $startDate, $endDate, true
+                    );
+                    foreach ($retenues as $pid => $r) {
+                        if ($r['statut'] !== \App\Models\Renouvellement::CONFIRME) continue;
+                        $retenuIds->push($pid);
+                        if (!$releaseDates->get($pid) || $r['jusqu_au'] > $releaseDates->get($pid)) {
+                            $releaseDates->put($pid, $r['jusqu_au']);
+                        }
+                    }
                 }
 
                 if (!$dateError && $startDate && $endDate) {
                     // Règle métier : un panneau confirmé prime sur l'option.
-                    // → "occupe"  = uniquement réservations confirmées (rouge)
+                    // → "occupe"  = réservations confirmées, campagnes, et
+                    //              renouvellements confirmés (rouge)
                     // → "option"  = en attente sans confirmation parallèle (orange)
                     // → "libre"   = ni l'un ni l'autre + pas en maintenance
                     $panels = match ($statut) {
-                        'occupe' => $panels->filter(fn($p) => $occupiedIds->contains($p->id))->values(),
-                        'option' => $panels->filter(fn($p) => $optionIds->contains($p->id) && !$occupiedIds->contains($p->id))->values(),
-                        'libre'  => $panels->filter(fn($p) => !$occupiedIds->contains($p->id) && !$optionIds->contains($p->id) && $p->status->value !== 'maintenance')->values(),
+                        'occupe' => $panels->filter(fn($p) => $occupiedIds->contains($p->id) || $retenuIds->contains($p->id))->values(),
+                        'option' => $panels->filter(fn($p) => $optionIds->contains($p->id) && !$occupiedIds->contains($p->id) && !$retenuIds->contains($p->id))->values(),
+                        'libre'  => $panels->filter(fn($p) => !$occupiedIds->contains($p->id) && !$optionIds->contains($p->id) && !$retenuIds->contains($p->id) && $p->status->value !== 'maintenance')->values(),
                         default  => $panels,
                     };
                 }
@@ -323,7 +342,7 @@ class ReservationController extends Controller
                 $now = Carbon::now()->startOfDay();
                 $internalResult = $panels->map(
                     fn($panel) =>
-                    self::formatInternalPanel($panel, $occupiedIds, $optionIds, $releaseDates, $startDate, $endDate, $dateError, $now)
+                    self::formatInternalPanel($panel, $occupiedIds, $optionIds, $releaseDates, $startDate, $endDate, $dateError, $now, $retenues)
                 );
             }
         }
@@ -471,6 +490,7 @@ class ReservationController extends Controller
             'occupes'      => $allPanels->where('display_status', 'occupe')->count(),
             'options'      => $allPanels->where('display_status', 'option_periode')->count(),
             'maintenance'  => $allPanels->where('display_status', 'maintenance')->count(),
+            'renouvellements' => $allPanels->where('display_status', 'renouvellement')->count(),
             'externes'     => $externalResult->count(),
             'internes'     => $internalResult->count(),
             'pages'        => (int) ceil($total / $perPage),
@@ -508,32 +528,38 @@ class ReservationController extends Controller
         ?string $rawStatus,
         bool $hasPeriod,
         bool $isOccupied,
-        bool $isOption
+        bool $isOption,
+        bool $isRetenu = false
     ): string {
         // 2026-09-29 — La règle vit désormais dans AvailabilityService,
         // pour que les services (diffusion automatique) puissent l'appeler
         // sans dépendre d'un contrôleur. Méthode conservée : ses appels
         // internes et les tests existants passent par elle.
-        return AvailabilityService::displayStatusForPeriod($rawStatus, $hasPeriod, $isOccupied, $isOption);
+        return AvailabilityService::displayStatusForPeriod($rawStatus, $hasPeriod, $isOccupied, $isOption, $isRetenu);
     }
 
-    private static function formatInternalPanel($panel, $occupiedIds, $optionIds, $releaseDates, $startDate, $endDate, $dateError, $now): array
+    private static function formatInternalPanel($panel, $occupiedIds, $optionIds, $releaseDates, $startDate, $endDate, $dateError, $now, array $retenues = []): array
     {
         $isOccupied = $occupiedIds->contains($panel->id);
         $isOption = $optionIds->contains($panel->id);
         $hasPeriod = $startDate && $endDate && !$dateError;
+        // Renouvellement (2026-11-11) : « confirmé » bloque, « demandé »
+        // informe seulement. Règle : RenouvellementService::retenues().
+        $retenue  = $retenues[$panel->id] ?? null;
+        $isRetenu = $retenue && $retenue['statut'] === \App\Models\Renouvellement::CONFIRME;
         // La règle vit dans displayStatusForPeriod() — partagée avec les
         // trois exports, qui en avaient chacun une copie divergente.
         $displayStatus = self::displayStatusForPeriod(
             $panel->status->value,
             $hasPeriod,
             $isOccupied,
-            $isOption
+            $isOption,
+            $isRetenu
         );
 
         $releaseInfo = null;
         $selectableFrom = null;
-        if ($isOccupied || $isOption) {
+        if ($isOccupied || $isOption || $isRetenu) {
             $rdRaw = $releaseDates->get($panel->id);
             if ($rdRaw) {
                 $rd = Carbon::parse($rdRaw)->startOfDay();
@@ -603,6 +629,18 @@ class ReservationController extends Controller
             'selectable_from'       => $selectableFrom,
             'selectable_from_label' => $selectableFrom ? Carbon::parse($selectableFrom)->format('d/m/Y') : null,
             'release_info' => $releaseInfo,
+            // Renouvellement (2026-11-11) : badge « Renouvellement confirmé ·
+            // BEM » ou « Renouvellement demandé · BEM », aide au survol.
+            'renouvellement' => $retenue ? [
+                'statut'  => $retenue['statut'],
+                'libelle' => \App\Services\Diffusion\RenouvellementService::libelleRetenue($retenue),
+                'aide'    => $isRetenu
+                    ? 'Retenu pour ' . ($retenue['client'] ?? 'le client') . " jusqu'au " . Carbon::parse($retenue['jusqu_au'])->format('d/m/Y')
+                        . ' (' . \App\Services\Diffusion\RenouvellementService::joursRetenue() . ' jours après la fin de sa campagne « ' . $retenue['campagne'] . ' »). '
+                        . 'Pour ce client : bouton « Renouveler la campagne » sur la fiche de la campagne.'
+                    : ($retenue['client'] ?? 'Le client') . ' veut renouveler sa campagne « ' . $retenue['campagne'] . ' », qui finit le '
+                        . Carbon::parse($retenue['fin_campagne'])->format('d/m/Y') . '. Rien n\'est bloqué tant que le renouvellement n\'est pas confirmé.',
+            ] : null,
             'card_color_idx' => abs(crc32($panel->reference)) % 6,
         ];
     }
@@ -1452,9 +1490,13 @@ class ReservationController extends Controller
                 if ($internalIds) {
                     Panel::whereIn('id', $internalIds)->lockForUpdate()->get();
 
+                    // Client de la réservation : son propre renouvellement
+                    // confirmé ne le bloque pas (2026-11-11).
+                    $clientId = (int) $request->client_id;
+
                     $standardIds = array_values(array_filter($internalIds, fn($id) => !isset($internalStartDates[$id])));
                     if ($standardIds) {
-                        $cmap = $this->availability->getInternalConflictMap($standardIds, $request->start_date, $request->end_date);
+                        $cmap = $this->availability->getInternalConflictMap($standardIds, $request->start_date, $request->end_date, null, null, $clientId);
                         if ($cmap->isNotEmpty()) {
                             $panelRefs = Panel::whereIn('id', $cmap->keys()->all())->get()->keyBy('id');
                             foreach ($cmap as $pid => $c) {
@@ -1489,7 +1531,7 @@ class ReservationController extends Controller
                     foreach ($internalIds as $panelId) {
                         if (!isset($internalStartDates[$panelId])) continue;
                         if (!in_array($panelId, $availableInternal)) continue;
-                        $cmap = $this->availability->getInternalConflictMap([$panelId], $internalStartDates[$panelId], $request->end_date);
+                        $cmap = $this->availability->getInternalConflictMap([$panelId], $internalStartDates[$panelId], $request->end_date, null, null, $clientId);
                         if ($cmap->isNotEmpty()) {
                             $c = $cmap->first();
                             $nextFree = $c->release_date
@@ -1773,7 +1815,7 @@ class ReservationController extends Controller
                             );
                         }
                         $conflicts = $this->availability->getInternalConflictMap(
-                            [$pid], $effStart, $request->end_date
+                            [$pid], $effStart, $request->end_date, null, null, (int) $request->client_id
                         );
                         if ($conflicts->isNotEmpty()) {
                             $c   = $conflicts->first();
@@ -1782,7 +1824,7 @@ class ReservationController extends Controller
                                 [
                                     'panel_id'        => $pid,
                                     'reference'       => $ref,
-                                    'blocking_source' => $c->blocking_status === 'campagne_active' ? 'campaign' : 'reservation',
+                                    'blocking_source' => AvailabilityService::sourceDuBlocage($c->blocking_status),
                                     'blocking_ref'    => $c->conflicting_ref,
                                     'release_date'    => $c->release_date
                                         ? \Carbon\Carbon::parse($c->release_date)->format('d/m/Y')
@@ -1989,6 +2031,7 @@ class ReservationController extends Controller
                 $label = match ($ep['reason']) {
                     'confirme'         => 'déjà confirmé',
                     'campagne_active'  => 'engagé sur une campagne',
+                    'renouvellement'   => 'retenu pour un renouvellement',
                     'incoherent_date'  => 'démarre après la fin de période',
                     default            => 'en option',
                 };
@@ -1996,7 +2039,11 @@ class ReservationController extends Controller
                     ? ' (démarre le ' . \Carbon\Carbon::parse($ep['release_date'])->format('d/m/Y') . ')'
                     : '';
                 $blocker = $ep['conflicting_ref']
-                    ? ' (' . ($ep['reason'] === 'campagne_active' ? 'Camp. ' : 'Rés. ') . $ep['conflicting_ref'] . ')'
+                    ? ' (' . match ($ep['reason']) {
+                        'campagne_active' => 'Camp. ',
+                        'renouvellement'  => 'client ',
+                        default           => 'Rés. ',
+                    } . $ep['conflicting_ref'] . ')'
                     : '';
                 return "{$ep['reference']} — {$label}{$until}{$blocker}";
             }, $excludedPanels);
@@ -2999,11 +3046,20 @@ class ReservationController extends Controller
             $panels = $query->orderBy('reference')->get();
             $panelIds = $panels->pluck('id')->toArray();
 
+            // Client du dossier : son propre renouvellement confirmé ne le
+            // bloque pas (2026-11-11). Sans dossier ni client : la retenue vaut.
+            $clientId = $excludeId
+                ? (int) Reservation::whereKey($excludeId)->value('client_id')
+                : ($request->integer('client_id') ?: null);
+
             $availabilityData = $this->availability->getPanelAvailabilityData(
                 $panelIds,
                 $request->start_date,
                 $request->end_date,
-                $excludeId
+                $excludeId,
+                false,
+                null,
+                $clientId
             );
 
             $internalRows = $panels->map(function ($p) use ($availabilityData) {
@@ -3311,7 +3367,9 @@ class ReservationController extends Controller
                     [$panelId],
                     $reservation->start_date->format('Y-m-d'),
                     $reservation->end_date->format('Y-m-d'),
-                    $reservation->id
+                    $reservation->id,
+                    null,
+                    (int) $reservation->client_id
                 );
                 if (!empty($conflicts)) {
                     throw new \RuntimeException("CONFLICT:{$panel->reference}");
@@ -3360,7 +3418,7 @@ class ReservationController extends Controller
             if (str_starts_with($msg, 'CONFLICT:')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Conflit : le panneau ' . substr($msg, 9) . ' n\'est plus disponible (réservation concurrente).',
+                    'message' => 'Conflit : le panneau ' . substr($msg, 9) . ' n\'est pas disponible sur cette période (réservation, campagne ou renouvellement confirmé d\'un autre client).',
                 ], 409);
             }
             if (str_starts_with($msg, 'DUPLICATE:')) {
