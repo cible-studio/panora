@@ -20,7 +20,7 @@
     <span class="sm2-t9-pinned-icon" aria-hidden="true">⚠️</span>
     <div class="sm2-t9-pinned-text">
         <strong>{{ $pigesRejected }} photo{{ $pigesRejected > 1 ? 's' : '' }} à refaire</strong>
-        <span class="sm2-t9-pinned-sub">le chef a demandé une nouvelle prise — touche pour voir</span>
+        <span class="sm2-t9-pinned-sub">le Media Planner a demandé une nouvelle prise — touche pour voir</span>
     </div>
     <span class="sm2-t9-pinned-chevron" aria-hidden="true">›</span>
 </button>

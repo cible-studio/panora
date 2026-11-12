@@ -36,7 +36,7 @@
                         </div>
                     </div>
                     <div class="sm2-t9-which">
-                        Le chef a refusé ta photo de
+                        Le Media Planner a refusé ta photo de
                         <strong>{{ $pige->panel?->name ?? ($pige->panel?->reference ?? 'ce panneau') }}</strong>
                         @if($pige->panel?->commune?->name)
                             ({{ $pige->panel->commune->name }})
