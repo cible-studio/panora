@@ -631,6 +631,72 @@ class AxesMultiPiedsTest extends TestCase
     }
 
     // ══════════════════════════════════════════════════════════════
+    // Écran Disponibilités (2026-11-12, demande du MP) : une carte par axe
+    // ══════════════════════════════════════════════════════════════
+
+    private function grilleDispo(array $params): array
+    {
+        $req = \Illuminate\Http\Request::create('/admin/reservations/panneaux', 'GET', $params + ['source' => 'internal']);
+
+        return app(\App\Http\Controllers\Admin\ReservationController::class)->panneauxAjax($req)->getData(true);
+    }
+
+    public function test_l_ecran_dispo_montre_une_carte_par_axe_avec_ses_pieds(): void
+    {
+        // Janvier 2027 : AXE-10 n'est plus vendu (contrat jusqu'au 31/12),
+        // MOOV prend le pied 1 d'AXE-20.
+        DB::table('reservations')->insert(['id' => 61, 'reference' => 'RES-MOOV', 'client_id' => 2, 'status' => 'confirme', 'start_date' => '2027-01-01', 'end_date' => '2027-01-31']);
+        DB::table('reservation_panels')->insert(['reservation_id' => 61, 'panel_id' => 21, 'unit_price' => 130000, 'total_price' => 130000]);
+
+        $data = $this->grilleDispo(['dispo_du' => '2027-01-01', 'dispo_au' => '2027-01-31']);
+        $parRef = collect($data['panels'])->keyBy('reference');
+
+        // Deux axes + le panneau simple : aucun pied seul dans la grille.
+        $this->assertSame(['AXE-10', 'AXE-20', 'P-30'], $parRef->keys()->sort()->values()->all());
+        $axe = $parRef['AXE-20'];
+        $this->assertTrue($axe['est_axe']);
+        $this->assertFalse($axe['is_selectable'], 'L\'axe ne se coche pas, ses pieds oui.');
+        $this->assertSame([2, 1], [$axe['pieds_total'], $axe['pieds_libres']]);
+        $this->assertSame([[21, 'occupe', false], [22, 'libre', true]],
+            array_map(fn ($x) => [$x['id'], $x['display_status'], $x['is_selectable']], $axe['pieds']));
+        $this->assertSame('Axe Libre', $axe['name'], 'Sans le « (2P x 3F) ».');
+
+        // Compteurs en pieds : 3 pieds libres d'AXE-10 + 1 d'AXE-20 + P-30.
+        $this->assertSame(5, $data['stats']['disponibles']);
+        $this->assertSame(1, $data['stats']['occupes']);
+
+        // Filtre « Libre » : un axe apparaît s'il lui reste un pied libre,
+        // et sa liste montre quand même tous ses pieds.
+        $libres = collect($this->grilleDispo(['dispo_du' => '2027-01-01', 'dispo_au' => '2027-01-31', 'statut' => 'libre'])['panels'])->keyBy('reference');
+        $this->assertCount(2, $libres['AXE-20']['pieds']);
+
+        // Filtre « Occupé » : seul AXE-20 (son pied 1).
+        $occupes = collect($this->grilleDispo(['dispo_du' => '2027-01-01', 'dispo_au' => '2027-01-31', 'statut' => 'occupe'])['panels']);
+        $this->assertSame(['AXE-20'], $occupes->pluck('reference')->all());
+    }
+
+    public function test_les_selecteurs_rangent_les_pieds_sous_leur_axe(): void
+    {
+        // Lignes au format des sélecteurs (campagne, réservation) : chaque
+        // pied garde le statut que l'appelant a calculé.
+        $lignes = collect([
+            ['id' => 30, 'axe_id' => null, 'pied_numero' => null, 'available' => true],
+            ['id' => 22, 'axe_id' => 20,   'pied_numero' => 2,    'available' => true],
+            ['id' => 21, 'axe_id' => 20,   'pied_numero' => 1,    'available' => false],
+        ]);
+
+        $groupes = (new AxeService())->regrouperLignes($lignes, fn ($axe, array $pieds, int $total) => [
+            'id' => 'axe_' . $axe->id, 'reference' => $axe->reference, 'total' => $total,
+            'pieds' => array_column($pieds, 'id'), 'libres' => collect($pieds)->where('available', true)->count(),
+        ]);
+
+        $this->assertSame([30, 'axe_20'], $groupes->pluck('id')->all(), 'L\'axe prend la place de son premier pied.');
+        $this->assertSame([21, 22], $groupes[1]['pieds'], 'Pieds dans l\'ordre du terrain.');
+        $this->assertSame([2, 1], [$groupes[1]['total'], $groupes[1]['libres']]);
+        $this->assertSame('Axe Libre', (new AxeService())->nomCourt('Axe Libre (2P x 3F)'));
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // Point 1a (2026-11-12) — un axe entier repris = ses pieds libres
     // ══════════════════════════════════════════════════════════════
 

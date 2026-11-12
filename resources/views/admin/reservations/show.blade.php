@@ -1327,13 +1327,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 // sont rendus non sélectionnables (disabled: true) — le
                 // commercial voit d'un coup d'œil l'état réel du parc sur
                 // la période sans avoir à deviner pourquoi il n'apparaît pas.
+                // Axes (2026-11-12) : un groupe par axe, ses pieds dessous
+                // (non libres grisés) — on choisit l'axe puis le pied.
                 results: (Array.isArray(data) ? data : [])
-                    .map(p => ({
+                    .map(p => p.est_axe ? {
+                        text:     `⛓ ${p.reference} — ${p.name} · ${p.pieds_libres}/${p.pieds_total} pieds libres`,
+                        children: (p.pieds || []).map(x => ({
+                            ...x,
+                            id:       x.id,
+                            text:     `${x.reference} — pied ${x.pied_numero || '?'}`,
+                            name:     `pied ${x.pied_numero || '?'}`,
+                            disabled: !x.available,
+                        })),
+                    } : {
                         id:       p.id,
                         text:     `${p.reference} — ${p.name}`,
                         disabled: !p.available,
                         ...p,
-                    })),
+                    }),
             }),
             cache: true,
         },

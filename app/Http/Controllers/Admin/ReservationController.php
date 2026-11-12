@@ -171,6 +171,12 @@ class ReservationController extends Controller
                     'daily_traffic',
                     'zone_description'
                 ]);
+            // Axes (2026-11-12) : sans ces colonnes, chaque pied arrivait
+            // ici avec axe_id = null et s'affichait comme un panneau
+            // ordinaire — ni badge « pied 3/11 », ni regroupement.
+            if (app(\App\Services\Axes\AxeService::class)->colonnesPresentes()) {
+                $query->addSelect(['axe_id', 'pied_numero', 'faces_par_pied']);
+            }
 
             if (!empty($communeIds))
                 $query->whereIn('commune_id', $communeIds);
@@ -325,6 +331,10 @@ class ReservationController extends Controller
                     }
                 }
 
+                // Axes (2026-11-12) : la liste déroulante d'un axe montre TOUS
+                // ses pieds avec leur statut, quel que soit le filtre statut.
+                $tousLesPanneaux = $panels;
+
                 if (!$dateError && $startDate && $endDate) {
                     // Règle métier : un panneau confirmé prime sur l'option.
                     // → "occupe"  = réservations confirmées, campagnes, et
@@ -340,10 +350,14 @@ class ReservationController extends Controller
                 }
 
                 $now = Carbon::now()->startOfDay();
-                $internalResult = $panels->map(
-                    fn($panel) =>
-                    self::formatInternalPanel($panel, $occupiedIds, $optionIds, $releaseDates, $startDate, $endDate, $dateError, $now, $retenues)
-                );
+                $format = fn($panel) =>
+                    self::formatInternalPanel($panel, $occupiedIds, $optionIds, $releaseDates, $startDate, $endDate, $dateError, $now, $retenues);
+
+                // Axes (2026-11-12, demande du MP) : UNE carte par axe, avec
+                // la liste déroulante de ses pieds. Un axe apparaît dès qu'un
+                // de ses pieds passe le filtre (« Libre » : au moins un pied
+                // libre). Les statuts restent calculés pied par pied, ici.
+                $internalResult = self::regrouperPiedsParAxe($panels, $tousLesPanneaux, $format);
             }
         }
 
@@ -457,6 +471,9 @@ class ReservationController extends Controller
         $allPanels = $internalResult->merge($externalResult)->values();
         $total = $allPanels->count();
         $paginated = $allPanels->forPage($page, $perPage)->values();
+        // Compteurs en PIEDS pour les axes (2026-11-12) : une carte d'axe
+        // compte pour ses pieds, pas pour « 1 panneau ».
+        $pourCompter = $allPanels->flatMap(fn($p) => !empty($p['est_axe']) ? $p['pieds'] : [$p]);
 
         // Axes multi-pieds (2026-11-11) : un dictionnaire à part plutôt que
         // de recopier le nom de l'axe sur chacun de ses onze pieds. Le
@@ -486,11 +503,11 @@ class ReservationController extends Controller
             'stats' => [
             'total'        => $total,
             'displayed'    => $paginated->count(),
-            'disponibles'  => $allPanels->where('display_status', 'libre')->count(),
-            'occupes'      => $allPanels->where('display_status', 'occupe')->count(),
-            'options'      => $allPanels->where('display_status', 'option_periode')->count(),
-            'maintenance'  => $allPanels->where('display_status', 'maintenance')->count(),
-            'renouvellements' => $allPanels->where('display_status', 'renouvellement')->count(),
+            'disponibles'  => $pourCompter->where('display_status', 'libre')->count(),
+            'occupes'      => $pourCompter->where('display_status', 'occupe')->count(),
+            'options'      => $pourCompter->where('display_status', 'option_periode')->count(),
+            'maintenance'  => $pourCompter->where('display_status', 'maintenance')->count(),
+            'renouvellements' => $pourCompter->where('display_status', 'renouvellement')->count(),
             'externes'     => $externalResult->count(),
             'internes'     => $internalResult->count(),
             'pages'        => (int) ceil($total / $perPage),
@@ -536,6 +553,115 @@ class ReservationController extends Controller
         // sans dépendre d'un contrôleur. Méthode conservée : ses appels
         // internes et les tests existants passent par elle.
         return AvailabilityService::displayStatusForPeriod($rawStatus, $hasPeriod, $isOccupied, $isOption, $isRetenu);
+    }
+
+    /**
+     * Axes (2026-11-12, demande du MP) : une entrée par axe au lieu d'une
+     * carte par pied. L'entrée porte la liste de ses pieds, chacun avec le
+     * statut calculé par formatInternalPanel() — la règle de disponibilité
+     * n'est pas recopiée ici. L'axe prend la place de son premier pied
+     * dans l'ordre d'affichage.
+     *
+     * @param \Illuminate\Support\Collection $retenus  panneaux qui passent les filtres
+     * @param \Illuminate\Support\Collection $tous     les mêmes, avant le filtre statut
+     * @param \Closure                       $format   formatInternalPanel, déjà paramétré
+     */
+    private static function regrouperPiedsParAxe($retenus, $tous, \Closure $format): \Illuminate\Support\Collection
+    {
+        $axeIds = $retenus->pluck('axe_id')->filter()->unique()->values()->all();
+        if (empty($axeIds)) {
+            return $retenus->map($format)->values();
+        }
+
+        $piedsParAxe = $tous->filter(fn($p) => $p->axe_id && in_array($p->axe_id, $axeIds))->groupBy('axe_id');
+        $axes = Panel::with(['commune:id,name', 'format:id,name,width,height', 'zone:id,name', 'category:id,name', 'photos'])
+            ->whereIn('id', $axeIds)->get()->keyBy('id');
+        $totaux = Panel::whereIn('axe_id', $axeIds)
+            ->selectRaw('axe_id, COUNT(*) as total')->groupBy('axe_id')->pluck('total', 'axe_id');
+
+        $resultat = collect();
+        $poses = [];
+        foreach ($retenus as $p) {
+            $axe = $p->axe_id ? $axes->get($p->axe_id) : null;
+            if (!$axe) {
+                // Panneau ordinaire (ou axe introuvable : on garde le pied).
+                $resultat->push($format($p));
+                continue;
+            }
+            if (isset($poses[$axe->id])) continue;
+            $poses[$axe->id] = true;
+
+            $pieds = $piedsParAxe->get($axe->id, collect())->sortBy('pied_numero')->map($format)->values()->all();
+            $resultat->push(self::entreeAxe($axe, $pieds, (int) ($totaux[$axe->id] ?? count($pieds))));
+        }
+
+        return $resultat->values();
+    }
+
+    /** L'entrée d'un axe : sa fiche (photo, commune…) et ses pieds. */
+    private static function entreeAxe(Panel $axe, array $pieds, int $total): array
+    {
+        $statuts = array_column($pieds, 'display_status');
+        $libres  = array_values(array_filter($pieds, fn($x) => $x['is_selectable']));
+        $display = match (true) {
+            in_array('libre', $statuts, true)          => 'libre',
+            in_array('option_periode', $statuts, true) => 'option_periode',
+            in_array('renouvellement', $statuts, true) => 'renouvellement',
+            default                                    => $statuts[0] ?? 'libre',
+        };
+        // Le « (11P x 3F) » du nom ne parle pas au MP (même nettoyage que
+        // AxeService::nomPied).
+        $nom = trim(preg_replace(['/\(\s*\d+\s*P\s*x\s*\d+\s*F\s*\)/i', '/\(\s*\d+\s*panneaux?[^)]*\)/i'], '', (string) $axe->name) ?? '');
+
+        return [
+            'id'                    => 'axe_' . $axe->id,
+            'source'                => 'internal',
+            'est_axe'               => true,
+            'axe_id'                => $axe->id,
+            'reference'             => $axe->reference,
+            'name'                  => $nom !== '' ? $nom : $axe->name,
+            'commune'               => $axe->commune?->name ?? '—',
+            'commune_id'            => $axe->commune_id,
+            'zone'                  => $axe->zone?->name ?? '—',
+            'zone_id'               => $axe->zone_id,
+            'format'                => $axe->format?->name ?? '—',
+            'format_id'             => $axe->format_id,
+            'dimensions'            => self::buildDims($axe->format),
+            'category'              => $axe->category?->name ?? '—',
+            'agency_name'           => null,
+            'agency_id'             => null,
+            'is_lit'                => (bool) $axe->is_lit,
+            'faces_par_pied'        => $axe->faces_par_pied,
+            'monthly_rate'          => (float) ($axe->monthly_rate ?? 0),
+            'daily_traffic'         => (int) ($axe->daily_traffic ?? 0),
+            'zone_description'      => $axe->zone_description ?? '',
+            'photo_url'             => $axe->photos->isNotEmpty() ? asset('storage/' . $axe->photos->first()->path) : null,
+            'status_db'             => $axe->status?->value,
+            'display_status'        => $display,
+            // L'axe ne se coche pas : ce sont ses pieds qui se cochent.
+            'is_selectable'         => false,
+            'is_future_selectable'  => false,
+            'selectable_from'       => null,
+            'selectable_from_label' => null,
+            'release_info'          => null,
+            'renouvellement'        => null,
+            'pieds_total'           => $total,
+            'pieds_libres'          => count($libres),
+            'pieds'                 => array_map(fn($x) => [
+                'id'                    => $x['id'],
+                'numero'                => $x['pied_numero'],
+                'reference'             => $x['reference'],
+                'display_status'        => $x['display_status'],
+                'is_selectable'         => $x['is_selectable'],
+                'is_future_selectable'  => $x['is_future_selectable'],
+                'selectable_from'       => $x['selectable_from'],
+                'selectable_from_label' => $x['selectable_from_label'],
+                'monthly_rate'          => $x['monthly_rate'],
+                'release_label'         => $x['release_info']['label'] ?? null,
+                'renouvellement'        => $x['renouvellement'],
+            ], $pieds),
+            'card_color_idx'        => abs(crc32($axe->reference)) % 6,
+        ];
     }
 
     private static function formatInternalPanel($panel, $occupiedIds, $optionIds, $releaseDates, $startDate, $endDate, $dateError, $now, array $retenues = []): array
@@ -3028,6 +3154,10 @@ class ReservationController extends Controller
                 ->whereNull('deleted_at')
                 ->where('status', '!=', PanelStatus::MAINTENANCE->value)
                 ->select(['id', 'reference', 'name', 'commune_id', 'zone_id', 'format_id', 'is_lit', 'monthly_rate', 'daily_traffic', 'zone_description']);
+            // Axes (2026-11-12) : de quoi ranger les pieds sous leur axe.
+            if (app(\App\Services\Axes\AxeService::class)->colonnesPresentes()) {
+                $query->addSelect(['axe_id', 'pied_numero']);
+            }
 
             if ($request->filled('commune_id'))
                 $query->where('commune_id', (int) $request->commune_id);
@@ -3081,6 +3211,8 @@ class ReservationController extends Controller
                     'available'       => $avail['available'],
                     'release_date'    => $releaseFmt,
                     'blocking_status' => $avail['blocking_status'],
+                    'axe_id'          => $p->axe_id,
+                    'pied_numero'     => $p->pied_numero,
                 ];
             });
 
@@ -3137,6 +3269,32 @@ class ReservationController extends Controller
                     'blocking_status' => $blocking,
                 ];
             });
+
+            // Axes (2026-11-12, demande du MP) : une entrée par axe avec la
+            // liste de ses pieds (statut de chacun calculé ci-dessus).
+            $axes = app(\App\Services\Axes\AxeService::class);
+            $internalRows = $axes->regrouperLignes($internalRows, fn ($axe, array $pieds, int $total) => [
+                'id'              => 'axe_' . $axe->id,
+                'source'          => 'internal',
+                'est_axe'         => true,
+                'axe_id'          => $axe->id,
+                'reference'       => $axe->reference,
+                'name'            => $axes->nomCourt($axe->name),
+                'commune'         => $axe->commune?->name ?? '—',
+                'zone'            => '—',
+                'format'          => $axe->format?->name ?? '—',
+                'dimensions'      => self::buildDims($axe->format),
+                'is_lit'          => (bool) $axe->is_lit,
+                'monthly_rate'    => (float) ($axe->monthly_rate ?? 0),
+                'daily_traffic'   => (int) ($axe->daily_traffic ?? 0),
+                'agency_name'     => null,
+                'available'       => collect($pieds)->contains('available', true),
+                'release_date'    => null,
+                'blocking_status' => null,
+                'pieds_total'     => $total,
+                'pieds_libres'    => collect($pieds)->where('available', true)->count(),
+                'pieds'           => $pieds,
+            ]);
 
             return response()->json($internalRows->concat($externalRows)->values());
 

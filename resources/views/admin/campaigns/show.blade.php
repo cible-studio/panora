@@ -1189,6 +1189,52 @@
                             </div>
                         </template>
                         <template x-for="p in paginatedPanels" :key="p.id">
+                          <div>
+                            {{-- Axe (2026-11-12, demande du MP) : une ligne par axe,
+                                 et la liste déroulante de ses pieds à cocher. Le
+                                 statut de chaque pied vient du serveur. --}}
+                            <template x-if="p.est_axe">
+                                <div class="p-4 border-b last:border-0" style="border-color:var(--border)" :style="!p.available ? 'opacity:0.55;' : ''">
+                                    <div class="flex items-center gap-3 flex-wrap">
+                                        <button type="button" @click="axesOuverts[p.axe_id] = !axesOuverts[p.axe_id]"
+                                                class="text-xs font-semibold px-2 py-1 rounded-lg"
+                                                style="background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.35);color:var(--accent)">
+                                            ⛓ Choisir les pieds <span x-text="axesOuverts[p.axe_id] ? '▴' : '▾'"></span>
+                                        </button>
+                                        <span class="font-mono text-sm font-bold" style="color:var(--accent)" x-text="p.reference"></span>
+                                        <span class="font-medium truncate" style="color:var(--text)" x-text="p.name"></span>
+                                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                              :style="p.pieds_libres > 0 ? 'background:rgba(16,185,129,.12);color:#10b981' : 'background:rgba(239,68,68,.12);color:#ef4444'"
+                                              x-text="p.pieds_libres + ' / ' + p.pieds_total + ' pieds libres'"></span>
+                                        <span class="text-[10px]" style="color:var(--text2)" x-text="piedsCoches(p) + ' sélectionné(s)'"></span>
+                                    </div>
+                                    <div class="flex gap-4 text-xs mt-1" style="color:var(--text3)">
+                                        <span>📍 <span x-text="p.commune || '—'"></span></span>
+                                        <span>📏 <span x-text="p.format || '—'"></span></span>
+                                        <span x-show="p.monthly_rate" class="font-semibold" style="color:var(--accent)" x-text="formatPrice(p.monthly_rate) + ' par pied'"></span>
+                                    </div>
+                                    <div x-show="axesOuverts[p.axe_id]" class="mt-2 ml-6 border rounded-lg overflow-hidden" style="border-color:var(--border)">
+                                        <template x-if="p.pieds_libres > 1">
+                                            <button type="button" @click="cocherAxe(p)" class="text-[11px] px-2 py-1 m-2 rounded"
+                                                    style="background:var(--surface3);border:1px solid var(--border2);color:var(--text)"
+                                                    x-text="'Tout cocher / décocher (' + p.pieds_libres + ')'"></button>
+                                        </template>
+                                        <template x-for="x in p.pieds" :key="x.id">
+                                            <label class="flex items-center gap-3 px-3 py-2 border-t text-xs" style="border-color:var(--border)"
+                                                   :class="x.available ? 'cursor-pointer' : 'cursor-not-allowed'"
+                                                   :style="!x.available ? 'opacity:0.55;' : ''">
+                                                <input type="checkbox" :value="x.id" x-model="selectedPanels" name="panel_ids[]"
+                                                       :disabled="!x.available" class="w-4 h-4" style="accent-color:var(--accent)">
+                                                <span class="font-semibold" style="color:var(--text)" x-text="'Pied ' + (x.pied_numero || '?')"></span>
+                                                <span class="font-mono" style="color:var(--text3)" x-text="x.reference"></span>
+                                                <span :style="x.available ? 'color:#10b981' : 'color:#ef4444'"
+                                                      x-text="x.available ? '✓ Libre' : (x.release_date || ('Pris (' + (x.blocking_status || 'engagé') + ')'))"></span>
+                                            </label>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="!p.est_axe">
                             <label class="flex items-center gap-4 p-4 border-b last:border-0 transition-all"
                                    style="border-color:var(--border)"
                                    :class="p.available ? 'cursor-pointer' : 'cursor-not-allowed'"
@@ -1232,6 +1278,8 @@
                                     </div>
                                 </div>
                             </label>
+                            </template>
+                          </div>
                         </template>
                     </div>
 
@@ -1966,6 +2014,7 @@
             selectedPanels: [],
             allPanels: [],
             filteredPanels: [],
+            axesOuverts: {},         // axes dont la liste des pieds est dépliée (2026-11-12)
             loadingPanels: false,
             loadError: null,
             loaded: false,
@@ -2078,14 +2127,30 @@
                 });
             },
 
+            // Axes (2026-11-12) : pieds cochés d'un axe, et « tout cocher ».
+            piedsCoches(p) {
+                return (p.pieds || []).filter(x => this.selectedPanels.some(id => String(id) === String(x.id))).length;
+            },
+            cocherAxe(p) {
+                const libres = (p.pieds || []).filter(x => x.available);
+                const estCoche = x => this.selectedPanels.some(id => String(id) === String(x.id));
+                if (libres.every(estCoche)) {
+                    this.selectedPanels = this.selectedPanels.filter(id => !libres.some(x => String(x.id) === String(id)));
+                } else {
+                    libres.filter(x => !estCoche(x)).forEach(x => this.selectedPanels.push(x.id));
+                }
+            },
+
             formatPrice(p) { return Number(p).toLocaleString('fr-FR') + ' FCFA/mois'; },
             formatEstimate() {
                 // Les IDs peuvent être numériques (internes) ou "ext_<n>" (externes)
                 // donc on compare en string via String(). Les indisponibles ne
                 // peuvent pas se trouver dans selectedPanels (checkbox disabled)
                 // mais on filtre par sécurité au cas où la liste change.
+                // Axes (2026-11-12) : les pieds sont rangés sous leur axe.
+                const tous = this.allPanels.flatMap(p => p.est_axe ? (p.pieds || []) : [p]);
                 const total = this.selectedPanels.reduce((s, id) => {
-                    const panel = this.allPanels.find(x => String(x.id) === String(id));
+                    const panel = tous.find(x => String(x.id) === String(id));
                     if (!panel || !panel.available) return s;
                     return s + ((panel.monthly_rate || 0) * this.campaignMonths);
                 }, 0);

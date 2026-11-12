@@ -1463,3 +1463,35 @@ quelle, sinon on revendrait les pieds déjà pris par un autre client.
       la liste des pieds pris et l'invitation à passer par « Renouveler ».
 - [ ] **Import PDF** avec un code d'axe : l'aperçu annonce « ⛓ Axes : … »,
       et la campagne importée porte les pieds libres.
+
+## 21. Axes : une carte par axe et la liste déroulante des pieds *(2026-11-12)*
+
+Demande du MP : retrouver les axes comme avant dans les disponibilités, et
+choisir leurs pieds dans une liste déroulante pour les attribuer à une
+réservation ou une campagne.
+
+**Défaut corrigé au passage** : la requête de l'écran Disponibilités ne
+lisait pas les colonnes des axes. En production, depuis le 11/11, chaque pied
+y arrivait comme un panneau ordinaire : ni badge « pied 3/11 », ni bouton
+« ⛓ N ». C'est très probablement ce que le MP a vu.
+
+- [ ] **Disponibilités**, période en janvier 2027 : `CDYLUP-004` apparaît en
+      **une** carte, avec la photo de l'axe, « ⛓ AXE · 11 PIEDS · 3 FACES » et
+      « N / 11 libres ». Aucun pied n'apparaît seul dans la grille.
+- [ ] « ⛓ Choisir les pieds ▾ » déplie la liste : chaque pied avec son statut,
+      les pieds pris grisés, la case désactivée. Le compteur « 2 sélectionnés ·
+      9 disponibles » suit les cases.
+- [ ] « Tout cocher / décocher » coche les pieds libres de l'axe.
+- [ ] Confirmer la sélection → réservation : elle contient les **pieds** cochés.
+- [ ] Filtre « Libre » : un axe y est s'il lui reste un pied libre, et sa liste
+      montre quand même tous ses pieds. Filtre « Occupé » : un axe y est si un
+      de ses pieds est pris.
+- [ ] Compteurs du haut (« ✅ N disponibles ») : en **pieds**.
+- [ ] Vue **liste** : même liste déroulante, sous le nom de l'axe.
+- [ ] **Fiche campagne → Ajouter des panneaux** : une ligne par axe, « ⛓ Choisir
+      les pieds ▾ », « X / Y pieds libres », cases par pied ; « ✅ Ajouter »
+      ajoute les pieds cochés.
+- [ ] **Fiche réservation → Ajouter un panneau** (menu déroulant) : un groupe
+      par axe, ses pieds dessous, les pieds pris grisés.
+- [ ] **Modifier une réservation** : même liste déroulante dans le tableau.
+- [ ] **Devis** : pas encore — à venir (une ligne par axe + cases ODP/TM).
