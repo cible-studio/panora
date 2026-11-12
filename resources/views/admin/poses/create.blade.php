@@ -710,7 +710,7 @@ window.POSE = {
             <div style="flex:1;min-width:0;cursor:pointer">
                 <div style="display:flex;align-items:center;gap:6px">
                     <span style="font-family:monospace;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0">${p.reference}</span>
-                    <span style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
+                    <span style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</span>${p.axe ? `<span style="font-size:10px;font-weight:700;color:var(--accent);flex-shrink:0">⛓ ${p.axe}</span>` : ''}
                 </div>
                 <div style="font-size:10px;color:var(--text3)">📍 ${p.commune}</div>
             </div>

@@ -1673,3 +1673,23 @@ dernier pied est validé ; pose suivante du technicien = règle « Maintenant »
       pied) reste visible ; avant, il n'en restait qu'une. Une photo refusée
       d'un axe entier disparaît de « Photos à refaire » quand une nouvelle
       photo arrive sur l'axe **après** le refus.
+
+### 23 b. Phase B : l'admin regroupé par axe
+
+- [ ] **Poses** (liste générale et onglet « Poses » d'une campagne) : au-dessus
+      des pieds d'un axe, une ligne « ⛓ Axe CDYLUP-004 · Riviera 3 — 5 pieds ·
+      3/5 posés · 2/5 pigés · 1/5 validés » ; les pieds dessous, décalés,
+      « Pied 3 ». Les compteurs portent sur **tous** les pieds de l'axe sur la
+      campagne, même ceux d'une autre page. Replier la campagne replie aussi
+      la ligne d'axe.
+- [ ] **Fiche d'une pose de pied** : carte « ⛓ Les pieds de l'axe CDYLUP-004 »
+      — chaque pied, sa pose, ses photos (📸 N · M ✓), son statut ; la pose
+      ouverte est surlignée ; un clic ouvre la pose du pied.
+- [ ] **Piges** (liste) : sous le nom d'une photo de pied, « ⛓ Pied 3 ·
+      CDYLUP-004 » ; un clic filtre sur l'axe (toutes les photos de ses pieds).
+- [ ] **Validation des piges** (carrousel) : « — ⛓ Pied 3 · CDYLUP-004 » après
+      le nom ; la carte mini du pied le place à la position de l'axe.
+- [ ] **Créer une pose / une pige** pour une campagne : chaque pied porte
+      « ⛓ Pied 3 · CDYLUP-004 ».
+- [ ] Inchangé (décision du 12/11, compteurs en pieds) : tuiles de la fiche
+      campagne, tableau des vagues, pilotage en direct, performance.

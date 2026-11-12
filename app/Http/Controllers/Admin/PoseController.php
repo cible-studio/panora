@@ -634,7 +634,24 @@ class PoseController extends Controller
         // Alertes liées à cette tâche — via AlertService (maintenant cohérent)
         $taskAlerts = $this->alertService->getForModel(PoseTask::class, $poseTask->id);
  
-        return view('admin.poses.show', compact('poseTask', 'pigeStats', 'isLate', 'taskAlerts'));
+        // Pied d'un axe (2026-11-12) : tous les pieds de l'axe sur cette
+        // campagne, chacun avec sa pose et ses photos — l'axe se suit d'un
+        // coup d'œil depuis n'importe lequel de ses pieds.
+        $piedsDeLAxe = collect();
+        $axeDuPied = null;
+        if ($poseTask->campaign_id && $poseTask->panel?->axe_id) {
+            $axeDuPied = \App\Models\Panel::find($poseTask->panel->axe_id, ['id', 'reference', 'name']);
+            $piedsDeLAxe = PoseTask::with(['panel:id,reference,pied_numero', 'technicien:id,name'])
+                ->withCount(['piges', 'piges as pige_verifie_count' => fn ($q) => $q->where('status', 'verifie')])
+                ->where('campaign_id', $poseTask->campaign_id)
+                ->where('status', '!=', \App\Enums\PoseTaskStatus::CANCELLED->value)
+                ->whereHas('panel', fn ($q) => $q->where('axe_id', $poseTask->panel->axe_id))
+                ->get()
+                ->sortBy(fn ($t) => $t->panel?->pied_numero ?? 0)
+                ->values();
+        }
+
+        return view('admin.poses.show', compact('poseTask', 'pigeStats', 'isLate', 'taskAlerts', 'piedsDeLAxe', 'axeDuPied'));
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -1217,7 +1234,9 @@ class PoseController extends Controller
         $request->validate(['campaign_id' => 'required|integer|exists:campaigns,id']);
 
         $campaign = Campaign::with([
-            'panels:id,reference,name,commune_id',
+            // Axes (2026-11-12) : un pied se présente « Pied 3 · CDYLUP-004 ».
+            'panels:id,reference,name,commune_id' . app(\App\Services\Axes\AxeService::class)->colonnesPanneau(),
+            ...app(\App\Services\Axes\AxeService::class)->relationsAxe('panels'),
             'panels.commune:id,name',
         ])->findOrFail($request->campaign_id);
 
@@ -1241,6 +1260,7 @@ class PoseController extends Controller
             'id'          => $panel->id,
             'reference'   => $panel->reference,
             'name'        => $panel->name,
+            'axe'         => $panel->axe ? 'Pied ' . $panel->pied_numero . ' · ' . $panel->axe->reference : null,
             'commune'     => $panel->commune?->name ?? '—',
             'has_task'    => $existingTasks->has($panel->id),
             'task_status' => $existingTasks->get($panel->id)?->status,
