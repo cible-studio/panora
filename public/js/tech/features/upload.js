@@ -708,10 +708,11 @@ function bindMainUpload() {
             }
 
             // Refonte 2026-11-12 : la page est prévenue (en-tête, commune,
-            // carte de l'axe — features/refonte.js). Un pied d'axe ou un axe
-            // entier se met à jour SUR PLACE : ni écran T4, ni rechargement
-            // (le technicien enchaîne les pieds sans perdre sa carte).
-            const surPlace = !!(sourcePose?.closest?.('[data-axe-carte]') || sourcePose?.dataset?.axeEntier === '1');
+            // carte de l'axe, « Maintenant », feuille « Photo envoyée » —
+            // features/refonte.js). Sur « Ma journée » (body.tx), tout se met
+            // à jour SUR PLACE : ni écran T4, ni rechargement (étape 2 : la
+            // feuille propose la pose suivante, choisie par le serveur).
+            const surPlace = document.body.classList.contains('tx');
             document.dispatchEvent(new CustomEvent('tx:photo-envoyee', {
                 detail: { taskId, data, pose: sourcePose, photo: blob instanceof Blob ? blob : file },
             }));

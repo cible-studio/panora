@@ -45,7 +45,7 @@
             <div class="sm2-t7-stats">
                 <div class="sm2-t7-stat">
                     <div class="sm2-t7-stat-value" data-field="time-est">—</div>
-                    <div class="sm2-t7-stat-label">À PIED</div>
+                    <div class="sm2-t7-stat-label">EN VOITURE</div>
                 </div>
                 <div class="sm2-t7-stat">
                     <div class="sm2-t7-stat-value" data-field="dist-est">—</div>

@@ -1,6 +1,7 @@
 {{-- Refonte de l'espace technicien (2026-11-12, maquette validée) —
      en-tête de « Ma journée ».
-       · l'initiale ouvre le menu (préférences, aide) — data-action="open-prefs" ;
+       · l'initiale ouvre le menu (aide, chef, feuille papier, préférences) —
+         data-action="open-tx-menu" (refonte.js, feuille #tx-menu) ;
        · la cloche ouvre les alertes — data-action="open-b3" (sm2c.js) ;
        · la barre compte VRAIMENT la journée (jourFaites / jourTotal).
      Remplace _topbar + _progress_bar sur cette page. --}}
@@ -17,7 +18,7 @@
 @endphp
 <header class="tx-tete">
     <div class="tx-tete-l">
-        <button type="button" class="tx-avatar" data-action="open-prefs" aria-label="Menu">{{ $initiale }}</button>
+        <button type="button" class="tx-avatar" data-action="open-tx-menu" aria-label="Menu" aria-haspopup="dialog">{{ $initiale }}</button>
         <div class="tx-salut">
             <strong>Bonjour {{ $prenom }}</strong>
             <span>{{ $dateDuJour }}@if($zones->isNotEmpty()) · {{ $zones->implode(', ') }}@endif</span>

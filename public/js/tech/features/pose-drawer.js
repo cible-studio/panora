@@ -282,6 +282,8 @@ export function init() {
                         line.dataset.taskStatus = r.data.status || 'en_cours';
                         line.dataset.progress = 50;
                     }
+                    // Refonte 2026-11-12 : la page suit (carte d'axe, « Maintenant »).
+                    document.dispatchEvent(new CustomEvent('tx:statut', { detail: { taskId, status: r.data.status || 'en_cours' } }));
                     renderTimer(drawer);
                 } else {
                     arrivedBtn.disabled = false;

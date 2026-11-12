@@ -1,18 +1,26 @@
 // public/js/tech/features/refonte.js — Refonte de l'espace technicien
 // (2026-11-12, maquette validée) : « Ma journée » et les axes.
 //
+// Étape 1
 //   1. Recherche sur les poses affichées (data-search + texte visible).
 //   2. Carte d'axe : plier / déplier.
 //   3. « Je suis arrivé » sur un axe : progression 50 % sur son premier pied
 //      à faire — le serveur démarre tous ses pieds (PoseTask::idsFreresDAxe).
-//   4. « Y aller » sur un axe : l'axe s'affiche « En route ».
+//   4. « Y aller » / « Je suis arrivé », d'où qu'ils viennent (carte, tiroir) :
+//      la carte de l'axe suit (événement « tx:statut »).
 //   5. « Terminé » sur un axe entier (contrat d'avant le découpage, choix 4b).
 //   6. Photo envoyée (événement « tx:photo-envoyee » d'upload.js) : compteur
-//      du jour (renvoyé par le serveur, TechCarte::journee), compteur de la
-//      commune et, pour un pied ou un axe entier, la carte de l'axe — sans
-//      rechargement.
+//      du jour (TechCarte::journee), compteur de la commune, carte de l'axe.
+// Étape 2
+//   7. Plus de rechargement après une photo : la pose faite quitte la liste,
+//      « Maintenant » est remplacée par celle que choisit le serveur (même
+//      règle, même gabarit : TechSpaceController::poseSuivante), et la
+//      feuille « Photo envoyée » propose de continuer.
+//   8. Le menu de l'initiale (feuille #tx-menu).
+//   9. Une alerte touchée mène à sa pose (événement « tx:alerte », sm2c.js).
 //
-// Aucun calcul métier ici : statuts et compteurs viennent du serveur.
+// Aucun calcul métier ici : statuts, compteurs et pose suivante viennent du
+// serveur.
 
 import { postJson, urlForTask } from '../core/api.js';
 import { toast } from '../core/ui-helpers.js';
@@ -21,7 +29,7 @@ const CFG = () => window.TECH_CONFIG || {};
 const sansAccents = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
 
-// Pilule de statut d'un axe (même libellés que _tx_axe.blade.php).
+// Pilule de statut (mêmes libellés que les partials _tx_*).
 const PILULES = {
     planifiee: ['tx-pill-planifiee', 'Planifiée'],
     en_route:  ['tx-pill-route', 'En route'],
@@ -32,12 +40,27 @@ const PILULES = {
 function poserPilule(el, statut) {
     if (!el) return;
     const [cls, libelle] = PILULES[statut] || PILULES.planifiee;
-    el.classList.remove('tx-pill-planifiee', 'tx-pill-route', 'tx-pill-place', 'tx-pill-fait');
+    el.classList.remove('tx-pill-planifiee', 'tx-pill-route', 'tx-pill-place', 'tx-pill-fait', 'tx-pill-retard');
     el.classList.add(cls);
     el.textContent = libelle;
 }
 
+// ── Feuilles du bas ──────────────────────────────────────────────────
+function ouvrirFeuille(id) {
+    const fond = document.getElementById(id);
+    if (!fond) return null;
+    fond.hidden = false;
+    fond.querySelector('[data-tx-envoi-continuer], [data-tx-fermer]')?.focus({ preventScroll: true });
+    return fond;
+}
+
+function fermerFeuille(fond) {
+    if (fond) fond.hidden = true;
+}
+
 // ── 1. Recherche ─────────────────────────────────────────────────────
+let filtrerRecherche = () => {};
+
 function initRecherche() {
     const champ = document.getElementById('tx-recherche');
     if (!champ) return;
@@ -51,7 +74,7 @@ function initRecherche() {
         }
         return memo.get(el);
     };
-    const filtrer = () => {
+    filtrerRecherche = () => {
         const mots = sansAccents(champ.value).split(/\s+/).filter(Boolean);
         let visibles = 0;
         document.querySelectorAll('.tx-commune .tx-liste > *').forEach((el) => {
@@ -65,8 +88,16 @@ function initRecherche() {
         if (vide) vide.hidden = !mots.length || visibles > 0;
     };
     let minuteur;
-    champ.addEventListener('input', () => { clearTimeout(minuteur); minuteur = setTimeout(filtrer, 120); });
-    champ.addEventListener('search', filtrer);
+    champ.addEventListener('input', () => { clearTimeout(minuteur); minuteur = setTimeout(filtrerRecherche, 120); });
+    champ.addEventListener('search', () => filtrerRecherche());
+}
+
+function effacerRecherche() {
+    const champ = document.getElementById('tx-recherche');
+    if (champ && champ.value) {
+        champ.value = '';
+        filtrerRecherche();
+    }
 }
 
 // ── Compteurs ────────────────────────────────────────────────────────
@@ -99,7 +130,7 @@ function compterCommune(pose) {
 
 // ── 2. Plier / déplier un axe ────────────────────────────────────────
 function basculerAxe(tete) {
-    const carte = tete.closest('.tx-axe');
+    const carte = tete?.closest('.tx-axe');
     if (!carte) return;
     const ouvert = carte.classList.toggle('ouvert');
     tete.setAttribute('aria-expanded', ouvert ? 'true' : 'false');
@@ -158,6 +189,33 @@ async function arriver(bouton) {
         bouton.disabled = false;
         bouton.innerHTML = avant;
         toast('Pas de réseau — réessaie quand ça revient', 'error');
+    }
+}
+
+// ── 4. Statut changé ailleurs (carte, tiroir, « Maintenant ») ────────
+function surStatut(e) {
+    const { taskId, status } = e.detail || {};
+    if (!taskId || !PILULES[status]) return;
+    const ligne = document.querySelector(`.pose-line[data-task-id="${taskId}"]`);
+    const carte = ligne?.closest('[data-axe-carte]')
+        || document.querySelector(`.tx-axe-actions[data-task-id="${taskId}"]`)?.closest('[data-axe-carte]');
+    if (carte) {
+        // Les pieds ne reculent jamais : « en route » n'efface pas « sur place ».
+        const pilule = carte.querySelector('[data-tx-axe-statut]');
+        if (status === 'en_route' && !pilule?.classList.contains('tx-pill-planifiee')) return;
+        statutAxe(carte, status, status === 'en_cours' ? 50 : 25);
+        return;
+    }
+    // « Maintenant » : sa pilule sur la photo.
+    const hero = ligne?.closest('.tx-hero');
+    if (hero) {
+        let pilule = hero.querySelector('.tx-hero-photo .tx-pill');
+        if (!pilule) {
+            pilule = document.createElement('span');
+            pilule.className = 'tx-pill';
+            hero.querySelector('.tx-hero-photo')?.append(pilule);
+        }
+        poserPilule(pilule, status);
     }
 }
 
@@ -234,10 +292,9 @@ async function terminer(bouton) {
         }
         ligne.dataset.taskStatus = 'realisee';
         poserPilule(ligne.querySelector('.tx-pill'), 'realisee');
-        ligne.classList.add('tx-envoyee');
         majJournee(data.jour);
         compterCommune(ligne);
-        toast('Axe terminé — merci !', 'success');
+        poseFaite(ligne, data, 'Axe terminé');
     } catch (e) {
         bouton.disabled = false;
         bouton.innerHTML = avant;
@@ -251,8 +308,8 @@ const heureCourte = () => {
     return `${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-// Un pied photographié : sa ligne devient « Envoyée », la route avance,
-// le pied suivant passe devant. Sans rechargement.
+// Un pied photographié : sa ligne devient « Envoyée », la route avance, le
+// pied suivant passe devant. Rend true quand l'axe n'a plus de pied à faire.
 function piedEnvoye(carte, ligne, taskId) {
     const n = ligne.dataset.txPied || '';
     const fait = document.createElement('div');
@@ -283,8 +340,7 @@ function piedEnvoye(carte, ligne, taskId) {
         carte.classList.add('tx-axe-fini');
         if (actions) actions.hidden = true;
         poserPilule(carte.querySelector('[data-tx-axe-statut]'), 'realisee');
-        toast('Axe terminé : toutes ses photos sont parties. Bravo !', 'success');
-        return;
+        return true;
     }
     suivant.classList.add('suivant');
     carte.querySelector(`[data-tx-jalon="${suivant.dataset.taskId}"]`)?.classList.add('suivant');
@@ -300,6 +356,7 @@ function piedEnvoye(carte, ligne, taskId) {
     const reste = carte.querySelectorAll('.tx-pied.pose-line[data-task-id]').length;
     toast(`Pied ${n} envoyé · plus que ${pluriel(reste, 'pied')}`, 'success');
     suivant.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return false;
 }
 
 // Axe entier : la tâche reste ouverte (choix 4b), on compte ses photos.
@@ -324,13 +381,85 @@ function photoAxeEntier(ligne, data, photo) {
     }
 
     const pieds = parseInt(ligne.dataset.piedsTotal, 10) || 0;
-    const terminer = ligne.querySelector('[data-tx-terminer]');
+    const fin = ligne.querySelector('[data-tx-terminer]');
     if (pieds > 0 && photos >= pieds) {
-        terminer?.classList.add('tx-a-toucher');
+        fin?.classList.add('tx-a-toucher');
         toast('Chaque pied a sa photo : touche « Terminé ».', 'success');
     } else {
         toast(pieds > 0 ? `Photo ${photos} sur ${pieds} envoyée. Continue !` : 'Photo envoyée. Continue !', 'success');
     }
+}
+
+// ── 7. Une pose faite : elle quitte la liste, « Maintenant » change ──
+// Retire une entrée de sa commune (après le fondu), et la commune si vide.
+function retirerEntree(entree, delai = 450) {
+    if (!entree) return;
+    entree.classList.add('tx-envoyee');
+    setTimeout(() => {
+        const section = entree.closest('.tx-commune');
+        entree.remove();
+        if (section && !section.querySelector('.tx-liste > *')) section.remove();
+    }, delai);
+}
+
+// La nouvelle « Maintenant », rendue par le serveur (_tx_maintenant_section).
+function majMaintenant(suivante) {
+    const ancienne = document.querySelector('[data-tx-maintenant]');
+    if (!suivante) { ancienne?.remove(); return; }
+    if (!suivante.html) return; // au-delà du plafond d'affichage : on garde la liste
+    const gabarit = document.createElement('template');
+    gabarit.innerHTML = suivante.html.trim();
+    const neuve = gabarit.content.firstElementChild;
+    if (!neuve) return;
+    // Elle passe en tête : on la retire de sa commune.
+    const cible = suivante.cle
+        ? `[data-axe-carte="${suivante.cle}"]`
+        : `.pose-line[data-task-id="${suivante.task_id}"]`;
+    document.querySelectorAll(`.tx-commune:not([data-tx-maintenant]) .tx-liste > ${cible}`).forEach((el) => {
+        const section = el.closest('.tx-commune');
+        el.remove();
+        if (section && !section.querySelector('.tx-liste > *')) section.remove();
+    });
+    if (ancienne) ancienne.replaceWith(neuve);
+    else (document.querySelector('.tx-commune') || document.getElementById('tx-vide-recherche'))?.before(neuve);
+}
+
+const distanceLisible = (m) => (m < 950
+    ? `${Math.max(10, Math.round(m / 10) * 10)} m`
+    : `${(m / 1000).toFixed(1).replace('.', ',')} km`);
+
+// Feuille « Photo envoyée » : le compteur du jour et la pose suivante.
+let suivanteProposee = null;
+
+function feuilleEnvoi(data, titre) {
+    const fond = document.getElementById('tx-envoi');
+    if (!fond) return;
+    const s = data.suivante || null;
+    suivanteProposee = s;
+    fond.querySelector('[data-tx-envoi-titre]').textContent = titre;
+    fond.querySelector('[data-tx-envoi-jour]').textContent = data.jour
+        ? `${data.jour.faites} / ${data.jour.total} poses faites aujourd'hui` : '';
+    const bloc = fond.querySelector('[data-tx-envoi-suivante]');
+    bloc.hidden = !s;
+    fond.querySelector('[data-tx-envoi-fini]').hidden = !!s;
+    fond.querySelector('[data-tx-envoi-continuer]').hidden = !s;
+    if (s) {
+        fond.querySelector('[data-tx-envoi-ref]').textContent = `${s.reference || '—'} · pose suivante`;
+        fond.querySelector('[data-tx-envoi-nom]').textContent = s.nom || '';
+        fond.querySelector('[data-tx-envoi-sous]').textContent = [s.commune,
+            s.distance_m != null ? `à ${distanceLisible(s.distance_m)}` : null].filter(Boolean).join(' · ');
+        fond.querySelector('[data-tx-envoi-photo]').style.backgroundImage = s.photo_url ? `url('${s.photo_url}')` : '';
+    }
+    ouvrirFeuille('tx-envoi');
+}
+
+// Pose faite (photo, dernier pied d'un axe, « Terminé ») : même suite.
+function poseFaite(entreeOuLigne, data, titre) {
+    retirerEntree(entreeOuLigne?.closest('.tx-liste > *'));
+    if (!('suivante' in data)) { toast(data.message || 'Photo envoyée.', 'success'); return; }
+    majMaintenant(data.suivante);
+    // Dernière pose du jour : sm2c.js affiche l'écran « fin de journée ».
+    if (!data.is_last_pose_of_day) feuilleEnvoi(data, titre);
 }
 
 function surPhotoEnvoyee(e) {
@@ -344,7 +473,64 @@ function surPhotoEnvoyee(e) {
     if (data.task_done === false) return;
     compterCommune(pose);
     const carte = pose?.closest('[data-axe-carte]');
-    if (carte && pose.matches('.tx-pied.pose-line')) piedEnvoye(carte, pose, taskId);
+    if (carte && pose.matches('.tx-pied.pose-line')) {
+        if (piedEnvoye(carte, pose, taskId)) poseFaite(carte, data, 'Axe terminé');
+        return;
+    }
+    poseFaite(pose, data, 'Photo envoyée');
+}
+
+// ── Ouvrir une pose (feuille « Continuer », alertes) ─────────────────
+function ouvrirPose(taskId) {
+    const ligne = document.querySelector(`.pose-line[data-task-id="${taskId}"]`);
+    if (!ligne) return false;
+    effacerRecherche();
+    const carte = ligne.closest('[data-axe-carte]');
+    if (carte) {
+        // Un pied : on déplie son axe et on montre le pied (la carte porte
+        // les gestes de l'axe).
+        if (!carte.classList.contains('ouvert')) basculerAxe(carte.querySelector('[data-tx-axe-toggle]'));
+        ligne.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        ligne.classList.add('tx-vient');
+        setTimeout(() => ligne.classList.remove('tx-vient'), 1300);
+        return true;
+    }
+    ligne.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Le tiroir s'ouvre au toucher de la ligne (pose-drawer.js).
+    ligne.click();
+    return true;
+}
+
+// ── 9. Alertes ───────────────────────────────────────────────────────
+function surAlerte(e) {
+    const { type, taskId } = e.detail || {};
+    const pagePhotos = CFG().routes?.piges;
+    if (type === 'photo_validated') {
+        if (pagePhotos) window.location.href = pagePhotos;
+        return;
+    }
+    if (type === 'photo_rejected') {
+        // Le tiroir « Photos à refaire » (t9-rejected.js), s'il y en a encore.
+        const t9 = document.querySelector('[data-action="open-t9"]');
+        if (t9) { t9.click(); return; }
+    }
+    if (taskId && ouvrirPose(taskId)) return;
+    toast('Cette pose n\'est plus dans ta liste.', 'info');
+}
+
+// ── 8. Menu ──────────────────────────────────────────────────────────
+function ouvrirMenu() {
+    const fond = document.getElementById('tx-menu');
+    if (!fond) return;
+    // Les interrupteurs reprennent les préférences enregistrées (mêmes clés
+    // que sm2c.js, qui les bascule au toucher).
+    fond.querySelectorAll('[data-pref-key]').forEach((b) => {
+        let actif = false;
+        try { actif = localStorage.getItem(b.dataset.prefKey) === 'true'; } catch (err) { /* navigation privée */ }
+        b.classList.toggle('is-on', actif);
+        b.setAttribute('aria-checked', actif ? 'true' : 'false');
+    });
+    ouvrirFeuille('tx-menu');
 }
 
 export function init() {
@@ -358,16 +544,32 @@ export function init() {
         if (arrive) { e.preventDefault(); arriver(arrive); return; }
         const fin = e.target.closest('[data-tx-terminer]');
         if (fin) { e.preventDefault(); terminer(fin); return; }
-        // « Y aller » d'un axe (après la confirmation T7, qui rejoue le clic) :
-        // status-changes.js passe le pied en route, le serveur entraîne les
-        // autres — on l'affiche sur la carte.
-        const go = e.target.closest('.tx-axe-actions [data-go-maps]');
-        if (go) {
-            const carte = go.closest('[data-axe-carte]');
-            const pilule = carte?.querySelector('[data-tx-axe-statut]');
-            if (pilule?.classList.contains('tx-pill-planifiee')) statutAxe(carte, 'en_route', 25);
+        if (e.target.closest('[data-action="open-tx-menu"]')) { e.preventDefault(); ouvrirMenu(); return; }
+
+        // Feuilles : « Continuer », fermer, fond.
+        if (e.target.closest('[data-tx-envoi-continuer]')) {
+            fermerFeuille(document.getElementById('tx-envoi'));
+            if (suivanteProposee && !ouvrirPose(suivanteProposee.task_id)) {
+                document.querySelector('[data-tx-maintenant]')?.scrollIntoView({ behavior: 'smooth' });
+            }
+            return;
+        }
+        const fond = e.target.closest('.tx-feuille-fond[id]');
+        if (fond && (e.target === fond || e.target.closest('[data-tx-fermer]'))) {
+            fermerFeuille(fond);
+            // Une préférence vient de basculer (sm2c.js) : l'interrupteur suit.
+        }
+        const pref = e.target.closest('#tx-menu [data-pref-key]');
+        if (pref) {
+            setTimeout(() => pref.setAttribute('aria-checked', pref.classList.contains('is-on') ? 'true' : 'false'));
         }
     });
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        document.querySelectorAll('.tx-feuille-fond[id]:not([hidden])').forEach(fermerFeuille);
+    });
 
+    document.addEventListener('tx:statut', surStatut);
     document.addEventListener('tx:photo-envoyee', surPhotoEnvoyee);
+    document.addEventListener('tx:alerte', surAlerte);
 }

@@ -23,19 +23,7 @@
 <p class="tx-vide-recherche" id="tx-vide-recherche" hidden>Aucune pose ne correspond à ta recherche.</p>
 
 @if($entreeMaintenant)
-    {{-- Section à part entière : la recherche la masque comme une commune. --}}
-    <section class="tx-commune" data-tx-maintenant>
-        <div class="tx-section-titre"><h3>Maintenant</h3><span>la plus urgente</span></div>
-        <div class="tx-liste">
-            @if($entreeMaintenant['type'] === 'axe')
-                @include('public.tech.partials._tx_axe', ['entree' => $entreeMaintenant, 'maintenant' => true])
-            @elseif($entreeMaintenant['task']->panel?->estAxe())
-                @include('public.tech.partials._tx_axe_entier', ['task' => $entreeMaintenant['task']])
-            @else
-                @include('public.tech.partials._tx_maintenant', ['task' => $entreeMaintenant['task']])
-            @endif
-        </div>
-    </section>
+    @include('public.tech.partials._tx_maintenant_section', ['entree' => $entreeMaintenant])
 @endif
 
 @foreach($itemsByCommune as $commune => $entrees)

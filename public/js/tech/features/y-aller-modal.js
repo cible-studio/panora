@@ -40,10 +40,13 @@ function formatDistance(m) {
     return (m / 1000).toFixed(1).replace('.0', '') + ' km';
 }
 
-function formatWalkTime(m) {
+// 2026-11-12 (maquette validée) : temps EN VOITURE — les techniciens se
+// déplacent en véhicule. Ordre de grandeur, à vol d'oiseau : × 1,4 pour
+// les détours de la route, 20 km/h de moyenne en ville (≈ 333 m/min).
+// Avant : à pied, 5 km/h.
+function formatDriveTime(m) {
     if (m == null || isNaN(m)) return '—';
-    // 5 km/h = ~83.33 m/min → m / 83 = minutes
-    const min = Math.max(1, Math.round(m / 83));
+    const min = Math.max(1, Math.round(m * 1.4 / 333));
     if (min < 60) return min + ' min';
     const h = Math.floor(min / 60);
     return `${h}h${(min % 60).toString().padStart(2, '0')}`;
@@ -88,7 +91,7 @@ async function populateModal(overlay, srcBtn) {
         if (me) {
             const m = haversineMeters(me.lat, me.lng, lat, lng);
             overlay.querySelector('[data-field="dist-est"]').textContent = formatDistance(m);
-            overlay.querySelector('[data-field="time-est"]').textContent = formatWalkTime(m);
+            overlay.querySelector('[data-field="time-est"]').textContent = formatDriveTime(m);
         }
     }
 
@@ -97,10 +100,14 @@ async function populateModal(overlay, srcBtn) {
     // on affiche un bandeau warning dans le modal T7 pour qu'il confirme
     // vraiment le changement de destination.
     const currentTaskId = carrier?.dataset.taskId;
-    const otherActive = document.querySelector(
+    // Axe (2026-11-12) : ses pieds avancent ensemble (même lieu) — un pied
+    // « en route » du MÊME axe n'est pas une autre destination.
+    const carteAxe = document.querySelector(`.pose-line[data-task-id="${currentTaskId}"]`)
+        ?.closest('[data-axe-carte]');
+    const otherActive = Array.from(document.querySelectorAll(
         `.pose-line[data-task-status="en_route"]:not([data-task-id="${currentTaskId}"]),`
         + `.pose-line[data-task-status="en_cours"]:not([data-task-id="${currentTaskId}"])`
-    );
+    )).find(el => !(carteAxe && carteAxe.contains(el))) || null;
     const warnEl = overlay.querySelector('[data-field="switch-warning"]');
     if (otherActive && warnEl) {
         const otherRef  = otherActive.querySelector('.pose-ref')?.textContent?.trim() || 'une autre pose';

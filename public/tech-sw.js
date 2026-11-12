@@ -86,7 +86,10 @@
 //               css/tech/tx-refonte.css. Sans ce changement de version,
 //               les modules importés (sans ?v=) restaient servis depuis
 //               l'ancien cache à la première ouverture.
-const SW_VERSION = 'v2.10.0';
+//   - v2.11.0 : refonte, étape 2 — plus de rechargement après une photo
+//               (feuille « Photo envoyée »), menu de l'initiale, alertes
+//               qui mènent à la pose, « Y aller » en voiture.
+const SW_VERSION = 'v2.11.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
