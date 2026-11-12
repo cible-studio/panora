@@ -280,8 +280,25 @@ class InvoiceController extends Controller
         }
 
         $all = collect();
-        foreach ($campaign->panels as $p) {
-            $all->push($this->panelToOption($p, 'int', $negotiated['int_' . $p->id] ?? null));
+        // Axes Lumipub (2026-11-12) : une option par AXE, comme la facture
+        // générée (même regroupement, InvoiceFromCampaignBuilder) — prix =
+        // somme des pieds réservés, ODP/TM à saisir à la main.
+        $groupes = app(\App\Services\InvoiceFromCampaignBuilder::class)
+            ->grouperParAxe($campaign->panels, $negotiated);
+        foreach ($groupes as $g) {
+            $p = $g['porteur'];
+            if (!$g['taxes_a_la_main']) {
+                $all->push($this->panelToOption($p, 'int', $negotiated['int_' . $p->id] ?? null));
+                continue;
+            }
+            $p->loadMissing(['commune:id,name', 'format:id,name,width,height,surface']);
+            $option = $this->panelToOption($p, 'int', $g['pu']);
+            if ($g['complement']) {
+                $option['designation'] .= ' — ' . $g['complement'];
+                $option['text']        .= ' — ' . $g['complement'];
+            }
+            $option['taxes_a_la_main'] = true;
+            $all->push($option);
         }
         foreach ($campaign->externalPanels as $p) {
             $all->push($this->panelToOption($p, 'ext', $negotiated['ext_' . $p->id] ?? null));
@@ -563,6 +580,15 @@ class InvoiceController extends Controller
             $tmOverride  = (isset($l['tm_amount_override']) && $l['tm_amount_override'] !== '' && $l['tm_amount_override'] !== null)
                 ? (int) round((float) $l['tm_amount_override'])
                 : null;
+
+            // Axe Lumipub (2026-11-12) : ODP et TM jamais calculées, 0 tant
+            // que le comptable n'a rien saisi. Garantie serveur : vaut même
+            // si l'écran n'envoie pas les deux cases.
+            if (!empty($l['panel_id'])
+                && \App\Models\Panel::withTrashed()->find((int) $l['panel_id'])?->taxesSaisiesALaMain()) {
+                $odpOverride ??= 0;
+                $tmOverride  ??= 0;
+            }
 
             $lineData = [
                 'designation'           => $l['designation'],

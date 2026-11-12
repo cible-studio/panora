@@ -1398,3 +1398,49 @@ php artisan tinker --execute="
   l'écran Disponibilités (le client n'y est choisi qu'à la fin) : il passe
   par « Renouveler la campagne ». Si le renouvellement est annulé (statut
   changé dans le dossier), la retenue tombe aussitôt.
+
+## 20. Axes Lumipub : taxes et factures *(2026-11-12)*
+
+Règles validées le 12/11 (cf. `docs/AXES_MULTI_PIEDS.md` § 3, décisions 6 à 8) :
+prix d'un axe = **somme des prix HT des pieds réservés** ; ODP et TM d'un
+axe **jamais calculées** — 0, saisies par le comptable ; **une ligne par axe**.
+
+#### 🔴 Module Taxes — les chiffres depuis le 11/11 au soir sont faux
+
+Depuis le découpage, le module comptait les 101 pieds **en plus** des 13
+lignes d'axe. C'est corrigé : axes et pieds sortent de tout calcul
+automatique (liste, fiche commune, taxes de l'année, rapports).
+
+- [ ] Toute déclaration ou tout export taxes fait entre le 11/11 au soir et
+      le déploiement de ce correctif, sur Cocody, Treichville ou
+      Adiaké-Assinie : **à refaire**.
+- [ ] Contrôle après déploiement — doit afficher `dont pieds : 0` et
+      `dont lignes d axe : 0` :
+
+```
+php artisan tinker --execute="
+  \$l = app(App\Services\TaxCalculationService::class)->generateLines('annuel', 0, 2026);
+  \$p = \$l->whereIn('panel_id', App\Models\Panel::whereNotNull('axe_id')->pluck('id')->all());
+  \$a = \$l->whereIn('panel_id', App\Models\Panel::where('est_axe', true)->pluck('id')->all());
+  echo 'Total taxes 2026 : ', \$l->sum('amount'), \"\n\";
+  echo 'dont pieds : ', \$p->sum('amount'), \"\n\";
+  echo 'dont lignes d axe : ', \$a->sum('amount'), \"\n\";"
+```
+
+- [ ] Total noté : …… (il doit être **plus bas** qu'avant, et proche de ce
+      que la direction obtenait en retirant les Lumipub à la main).
+
+#### Factures
+
+- [ ] Facture générée depuis une campagne qui porte des pieds : **une ligne
+      par axe**, « CDYLUP-004 — … — 5 pieds », PU = somme des 5 pieds,
+      quantité 1. Sous la désignation : ⓘ + cases **ODP** et **TM** à 0.
+- [ ] Saisir des montants dans ces cases : le récapitulatif se met à jour.
+      Enregistrer, rouvrir : les montants sont conservés.
+- [ ] Facture manuelle, campagne choisie : un axe = **une** option
+      « … — N pieds », pas une option par pied.
+- [ ] Deux clients sur des pieds différents du même axe, même période : la
+      facture du second n'est plus refusée « déjà facturé ».
+- [ ] ⚠ Remplace le contrôle du § 18 bis sur **102 LADILI** : la facture
+      propose PU 130 000, qté 1, mais **ODP et TM à 0**, à saisir à la main
+      (avant : 15 000 et 3 000 calculés).

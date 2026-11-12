@@ -130,7 +130,18 @@ class PanelBillingChecker
             $lineStart = $periodStart ?? $issuedAt->copy();
             $lineEnd   = $periodEnd   ?? $issuedAt->copy()->addMonths((int) ceil((float) ($l['duree_mois'] ?? 1)));
 
-            $conflict = $this->findConflictingLine($panelId, $extPanelId, $lineStart, $lineEnd, $excludeInvoiceId);
+            // Axe Lumipub (2026-11-12) : la ligne porte l'AXE, mais deux
+            // clients peuvent en avoir des pieds différents sur la même
+            // période. Le doublon ne se cherche donc que dans la même
+            // campagne ; la disponibilité garantit déjà qu'un pied n'est
+            // vendu qu'une fois.
+            $memeCampagne = null;
+            if ($panelId !== null && \App\Models\Panel::withTrashed()->find($panelId)?->taxesSaisiesALaMain()) {
+                if ($campaignId === null) continue;
+                $memeCampagne = $campaignId;
+            }
+
+            $conflict = $this->findConflictingLine($panelId, $extPanelId, $lineStart, $lineEnd, $excludeInvoiceId, $memeCampagne);
 
             if ($conflict !== null) {
                 $designation = (string) ($l['designation'] ?? 'ligne '. ($i + 1));
@@ -183,7 +194,8 @@ class PanelBillingChecker
         ?int $extPanelId,
         \Carbon\Carbon $lineStart,
         \Carbon\Carbon $lineEnd,
-        ?int $excludeInvoiceId
+        ?int $excludeInvoiceId,
+        ?int $seulementCampagne = null
     ): ?array {
         // Note : la table invoices n'utilise pas de soft delete — pas de
         // whereNull('deleted_at') nécessaire. On exclut uniquement les
@@ -205,6 +217,7 @@ class PanelBillingChecker
         if ($panelId !== null)    $q->where('invoice_lines.panel_id', $panelId);
         if ($extPanelId !== null) $q->where('invoice_lines.external_panel_id', $extPanelId);
         if ($excludeInvoiceId !== null) $q->where('invoices.id', '!=', $excludeInvoiceId);
+        if ($seulementCampagne !== null) $q->where('invoices.campaign_id', $seulementCampagne);
 
         $candidates = $q->get();
 

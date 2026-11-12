@@ -61,12 +61,15 @@ class TaxReportService
         // exclut les annulées : pas de pose effective, donc pas de taxe.
         // Filtres optionnels client_id / campaign_id / commune_id pour les
         // rapports filtrés (spec Évolution 4 — 5.7 rapports combinables).
+        // Axes Lumipub (2026-11-12) : on charge de quoi les reconnaître, pour
+        // les écarter plus bas — leur ODP/TM se gère à la main.
+        $colonnesAxe = app(\App\Services\Axes\AxeService::class)->colonnesPresentes();
         $campaignsQuery = Campaign::query()
             ->whereIn('status', ['actif', 'termine', 'planifie'])
             ->where('start_date', '<=', $end)
             ->where('end_date',   '>=', $start)
             ->with([
-                'panels:id,commune_id',
+                $colonnesAxe ? 'panels:id,commune_id,est_axe,axe_id' : 'panels:id,commune_id',
                 'externalPanels:id,commune_id',
             ]);
 
@@ -99,7 +102,10 @@ class TaxReportService
             $effEnd   = $c->end_date->gt($end)     ? $end->copy()   : $c->end_date->copy();
             if ($effStart->gt($effEnd)) continue;
 
-            $allPanels = $c->panels->concat($c->externalPanels)
+            $allPanels = $c->panels
+                // Axes et leurs pieds : ODP/TM à la main (2026-11-12).
+                ->reject(fn($p) => $p->taxesSaisiesALaMain())
+                ->concat($c->externalPanels)
                 ->filter(fn($p) => !empty($p->commune_id));
 
             // Si filtre commune : on ignore les panneaux des autres communes

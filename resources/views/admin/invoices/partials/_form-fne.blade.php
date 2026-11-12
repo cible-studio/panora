@@ -17,6 +17,13 @@
 @php
     $isEdit    = isset($invoice) && $invoice !== null;
     $oldLines  = old('lines');
+    // Axes Lumipub (2026-11-12) : ODP et TM jamais calculées, saisies à la
+    // main sur la ligne. Règle : Panel::taxesSaisiesALaMain().
+    $idsTaxesMain = $isEdit
+        ? \App\Models\Panel::withTrashed()
+            ->whereIn('id', $invoice->lines->pluck('panel_id')->filter()->all())
+            ->get()->filter->taxesSaisiesALaMain()->pluck('id')->all()
+        : [];
     // Tri des lignes par commune puis par désignation en mode édition —
     // demandé 2026-08-03 pour regrouper visuellement les panneaux d'une
     // même commune (facilite la lecture + édition ciblée). old() est
@@ -49,6 +56,7 @@
                             // enlèverait le panel_id sur les lignes existantes).
                             'panel_id'            => $l->panel_id ?? null,
                             'external_panel_id'   => $l->external_panel_id ?? null,
+                            'taxes_a_la_main'     => $l->panel_id && in_array($l->panel_id, $idsTaxesMain),
                         ])->all()
                     : [
                         // ligne vide par défaut en create
@@ -208,6 +216,24 @@
                                      (aucun panneau facturé 2× dans la même facture). --}}
                                 <input type="hidden" name="lines[{{ $i }}][panel_id]" class="line-panel-id" value="{{ $l['panel_id'] ?? '' }}">
                                 <input type="hidden" name="lines[{{ $i }}][external_panel_id]" class="line-external-panel-id" value="{{ $l['external_panel_id'] ?? '' }}">
+                                {{-- Axe Lumipub (2026-11-12) : ODP et TM saisies par le
+                                     comptable, jamais calculées. Visible sur les lignes
+                                     d'axe seulement ; vide ailleurs = calcul automatique. --}}
+                                @php $taxesMain = !empty($l['taxes_a_la_main']); @endphp
+                                <div class="line-taxes-main" style="display:{{ $taxesMain ? 'flex' : 'none' }};gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:11px;color:var(--text2);">
+                                    <span style="cursor:help;" title="Axe Lumipub : l'ODP et la TM ne sont pas calculées par Panora. Saisis les montants (FCFA) donnés par la comptabilité.">ⓘ</span>
+                                    <label style="display:flex;align-items:center;gap:4px;">ODP
+                                        <input type="text" name="lines[{{ $i }}][odp_amount_override]" class="line-odp-main"
+                                               inputmode="numeric" pattern="[0-9]*" style="width:90px;"
+                                               value="{{ $taxesMain ? (int) ($l['odp_amount_override'] ?? 0) : '' }}">
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;">TM
+                                        <input type="text" name="lines[{{ $i }}][tm_amount_override]" class="line-tm-main"
+                                               inputmode="numeric" pattern="[0-9]*" style="width:90px;"
+                                               value="{{ $taxesMain ? (int) ($l['tm_amount_override'] ?? 0) : '' }}">
+                                    </label>
+                                    <input type="hidden" name="lines[{{ $i }}][taxes_a_la_main]" class="line-taxes-flag" value="{{ $taxesMain ? 1 : '' }}">
+                                </div>
                             </td>
                             <td class="col-commune" data-label="Commune">
                                 <select name="lines[{{ $i }}][commune_id]" class="line-commune" required style="width:100%">
@@ -1670,6 +1696,7 @@
             $sel.val(null).trigger('change');
             $sel.find('option').remove();
             row.querySelector('.line-designation-value').value = '';
+            setTaxesALaMain(row, false); // plus de panneau → plus d'axe
             $sel.data('select2-init', false);
             if ($sel.data('select2')) $sel.select2('destroy');
             initLineSelect2(row);
@@ -1809,6 +1836,9 @@
                 // Cas panneau : on remplit tout (designation, commune, m², PU, qté, mois)
                 designationField.value = item.designation || item.text;
 
+                // Axe Lumipub (2026-11-12) : cases ODP/TM à saisir, à 0.
+                setTaxesALaMain(row, !!item.taxes_a_la_main);
+
                 // Panel_id (Bug 3a — 2026-07-16) : capté depuis l'item.id
                 // Select2 format "int_289" ou "ext_42". Alimente le hidden
                 // panel_id / external_panel_id transmis au backend pour
@@ -1912,6 +1942,7 @@
                 const extPanelIdField = row.querySelector('.line-external-panel-id');
                 if (panelIdField) panelIdField.value = '';
                 if (extPanelIdField) extPanelIdField.value = '';
+                setTaxesALaMain(row, false);
                 if (typeof refreshTakenPanelsCache === 'function') refreshTakenPanelsCache();
                 recompute();
             });
@@ -1958,8 +1989,15 @@
             const lineHt = pu * qte * mois;
             htBrut    += lineHt;
 
-            totalOdp  += odp * m2 * qte * mois;
-            totalTm   += tm  * m2 * qte * mois;
+            // Axe Lumipub (2026-11-12) : montants saisis par le comptable,
+            // jamais calculés (le serveur applique la même règle).
+            if (row.querySelector('.line-taxes-flag')?.value === '1') {
+                totalOdp += parseFloat(row.querySelector('.line-odp-main')?.value) || 0;
+                totalTm  += parseFloat(row.querySelector('.line-tm-main')?.value)  || 0;
+            } else {
+                totalOdp  += odp * m2 * qte * mois;
+                totalTm   += tm  * m2 * qte * mois;
+            }
 
             const cell = row.querySelector('.line-total');
             if (cell) cell.textContent = fmt(lineHt);
@@ -2167,9 +2205,25 @@
         });
     }
 
+    // Axe Lumipub (2026-11-12) : affiche ou masque les cases ODP/TM saisies
+    // à la main. Masquées = vides = calcul automatique (panneau ordinaire).
+    function setTaxesALaMain(row, actif) {
+        const bloc = row.querySelector('.line-taxes-main');
+        if (!bloc) return;
+        bloc.style.display = actif ? 'flex' : 'none';
+        row.querySelector('.line-taxes-flag').value = actif ? '1' : '';
+        ['.line-odp-main', '.line-tm-main'].forEach(sel => {
+            const inp = row.querySelector(sel);
+            if (!inp) return;
+            if (!actif) inp.value = '';
+            else if (inp.value === '') inp.value = '0';
+        });
+    }
+
     function bindRow(row) {
         // Inputs natifs (m², PU, qté, mois) → recompute live du récap.
-        row.querySelectorAll('input.line-m2, input.line-pu, input.line-qte, input.line-mois').forEach(el => {
+        // + ODP/TM saisies à la main sur les lignes d'axe (2026-11-12).
+        row.querySelectorAll('input.line-m2, input.line-pu, input.line-qte, input.line-mois, input.line-odp-main, input.line-tm-main').forEach(el => {
             el.addEventListener('input', recompute);
         });
         // Select2 (désignation, commune) sont initialisés via initLineSelect2
@@ -2247,6 +2301,8 @@
         if (sel) sel.selectedIndex = 0;
         const totalCell = tr.querySelector('.line-total');
         if (totalCell) totalCell.textContent = '0 FCFA';
+        // La 1re ligne peut être un axe : la nouvelle ligne part sans cases.
+        tr.querySelectorAll('.line-taxes-main').forEach(b => { b.style.display = 'none'; });
 
         tbody.appendChild(tr);
         bindRow(tr);

@@ -87,7 +87,11 @@ class TaxCalculationService
         // Charge panneaux avec leur commune, format, dimensions.
         // On ne prend PAS les soft-deleted (parc actuel uniquement).
         $panelsQuery = Panel::with(['commune:id,name', 'format:id,name,width,height,surface'])
-            ->whereNull('deleted_at');
+            ->whereNull('deleted_at')
+            // Axes Lumipub et leurs pieds (2026-11-12) : ODP et TM gérées à
+            // la main par les comptables, jamais calculées ici. Sans ce
+            // filtre, depuis le découpage, un axe de 11 pieds comptait 12 fois.
+            ->avecTaxesAutomatiques();
         // TX-12 (2026-09-23) — Panneaux en maintenance EXCLUS par défaut,
         // conformément au dashboard /admin/taxes et à la légende affichée.
         // Avant : generateLines() les incluait alors que le dashboard les
@@ -722,6 +726,7 @@ class TaxCalculationService
         return Panel::withTrashed()
             ->with('format:id,name,width,height,surface')
             ->where('commune_id', $commune->id)
+            ->avecTaxesAutomatiques() // axes : ODP/TM à la main (2026-11-12)
             ->get();
     }
 }
