@@ -67,7 +67,10 @@ class CampaignService
                     $campaign->start_date->format('Y-m-d'),
                     $campaign->end_date->format('Y-m-d'),
                     $campaign->reservation_id,
-                    $campaign->id   // s'exclure soi-même (panneaux déjà attachés)
+                    $campaign->id,  // s'exclure soi-même (panneaux déjà attachés)
+                    // Son propre renouvellement confirmé ne bloque pas le
+                    // client — « Renouveler la campagne » passe par ici (2026-11-11).
+                    (int) $campaign->client_id
                 );
 
                 if (!empty($conflicts)) {
@@ -482,7 +485,8 @@ class CampaignService
             $campaign->start_date->format('Y-m-d'),
             $campaign->end_date->format('Y-m-d'),
             $campaign->reservation_id,
-            $campaign->id   // s'exclure soi-même
+            $campaign->id,  // s'exclure soi-même
+            (int) $campaign->client_id  // son propre renouvellement ne bloque pas (2026-11-11)
         );
 
         if (empty($conflicts)) {

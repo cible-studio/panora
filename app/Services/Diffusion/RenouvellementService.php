@@ -442,35 +442,146 @@ class RenouvellementService
      * diffusion.renouvellement.retenue_jours) : le temps de saisir la
      * nouvelle réservation, qui prend ensuite le relais.
      *
+     * Même règle que retenues() (2026-11-11), vue d'aujourd'hui : toute
+     * retenue qui n'est pas encore terminée.
+     *
      * @return int[]
      */
     public static function panneauxRetenus(): array
     {
         try {
-            $jours = (int) config('diffusion.renouvellement.retenue_jours', 30);
-
-            $campagnes = Renouvellement::where('statut', Renouvellement::CONFIRME)
-                ->whereDate('fin_campagne', '>=', today()->subDays($jours)->toDateString())
-                ->pluck('campaign_id');
-
-            if ($campagnes->isEmpty()) {
-                return [];
-            }
-
-            return DB::table('campaign_panels')
-                ->whereIn('campaign_id', $campagnes)
-                ->where('type', 'interne')
-                ->whereNotNull('panel_id')
-                ->distinct()
-                ->pluck('panel_id')
-                ->map(fn($id) => (int) $id)
-                ->all();
+            return array_keys(self::retenues(null, today()->toDateString(), '9999-12-31'));
         } catch (\Throwable $e) {
             // Ne jamais bloquer l'envoi des disponibilités pour ça.
             Log::error('renouvellement.panneaux_retenus', ['erreur' => $e->getMessage()]);
 
             return [];
         }
+    }
+
+    /** Durée de la retenue après la fin de la campagne, en jours. */
+    public static function joursRetenue(): int
+    {
+        return max(0, (int) config('diffusion.renouvellement.retenue_jours', 30));
+    }
+
+    /**
+     * RETENUE DES PANNEAUX D'UN RENOUVELLEMENT — SOURCE UNIQUE (2026-11-11).
+     *
+     * Règle validée par l'utilisateur le 2026-11-11 :
+     *   · « Renouvellement confirmé » : les panneaux de la campagne sont
+     *     retenus pour SON client du lendemain de la fin de la campagne
+     *     jusqu'à N jours après (N = joursRetenue(), 30). Un autre client
+     *     est refusé, comme sur un panneau occupé ; le même client passe
+     *     (« Renouveler la campagne », nouvelle réservation).
+     *   · « Veut renouveler » (pas encore confirmé) : simple information
+     *     dans l'écran Disponibilités, rien n'est bloqué.
+     *
+     * Le contrôle des disponibilités (AvailabilityService), l'écran
+     * Disponibilités, ses exports et le catalogue envoyé aux clients
+     * passent tous par ici.
+     *
+     * Axes multi-pieds : un pied hérite de la retenue de son axe (même
+     * règle que les blocages, cf. AxeService).
+     *
+     * @param  int[]|null $panelIds  null = tous les panneaux
+     * @param  string     $debut     période demandée (Y-m-d), bornes incluses
+     * @param  string     $fin
+     * @param  string[]   $statuts   CONFIRME (bloque), RENOUVELER (information)
+     * @return array<int, array{statut: string, client_id: ?int, client: ?string, campaign_id: int, campagne: ?string, fin_campagne: string, du: string, jusqu_au: string}>
+     *         panel_id => retenue ; « confirmé » prime sur « demandé »
+     */
+    public static function retenues(?array $panelIds, string $debut, string $fin, array $statuts = [Renouvellement::CONFIRME]): array
+    {
+        $axes = app(\App\Services\Axes\AxeService::class);
+        $ids  = null;
+        if ($panelIds !== null) {
+            $panelIds = array_values(array_unique(array_filter(array_map('intval', $panelIds))));
+            if (!$panelIds) {
+                return [];
+            }
+            $ids = $axes->avecAxesParents($panelIds);
+        }
+
+        $jours = self::joursRetenue();
+
+        // Chevauchement de [fin campagne + 1, fin campagne + N] avec
+        // [$debut, $fin], bornes incluses :
+        //   fin campagne + 1 <= $fin    ⇔  fin campagne <  $fin
+        //   fin campagne + N >= $debut  ⇔  fin campagne >= $debut - N
+        $lignes = DB::table('renouvellements as r')
+            ->join('campaign_panels as cp', 'cp.campaign_id', '=', 'r.campaign_id')
+            ->leftJoin('campaigns as c', 'c.id', '=', 'r.campaign_id')
+            ->whereIn('r.statut', $statuts)
+            ->where('cp.type', 'interne')
+            ->whereNotNull('cp.panel_id')
+            ->when($ids !== null, fn($q) => $q->whereIn('cp.panel_id', $ids))
+            ->whereDate('r.fin_campagne', '<', $fin)
+            ->whereDate('r.fin_campagne', '>=', Carbon::parse($debut)->subDays($jours)->toDateString())
+            ->get(['cp.panel_id', 'r.statut', 'r.campaign_id', 'r.fin_campagne', 'r.client_id', 'c.client_id as client_campagne', 'c.name as campagne']);
+
+        if ($lignes->isEmpty()) {
+            return [];
+        }
+
+        $noms = Client::withTrashed()
+            ->whereIn('id', $lignes->map(fn($l) => $l->client_id ?? $l->client_campagne)->filter()->unique()->all())
+            ->pluck('name', 'id');
+
+        $retenues = [];
+        foreach ($lignes as $l) {
+            $finCampagne = Carbon::parse($l->fin_campagne);
+            $clientId    = ($l->client_id ?? $l->client_campagne) !== null ? (int) ($l->client_id ?? $l->client_campagne) : null;
+            $r = [
+                'statut'       => $l->statut,
+                'client_id'    => $clientId,
+                'client'       => $clientId ? ($noms[$clientId] ?? null) : null,
+                'campaign_id'  => (int) $l->campaign_id,
+                'campagne'     => $l->campagne,
+                'fin_campagne' => $finCampagne->toDateString(),
+                'du'           => $finCampagne->copy()->addDay()->toDateString(),
+                'jusqu_au'     => $finCampagne->copy()->addDays($jours)->toDateString(),
+            ];
+
+            $pid    = (int) $l->panel_id;
+            $actuel = $retenues[$pid] ?? null;
+            // Confirmé avant demandé ; à statut égal, la retenue la plus longue.
+            if ($actuel === null
+                || ($r['statut'] === Renouvellement::CONFIRME && $actuel['statut'] !== Renouvellement::CONFIRME)
+                || ($r['statut'] === $actuel['statut'] && $r['jusqu_au'] > $actuel['jusqu_au'])) {
+                $retenues[$pid] = $r;
+            }
+        }
+
+        if ($panelIds !== null) {
+            // Un pied reprend la retenue de son axe, puis seuls les panneaux
+            // demandés ressortent (pas les axes interrogés au passage).
+            foreach ($axes->axeParPied($panelIds) as $piedId => $axeId) {
+                if (isset($retenues[$axeId]) && !isset($retenues[$piedId])) {
+                    $retenues[(int) $piedId] = $retenues[$axeId];
+                }
+            }
+
+            return array_intersect_key($retenues, array_flip($panelIds));
+        }
+
+        // Tous les panneaux : les pieds des axes retenus le sont aussi.
+        if ($axes->colonnesPresentes()) {
+            $pieds = \App\Models\Panel::whereIn('axe_id', array_keys($retenues))->pluck('axe_id', 'id');
+            foreach ($pieds as $piedId => $axeId) {
+                $retenues[(int) $piedId] ??= $retenues[(int) $axeId];
+            }
+        }
+
+        return $retenues;
+    }
+
+    /** « Renouvellement confirmé · BEM », « Renouvellement demandé · BEM ». */
+    public static function libelleRetenue(array $retenue): string
+    {
+        $etat = $retenue['statut'] === Renouvellement::CONFIRME ? 'Renouvellement confirmé' : 'Renouvellement demandé';
+
+        return trim($etat . ($retenue['client'] ? ' · ' . $retenue['client'] : ''));
     }
 
     // ══════════════════════════════════════════════════════════════

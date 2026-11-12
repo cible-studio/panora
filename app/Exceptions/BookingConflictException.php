@@ -25,7 +25,7 @@ class BookingConflictException extends \RuntimeException
      * @param  array<int, array{
      *     panel_id: int,
      *     reference?: ?string,
-     *     blocking_source: 'reservation'|'campaign',
+     *     blocking_source: 'reservation'|'campaign'|'renouvellement',
      *     blocking_ref: ?string,
      *     release_date: ?string,
      *     next_free: ?string
@@ -84,13 +84,19 @@ class BookingConflictException extends \RuntimeException
         $items = [];
         foreach ($this->conflicts as $c) {
             $ref     = htmlspecialchars($c['reference'] ?? ('#' . $c['panel_id']), ENT_QUOTES, 'UTF-8');
-            $source  = $c['blocking_source'] === 'campaign' ? 'campagne' : 'réservation';
+            // 2026-11-11 : un panneau peut aussi être retenu par le
+            // renouvellement confirmé d'un autre client.
+            $source  = match ($c['blocking_source']) {
+                'campaign'       => 'Engagé sur campagne',
+                'renouvellement' => 'Retenu pour le renouvellement de',
+                default          => 'Engagé sur réservation',
+            };
             $blkRef  = htmlspecialchars($c['blocking_ref'] ?? '?', ENT_QUOTES, 'UTF-8');
             $nxtFree = $c['next_free'] ? htmlspecialchars($c['next_free'], ENT_QUOTES, 'UTF-8') : null;
 
             $items[] = '<div style="padding:8px 10px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:8px;margin-top:6px">'
                 . '<div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:#ef4444;font-size:13px">' . $ref . '</div>'
-                . '<div style="font-size:12px;color:#475569;margin-top:3px">Engagé sur ' . $source . ' <strong>' . $blkRef . '</strong>'
+                . '<div style="font-size:12px;color:#475569;margin-top:3px">' . $source . ' <strong>' . $blkRef . '</strong>'
                 . ($nxtFree ? ' · 📅 Libre à partir du <strong>' . $nxtFree . '</strong>' : '')
                 . '</div>'
                 . '</div>';

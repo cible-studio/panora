@@ -410,6 +410,26 @@ Audit complet des rôles pour la Direction générale (PDF à cases remis le
   propositions consultables après échéance.
 - **Copie commerciale** en Cc visible ; **avoirs** impossibles à émettre.
 
+### Retenue des renouvellements : ce qui n'a pas été branché (2026-11-11)
+
+La retenue des panneaux d'un renouvellement confirmé
+(`RenouvellementService::retenues()`) est appliquée par toutes les méthodes
+de décision **qui ont un appelant**. Restent sans elle, parce que rien ne
+les appelle dans l'application :
+
+- `AvailabilityService::getOccupationDetails()`, `quickCheck()`,
+  `getAvailablePanels()` (seuls les tests les utilisent) ;
+- `resources/views/admin/reservations/create.blade.php` : aucune route ne
+  l'affiche.
+
+Le jour où l'une d'elles resert, lui passer la retenue
+(`retenuesPourAutreClient()`), sinon un panneau retenu y paraîtra libre.
+
+Constaté au passage : `CampaignController::duplicate` (« Renouveler la
+campagne ») ignore le résultat de `CampaignService::addPanels()`. Si un
+panneau est pris entre-temps, la nouvelle campagne est créée **sans aucun
+panneau** et sans message. Non corrigé (hors du périmètre demandé).
+
 ---
 
 ## Résolues
@@ -617,7 +637,10 @@ entier s'y affichait `libre`, et on pouvait le revendre. Corrigé le
 (la règle reste écrite une seule fois), mais la duplication de fond reste.
 
 Toute nouvelle règle de disponibilité devra donc être posée **à deux
-endroits** tant que ce n'est pas réglé. À faire : brancher `panneauxAjax`
+endroits** tant que ce n'est pas réglé. Cas suivant, le même jour : la
+retenue des renouvellements confirmés, branchée ici par
+`AvailabilityService::retenuesRenouvellement()` (règle écrite une seule fois,
+dans `RenouvellementService::retenues()`). À faire : brancher `panneauxAjax`
 sur `AvailabilityService::getPanelAvailabilityData()`, qui rend déjà
 `available` / `release_date` / `blocking_status` par panneau. Le risque est
 la régression d'affichage sur un écran très utilisé : à faire avec des

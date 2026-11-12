@@ -22,6 +22,10 @@ use Illuminate\Support\Facades\Log;
  * panels.status = cache de lecture — JAMAIS utilisé pour décider
  * de la disponibilité réelle.
  *
+ * Depuis le 2026-11-11, il est aussi bloqué pour les AUTRES clients quand
+ * le renouvellement de sa campagne est confirmé : du lendemain de la fin
+ * jusqu'à 30 jours après (RenouvellementService::retenues()).
+ *
  * ─── ANTI DOUBLE-BOOKING (pattern d'usage) ──────────────────────────────
  * À CHAQUE création/ajout de panneau qui pourrait entrer en conflit, le
  * code appelant DOIT respecter ce pattern (verrouillage pessimiste) :
@@ -61,6 +65,64 @@ class AvailabilityService
         return $this->axes ??= new \App\Services\Axes\AxeService();
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // RETENUE DES RENOUVELLEMENTS CONFIRMÉS (2026-11-11)
+    //
+    // Après « Renouvellement confirmé », les panneaux de la campagne sont
+    // retenus pour SON client du lendemain de la fin jusqu'à 30 jours
+    // après. La règle (période, statuts, axes) vit dans
+    // RenouvellementService::retenues() ; ici on l'applique au contrôle.
+    //
+    // Le paramètre $clientId des méthodes de décision : le client pour
+    // lequel on veut prendre le panneau. Son propre renouvellement ne le
+    // bloque pas. null = client inconnu → la retenue bloque (prudence).
+    // ══════════════════════════════════════════════════════════════
+
+    /** Mémorisé sur l'instance (cf. AxeService::colonnesPresentes). */
+    private ?bool $tableRenouvellements = null;
+
+    /**
+     * Retenues sur la période, client par client.
+     *
+     * @param  bool $avecDemandes  inclure « Veut renouveler » (information seule)
+     * @return array<int, array>  panel_id => retenue (cf. RenouvellementService::retenues)
+     */
+    public function retenuesRenouvellement(array $panelIds, string $startDate, string $endDate, bool $avecDemandes = false): array
+    {
+        $panelIds = array_values(array_filter(array_map('intval', $panelIds)));
+        if (empty($panelIds)) return [];
+
+        $this->tableRenouvellements ??= \Illuminate\Support\Facades\Schema::hasTable('renouvellements');
+        if (!$this->tableRenouvellements) return [];
+
+        $statuts = [\App\Models\Renouvellement::CONFIRME];
+        if ($avecDemandes) {
+            $statuts[] = \App\Models\Renouvellement::RENOUVELER;
+        }
+
+        try {
+            return \App\Services\Diffusion\RenouvellementService::retenues($panelIds, $startDate, $endDate, $statuts);
+        } catch (\Throwable $e) {
+            // Même choix que le catalogue : une erreur ici ne doit pas
+            // empêcher toute réservation. Elle est tracée.
+            Log::error('availability.retenues_renouvellement', ['erreur' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    /**
+     * Panneaux retenus par le renouvellement confirmé d'un AUTRE client.
+     *
+     * @return array<int, array>  panel_id => retenue
+     */
+    public function retenuesPourAutreClient(array $panelIds, string $startDate, string $endDate, ?int $clientId): array
+    {
+        return array_filter(
+            $this->retenuesRenouvellement($panelIds, $startDate, $endDate),
+            fn (array $r) => $clientId === null || $r['client_id'] !== $clientId
+        );
+    }
+
     // Statuts qui bloquent un panneau — source unique
     public const BLOCKING_STATUSES = [
         ReservationStatus::EN_ATTENTE->value,
@@ -95,11 +157,12 @@ class AvailabilityService
         string $endDate,
         ?int   $excludeReservationId = null,
         ?int   $excludeCampaignId    = null,
+        ?int   $clientId             = null,
     ): void {
         if (empty($panelIds)) return;
 
         $conflicts = $this->getInternalConflictMap(
-            $panelIds, $startDate, $endDate, $excludeReservationId, $excludeCampaignId
+            $panelIds, $startDate, $endDate, $excludeReservationId, $excludeCampaignId, $clientId
         );
 
         if ($conflicts->isEmpty()) return;
@@ -111,7 +174,7 @@ class AvailabilityService
             $details[] = [
                 'panel_id'         => $pid,
                 'reference'        => $refs[$pid] ?? null,
-                'blocking_source'  => $c->blocking_status === 'campagne_active' ? 'campaign' : 'reservation',
+                'blocking_source'  => self::sourceDuBlocage($c->blocking_status),
                 'blocking_ref'     => $c->conflicting_ref,
                 'release_date'     => $rd?->format('d/m/Y'),
                 'next_free'        => $rd?->copy()->addDay()->format('d/m/Y'),
@@ -129,6 +192,19 @@ class AvailabilityService
         ]);
 
         throw new BookingConflictException($details);
+    }
+
+    /**
+     * blocking_status de getInternalConflictMap() → blocking_source des
+     * conflits (BookingConflictException, conflitsFermes).
+     */
+    public static function sourceDuBlocage(?string $blockingStatus): string
+    {
+        return match ($blockingStatus) {
+            'campagne_active' => 'campaign',
+            'renouvellement'  => 'renouvellement',
+            default           => 'reservation',
+        };
     }
 
     /**
@@ -153,6 +229,7 @@ class AvailabilityService
         string $endDate,
         ?int   $excludeReservationId = null,
         ?int   $excludeCampaignId    = null,
+        ?int   $clientId             = null,
     ): array {
         $panelIds = array_values(array_filter(array_map('intval', $panelIds)));
         if (empty($panelIds)) return [];
@@ -192,12 +269,21 @@ class AvailabilityService
                 $parPanneau[(int) $l->panel_id] ??= ['source' => $source, 'ligne' => $l];
             }
         }
-        if (!$parPanneau) return [];
 
         // Le motif de l'axe retombe sur ses pieds, puis on ne garde que les
         // panneaux réellement demandés (pas les axes interrogés au passage).
         $parPanneau = $this->axes()->reporterMotifsDesAxes($parPanneau, $axeParPied);
         $parPanneau = array_intersect_key($parPanneau, array_flip($panelIds));
+
+        // Puis la retenue d'un renouvellement confirmé d'un autre client
+        // (2026-11-11). Les axes sont déjà traités par la règle.
+        foreach ($this->retenuesPourAutreClient($panelIds, $startDate, $endDate, $clientId) as $pid => $r) {
+            $parPanneau[$pid] ??= ['source' => 'renouvellement', 'ligne' => (object) [
+                'dossier'  => $r['client'] ?? 'un autre client',
+                'client'   => null,
+                'end_date' => $r['jusqu_au'],
+            ]];
+        }
         if (!$parPanneau) return [];
 
         $refs = Panel::whereIn('id', array_keys($parPanneau))->pluck('reference', 'id');
@@ -239,8 +325,9 @@ class AvailabilityService
         string $endDate,
         ?int   $excludeReservationId = null,
         ?int   $excludeCampaignId    = null,
+        ?int   $clientId             = null,
     ): void {
-        $conflits = $this->conflitsFermes($panelIds, $startDate, $endDate, $excludeReservationId, $excludeCampaignId);
+        $conflits = $this->conflitsFermes($panelIds, $startDate, $endDate, $excludeReservationId, $excludeCampaignId, $clientId);
         if (!$conflits) return;
 
         throw new BookingConflictException($conflits, self::messageConflitsFermes($conflits));
@@ -250,9 +337,22 @@ class AvailabilityService
     public static function messageConflitsFermes(array $conflits): string
     {
         $parts = array_map(fn ($c) => ($c['reference'] ?? '#' . $c['panel_id'])
-            . ' (' . ($c['blocking_source'] === 'campaign' ? 'campagne ' : 'réservation ') . $c['blocking_ref'] . ')', $conflits);
+            . ' (' . self::motifDuConflit($c) . ')', $conflits);
 
         return (count($conflits) > 1 ? 'Panneaux déjà pris' : 'Panneau déjà pris') . ' sur cette période : ' . implode(', ', $parts) . '.';
+    }
+
+    /**
+     * « campagne Lancement — MOOV », « réservation RES-12 — ORANGE »,
+     * « retenu pour le renouvellement de BEM » (2026-11-11).
+     */
+    public static function motifDuConflit(array $c): string
+    {
+        return match ($c['blocking_source'] ?? null) {
+            'campaign'       => 'campagne ' . $c['blocking_ref'],
+            'renouvellement' => 'retenu pour le renouvellement de ' . $c['blocking_ref'],
+            default          => 'réservation ' . $c['blocking_ref'],
+        };
     }
 
     // Statuts de CAMPAGNE qui bloquent un panneau. Une fois la résa
@@ -271,7 +371,8 @@ class AvailabilityService
         string $startDate,
         string $endDate,
         ?int   $excludeReservationId = null,
-        ?int   $excludeCampaignId    = null
+        ?int   $excludeCampaignId    = null,
+        ?int   $clientId             = null
     ): array {
         if (empty($panelIds)) return [];
 
@@ -323,11 +424,17 @@ class AvailabilityService
 
         // Le blocage d'un axe retombe sur ses pieds ; un axe interrogé par
         // ricochet ne ressort pas si l'appelant ne l'avait pas demandé.
-        return $this->axes()->reporterBlocageDesAxes(
+        $bloques = $this->axes()->reporterBlocageDesAxes(
             array_merge($fromReservations, $fromCampaigns),
             $panelIds,
             $axeParPied,
         );
+
+        // Check 3 — retenue d'un renouvellement confirmé d'un autre client
+        // (2026-11-11), cf. retenuesPourAutreClient().
+        $retenus = array_keys($this->retenuesPourAutreClient($panelIds, $startDate, $endDate, $clientId));
+
+        return $retenus ? array_values(array_unique(array_merge($bloques, $retenus))) : $bloques;
     }
 
     // ── 2.b — Map panel_id → ['end_date'=>Carbon, 'source'=>'reservation|campaign']
@@ -706,13 +813,18 @@ class AvailabilityService
      * @param  bool        $hasPeriod   Une période valide est-elle demandée ?
      * @param  bool        $isOccupied  Réservation confirmée / campagne active sur CETTE période
      * @param  bool        $isOption    Option en attente sur CETTE période
-     * @return string                   libre | occupe | option_periode | maintenance | <statut brut>
+     * @param  bool        $isRetenu    Retenu par le renouvellement confirmé d'un
+     *                                  client (2026-11-11) — écran Disponibilités
+     *                                  seulement : les exports, qui partent chez
+     *                                  des clients, le passent en « occupé ».
+     * @return string                   libre | occupe | renouvellement | option_periode | maintenance | <statut brut>
      */
     public static function displayStatusForPeriod(
         ?string $rawStatus,
         bool $hasPeriod,
         bool $isOccupied,
-        bool $isOption
+        bool $isOption,
+        bool $isRetenu = false
     ): string {
         $rawStatus = $rawStatus ?: 'libre';
 
@@ -722,6 +834,8 @@ class AvailabilityService
             $rawStatus === 'maintenance' => 'maintenance',
             // Chevauchement sur la période demandée.
             $hasPeriod && $isOccupied    => 'occupe',
+            // La retenue bloque : elle passe avant une simple option.
+            $hasPeriod && $isRetenu      => 'renouvellement',
             $hasPeriod && $isOption      => 'option_periode',
             // Période valide ET aucun chevauchement → LIBRE SUR LA PÉRIODE,
             // même si le statut courant est 'confirme' ou 'occupe' : le
@@ -809,6 +923,29 @@ class AvailabilityService
             }
         }
 
+        // Retenue d'un renouvellement confirmé (2026-11-11) : dans les PDF et
+        // l'Excel, le panneau est « Occupé » jusqu'à la fin de la retenue. Ces
+        // documents partent chez des clients : le nom du client qui renouvelle
+        // n'y apparaît pas.
+        foreach ($this->retenuesRenouvellement($panelIds, $startDate, $endDate) as $pid => $r) {
+            // Copie : un pied peut partager l'objet de son axe (report ci-dessus).
+            $ligne = $carte->has($pid) ? clone $carte->get($pid) : null;
+            if ($ligne) {
+                $carte->put($pid, $ligne);
+                $ligne->has_confirmed = 1;
+                if (!$ligne->release_date || $r['jusqu_au'] > $ligne->release_date) {
+                    $ligne->release_date = $r['jusqu_au'];
+                }
+            } else {
+                $carte->put($pid, (object) [
+                    'panel_id'      => $pid,
+                    'has_confirmed' => 1,
+                    'has_option'    => 0,
+                    'release_date'  => $r['jusqu_au'],
+                ]);
+            }
+        }
+
         return $carte->only(array_map('intval', $panelIds));
     }
 
@@ -827,7 +964,8 @@ class AvailabilityService
         string $startDate,
         string $endDate,
         ?int   $excludeReservationId = null,
-        ?int   $excludeCampaignId    = null
+        ?int   $excludeCampaignId    = null,
+        ?int   $clientId             = null
     ): Collection {
         if (empty($panelIds)) return collect();
 
@@ -890,16 +1028,23 @@ class AvailabilityService
             }
         }
 
-        // ── Merge : union des deux sources, plus tardif gagne ──
+        // ── Source 3 : retenue d'un renouvellement confirmé d'un autre
+        // client (2026-11-11). Les axes sont déjà traités par la règle.
+        $fromRetenues = $this->retenuesPourAutreClient($panelIds, $startDate, $endDate, $clientId);
+
+        // ── Merge : union des sources, plus tardif gagne ──
         $merged = collect();
         $allKeys = $fromReservations->keys()
             ->merge($fromCampaigns->keys())
             ->unique()
             // Les axes interrogés par ricochet ne ressortent pas.
-            ->intersect(array_map('intval', $panelIds));
+            ->intersect(array_map('intval', $panelIds))
+            ->merge(array_keys($fromRetenues))
+            ->unique();
         foreach ($allKeys as $pid) {
             $r = $fromReservations->get($pid);
             $c = $fromCampaigns->get($pid);
+            $t = $fromRetenues[$pid] ?? null;
             // Campagne = engagement signé → priorité sur réservation
             if ($c) {
                 $merged->put($pid, (object)[
@@ -909,12 +1054,31 @@ class AvailabilityService
                         ? $r->release_date
                         : $c->release_date,
                 ]);
-            } else {
+            } elseif ($r && (bool) $r->has_confirmed) {
                 $merged->put($pid, (object)[
-                    'blocking_status' => (bool) $r->has_confirmed ? 'confirme' : 'en_attente',
-                    'conflicting_ref' => (bool) $r->has_confirmed ? $r->confirme_ref : $r->option_ref,
+                    'blocking_status' => 'confirme',
+                    'conflicting_ref' => $r->confirme_ref,
                     'release_date'    => $r->release_date,
                 ]);
+            } elseif ($t) {
+                // Retenue avant une simple option : elle, elle bloque.
+                $merged->put($pid, (object)[
+                    'blocking_status' => 'renouvellement',
+                    'conflicting_ref' => $t['client'] ?? 'un autre client',
+                    'release_date'    => $r && $r->release_date > $t['jusqu_au'] ? $r->release_date : $t['jusqu_au'],
+                ]);
+            } else {
+                $merged->put($pid, (object)[
+                    'blocking_status' => 'en_attente',
+                    'conflicting_ref' => $r->option_ref,
+                    'release_date'    => $r->release_date,
+                ]);
+            }
+
+            // La retenue court parfois plus loin que l'occupation : le
+            // panneau n'est libre qu'après les deux.
+            if ($t && $merged->get($pid)->release_date < $t['jusqu_au']) {
+                $merged->get($pid)->release_date = $t['jusqu_au'];
             }
         }
         return $merged;
@@ -1207,9 +1371,13 @@ class AvailabilityService
         string $endDate,
         ?int   $excludeReservationId = null,
         bool   $includeCampaignBlockings = false,
-        ?int   $excludeCampaignId = null
+        ?int   $excludeCampaignId = null,
+        ?int   $clientId = null
     ): Collection {
         if (empty($panelIds)) return collect();
+
+        // Retenue d'un renouvellement confirmé d'un autre client (2026-11-11).
+        $retenues = $this->retenuesPourAutreClient($panelIds, $startDate, $endDate, $clientId);
 
         // Axes multi-pieds (2026-11-11) : on interroge aussi les axes
         // parents, et chaque pied reprend l'occupation de son axe plus bas.
@@ -1297,12 +1465,13 @@ class AvailabilityService
             }
         }
 
-        return collect($panelIds)->mapWithKeys(function ($id) use ($bookings, $campaignBookings) {
+        return collect($panelIds)->mapWithKeys(function ($id) use ($bookings, $campaignBookings, $retenues) {
             $resBookings = $bookings->get($id) ?? collect();
             $campBookings = $campaignBookings->get($id) ?? collect();
+            $retenue = $retenues[(int) $id] ?? null;
 
             // Aucune occupation → libre
-            if ($resBookings->isEmpty() && $campBookings->isEmpty()) {
+            if ($resBookings->isEmpty() && $campBookings->isEmpty() && !$retenue) {
                 return [$id => [
                     'available'       => true,
                     'release_date'    => null,
@@ -1337,11 +1506,24 @@ class AvailabilityService
                     'status'          => $b->camp_status,
                 ]);
             }
+            if ($retenue) {
+                $occupations->push([
+                    'source'          => 'renouvellement',
+                    'client_name'     => $retenue['client'],
+                    'campaign_name'   => $retenue['campagne'],
+                    'reservation_ref' => null,
+                    'start_date'      => \Carbon\Carbon::parse($retenue['du'])->format('d/m/Y'),
+                    'end_date'        => \Carbon\Carbon::parse($retenue['jusqu_au'])->format('d/m/Y'),
+                    'end_date_raw'    => $retenue['jusqu_au'],
+                    'status'          => 'renouvellement',
+                ]);
+            }
 
             // Date de libération = max(end_date) parmi toutes les occupations.
-            // Statut bloquant = priorité confirme (résa) / actif (campagne) > pause > en_attente / planifie.
+            // Statut bloquant = priorité confirme (résa) / actif (campagne) > pause
+            // > retenue d'un renouvellement > en_attente / planifie.
             $releaseDate = $occupations->max('end_date_raw');
-            $priority = ['confirme' => 5, 'actif' => 5, 'pause' => 3, 'en_attente' => 2, 'planifie' => 2];
+            $priority = ['confirme' => 5, 'actif' => 5, 'renouvellement' => 4, 'pause' => 3, 'en_attente' => 2, 'planifie' => 2];
             $blockingStatus = $occupations
                 ->sortByDesc(fn($o) => $priority[$o['status']] ?? 0)
                 ->first()['status'] ?? null;

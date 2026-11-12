@@ -28,7 +28,8 @@
     @if($role === 'mediaplanner')
         <p>Ces clients ont répondu qu'ils souhaitent renouveler ou ajuster leur campagne.
            Une fois la disponibilité vérifiée, confirme le renouvellement dans Panora :
-           les panneaux sortiront alors du catalogue des disponibilités.</p>
+           les panneaux seront alors réservés à ce client, dans Panora et dans le catalogue
+           des disponibilités, jusqu'à {{ \App\Services\Diffusion\RenouvellementService::joursRetenue() }} jours après la fin de sa campagne.</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr><th style="{{ $th }}">Client</th><th style="{{ $th }}">Campagne</th><th style="{{ $th }}">Réponse</th><th style="{{ $th }}">Fin</th></tr>
             @foreach($a_confirmer as $l)

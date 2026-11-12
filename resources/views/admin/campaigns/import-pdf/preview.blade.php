@@ -118,14 +118,14 @@
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
             <span style="font-size:18px">❌</span>
             <span style="font-size:14px;font-weight:700;color:#ef4444">Import bloqué — {{ count($conflits) }} panneau(x) déjà pris sur cette période</span>
-            <span title="Une réservation confirmée ou une campagne tient déjà ces panneaux. Si c'est la même affaire, créez la campagne depuis la réservation au lieu de l'importer ; sinon, changez les dates ou les panneaux."
+            <span title="Une réservation confirmée, une campagne ou le renouvellement confirmé d'un autre client tient déjà ces panneaux. Si c'est la même affaire, créez la campagne depuis la réservation au lieu de l'importer ; sinon, changez les dates ou les panneaux."
                   style="cursor:help;color:var(--text3);">ⓘ</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">
             @foreach($conflits as $c)
                 <div>
                     <span style="font-family:monospace;font-weight:700;color:#ef4444">{{ $c['reference'] ?? '#' . $c['panel_id'] }}</span>
-                    — {{ $c['blocking_source'] === 'campaign' ? 'campagne' : 'réservation' }} {{ $c['blocking_ref'] }}
+                    — {{ \App\Services\AvailabilityService::motifDuConflit($c) }}
                     @if($c['next_free'])<span style="color:var(--text3)"> · libre à partir du {{ $c['next_free'] }}</span>@endif
                 </div>
             @endforeach

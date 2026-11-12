@@ -1351,6 +1351,7 @@ document.addEventListener('DOMContentLoaded', function() {
             //   available=true              → ✅ Libre  (vert)
             //   blocking_status='en_attente'→ ⏳ Option (orange)
             //   blocking_status='confirme'  → 🔒 Réservé (rouge)
+            //   blocking_status='renouvellement' → 🔁 Renouvellement d'un autre client (vert foncé)
             //   sinon non-dispo             → ⛔ Indispo (gris)
             let statusBadge = '';
             if (p.available) {
@@ -1359,6 +1360,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 statusBadge = `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.35);font-weight:700">⏳ Option${p.release_date?' · libre '+p.release_date:''}</span>`;
             } else if (p.blocking_status === 'confirme') {
                 statusBadge = `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.35);font-weight:700">🔒 Réservé${p.release_date?' · libre '+p.release_date:''}</span>`;
+            } else if (p.blocking_status === 'renouvellement') {
+                // Retenu par le renouvellement confirmé d'un autre client (2026-11-11).
+                statusBadge = `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(22,101,52,.12);color:#166534;border:1px solid rgba(22,101,52,.35);font-weight:700">🔁 Renouvellement d'un autre client${p.release_date?' · libre '+p.release_date:''}</span>`;
             } else {
                 statusBadge = `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(148,163,184,.15);color:#94a3b8;border:1px solid rgba(148,163,184,.35);font-weight:700">⛔ Indispo</span>`;
             }
