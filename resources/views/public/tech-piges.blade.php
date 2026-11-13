@@ -229,7 +229,7 @@
         .pagination svg { width: 14px; height: 14px; vertical-align: middle; }
     </style>
     {{-- Refonte 2026-11-12 (maquette validée) : galerie, en-tête, barre du bas. --}}
-    <link rel="stylesheet" href="{{ asset('css/tech/tx-refonte.css') }}?v={{ config('app.version', '1') }}">
+    <link rel="stylesheet" href="{{ \App\Support\Actif::url('css/tech/tx-refonte.css') }}">
 </head>
 <body class="tx tx-photos">
 

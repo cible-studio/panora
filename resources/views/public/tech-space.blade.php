@@ -53,7 +53,7 @@
 
     @include('public.tech.partials._styles')
     {{-- Refonte 2026-11-12 (maquette validée) : styles de « Ma journée ». --}}
-    <link rel="stylesheet" href="{{ asset('css/tech/tx-refonte.css') }}?v={{ config('app.version', '1') }}">
+    <link rel="stylesheet" href="{{ \App\Support\Actif::url('css/tech/tx-refonte.css') }}">
 </head>
 <body class="tx">
 
@@ -145,8 +145,14 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js" defer></script>
 
+{{-- Table d'import (2026-11-13) : chaque module de js/tech porte la date de
+     son fichier — les imports relatifs (« ./features/upload.js ») suivent
+     chaque déploiement, sans attendre que le technicien ferme l'onglet
+     (App\Support\Actif). Un navigateur sans table d'import l'ignore. --}}
+<script type="importmap">{!! json_encode(['imports' => \App\Support\Actif::carteImports('js/tech')], JSON_UNESCAPED_SLASHES) !!}</script>
+
 {{-- Entry unique : tech-app.js — orchestrateur ESM SM1.5 --}}
-<script type="module" src="{{ asset('js/tech/tech-app.js') }}?v={{ config('app.version', '1') }}"></script>
+<script type="module" src="{{ \App\Support\Actif::url('js/tech/tech-app.js') }}"></script>
 
 {{-- Bandeau hors-ligne — affiché par offline.js quand on perd le réseau --}}
 <div class="offline-banner" id="ts-offline-banner">

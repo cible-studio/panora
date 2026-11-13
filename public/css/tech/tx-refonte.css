@@ -187,7 +187,20 @@ body.tx .tx-corps { display: grid; gap: 12px; padding-top: 12px; }
 .tx-axe-entier .tx-aide { padding: 0 12px 10px; }
 /* Axe entier, forme compacte (2026-11-13) : la ligne « N / 9 photos » replie /
    déplie ; photos envoyées et aide dans la partie repliable. */
-.tx-axe-bascule { width: 100%; background: none; border: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.tx-axe-bascule { -webkit-appearance: none; appearance: none; width: 100%; margin: 0; background: transparent !important;
+    border: 0; border-radius: 0; box-shadow: none; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.tx-axe-entier .tx-axe-route .tx-axe-actions { padding: 6px 0 2px; }
+
+/* Les cartes de la refonte portent aussi .pose / .pose-line (contrat des
+   modules JS) : on neutralise ce que l'ancien style leur ajoute (2026-11-13).
+   Marge basse en double avec l'écart de la liste ; et un PIED n'est pas une
+   carte — pas de bordure, d'ombre ni de liseré violet « en route ». */
+body.tx .tx-liste > .pose-line { margin-bottom: 0; }
+body.tx .tx-pied.pose-line,
+body.tx .tx-pied.pose-line[data-task-status] { margin: 0; border: 0; border-bottom: 1px solid var(--tx-surface2);
+    border-radius: 0; box-shadow: none; overflow: visible; background: transparent; }
+body.tx .tx-pied.pose-line.suivant { border-radius: 10px; }
+body.tx .tx-pied.pose-line:last-child { border-bottom: 0; }
 .tx-chevron { display: inline-block; margin-left: 4px; color: var(--tx-texte3); transition: transform .2s; }
 .tx-axe.ouvert .tx-chevron { transform: rotate(180deg); }
 .tx-axe-entier .tx-axe-route .tx-photos-envoyees { padding: 8px 0 2px; }

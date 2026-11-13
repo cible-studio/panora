@@ -832,6 +832,13 @@ class EspaceTechAxesTest extends TestCase
         // porte plus .pose-dot (qui l'écrasait en rond).
         $r->assertSee('data-tx-axe-segments', false);
         $this->assertDoesNotMatchRegularExpression('/class="pose-dot[^"]*tx-pill/', $r->getContent());
+        // Repliée en liste : ses boutons sont dans la partie dépliable.
+        $this->assertMatchesRegularExpression('/<div class="tx-axe-route">\s*<div class="tx-axe-actions">/', $r->getContent());
+        // CSS et modules versionnés par la date du fichier (2026-11-13) : un
+        // déploiement n'est plus masqué par le cache du service worker.
+        $this->assertMatchesRegularExpression('/tx-refonte\.css\?v=\d{9,}/', $r->getContent());
+        $r->assertSee('<script type="importmap">', false);
+        $this->assertMatchesRegularExpression('#"/js/tech/features/refonte\.js":"/js/tech/features/refonte\.js\?v=\d{9,}"#', $r->getContent());
         $r->assertSee('1 / 5 aujourd', false);
         // Les pieds partagent la photo et la position de l'axe ; le pied 3,
         // déjà fait, dessine la route sans action.

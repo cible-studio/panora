@@ -44,17 +44,18 @@
         </span>
     </button>
 
-    <div class="tx-axe-actions">
-        <label class="tx-btn tx-btn-orange">
-            <input type="file" accept="image/*" data-photo-input>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Photo
-        </label>
-        <button type="button" class="tx-btn tx-btn-vert" data-tx-terminer>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>Terminé
-        </button>
-    </div>
-
+    {{-- Repliée dans la liste (une ligne, comme les autres poses) ; dépliée
+         d'office en cours ou en « Maintenant ». --}}
     <div class="tx-axe-route">
+        <div class="tx-axe-actions">
+            <label class="tx-btn tx-btn-orange">
+                <input type="file" accept="image/*" data-photo-input>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Photo
+            </label>
+            <button type="button" class="tx-btn tx-btn-vert" data-tx-terminer>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>Terminé
+            </button>
+        </div>
         @if($piges->isNotEmpty())
             <div class="tx-photos-envoyees">
                 @foreach($piges->take(12) as $pg)

@@ -97,7 +97,11 @@
 //   - v2.14.0 : axe entier (contrats d'avant le découpage : BEM, MOOV,
 //               LADILI) en carte compacte comme les autres axes ; sa
 //               pastille n'est plus écrasée en rond (2026-11-13).
-const SW_VERSION = 'v2.14.0';
+//   - v2.15.0 : CSS et modules JS versionnés par la date du fichier
+//               (App\Support\Actif + table d'import) : un déploiement est
+//               vu dès le chargement, sans fermer l'onglet. Axe entier
+//               replié en liste ; pieds sans cadre de carte.
+const SW_VERSION = 'v2.15.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

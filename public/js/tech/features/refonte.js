@@ -380,7 +380,9 @@ function photoAxeEntier(ligne, data, photo) {
         if (!galerie) {
             galerie = document.createElement('div');
             galerie.className = 'tx-photos-envoyees';
-            (ligne.querySelector('.tx-axe-route') || ligne).prepend(galerie);
+            const actions = ligne.querySelector('.tx-axe-route .tx-axe-actions');
+            if (actions) actions.after(galerie);
+            else (ligne.querySelector('.tx-axe-route') || ligne).prepend(galerie);
         }
         const vignette = document.createElement('i');
         vignette.style.backgroundImage = `url('${URL.createObjectURL(photo)}')`;
