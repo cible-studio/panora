@@ -625,6 +625,33 @@ class PanelController extends Controller
             'axe_routier' => $request->axe_routier,
         ]);
 
+        // ═══ Faces d'un axe ou d'un pied — correctif 2026-11-13 ═══
+        // Deux colonnes portaient la même notion : `nombre_faces`, saisie
+        // ici depuis l'inventaire, et `faces_par_pied`, écrite par
+        // axes:decouper et LUE par le calcul des taxes. Résultat : on
+        // modifiait le nombre de faces d'un Lumipub à l'écran et la taxe
+        // ne bougeait pas. On les synchronise désormais, pour que la
+        // valeur visible soit toujours celle qui compte.
+        //
+        // Volontairement limité aux axes et à leurs pieds : sur un
+        // panneau ordinaire — un chevalet porte nombre_faces = 4 —
+        // écrire faces_par_pied multiplierait sa surface taxable sans
+        // que personne ne l'ait demandé.
+        if (app(\App\Services\Axes\AxeService::class)->colonnesPresentes()
+            && ($panel->est_axe || $panel->axe_id)) {
+            $faces = max(1, (int) ($request->nombre_faces ?: 1));
+            if ((int) $panel->faces_par_pied !== $faces) {
+                $panel->forceFill(['faces_par_pied' => $faces])->save();
+
+                \Illuminate\Support\Facades\Log::info('panel.faces_synchronisees', [
+                    'panel_id'  => $panel->id,
+                    'reference' => $panel->reference,
+                    'faces'     => $faces,
+                    'par'       => auth()->id(),
+                ]);
+            }
+        }
+
         // ── Supprimer les photos cochées ──
         if ($request->filled('delete_photos')) {
             $photos = PanelPhoto::whereIn('id', $request->delete_photos)

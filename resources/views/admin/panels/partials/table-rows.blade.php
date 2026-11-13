@@ -48,7 +48,16 @@
         @if($panel->format->dimensions_label)<div style="font-weight:500;">{{ $panel->format->dimensions_label }}</div>@endif
         @if($panel->format->surface_label)<div style="font-size:11px;color:var(--text3);">{{ $panel->format->surface_label }}</div>@elseif(!$panel->format->dimensions_label)<div>{{ $panel->format->name }}</div>@endif
     </td>
-    <td style="text-align:center;vertical-align:middle;"><span style="font-weight:700;color:var(--text2);">{{ $panel->nombre_faces ?? 1 }}</span></td>
+    {{-- 2026-11-13 — Sur un axe ou un pied, la face qui compte pour l'ODP et
+         la TM est faces_par_pied. L'afficher ici évite de lire « 1 » sur un
+         pied qui en porte 3. --}}
+    <td style="text-align:center;vertical-align:middle;">
+        <span style="font-weight:700;color:var(--text2);">
+            {{ (($panel->est_axe ?? false) || !empty($panel->axe_id))
+                ? ($panel->faces_par_pied ?: ($panel->nombre_faces ?: 1))
+                : ($panel->nombre_faces ?? 1) }}
+        </span>
+    </td>
     <td style="vertical-align:middle;">@if($panel->quartier)<div style="font-weight:500;font-size:12px;">{{ $panel->quartier }}</div>@endif @if($panel->adresse)<div style="font-size:11px;color:var(--text3);">{{ $panel->adresse }}</div>@endif @if(!$panel->quartier && !$panel->adresse)<span style="color:var(--text3);">—</span>@endif</td>
     <td style="color:var(--accent);font-weight:600;vertical-align:middle;">{{ number_format($panel->monthly_rate, 0, ',', ' ') }} FCFA</td>
     <td style="vertical-align:middle;">

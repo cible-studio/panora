@@ -236,4 +236,59 @@ class LumipubFacesSurfaceTest extends TestCase
             . "s'écrire sans demande explicite.");
         $this->assertStringContainsString('SIMULATION', $src);
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // LES DEUX COLONNES DE FACES NE DOIVENT PLUS DIVERGER
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Défaut constaté le 13/11 : modifier le nombre de faces d'un Lumipub
+     * depuis l'inventaire n'avait aucun effet sur les taxes. L'écran
+     * écrivait `nombre_faces`, le calcul lisait `faces_par_pied` — deux
+     * colonnes pour la même notion, et c'est la visible qui ne comptait
+     * pas.
+     */
+    public function test_l_inventaire_synchronise_les_deux_colonnes(): void
+    {
+        $src = $this->src('app/Http/Controllers/Admin/PanelController.php');
+
+        $this->assertStringContainsString("\$panel->forceFill(['faces_par_pied' => \$faces])->save();", $src,
+            "Enregistrer un axe ou un pied doit mettre à jour la colonne lue par les taxes.");
+        $this->assertStringContainsString('$panel->est_axe || $panel->axe_id', $src,
+            "La synchronisation doit se limiter aux axes et aux pieds : un chevalet "
+            . "porte nombre_faces = 4 et sa surface taxable ne doit pas quadrupler.");
+    }
+
+    /**
+     * Les 101 pieds ont faces_par_pied = 3 mais nombre_faces = 1. Si le
+     * formulaire affichait 1, un simple enregistrement écraserait 3 par 1.
+     */
+    public function test_le_formulaire_affiche_la_valeur_qui_compte(): void
+    {
+        $src = $this->src('resources/views/admin/panels/edit.blade.php');
+
+        $this->assertStringContainsString('$panel->faces_par_pied ?:', $src,
+            "Sur un axe ou un pied, le champ doit afficher faces_par_pied — "
+            . "sinon ouvrir puis enregistrer la fiche détruit la valeur.");
+        $this->assertStringContainsString('ODP et de la TM', $src,
+            "Le champ doit dire qu'il pilote la taxe.");
+    }
+
+    public function test_la_liste_affiche_aussi_la_valeur_qui_compte(): void
+    {
+        $src = $this->src('resources/views/admin/panels/partials/table-rows.blade.php');
+
+        $this->assertStringContainsString('faces_par_pied', $src,
+            "La colonne FACES de l'inventaire ne doit pas afficher 1 sur un pied qui en porte 3.");
+    }
+
+    public function test_la_commande_aligne_aussi_les_faces(): void
+    {
+        $src = $this->src('app/Console/Commands/ReparerOdpDesPieds.php');
+
+        $this->assertStringContainsString("'nombre_faces' => (int) \$p->faces_par_pied", $src,
+            'La réparation doit faire converger les deux colonnes en base.');
+        $this->assertStringContainsString('UTILISÉ POUR LA TAXE', $src,
+            "La simulation doit montrer l'écart avant d'écrire quoi que ce soit.");
+    }
 }
