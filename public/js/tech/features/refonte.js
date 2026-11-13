@@ -185,6 +185,19 @@ async function arriver(bouton) {
             setTimeout(() => window.location.reload(), 700);
             return;
         }
+        if (porteur.matches('[data-axe-entier]')) {
+            // Axe entier (une seule pose) : sur place, la carte se déplie
+            // sur « Photo » et « Terminé ».
+            porteur.dataset.taskStatus = 'en_cours';
+            porteur.dataset.progress = 50;
+            porteur.dataset.arrivedAt = porteur.dataset.arrivedAt || new Date().toISOString();
+            poserPilule(porteur.querySelector('[data-tx-axe-statut]'), 'en_cours');
+            bouton.disabled = true;
+            bouton.lastChild.textContent = 'Sur place';
+            if (!porteur.classList.contains('ouvert')) basculerAxe(porteur.querySelector('[data-tx-axe-toggle]'));
+            toast('Tu es sur place : une photo par pied, puis « Terminé ».', 'success');
+            return;
+        }
         statutAxe(carte, 'en_cours', 50);
         toast('Tu es sur place : tous les pieds de l\'axe sont démarrés.', 'success');
     } catch (e) {

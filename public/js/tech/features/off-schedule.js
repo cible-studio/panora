@@ -162,6 +162,8 @@ export function init() {
 
         const pose = e.target.closest('.pose-line[data-task-id]');
         if (!pose) return;
+        // Axe entier (2026-11-13) : un toucher sur sa carte ne l'ouvre pas.
+        if (pose.matches('[data-axe-entier]')) return;
         // Ne pas voler le clic des boutons internes (déjà géré par
         // pose-drawer.js avec sa propre logique closest a/button/label/input)
         if (e.target.closest('a[href]') || e.target.closest('button')

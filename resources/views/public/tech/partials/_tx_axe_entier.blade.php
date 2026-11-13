@@ -4,11 +4,15 @@
      « Terminé ». Une photo ne la clôt plus (TechSpaceController::uploadPhoto,
      PigeObserver::closePoseTask).
 
-     2026-11-13 (retour terrain) : même forme que la carte d'un axe (_tx_axe) —
-     compacte, repliable — au lieu d'une carte toujours ouverte avec un grand
-     encadré répété sur chaque axe. L'en-tête ouvre la fiche de la pose
-     (tiroir) ; la ligne « N / 9 photos » replie / déplie les photos envoyées
-     et l'aide. La pastille ne porte plus .pose-dot (elle l'écrasait en rond).
+     2026-11-13 (retours terrain) : MÊME squelette et mêmes gestes que la
+     carte d'un axe (_tx_axe) —
+       · toucher l'en-tête déplie / replie (il n'ouvre plus la fiche) ;
+       · « N / 9 photos » et ses segments ;
+       · « Y aller » et « Je suis arrivé » toujours visibles ;
+       · dépliée : « Photo », « Terminé », les photos envoyées, l'aide, et
+         « Fiche » (le tiroir, pour signaler un souci — pose-drawer.js).
+     Dépliée d'office sur place ou en « Maintenant ». La pastille ne porte
+     plus .pose-dot (elle l'écrasait en rond).
 
      Paramètres : $task ; $maintenant (carte en tête de « Ma journée »). --}}
 @php
@@ -22,12 +26,13 @@
     $statut = (string) $task->status;
     $classe = ['en_cours' => 'place', 'en_route' => 'route'][$statut] ?? 'planifiee';
     $libelle = ['en_cours' => 'Sur place', 'en_route' => 'En route'][$statut] ?? 'Planifiée';
-    $ouvert = !empty($maintenant) || $statut === 'en_cours';
+    $surPlace = $statut === 'en_cours';
+    $ouvert = !empty($maintenant) || $surPlace;
 @endphp
 <article class="pose pose-line tx-axe tx-axe-entier {{ $ouvert ? 'ouvert' : '' }} {{ !empty($maintenant) ? 'tx-maintenant' : '' }} {{ $d['hasProblem'] ? 'has-problem' : '' }}"
      {!! \App\Support\TechCarte::attributs($task, $d) !!}
      data-axe-entier="1" data-pieds-total="{{ $nbPieds }}" data-photos="{{ $nbPhotos }}">
-    <div class="tx-axe-tete">
+    <button type="button" class="tx-axe-tete" data-tx-axe-toggle aria-expanded="{{ $ouvert ? 'true' : 'false' }}">
         <span class="pose-thumb tx-vignette" @if($d['photoUrl']) style="background-image: url('{{ $d['photoUrl'] }}')" @endif></span>
         <span class="tx-ligne-inf">
             <span class="tx-ligne-l1"><span class="pose-ref tx-ref">{{ $panel->reference }}</span><span class="tx-badge tx-badge-axe">Axe entier · {{ $nbPieds }} pieds</span></span>
@@ -35,17 +40,22 @@
             <span class="tx-ligne-sous">{{ $task->campaign?->name }}</span>
         </span>
         <span class="tx-pill tx-pill-{{ $classe }}" data-tx-axe-statut>{{ $libelle }}</span>
-    </div>
+    </button>
 
-    <button type="button" class="tx-axe-avance tx-axe-bascule" data-tx-axe-toggle aria-expanded="{{ $ouvert ? 'true' : 'false' }}">
-        <span><b data-tx-photos-compte>{{ $nbPhotos }}</b> / {{ $nbPieds }} photos <span class="tx-chevron" aria-hidden="true">▾</span></span>
+    <div class="tx-axe-avance">
+        <span><b data-tx-photos-compte>{{ $nbPhotos }}</b> / {{ $nbPieds }} photos</span>
         <span class="tx-segments" data-tx-axe-segments aria-hidden="true">
             @for($i = 0; $i < max(1, $nbPieds); $i++)<i class="{{ $i < $nbPhotos ? 'envoyee' : '' }}"></i>@endfor
         </span>
-    </button>
+    </div>
 
-    {{-- Repliée dans la liste (une ligne, comme les autres poses) ; dépliée
-         d'office en cours ou en « Maintenant ». --}}
+    <div class="tx-axe-actions">
+        <a class="tx-btn" data-go-maps href="{{ $d['goUrl'] }}" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Y aller</a>
+        <button type="button" class="tx-btn tx-btn-bleu" data-tx-arrive {{ $surPlace ? 'disabled' : '' }}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>{{ $surPlace ? 'Sur place' : 'Je suis arrivé' }}</button>
+    </div>
+
     <div class="tx-axe-route">
         <div class="tx-axe-actions">
             <label class="tx-btn tx-btn-orange">
@@ -63,6 +73,7 @@
                 @endforeach
             </div>
         @endif
-        <p class="tx-aide" data-tx-terminer-aide>ⓘ Contrat signé avant le découpage : une photo par pied, sur cette même pose. Touche « Terminé » quand tous les pieds sont faits (confirmation s'il manque des photos).</p>
+        <p class="tx-aide" data-tx-terminer-aide>ⓘ Contrat signé avant le découpage : une photo par pied, sur cette même pose. Touche « Terminé » quand tous les pieds sont faits.
+            <button type="button" class="tx-lien" data-tx-fiche>Fiche · signaler un souci</button></p>
     </div>
 </article>

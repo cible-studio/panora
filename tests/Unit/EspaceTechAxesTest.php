@@ -834,6 +834,9 @@ class EspaceTechAxesTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/class="pose-dot[^"]*tx-pill/', $r->getContent());
         // Repliée en liste : ses boutons sont dans la partie dépliable.
         $this->assertMatchesRegularExpression('/<div class="tx-axe-route">\s*<div class="tx-axe-actions">/', $r->getContent());
+        // Mêmes gestes qu'un axe : l'en-tête déplie, la fiche par son lien.
+        $this->assertMatchesRegularExpression('/data-axe-entier="1"[^>]*>\s*<button type="button" class="tx-axe-tete" data-tx-axe-toggle/', $r->getContent());
+        $r->assertSee('data-tx-fiche', false);
         // CSS et modules versionnés par la date du fichier (2026-11-13) : un
         // déploiement n'est plus masqué par le cache du service worker.
         $this->assertMatchesRegularExpression('/tx-refonte\.css\?v=\d{9,}/', $r->getContent());
