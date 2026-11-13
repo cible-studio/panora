@@ -891,24 +891,39 @@ window.QuoteForm = (function() {
     // Dates inversées : signalées PENDANT la saisie. Avant, on ne
     // l'apprenait qu'au moment d'enregistrer, devis entièrement rempli
     // (la validation serveur after_or_equal existait déjà).
+    // Au moins une ligne engage-t-elle un panneau du parc ?
+    function devisEngageDesPanneaux() {
+        return [...document.querySelectorAll('#quote-lines-tbody .ql-panel-search')]
+            .some(s => !!s.value);
+    }
+
     function verifierDates() {
         const { debut, fin } = champsPeriode();
         const zone = document.getElementById('qf-dates-alerte');
         if (!debut || !fin || !zone) return true;
+
         const inversees = !!(debut.value && fin.value && debut.value > fin.value);
         const absentes  = !debut.value || !fin.value;
+        // Sans dates mais AVEC des panneaux : bloquant. La réservation
+        // créée à l'acceptation porterait des dates inventées — et le
+        // client accepte seul, depuis son espace ou le lien public.
+        const manquantes = absentes && devisEngageDesPanneaux();
+        const bloquant   = inversees || manquantes;
 
-        zone.style.display = (inversees || absentes) ? 'block' : 'none';
-        zone.className     = inversees ? 'qf-dates-alerte est-erreur' : 'qf-dates-alerte est-info';
+        zone.style.display = (bloquant || absentes) ? 'block' : 'none';
+        zone.className     = bloquant ? 'qf-dates-alerte est-erreur' : 'qf-dates-alerte est-info';
         zone.innerHTML = inversees
             ? '⛔ <strong>Dates inversées</strong> — la fin de campagne ('
               + fin.value.split('-').reverse().join('/') + ') est avant le début ('
               + debut.value.split('-').reverse().join('/') + '). Le devis sera refusé à l\'enregistrement.'
+            : manquantes
+            ? '⛔ <strong>Période obligatoire</strong> — ce devis engage des panneaux du parc. '
+              + 'Sans dates, la réservation créée quand le client accepte porterait des dates inventées.'
             : '💡 <strong>Renseigne la période de campagne</strong> pour que la recherche de panneaux '
               + 'affiche la disponibilité sur ces dates. Sans dates, le statut affiché est celui du jour.';
 
-        [debut, fin].forEach(c => { c.style.borderColor = inversees ? '#dc2626' : ''; });
-        return !inversees;
+        [debut, fin].forEach(c => { c.style.borderColor = bloquant ? '#dc2626' : ''; });
+        return !bloquant;
     }
 
     // Les dates ont changé → les panneaux déjà choisis peuvent être
@@ -1151,11 +1166,14 @@ window.QuoteForm = (function() {
             // Une seule ligne à l'écran (2026-11-13) + rappel « libre dès le… ».
             majAffichageDesignation(row);
             majAlerteLigne(row, p);
+            // Poser un panneau rend la période obligatoire (2026-11-13).
+            verifierDates();
         }).on('select2:clear', function() {
             // Réinit hidden panel_id — le champ désignation reste (le user peut vouloir le garder)
             setAxe(row, null);
             majAffichageDesignation(row);
             majAlerteLigne(row, null);
+            verifierDates();
         });
 
         // ── Libellé : masqué quand un panneau du parc est choisi ──

@@ -62,7 +62,51 @@ class QuoteConverter
                 \App\Models\Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
             }
 
-            // 3) Double-check disponibilité sur la période visée
+            // ═══ Période absente — on n'invente plus (2026-11-13) ═══
+            // Avant : « aujourd'hui → aujourd'hui + durée max des lignes ».
+            // Ces dates inventées ne servaient pas qu'au contrôle de
+            // disponibilité : elles étaient écrites dans start_date/end_date
+            // de la réservation FERME créée plus bas. Un devis sans dates
+            // produisait donc un engagement contractuel sur une période que
+            // personne n'avait choisie — et le client accepte seul, depuis
+            // son espace ou le lien public.
+            //
+            // Dès qu'un panneau est engagé, on refuse et on alerte le
+            // commercial. La saisie et l'envoi l'exigent déjà (QuoteController) :
+            // ce verrou ne sert plus qu'aux devis créés avant cette règle.
+            $engagePanneaux = !empty($panelIds) || !empty($extPanelIds);
+            if ($engagePanneaux && (!$quote->period_start || !$quote->period_end)) {
+                $quote->update([
+                    'status'          => QuoteStatus::ACCEPTE_AVEC_CONFLIT->value,
+                    'decision_at'     => now(),
+                    'decision_reason' => 'Période de campagne absente du devis : '
+                        . 'la réservation ne peut pas être créée sans dates.',
+                ]);
+
+                AlertService::notify(
+                    'devis_converti_avec_conflit',
+                    '⚠️ Devis accepté sans période — ' . $quote->reference,
+                    'Le client a accepté le devis ' . $quote->reference
+                    . ' mais aucune période de campagne n\'y est renseignée. Aucune réservation'
+                    . ' n\'a été créée. Renseigne les dates, puis reprends la conversion.',
+                    $quote,
+                    [
+                        'user_id' => $quote->commercial_user_id,
+                        'lien'    => route('admin.quotes.show', $quote->id),
+                    ]
+                );
+
+                Log::warning('quote.convert.periode_absente', [
+                    'quote_id'   => $quote->id,
+                    'decided_by' => $decidedBy,
+                ]);
+
+                return ['status' => 'conflict', 'motif' => 'periode_absente', 'conflicts' => []];
+            }
+
+            // 3) Double-check disponibilité sur la période visée.
+            // Le fallback ne subsiste que pour un devis SANS panneau
+            // (services seuls) : il ne bloque aucun emplacement.
             $periodStart = $quote->period_start?->toDateString() ?? now()->toDateString();
             $periodEnd   = $quote->period_end?->toDateString()
                 ?? now()->addMonths((int) ceil($quote->lines->max('duree_mois') ?? 1))->toDateString();

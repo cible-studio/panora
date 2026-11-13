@@ -81,6 +81,14 @@ class ClientQuoteController extends Controller
                 ->with('success', 'Devis accepté ! Une réservation a été créée. Votre commercial vous contactera pour la suite.');
         }
 
+        // Période absente (2026-11-13) : ce n'est pas un problème de
+        // disponibilité, le message doit le dire honnêtement au client.
+        if (($result['motif'] ?? null) === 'periode_absente') {
+            return redirect()->route('client.devis.show', $quote)
+                ->with('warning', "Votre acceptation est bien enregistrée. Les dates de campagne restent "
+                    . "à préciser : votre commercial ({$quote->commercial?->name}) va vous contacter pour les fixer.");
+        }
+
         return redirect()->route('client.devis.show', $quote)
             ->with('warning', "Devis accepté, mais certains panneaux ne sont plus disponibles. Votre commercial ({$quote->commercial?->name}) va vous contacter pour ajuster.");
     }
