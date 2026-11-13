@@ -197,6 +197,22 @@ class DecouperAxesEnPieds extends Command
                     'longitude'      => null,
                 ]);
 
+                // ═══ Ancienneté du mât — correctif 2026-11-13 ═══
+                // Panel::booted() remplit odp_start_date à la date du jour
+                // pour tout panneau créé. Or un pied n'est pas un panneau
+                // neuf : le mât est planté depuis des années, seule sa
+                // ligne dans Panora est récente. Sans ce rattrapage, l'ODP
+                // d'un exercice annuel ne comptait que les mois écoulés
+                // depuis le découpage (2 mois sur 2026 au lieu de 12).
+                // Le docblock de booted() avertit exactement de ce cas.
+                //
+                // NULL sur l'axe = « panneau préexistant », et le pied doit
+                // porter la même chose. forceFill contourne booted(), qui
+                // n'intervient qu'à la création.
+                if ($pied->odp_start_date?->toDateString() !== ($axe->odp_start_date?->toDateString())) {
+                    $pied->forceFill(['odp_start_date' => $axe->odp_start_date])->save();
+                }
+
                 $crees[] = $pied->id;
             }
 
