@@ -837,11 +837,13 @@ class EspaceTechAxesTest extends TestCase
         // Mêmes gestes qu'un axe : l'en-tête déplie, la fiche par son lien.
         $this->assertMatchesRegularExpression('/data-axe-entier="1"[^>]*>\s*<button type="button" class="tx-axe-tete" data-tx-axe-toggle/', $r->getContent());
         $r->assertSee('data-tx-fiche', false);
-        // CSS et modules versionnés par la date du fichier (2026-11-13) : un
-        // déploiement n'est plus masqué par le cache du service worker.
-        $this->assertMatchesRegularExpression('/tx-refonte\.css\?v=\d{9,}/', $r->getContent());
+        // CSS et modules versionnés par l'empreinte du fichier (2026-11-13) :
+        // un déploiement n'est plus masqué par le cache du service worker.
+        $empreinte = \App\Support\Actif::version(public_path('css/tech/tx-refonte.css'));
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{9,}$/', $empreinte);
+        $r->assertSee('tx-refonte.css?v=' . $empreinte, false);
         $r->assertSee('<script type="importmap">', false);
-        $this->assertMatchesRegularExpression('#"/js/tech/features/refonte\.js":"/js/tech/features/refonte\.js\?v=\d{9,}"#', $r->getContent());
+        $this->assertMatchesRegularExpression('#"/js/tech/features/refonte\.js":"/js/tech/features/refonte\.js\?v=[0-9a-f]{9,}"#', $r->getContent());
         $r->assertSee('1 / 5 aujourd', false);
         // Les pieds partagent la photo et la position de l'axe ; le pied 3,
         // déjà fait, dessine la route sans action.
