@@ -1767,3 +1767,46 @@ worker v2.13.0).
       téléphone, propre à l'impression.
 - [ ] 🔧 « Position du panneau inconnue » sur CDYLUP-004-P01 : l'axe CDYLUP-004
       n'a pas de position sur dev (vérifier ses latitude / longitude).
+
+## 25. Découpage des axes entiers des anciens contrats *(2026-11-13)*
+
+Les contrats signés avant le découpage (BEM #2, MOOV #8, LADILI #102) tiennent
+la LIGNE de l'axe : une seule pose pour 9 ou 10 pieds, d'où une carte « axe
+entier » différente dans l'espace technicien. Décision du 13/11 : découper ces
+campagnes en pieds, comme les nouvelles ventes. Commande
+`axes:decouper-campagnes` (simulation par défaut).
+
+Ce qu'elle fait, pour chaque axe entier d'une campagne planifiée / active / en
+pause :
+- la campagne tient ses **pieds** au lieu de la ligne de l'axe ;
+- la **réservation garde la ligne de l'axe et son prix** : la facture générée
+  plus tard est la même qu'avant, au franc près (une ligne, prix du contrat,
+  ODP/TM à saisir à la main) ;
+- chaque pose **ouverte** de l'axe devient une pose par pied (même technicien,
+  équipe, date, statut, vague, consigne), sans alerte ni WhatsApp ; la pose de
+  l'axe passe « annulée » avec la mention « Découpée en N pieds » ;
+- les poses **réalisées** et leurs photos restent (historique) ;
+- **ne découpe pas** : un axe dont la pose ouverte a déjà des photos (à fermer
+  d'abord avec « Terminé »), un axe absent de la réservation, une réservation
+  qui tient déjà des pieds ; un pied pris par une autre campagne ou réservation
+  sur la période est laissé de côté (signalé).
+
+En production :
+- [ ] `php artisan axes:decouper-campagnes` → lire la simulation (6 axes
+      attendus : CDYLUP-001, -007, -008, TVILUP-002 pour BEM ; TVILUP-001
+      pour MOOV ; CDYLUP-002 pour LADILI). **CDYLUP-008 est « en cours »** : si
+      sa pose a déjà des photos, la simulation le dit — la fermer avec
+      « Terminé » ou la laisser en axe entier.
+- [ ] Si la simulation est bonne : `php artisan axes:decouper-campagnes --appliquer`
+- [ ] Espace technicien de Yannick (ou du technicien des poses) : BEM, MOOV et
+      LADILI s'affichent en carte d'axe avec ses pieds, comme les autres.
+- [ ] Admin, campagne BEM → onglet Panneaux : les pieds ; onglet Poses : une
+      pose par pied, la pose de l'axe annulée (masquée par défaut).
+- [ ] Admin, « Générer la facture » sur BEM **en brouillon de test** (puis le
+      supprimer) : une ligne par axe au prix du contrat, comme avant.
+- [ ] Portail client BEM : une carte par axe, « Axe entier · photo du … » pour
+      l'ancienne photo, compteurs en pieds (jamais « 6/5 pigés »).
+- [ ] Une ancienne alerte « Nouvelle pose : CDYLUP-001 » chez le technicien
+      mène à la pose annulée : normal, les nouvelles poses de pied sont dans
+      « Ma journée ».
+- [ ] LADILI : la facture brouillon existante n'est pas touchée.

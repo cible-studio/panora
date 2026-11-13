@@ -14,6 +14,9 @@
     $nbPoses = $pieds->filter(fn ($p) => isset($poses[$p->id]))->count();
     $nbPiges = $pieds->filter(fn ($p) => ($pigesVerif[$p->id] ?? collect())->isNotEmpty())->count();
     $complet = $nb > 0 && $nbPiges === $nb;
+    // Ancien contrat découpé en pieds (2026-11-13) : la dernière photo
+    // validée de l'axe entier, d'avant le découpage.
+    $photoAxeEntier = ($pigesVerif[$axe->id] ?? collect())->first();
     $borderClr = $complet ? 'rgba(34,197,94,.35)' : ($nbPoses > 0 ? 'rgba(139,92,246,.35)' : 'var(--border)');
     $nomAxe = app(\App\Services\Axes\AxeService::class)->nomCourt($axe->name);
     $commune = $pieds->first()?->commune?->name ?? $axe->commune?->name;
@@ -52,6 +55,16 @@
 
         {{-- Les pieds, dans l'ordre du terrain --}}
         <div style="display:grid;gap:4px;">
+            @if($photoAxeEntier)
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:9px;background:var(--surface2);">
+                    <span style="font-size:10px;font-weight:800;color:var(--text3);flex:1;min-width:0;">Axe entier · photo du {{ $photoAxeEntier->verified_at?->format('d/m/Y') }}</span>
+                    <button type="button" onclick="openLightbox({{ $pigeIndexMap[$photoAxeEntier->id] ?? 0 }})"
+                            title="Photo validée le {{ $photoAxeEntier->verified_at?->format('d/m/Y') }} — cliquer pour agrandir"
+                            style="width:34px;height:34px;border-radius:6px;overflow:hidden;border:1.5px solid rgba(34,197,94,.4);padding:0;background:none;cursor:pointer;flex-shrink:0;">
+                        <img src="{{ Storage::url($photoAxeEntier->photo_thumb ?? $photoAxeEntier->photo_path) }}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" alt="{{ $axe->reference }}">
+                    </button>
+                </div>
+            @endif
             @foreach($pieds as $pied)
                 @php
                     $photosPied = $pigesVerif[$pied->id] ?? collect();

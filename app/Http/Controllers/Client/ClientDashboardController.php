@@ -294,10 +294,15 @@ class ClientDashboardController extends Controller
         // KPI couverture — total inclut internes + externes pour l'affichage,
         // mais le pourcentage se calcule sur les internes (ceux qui peuvent
         // effectivement être pigés via la table piges actuelle).
+        // Les compteurs sont en pieds : la ligne d'un axe dont les pieds sont
+        // dans la campagne (ancien contrat découpé, 2026-11-13) a encore les
+        // poses et les photos d'avant — elle ne compte pas comme un support
+        // de plus (sinon « 6/5 pigés »). Ses photos restent dans la galerie.
+        $axesDecoupes         = $campaign->panels->pluck('axe_id')->filter()->unique();
         $totalPanneaux        = $panelIds->count() + $externalIdsCount;
         $totalPanneauxPiges   = $panelIds->count(); // dénominateur réel pour la pige
-        $posesCount           = $poses->count();
-        $pigesCount           = $pigesVerif->count();
+        $posesCount           = $poses->keys()->diff($axesDecoupes)->count();
+        $pigesCount           = $pigesVerif->keys()->diff($axesDecoupes)->count();
         $coveragePercent      = $totalPanneauxPiges > 0
             ? round(($pigesCount / $totalPanneauxPiges) * 100)
             : 0;
