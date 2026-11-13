@@ -353,7 +353,13 @@ class InvoiceFromCampaignBuilder
             $pieds = array_values(array_filter($g['membres'], fn ($p) => $p->axe_id !== null));
 
             // La ligne d'axe est-elle elle-même au contrat (axe entier) ?
-            $axeEntier = collect($g['membres'])->contains(fn ($p) => $p->axe_id === null && $p->taxesSaisiesALaMain());
+            // Soit dans la campagne ; soit — ancien contrat dont la campagne
+            // a été découpée en pieds (axes:decouper-campagnes, 2026-11-13) —
+            // sur la réservation, au prix du contrat, sans prix sur ses pieds.
+            // La ligne reste alors celle d'avant le découpage, au franc près.
+            $axeEntier = collect($g['membres'])->contains(fn ($p) => $p->axe_id === null && $p->taxesSaisiesALaMain())
+                || ($pieds && $porteur->axe_id === null && isset($negotiated['int_' . $porteur->id])
+                    && ! collect($pieds)->contains(fn ($p) => isset($negotiated['int_' . $p->id])));
 
             if ($pieds && ! $axeEntier) {
                 $pu = array_sum(array_map($prixDe, $pieds));
