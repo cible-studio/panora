@@ -2240,12 +2240,17 @@ chaque pied et sur la ligne d'axe. Elle prime désormais ; le nom ne sert
 plus que de repli. Le risque « un nom mal saisi fausse la taxe » disparaît.
 
 ### À faire en production, dans cet ordre
-- [ ] `php artisan axes:reparer-odp` → **simulation**, affiche le tableau
-      AXE / PIED / date ACTUELLE / date ATTENDUE. Rien n'est écrit.
-- [ ] Vérifier que les dates attendues sont bien celles des axes (souvent
-      `NULL (préexistant)`, ce qui est le cas normal d'un parc antérieur
-      à Panora).
-- [ ] `php artisan axes:reparer-odp --appliquer`
+- [x] `php artisan axes:reparer-odp` → **simulation** lancée le 13/11.
+      Résultat : **101 pieds sur 101** portaient `2026-11-11` (date du
+      découpage) alors que **les 13 axes ont tous `NULL`**. Aucune
+      exception, aucun cas partiel à arbitrer.
+- [x] Dates attendues vérifiées : `NULL (préexistant)` partout — le cas
+      normal pour un parc antérieur à Panora.
+- [x] **`axes:reparer-odp --appliquer` exécuté en production le
+      2026-11-13 → ✅ 101 pied(s) corrigé(s).**
+      La commande n'a signalé **aucun** pied sans `faces_par_pied` : le
+      nombre de faces vient donc bien de la colonne dédiée, pas d'une
+      lecture du nom d'axe.
 - [ ] Rouvrir l'écran de taxes, période **annuelle**, case Lumipub cochée :
       un pied doit maintenant compter **12 mois**, pas 2.
 - [ ] La commande signale aussi les pieds sans `faces_par_pied` — s'il y en
