@@ -425,9 +425,22 @@ class AxeService
             return 1;
         }
 
+        // La colonne dédiée fait foi : DecouperAxesEnPieds l'écrit sur
+        // chaque pied ET sur la ligne d'axe. Elle est explicite et ne
+        // dépend pas de l'orthographe d'un nom.
+        if (!empty($panel->faces_par_pied)) {
+            return max(1, (int) $panel->faces_par_pied);
+        }
+
+        // Repli pour un pied créé avant que la colonne soit remplie : on
+        // relit le nom de l'axe, qui annonce « (11P x 3F) ».
         $axe = $panel->relationLoaded('axe') && $panel->axe
             ? $panel->axe
-            : Panel::select('id', 'name')->find($panel->axe_id);
+            : Panel::select('id', 'name', 'faces_par_pied')->find($panel->axe_id);
+
+        if ($axe && !empty($axe->faces_par_pied)) {
+            return max(1, (int) $axe->faces_par_pied);
+        }
 
         return $this->facesDeLAxe($axe);
     }
@@ -449,19 +462,40 @@ class AxeService
      */
     public function facesParLot(array $panelIds): array
     {
-        $axeParPied = $this->axeParPied($panelIds);
-        if (empty($axeParPied)) {
+        $panelIds = array_values(array_unique(array_filter(array_map('intval', $panelIds))));
+        if (empty($panelIds) || ! $this->colonnesPresentes()) {
             return [];
         }
 
-        $faces = Panel::whereIn('id', array_values(array_unique($axeParPied)))
-            ->get(['id', 'name'])
-            ->mapWithKeys(fn (Panel $a) => [$a->id => $this->facesDeLAxe($a)])
-            ->all();
+        // 1) La colonne dédiée des pieds, quand elle est remplie.
+        $pieds = Panel::whereIn('id', $panelIds)
+            ->whereNotNull('axe_id')
+            ->get(['id', 'axe_id', 'faces_par_pied']);
 
-        $resultat = [];
-        foreach ($axeParPied as $piedId => $axeId) {
-            $resultat[(int) $piedId] = $faces[$axeId] ?? 1;
+        $resultat   = [];
+        $aCompleter = [];
+        foreach ($pieds as $pied) {
+            if (!empty($pied->faces_par_pied)) {
+                $resultat[(int) $pied->id] = max(1, (int) $pied->faces_par_pied);
+            } else {
+                $aCompleter[(int) $pied->id] = (int) $pied->axe_id;
+            }
+        }
+
+        // 2) Repli : la ligne d'axe (colonne, puis nom).
+        if ($aCompleter) {
+            $faces = Panel::whereIn('id', array_values(array_unique($aCompleter)))
+                ->get(['id', 'name', 'faces_par_pied'])
+                ->mapWithKeys(fn (Panel $a) => [
+                    $a->id => !empty($a->faces_par_pied)
+                        ? max(1, (int) $a->faces_par_pied)
+                        : $this->facesDeLAxe($a),
+                ])
+                ->all();
+
+            foreach ($aCompleter as $piedId => $axeId) {
+                $resultat[$piedId] = $faces[$axeId] ?? 1;
+            }
         }
 
         return $resultat;

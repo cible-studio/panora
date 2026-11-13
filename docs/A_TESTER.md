@@ -2206,3 +2206,57 @@ acquis. Le code l'applique déjà (la règle est générique) — si BK-002 doit
 `tests/Unit/LumipubFacesSurfaceTest.php` — 8 tests, 49 assertions, sans base
 de données. Les 13 noms d'axes réels de production y sont figés : si l'un
 cesse d'être analysé, le test tombe.
+
+---
+
+## § 26 — ODP des pieds : 2 mois au lieu de 12 (2026-11-13)
+
+### Le défaut constaté à l'écran
+Sur un exercice **annuel**, l'ODP d'un pied Lumipub se calculait
+`1 000 × 9 m² × **2 mois**` au lieu de 12.
+
+**Cause** : `Panel::booted()` remplit `odp_start_date` à la date du jour pour
+tout panneau créé. Les 101 pieds nés du découpage des 11 et 13/11/2026 ont
+donc une date de départ ODP **en novembre 2026** — alors que les mâts sont
+plantés depuis des années : seule leur **ligne dans Panora** est récente.
+Sur l'exercice 2026, l'ODP ne courait donc que novembre + décembre.
+
+Le docblock de `Panel::booted()` avertissait précisément de ce cas :
+> ⚠ Si un jour on importe un lot de panneaux HISTORIQUES, il faut passer
+> `odp_start_date` explicitement, sinon ils hériteront de la date du jour.
+
+Le découpage est exactement cet import.
+
+### La règle
+Un pied porte la **même** ancienneté que son axe — y compris `NULL`, qui
+signifie « panneau préexistant, ODP due sur toute la période » (TX-10,
+validé par la patronne). `forceFill` contourne `booted()`, qui n'agit qu'à
+la création : c'est le seul moyen de reposer `NULL`.
+
+### Correctif également apporté : la source du nombre de faces
+Le § 25 lisait le **nom de l'axe** pour compter les faces. Il existe une
+colonne dédiée, **`faces_par_pied`**, que `axes:decouper` écrit déjà sur
+chaque pied et sur la ligne d'axe. Elle prime désormais ; le nom ne sert
+plus que de repli. Le risque « un nom mal saisi fausse la taxe » disparaît.
+
+### À faire en production, dans cet ordre
+- [ ] `php artisan axes:reparer-odp` → **simulation**, affiche le tableau
+      AXE / PIED / date ACTUELLE / date ATTENDUE. Rien n'est écrit.
+- [ ] Vérifier que les dates attendues sont bien celles des axes (souvent
+      `NULL (préexistant)`, ce qui est le cas normal d'un parc antérieur
+      à Panora).
+- [ ] `php artisan axes:reparer-odp --appliquer`
+- [ ] Rouvrir l'écran de taxes, période **annuelle**, case Lumipub cochée :
+      un pied doit maintenant compter **12 mois**, pas 2.
+- [ ] La commande signale aussi les pieds sans `faces_par_pied` — s'il y en
+      a, le calcul des faces retombe sur le nom de l'axe (ça marche, mais
+      c'est moins sûr).
+
+### ⚠ Rappel — l'anomalie du § 25 reste entière
+Corriger les mois **multiplie encore** les montants : un pied Lumipub à
+Cocody passe de 180 000 à 540 000 sur l'année. L'écart avec le fichier de la
+DG (13,7 M pour tout Abidjan) s'en trouve aggravé, pas résolu.
+**La question du tarif mensuel ou annuel reste la pièce manquante.**
+
+### Tests automatisés
+`tests/Unit/LumipubFacesSurfaceTest.php` — 12 tests, 56 assertions.

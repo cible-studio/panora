@@ -174,4 +174,66 @@ class LumipubFacesSurfaceTest extends TestCase
         $this->assertSame(180000.0, $taux * $uneFace * 12,
             'Montant que Panora calculait avant le correctif.');
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // LA COLONNE DÉDIÉE PRIME SUR LE NOM
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * `faces_par_pied` est écrite par axes:decouper sur chaque pied ET
+     * sur la ligne d'axe. Elle est explicite et ne dépend d'aucune
+     * orthographe : elle doit primer sur l'analyse du nom.
+     */
+    public function test_la_colonne_faces_par_pied_prime_sur_le_nom(): void
+    {
+        $src = $this->src('app/Services/Axes/AxeService.php');
+
+        $this->assertStringContainsString('if (!empty($panel->faces_par_pied)) {', $src,
+            'La colonne dédiée doit être lue en premier.');
+
+        // Elle doit être consultée AVANT le repli sur le nom.
+        $posColonne = strpos($src, 'if (!empty($panel->faces_par_pied)) {');
+        $posNom     = strpos($src, 'return $this->facesDeLAxe($axe);');
+        $this->assertLessThan($posNom, $posColonne);
+    }
+
+    public function test_le_decoupage_renseigne_les_faces(): void
+    {
+        $src = $this->src('app/Console/Commands/DecouperAxesEnPieds.php');
+
+        $this->assertStringContainsString("'faces_par_pied' => \$faces", $src);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ANCIENNETÉ ODP DES PIEDS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Panel::booted() remplit odp_start_date à la date du jour. Un pied
+     * n'est pas un panneau neuf : le mât est planté depuis des années.
+     * Sans rattrapage, l'ODP d'un exercice annuel ne comptait que les
+     * mois écoulés depuis le découpage — 2 mois sur 2026 au lieu de 12.
+     */
+    public function test_un_pied_herite_de_l_anciennete_de_son_axe(): void
+    {
+        $src = $this->src('app/Console/Commands/DecouperAxesEnPieds.php');
+
+        $this->assertStringContainsString(
+            "\$pied->forceFill(['odp_start_date' => \$axe->odp_start_date])->save();",
+            $src,
+            "forceFill contourne booted(), qui n'agit qu'à la création : "
+            . "c'est le seul moyen de reposer NULL (= panneau préexistant)."
+        );
+    }
+
+    public function test_une_commande_repare_les_pieds_deja_crees(): void
+    {
+        $src = $this->src('app/Console/Commands/ReparerOdpDesPieds.php');
+
+        $this->assertStringContainsString("axes:reparer-odp", $src);
+        $this->assertStringContainsString('--appliquer', $src,
+            'Simulation par défaut, comme axes:decouper : rien ne doit '
+            . "s'écrire sans demande explicite.");
+        $this->assertStringContainsString('SIMULATION', $src);
+    }
 }
