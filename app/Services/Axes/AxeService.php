@@ -418,18 +418,27 @@ class AxeService
      */
     public function facesParPied(?Panel $panel): int
     {
-        // L'absence d'axe se teste AVANT colonnesPresentes() : inutile
-        // d'interroger le schéma pour un panneau ordinaire, et ça permet
-        // de tester la règle sans base de données.
-        if (! $panel || empty($panel->axe_id) || ! $this->colonnesPresentes()) {
+        if (! $panel) {
             return 1;
         }
 
-        // La colonne dédiée fait foi : DecouperAxesEnPieds l'écrit sur
-        // chaque pied ET sur la ligne d'axe. Elle est explicite et ne
-        // dépend pas de l'orthographe d'un nom.
+        // ═══ faces_par_pied fait foi, axe ou pas (2026-11-13) ═══
+        // C'est le champ explicite des « faces qui comptent pour la taxe ».
+        // DecouperAxesEnPieds l'écrit sur chaque pied et sur la ligne
+        // d'axe ; l'inventaire l'écrit aussi pour un Lumipub autonome
+        // (MRYLUP-001 : un seul support, 3 faces de 3 m² = 9 m²).
+        // Il reste NULL partout ailleurs — notamment sur les 27 chevalets,
+        // dont la règle n'est pas tranchée : leur surface taxable ne doit
+        // pas quadrupler sans décision.
         if (!empty($panel->faces_par_pied)) {
             return max(1, (int) $panel->faces_par_pied);
+        }
+
+        // L'absence d'axe se teste AVANT colonnesPresentes() : inutile
+        // d'interroger le schéma pour un panneau ordinaire, et ça permet
+        // de tester la règle sans base de données.
+        if (empty($panel->axe_id) || ! $this->colonnesPresentes()) {
+            return 1;
         }
 
         // Repli pour un pied créé avant que la colonne soit remplie : on
@@ -467,9 +476,11 @@ class AxeService
             return [];
         }
 
-        // 1) La colonne dédiée des pieds, quand elle est remplie.
+        // 1) La colonne dédiée, quand elle est remplie — y compris sur un
+        //    panneau sans axe (Lumipub autonome). Les panneaux qui ne
+        //    l'ont pas restent à 1 face : chevalets inclus.
         $pieds = Panel::whereIn('id', $panelIds)
-            ->whereNotNull('axe_id')
+            ->where(fn ($q) => $q->whereNotNull('axe_id')->orWhereNotNull('faces_par_pied'))
             ->get(['id', 'axe_id', 'faces_par_pied']);
 
         $resultat   = [];

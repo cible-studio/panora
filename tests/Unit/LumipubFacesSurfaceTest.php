@@ -291,4 +291,79 @@ class LumipubFacesSurfaceTest extends TestCase
         $this->assertStringContainsString('UTILISÉ POUR LA TAXE', $src,
             "La simulation doit montrer l'écart avant d'écrire quoi que ce soit.");
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // LUMIPUB AUTONOME — ET LES CHEVALETS QU'ON NE TOUCHE PAS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * MRYLUP-001 « Marcory Résidentiel (1 Lumipub) » : un seul support à
+     * 3 faces de 3 m², jamais découpé. Même réalité physique qu'un pied
+     * d'axe, mais sans axe_id — le calcul le comptait à une face et la
+     * saisie de l'inventaire restait sans effet.
+     */
+    public function test_un_lumipub_autonome_compte_ses_faces(): void
+    {
+        $src = $this->src('app/Services/Axes/AxeService.php');
+
+        // faces_par_pied doit être lue AVANT le garde-fou sur axe_id,
+        // sinon un panneau sans axe retombe toujours à 1.
+        $posColonne = strpos($src, 'if (!empty($panel->faces_par_pied)) {');
+        $posGarde   = strpos($src, 'if (empty($panel->axe_id) || ! $this->colonnesPresentes()) {');
+        $this->assertIsInt($posColonne);
+        $this->assertIsInt($posGarde);
+        $this->assertLessThan($posGarde, $posColonne,
+            "faces_par_pied doit faire foi même sans axe_id.");
+    }
+
+    /**
+     * Les 27 chevalets portent nombre_faces = 4 et leur règle fiscale
+     * n'est PAS tranchée. Rien ne doit leur écrire faces_par_pied, sans
+     * quoi leur surface taxable quadruplerait sans décision.
+     */
+    public function test_les_chevalets_restent_hors_du_calcul_des_faces(): void
+    {
+        $ctrl = $this->src('app/Http/Controllers/Admin/PanelController.php');
+        $cmd  = $this->src('app/Console/Commands/ReparerOdpDesPieds.php');
+
+        // L'inventaire ne synchronise que les axes, pieds et Lumipub.
+        $this->assertStringContainsString('$estLumipub', $ctrl);
+        $this->assertStringContainsString('$panel->est_axe || $panel->axe_id || $estLumipub', $ctrl);
+
+        // La reprise en masse ne vise que la catégorie Lumipub.
+        $this->assertStringContainsString("where('name', 'like', '%umipub%')", $cmd,
+            'La reprise doit être limitée aux Lumipub.');
+        $this->assertStringNotContainsString('Chevalet', $cmd,
+            "Aucun traitement automatique ne doit viser les chevalets.");
+    }
+
+    /**
+     * Faux positif constaté le 13/11 : les 13 lignes d'axe ressortaient
+     * « divergentes » à chaque passage, même après correction, parce que
+     * la requête ne sélectionnait pas `nombre_faces` — la comparaison
+     * lisait null, donc 0, donc toujours différent.
+     */
+    public function test_la_commande_lit_les_colonnes_qu_elle_compare(): void
+    {
+        $src = $this->src('app/Console/Commands/ReparerOdpDesPieds.php');
+
+        foreach ([
+            "['id', 'reference', 'axe_id', 'odp_start_date', 'faces_par_pied', 'nombre_faces']",
+            "['id', 'reference', 'name', 'odp_start_date', 'faces_par_pied', 'nombre_faces']",
+        ] as $select) {
+            $this->assertStringContainsString($select, $src,
+                'Comparer une colonne non sélectionnée produit un faux positif permanent.');
+        }
+    }
+
+    public function test_la_reprise_des_lumipub_part_de_la_saisie(): void
+    {
+        $src = $this->src('app/Console/Commands/ReparerOdpDesPieds.php');
+
+        $this->assertStringContainsString(
+            "'faces_par_pied' => max(1, (int) \$p->nombre_faces)",
+            $src,
+            "La valeur saisie à l'inventaire doit être reprise telle quelle."
+        );
+    }
 }

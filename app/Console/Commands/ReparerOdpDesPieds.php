@@ -65,8 +65,12 @@ class ReparerOdpDesPieds extends Command
             return self::SUCCESS;
         }
 
+        // `nombre_faces` DOIT figurer dans le select : sans elle, la
+        // comparaison plus bas lit null → 0, et les 13 lignes d'axe
+        // ressortaient « divergentes » à chaque passage, même une fois
+        // corrigées. Faux positif constaté le 2026-11-13.
         $parAxe = Panel::whereIn('id', $pieds->pluck('axe_id')->unique()->filter())
-            ->get(['id', 'reference', 'name', 'odp_start_date', 'faces_par_pied'])
+            ->get(['id', 'reference', 'name', 'odp_start_date', 'faces_par_pied', 'nombre_faces'])
             ->keyBy('id');
 
         $lignes       = [];
@@ -112,6 +116,30 @@ class ReparerOdpDesPieds extends Command
             }
         }
 
+        // ═══ Lumipub autonomes (2026-11-13) ═══
+        // MRYLUP-001 « Marcory Résidentiel (1 Lumipub) » : un seul support
+        // à 3 faces de 3 m². Jamais découpé, donc pas de faces_par_pied —
+        // et le calcul le comptait à une face. On reprend sa saisie
+        // `nombre_faces`, qui est la bonne.
+        // Les chevalets restent dehors : leur règle n'est pas tranchée.
+        $lumipubs = Panel::query()
+            ->whereNull('deleted_at')
+            ->whereNull('axe_id')
+            ->where('est_axe', false)
+            ->whereNull('faces_par_pied')
+            ->where('nombre_faces', '>', 1)
+            ->whereHas('category', fn ($q) => $q->where('name', 'like', '%umipub%'))
+            ->get(['id', 'reference', 'nombre_faces', 'faces_par_pied']);
+
+        if ($lumipubs->isNotEmpty()) {
+            $this->newLine();
+            $this->warn($lumipubs->count() . ' Lumipub autonome(s) dont les faces ne comptent pas encore :');
+            $this->table(
+                ['RÉFÉRENCE', 'FACES SAISIES', 'UTILISÉ AUJOURD\'HUI'],
+                $lumipubs->map(fn ($p) => [$p->reference, (int) $p->nombre_faces, 1])->all()
+            );
+        }
+
         if ($facesADealigner) {
             $this->newLine();
             $this->warn(count($facesADealigner) . ' panneau(x) dont « nombre de faces » affiché '
@@ -129,9 +157,9 @@ class ReparerOdpDesPieds extends Command
             }
         }
 
-        if (empty($aCorriger) && empty($facesADealigner)) {
+        if (empty($aCorriger) && empty($facesADealigner) && $lumipubs->isEmpty()) {
             $this->info("✅ Les {$pieds->count()} pied(s) portent déjà l'ancienneté de leur axe,");
-            $this->info('   et les deux colonnes de faces concordent.');
+            $this->info('   et toutes les faces concordent.');
             if ($sansFaces) {
                 $this->warn("⚠ {$sansFaces} pied(s) sans faces_par_pied : le calcul retombe sur le nom de l'axe.");
             }
@@ -140,12 +168,13 @@ class ReparerOdpDesPieds extends Command
 
         if (empty($aCorriger)) {
             $this->newLine();
-            $this->info("Les dates ODP sont déjà bonnes — seules les faces sont à aligner.");
+            $this->info('Les dates ODP sont déjà bonnes — seules les faces sont à traiter.');
             if (! $applique) {
                 $this->line('Relance avec --appliquer pour écrire les corrections.');
                 return self::SUCCESS;
             }
-            $this->aligner($facesADealigner);
+            if ($facesADealigner) $this->aligner($facesADealigner);
+            $this->reprendreLumipubs($lumipubs);
             return self::SUCCESS;
         }
 
@@ -181,10 +210,33 @@ class ReparerOdpDesPieds extends Command
         if ($facesADealigner) {
             $this->aligner($facesADealigner);
         }
+        $this->reprendreLumipubs($lumipubs);
 
         $this->line("Recalcule l'ODP annuelle : les pieds doivent maintenant compter 12 mois.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Reprend la saisie `nombre_faces` d'un Lumipub autonome dans
+     * `faces_par_pied`, le champ que lit le calcul des taxes.
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\Panel> $lumipubs
+     */
+    private function reprendreLumipubs($lumipubs): void
+    {
+        if ($lumipubs->isEmpty()) return;
+
+        foreach ($lumipubs as $p) {
+            $p->forceFill(['faces_par_pied' => max(1, (int) $p->nombre_faces)])->save();
+        }
+
+        Log::info('axes.reprendre_lumipubs', [
+            'panneaux' => $lumipubs->pluck('reference')->all(),
+            'par'      => auth()->id(),
+        ]);
+
+        $this->info('✅ ' . $lumipubs->count() . ' Lumipub autonome(s) : leurs faces comptent désormais pour la taxe.');
     }
 
     /**
