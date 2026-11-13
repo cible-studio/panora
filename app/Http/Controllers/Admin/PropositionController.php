@@ -409,8 +409,13 @@ class PropositionController extends Controller
             return $block;
         }
 
+        // 2026-11-13 — L'acceptation du client ne crée PLUS la campagne :
+        // elle ouvre l'attente du bon de commande (30 jours). La campagne
+        // naîtra quand le commercial aura enregistré le BC et que le MP
+        // l'aura créée. Cf. BonDeCommandeService.
+        $campaign = null;
         try {
-            $campaign = $this->propositionService->confirmer($reservation);
+            $this->propositionService->accepterClient($reservation);
         } catch (\RuntimeException $e) {
             Log::warning('admin.propositions.conflict', ['reservation' => $reference, 'error' => $e->getMessage()]);
             return redirect()->route('proposition.show', [$reference, $slug])
@@ -428,8 +433,14 @@ class PropositionController extends Controller
         // Récap + CTA suivre la campagne (espace client) ou invitation
         // à demander un compte si pas encore créé.
         // Mail de suivi : l'interlocuteur de la campagne, sinon les contacts cochés (2026-10-29).
-        $adressesSuivi = $reservation->client
-            ? array_column($reservation->client->destinatairesSuivi($campaign?->interlocuteur ?? $reservation->interlocuteur), 'email')
+        //
+        // 2026-11-13 — Ce mail annonce « votre campagne est lancée ». À
+        // l'acceptation il n'y a plus de campagne (on attend le bon de
+        // commande) : il partirait en mensonge. Il est désormais envoyé
+        // depuis la création de la campagne par le MP
+        // (ReservationController::creerCampagneApresBc).
+        $adressesSuivi = $campaign && $reservation->client
+            ? array_column($reservation->client->destinatairesSuivi($campaign->interlocuteur ?? $reservation->interlocuteur), 'email')
             : [];
         if ($adressesSuivi) {
             try {
@@ -444,14 +455,26 @@ class PropositionController extends Controller
             }
         }
 
-        // Alerte in-app pour le commercial concerné (en plus du mail)
+        // Alerte in-app pour le commercial concerné (en plus du mail).
+        // 2026-11-13 — Le message dit maintenant ce qui est réellement
+        // attendu : le bon de commande, pas la création de campagne.
+        $bc        = app(\App\Services\BonDeCommandeService::class);
+        $echeance  = $reservation->bc_attendu_jusqu_au
+            ? \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y')
+            : null;
+        $concurrence = $bc->messageConcurrence($reservation);
+
         \App\Services\AlertService::create(
             'reservation',
             'success',
             '✅ Proposition acceptée — ' . ($reservation->client?->name ?? 'Client'),
             sprintf(
-                'Le client a accepté la proposition %s. Consultez votre boîte mail pour les détails complets et créez la campagne dans la foulée.',
-                $reservation->reference
+                'Le client a accepté la proposition %s. Les panneaux sont tenus EN OPTION. '
+                . 'Obtiens le bon de commande%s, enregistre-le sur le dossier, puis le MP créera la campagne. '
+                . 'Sans BC dans ce délai, les panneaux repartent au catalogue.%s',
+                $reservation->reference,
+                $echeance ? ' avant le ' . $echeance : '',
+                $concurrence ? ' ' . $concurrence : ''
             ),
             $reservation
         );

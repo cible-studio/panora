@@ -261,11 +261,116 @@ class RenouvellementService
         $this->apresReponse($dossier, $choix, self::nettoyer($message), essai: true);
     }
 
+    /**
+     * ═══ Renouvellement accepté → option en attente de BC (2026-11-13) ═══
+     *
+     * Règle validée par écrit, alignée sur le flux des propositions :
+     * quand le client dit « je renouvelle », on bloque ses panneaux sous
+     * forme de RÉSERVATION EN OPTION pour 30 jours. Des relances partent
+     * à J-15, J-7 et J-2. Dès que le BC est enregistré, le MP crée la
+     * campagne. Sans BC dans le délai, l'option expire et les panneaux
+     * repartent au catalogue.
+     *
+     * Avant, un « oui » n'envoyait qu'un accusé au client et prévenait
+     * l'équipe : aucune réservation n'existait, les panneaux n'étaient
+     * que « retenus » le temps que quelqu'un saisisse à la main.
+     *
+     * ⚠ HYPOTHÈSE À CONFIRMER (cf. docs/A_TESTER.md § 24) : la nouvelle
+     * période reprend la DURÉE de la campagne source, à partir du
+     * lendemain de sa fin. Le MP ajuste à la création de la campagne.
+     *
+     * Seul « renouveler » déclenche l'option : « ajuster » veut dire que
+     * le réseau change, bloquer les anciens panneaux serait faux.
+     */
+    private function ouvrirOptionRenouvellement(Campaign $campagne, Renouvellement $dossier): void
+    {
+        $panelIds = $campagne->panels()->pluck('panels.id')->all();
+        if (empty($panelIds)) {
+            Log::info('renouvellement.option.sans_panneau', ['dossier' => $dossier->id]);
+            return;
+        }
+
+        // Déjà ouverte ? On ne crée pas un second dossier (le client peut
+        // recliquer son lien, et enregistrerReponse n'accepte qu'une
+        // réponse mais la sécurité ne coûte rien).
+        $dejaOuverte = \App\Models\Reservation::query()
+            ->whereNull('deleted_at')
+            ->where('client_id', $campagne->client_id)
+            ->where('status', 'en_attente')
+            ->whereNotNull('bc_attendu_jusqu_au')
+            ->whereNull('bc_recu_at')
+            ->where('notes', 'like', '%Renouvellement ' . $campagne->name . '%')
+            ->exists();
+        if ($dejaOuverte) return;
+
+        $fin    = Carbon::parse($campagne->end_date);
+        $debut  = Carbon::parse($campagne->start_date);
+        $duree  = max(1, (int) $debut->diffInDays($fin));
+        $nDebut = $fin->copy()->addDay();
+        $nFin   = $nDebut->copy()->addDays($duree);
+
+        try {
+            DB::transaction(function () use ($campagne, $dossier, $panelIds, $nDebut, $nFin) {
+                do {
+                    $ref = 'RES-' . strtoupper(\Illuminate\Support\Str::random(8));
+                } while (\App\Models\Reservation::where('reference', $ref)->exists());
+
+                $resa = \App\Models\Reservation::create([
+                    'reference'         => $ref,
+                    'client_id'         => $campagne->client_id,
+                    'client_contact_id' => $campagne->client_contact_id,
+                    'commercial_user_id'=> $campagne->commercial_user_id ?? $campagne->user_id,
+                    'user_id'           => $campagne->user_id,
+                    'start_date'        => $nDebut->toDateString(),
+                    'end_date'          => $nFin->toDateString(),
+                    'status'            => 'en_attente',
+                    'type'              => 'option',
+                    'total_amount'      => $campagne->total_amount,
+                    'notes'             => 'Renouvellement ' . $campagne->name
+                        . ' — créé automatiquement à l\'acceptation du client. '
+                        . 'Dates reprises de la campagne source, à ajuster.',
+                ]);
+
+                $prix = $campagne->panels()->pluck('panels.monthly_rate', 'panels.id');
+                $resa->panels()->attach(
+                    collect($panelIds)->mapWithKeys(fn ($id) => [
+                        $id => ['unit_price' => (float) ($prix[$id] ?? 0)],
+                    ])->all()
+                );
+
+                app(\App\Services\BonDeCommandeService::class)->ouvrirAttente($resa);
+                app(\App\Services\AvailabilityService::class)->syncPanelStatuses($panelIds);
+
+                Log::info('renouvellement.option.creee', [
+                    'dossier'        => $dossier->id,
+                    'campagne'       => $campagne->id,
+                    'reservation'    => $resa->id,
+                    'reference'      => $resa->reference,
+                    'panneaux'       => count($panelIds),
+                    'bc_jusqu_au'    => $resa->bc_attendu_jusqu_au,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            // Ne jamais faire échouer la réponse du client pour ça.
+            Log::error('renouvellement.option.echec', [
+                'dossier' => $dossier->id,
+                'erreur'  => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function apresReponse(Renouvellement $dossier, string $choix, ?string $message, bool $essai): void
     {
         $campagne = Campaign::withTrashed()->with(['client.contacts', 'interlocuteur', 'commercial', 'user'])->find($dossier->campaign_id);
         if (!$campagne || !$campagne->end_date) {
             return;
+        }
+
+        // Le client renouvelle → on bloque ses panneaux en option et on
+        // attend le bon de commande (2026-11-13). Jamais en mode essai :
+        // un test ne doit pas créer de vraie réservation.
+        if (!$essai && $choix === 'renouveler') {
+            $this->ouvrirOptionRenouvellement($campagne, $dossier);
         }
 
         try {

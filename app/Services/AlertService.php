@@ -56,6 +56,23 @@ class AlertService
             'label' => 'Réservation annulée',
             'group' => 'Réservations',
         ],
+        // Bon de commande (2026-11-13) — « sans BC, pas de campagne ».
+        // Relances J-15 / J-7 / J-2 pendant l'attente, puis expiration.
+        'bc_attendu' => [
+            'icon' => '📄', 'niveau' => 'warning', 'color' => '#f59e0b',
+            'label' => 'Bon de commande attendu',
+            'group' => 'Réservations',
+        ],
+        'bc_expire' => [
+            'icon' => '⌛', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Option expirée faute de BC',
+            'group' => 'Réservations',
+        ],
+        'bc_recu' => [
+            'icon' => '📥', 'niveau' => 'success', 'color' => '#22c55e',
+            'label' => 'Bon de commande reçu',
+            'group' => 'Réservations',
+        ],
         'reservation_expiree' => [
             'icon' => '⏱', 'niveau' => 'warning', 'color' => '#f97316',
             'label' => 'Réservation expirée',

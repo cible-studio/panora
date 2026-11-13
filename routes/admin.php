@@ -1355,6 +1355,24 @@ Route::prefix('admin')
         // dédiés ci-dessous), donc pas besoin de scinder ici.
         Route::resource('reservations', ReservationController::class)->except(['create', 'store']);
 
+        // ═══ Bon de commande (2026-11-13) ═══
+        // « Sans BC, pas de campagne ». Deux gestes, deux rôles :
+        //   · le COMMERCIAL enregistre la réception du BC (verbalement
+        //     suffit, référence facultative) — admin aussi ;
+        //   · le MP crée ensuite la campagne dédiée — admin aussi.
+        Route::middleware('role:admin,commercial')->group(function () {
+            Route::post('reservations/{reservation}/bc/recu', [ReservationController::class, 'enregistrerBc'])
+                ->name('reservations.bc.recu')->whereNumber('reservation');
+        });
+        Route::middleware('role:admin')->group(function () {
+            Route::post('reservations/{reservation}/bc/annuler', [ReservationController::class, 'annulerBc'])
+                ->name('reservations.bc.annuler')->whereNumber('reservation');
+        });
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::post('reservations/{reservation}/creer-campagne', [ReservationController::class, 'creerCampagneApresBc'])
+                ->name('reservations.creer-campagne')->whereNumber('reservation');
+        });
+
         // Changement de statut / annulation = admin + MP uniquement
         Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])->name('reservations.update-status');

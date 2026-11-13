@@ -2026,3 +2026,103 @@ pas — le mât resterait taxé.
 ### Tests automatisés
 `tests/Unit/TaxesMaintenanceEtLumipubTest.php` — 10 tests, 29 assertions,
 sans base de données.
+
+---
+
+## § 24 — « Sans bon de commande, pas de campagne » (2026-11-13)
+
+### Le défaut corrigé
+
+Quand le client cliquait « J'accepte » sur sa proposition,
+`PropositionService::confirmer()` faisait **trois choses dans la même
+transaction** : bloquer fermement les panneaux, annuler les options
+concurrentes, et **créer la campagne**. Or le client n'avait pas forcément
+envoyé son bon de commande — et sans BC, il ne doit pas y avoir de campagne.
+
+### La règle validée par écrit
+
+1. **Le client s'engage** (clic proposition, devis accepté, résa ferme
+   saisie, renouvellement accepté) → la réservation **reste en option**,
+   fenêtre BC de **30 jours**. Les panneaux ne sont **pas** bloqués
+   fermement et les options concurrentes **ne sont pas** annulées.
+2. **Relances** au commercial du dossier, **MP en copie**, à **J-15, J-7, J-2**.
+3. Le **commercial** enregistre la réception du BC — **verbalement suffit**,
+   la référence est un champ libre **facultatif**.
+4. Le **MP** crée la campagne dédiée.
+5. Sans BC à l'échéance, l'option **expire** et les panneaux repartent au
+   catalogue.
+
+Tout vit dans `app/Services/BonDeCommandeService.php` et
+`config/bon_de_commande.php`. Aucune durée n'est écrite ailleurs.
+
+### ⚠ Le piège désamorcé
+`reservations:expire-old-options --days 7` tourne tous les jours à 01h20 et
+annule les options de plus de 7 jours. **Sans correctif, elle aurait tué
+tous les dossiers en attente de BC au 7ᵉ jour**, avant même la première
+relance (J-15 sur une fenêtre de 30 jours). Elle ignore désormais les
+dossiers portant une échéance BC.
+
+### Déploiement
+- [ ] `php artisan migrate` — ajoute les 7 colonnes `bc_*` sur `reservations`
+      et **bascule les options déjà en cours** avec 30 jours à compter du
+      jour de la migration (décision du 13/11 : sinon l'expiration des
+      7 jours les tuait le lendemain). En production, **HAVAS AFRICA /
+      RES-MSSWBY5Q** est concernée — vérifier qu'elle a bien une échéance.
+- [ ] Vérifier le planificateur : `reservations:expire-bc` à 01h22 et
+      `reservations:relancer-bc` à 09h05.
+- [ ] `php artisan reservations:relancer-bc --dry-run` puis
+      `php artisan reservations:expire-bc --dry-run` : les deux doivent
+      tourner **sans rien modifier** et afficher ce qu'elles feraient.
+
+### Parcours à vérifier
+- [ ] **Client accepte une proposition** → la résa reste `en_attente` /
+      `option`, bandeau « 📄 En attente du bon de commande » avec l'échéance
+      et le compte à rebours. **Aucune campagne créée.**
+- [ ] Le client **ne reçoit plus** le mail « votre campagne est lancée » à
+      ce moment-là (il annonçait une campagne inexistante).
+- [ ] Alerte au commercial : elle parle du **bon de commande**, pas de
+      création de campagne.
+- [ ] **Commercial** : bouton « 📥 BC reçu », avec le champ N° de BC laissé
+      **vide** → doit marcher (confirmation verbale). Le MP reçoit l'alerte.
+- [ ] **MP** : bouton « 🚀 Créer la campagne » → campagne créée, panneaux
+      bloqués fermement, options concurrentes annulées, tâches de pose
+      générées, et c'est **là** que part le mail « campagne lancée ».
+- [ ] Un MP ne doit **pas** voir « BC reçu » ; un commercial ne doit **pas**
+      voir « Créer la campagne ».
+- [ ] **Résa ferme saisie à la main** : plus de campagne immédiate, message
+      « En attente du bon de commande jusqu'au … ». Le nom de campagne saisi
+      est conservé dans les **notes** du dossier.
+- [ ] **Devis accepté** : même comportement (il passe par `ReservationService`).
+- [ ] **Renouvellement** : un client qui répond « Je souhaite renouveler »
+      déclenche une **option automatique** sur les panneaux de sa campagne,
+      avec fenêtre BC. « Je souhaite ajuster » ne crée **rien** (le réseau
+      change). Un envoi **de test** ne doit créer aucune réservation.
+- [ ] **Deux dossiers sur le même panneau** : créer deux options qui se
+      chevauchent, les faire accepter toutes les deux → le bandeau doit
+      afficher « ⚠ 2 dossiers attendent un bon de commande sur ces
+      panneaux ». Le premier BC enregistré emporte les panneaux ; la
+      création de campagne annule l'autre.
+- [ ] **Expiration** : forcer `bc_attendu_jusqu_au` dans le passé sur un
+      dossier de test, lancer `reservations:expire-bc` → résa annulée,
+      panneaux de retour au catalogue, alerte au commercial.
+- [ ] **Relances** : placer l'échéance à J+15, J+7 puis J+2 et lancer
+      `reservations:relancer-bc` → une relance à chaque palier, **une seule
+      fois** (relancer la commande le même jour ne doit rien renvoyer).
+
+### ⚠ Hypothèse à confirmer — période du renouvellement
+Quand le client accepte un renouvellement, la nouvelle option reprend la
+**durée** de la campagne source, à partir du **lendemain de sa fin**.
+Ce n'était pas spécifié : c'est un défaut raisonnable, le MP ajuste à la
+création de la campagne. **À faire trancher** si ce n'est pas la bonne règle.
+
+### Resté en l'état
+- `CampaignController` (création / duplication directe) et
+  `CampaignImportController` (import PDF) créent toujours une campagne sans
+  BC : ce sont des gestes admin délibérés, pas un engagement client.
+- `PropositionService::confirmer()` garde tout son comportement d'origine ;
+  seul un verrou « BC reçu » a été ajouté à son entrée. Aucun chemin ne peut
+  créer une campagne sans bon de commande.
+
+### Tests automatisés
+`tests/Unit/BonDeCommandeTest.php` — 17 tests, 56 assertions, sans base de
+données.

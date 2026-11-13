@@ -354,6 +354,101 @@
 @include('admin.reservations.partials.proposition-actions', ['reservation' => $reservation])
 
 {{-- ══════════════════════════════════════════════════════
+     BON DE COMMANDE (2026-11-13) — « sans BC, pas de campagne »
+     Le client a accepté : les panneaux sont tenus EN OPTION le temps
+     d'obtenir le BC. Le commercial enregistre sa réception (verbalement
+     suffit), puis le MP crée la campagne dédiée.
+══════════════════════════════════════════════════════ --}}
+@php
+    $bcService = app(\App\Services\BonDeCommandeService::class);
+    $bcOuvert  = (bool) $reservation->bc_attendu_jusqu_au;
+    $bcRecu    = $bcService->estRecu($reservation);
+    $bcJours   = $bcService->joursRestants($reservation);
+    $bcConcur  = $bcOuvert && !$bcRecu ? $bcService->messageConcurrence($reservation) : null;
+    $role      = auth()->user()?->role?->value;
+    $peutSaisirBc  = in_array($role, ['admin', 'commercial'], true);
+    $peutCreerCamp = in_array($role, ['admin', 'mediaplanner'], true);
+@endphp
+@if($bcOuvert && !$reservation->campaign && $reservation->status->value !== 'annule')
+@php
+    $bcCouleur = $bcRecu ? '#22c55e' : (($bcJours ?? 0) < 0 ? '#ef4444' : (($bcJours ?? 99) <= 7 ? '#f59e0b' : '#3b82f6'));
+@endphp
+<div class="card mb-4" style="border-left:4px solid {{ $bcCouleur }}">
+    <div class="card-body" style="padding:16px 18px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px">
+            <div style="flex:1;min-width:260px">
+                <div style="font-size:14px;font-weight:700;color:{{ $bcCouleur }};margin-bottom:5px">
+                    @if($bcRecu)
+                        📥 Bon de commande reçu
+                    @elseif(($bcJours ?? 0) < 0)
+                        ⌛ Délai du bon de commande dépassé
+                    @else
+                        📄 En attente du bon de commande
+                    @endif
+                </div>
+                <div style="font-size:12.5px;color:var(--text2);line-height:1.6">
+                    @if($bcRecu)
+                        Enregistré le {{ $reservation->bc_recu_at->format('d/m/Y à H:i') }}
+                        @if($reservation->bc_reference)
+                            · réf. <strong>{{ $reservation->bc_reference }}</strong>
+                        @endif
+                        <br>La campagne peut être créée.
+                    @else
+                        Échéance : <strong>{{ \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y') }}</strong>
+                        @if($bcJours !== null)
+                            ({{ $bcJours >= 0 ? $bcJours . ' jour' . ($bcJours > 1 ? 's' : '') . ' restant' . ($bcJours > 1 ? 's' : '') : 'dépassée depuis ' . abs($bcJours) . ' j' }})
+                        @endif
+                        <br>Les panneaux sont tenus <strong>en option</strong>. Sans BC à cette date, ils repartent au catalogue.
+                    @endif
+                </div>
+                @if($bcConcur)
+                    <div style="margin-top:10px;padding:8px 11px;background:#fef3c7;color:#78350f;border-radius:6px;font-size:11.5px;font-weight:600;line-height:1.5">
+                        {{ $bcConcur }}
+                    </div>
+                @endif
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">
+                @if(!$bcRecu && $peutSaisirBc)
+                    <form method="POST" action="{{ route('admin.reservations.bc.recu', $reservation->id) }}"
+                          style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                        @csrf
+                        <input type="text" name="bc_reference" maxlength="190" placeholder="N° de BC (facultatif)"
+                               style="height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--text);width:190px">
+                        <button type="submit" class="btn btn-sm"
+                                style="background:#22c55e;color:#fff;border:none;font-weight:700"
+                                title="Une confirmation verbale suffit — la référence est facultative">
+                            📥 BC reçu
+                        </button>
+                    </form>
+                @endif
+                @if($bcRecu && $peutCreerCamp)
+                    <form method="POST" action="{{ route('admin.reservations.creer-campagne', $reservation->id) }}">
+                        @csrf
+                        <button type="submit" class="btn btn-sm"
+                                style="background:var(--accent);color:#fff;border:none;font-weight:700">
+                            🚀 Créer la campagne
+                        </button>
+                    </form>
+                @endif
+                @if($bcRecu && $role === 'admin')
+                    <form method="POST" action="{{ route('admin.reservations.bc.annuler', $reservation->id) }}"
+                          onsubmit="return confirm('Annuler la réception du bon de commande ?')">
+                        @csrf
+                        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--text3)">↺ Annuler la réception</button>
+                    </form>
+                @endif
+            </div>
+        </div>
+        @if(!$bcRecu && !$peutSaisirBc)
+            <div style="margin-top:10px;font-size:11.5px;color:var(--text3);font-style:italic">
+                Seul le commercial (ou un admin) peut enregistrer la réception du bon de commande.
+            </div>
+        @endif
+    </div>
+</div>
+@endif
+
+{{-- ══════════════════════════════════════════════════════
      EXPORTS PDF — visible quand la réservation est en option
 ══════════════════════════════════════════════════════ --}}
 @if($reservation->status->value === 'en_attente' && $totalCount > 0)
