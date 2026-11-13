@@ -31,6 +31,13 @@ class PanelController extends Controller
         $source = $request->input('source', 'all');
         $showOccupants = false;
 
+        // Période de vérification de disponibilité (2026-11-13) — vide par
+        // défaut : l'inventaire se comporte alors exactement comme avant.
+        [$dispoDebut, $dispoFin] = self::periodeDemandee($request);
+        $dispoFiltre = in_array($request->input('dispo'), ['libre', 'occupe'], true)
+            ? $request->input('dispo')
+            : '';
+
         // ═══════════════════════════════════════════════════════════════
         // PANNEAUX INTERNES (CIBLE CI)
         // ═══════════════════════════════════════════════════════════════
@@ -109,7 +116,50 @@ class PanelController extends Controller
                 });
             }
 
+            // ═══ Disponibilité sur une période (2026-11-13) ═══
+            // L'inventaire est l'écran où l'on voit QUI occupe un panneau :
+            // on peut donc y poser des dates et demander « libre sur cette
+            // période ? ». Le statut de la colonne STATUT est celui du jour ;
+            // ce filtre répond sur la fenêtre demandée.
+            // La règle vit dans AvailabilityService — rien n'est recopié ici.
+            if ($dispoDebut && $dispoFin && $dispoFiltre) {
+                // Filtrer AVANT la pagination : sinon « 12 libres » serait
+                // seulement « 12 libres sur la page courante ».
+                $idsFiltres = (clone $query)->pluck('panels.id')->all();
+                $indispo = $idsFiltres
+                    ? app(\App\Services\AvailabilityService::class)
+                        ->getUnavailablePanelIds($idsFiltres, $dispoDebut, $dispoFin)
+                    : [];
+                $query->when(
+                    $dispoFiltre === 'libre',
+                    fn ($q) => $q->whereNotIn('id', $indispo ?: [0]),
+                    fn ($q) => $q->whereIn('id', $indispo ?: [0])
+                );
+            }
+
             $panels = $query->latest()->paginate(15)->withQueryString();
+
+            // Annote chaque panneau de la page avec son verdict sur la
+            // période, pour que la vue affiche « LIBRE SUR LA PÉRIODE » ou
+            // « OCCUPÉ — libre le … » à côté du statut du jour.
+            if ($dispoDebut && $dispoFin && $panels->count()) {
+                $dispo = app(\App\Services\AvailabilityService::class)->getPanelAvailabilityData(
+                    $panels->pluck('id')->all(), $dispoDebut, $dispoFin, null, true
+                );
+                foreach ($panels as $p) {
+                    $a = $dispo->get($p->id, ['available' => true, 'release_date' => null, 'occupations' => []]);
+                    $v = \App\Services\AvailabilityService::verdictSelection(
+                        $p->status?->value, true, (bool) ($a['available'] ?? true),
+                        $a['release_date'] ?? null, $dispoFin
+                    );
+                    $p->dispo_statut      = $v['display_status'];
+                    $p->dispo_libre_le    = $v['libre_le']
+                        ? \Carbon\Carbon::parse($v['libre_le'])->format('d/m/Y')
+                        : null;
+                    $p->dispo_occupations = array_slice($a['occupations'] ?? [], 0, 2);
+                }
+            }
+
             $totalPanneaux = Panel::count();
             $panneauxLibres = Panel::where('status', 'libre')->count();
             $panneauxOccupes = Panel::whereIn('status', ['occupe', 'option', 'confirme'])->count();
@@ -151,7 +201,7 @@ class PanelController extends Controller
         // RÉPONSE AJAX
         // ═══════════════════════════════════════════════════════════════
         if ($request->ajax() || $request->input('ajax')) {
-            $html = view('admin.panels.partials.table-rows', compact('panels', 'source', 'externalPanels', 'request', 'showOccupants'))->render();
+            $html = view('admin.panels.partials.table-rows', compact('panels', 'source', 'externalPanels', 'request', 'showOccupants', 'dispoDebut', 'dispoFin'))->render();
             $paginationHtml = ($source !== 'externe' && $panels->hasPages()) ? $panels->links()->render() : '';
 
             return response()->json([
@@ -184,8 +234,35 @@ class PanelController extends Controller
             'externalPanels',
             'totalExternes',
             'source',
-            'showOccupants'
+            'showOccupants',
+            'dispoDebut',
+            'dispoFin',
+            'dispoFiltre'
         ));
+    }
+
+    /**
+     * Période de vérification de disponibilité demandée dans l'inventaire.
+     * Renvoie [null, null] tant que les deux dates ne sont pas valides et
+     * dans le bon ordre — l'écran reste alors celui d'avant.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private static function periodeDemandee(Request $request): array
+    {
+        $debut = $request->input('dispo_debut');
+        $fin   = $request->input('dispo_fin');
+        if (!$debut || !$fin) return [null, null];
+
+        try {
+            $d1 = \Carbon\Carbon::parse($debut)->startOfDay();
+            $d2 = \Carbon\Carbon::parse($fin)->startOfDay();
+        } catch (\Throwable $e) {
+            return [null, null];
+        }
+
+        // Dates inversées : on ne devine pas, on ignore la période.
+        return $d1->lte($d2) ? [$d1->toDateString(), $d2->toDateString()] : [null, null];
     }
 
     private function getStatsHtml($source, $panels, $externalPanels)

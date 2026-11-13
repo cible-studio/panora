@@ -111,6 +111,36 @@
                 {{ $statusLabel }}
             </a>
         @endif
+        {{-- Verdict SUR LA PÉRIODE demandée (2026-11-13). Le badge ci-dessus
+             reste le statut du jour ; celui-ci répond « libre entre le … et
+             le … ? ». Même moteur que le devis : AvailabilityService. --}}
+        @if(!empty($dispoDebut) && !empty($dispoFin) && isset($panel->dispo_statut))
+            @php
+                $dStyle = match($panel->dispo_statut) {
+                    'libre'       => 'background:#dcfce7;color:#166534;',
+                    'libre_des'   => 'background:#dbeafe;color:#1e40af;',
+                    'maintenance' => 'background:#e0e7ff;color:#3730a3;',
+                    default       => 'background:#fee2e2;color:#991b1b;',
+                };
+                $dTexte = match($panel->dispo_statut) {
+                    'libre'       => '✅ Libre sur la période',
+                    'libre_des'   => '🕗 Libre dès le ' . $panel->dispo_libre_le,
+                    'maintenance' => '🛠 Maintenance',
+                    default       => '⛔ Occupé' . ($panel->dispo_libre_le ? ' — libre le ' . $panel->dispo_libre_le : ''),
+                };
+            @endphp
+            <div style="margin-top:5px;">
+                <span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;{{ $dStyle }}"
+                      title="Période vérifiée : {{ \Carbon\Carbon::parse($dispoDebut)->format('d/m/Y') }} → {{ \Carbon\Carbon::parse($dispoFin)->format('d/m/Y') }}">
+                    {{ $dTexte }}
+                </span>
+                @foreach(($panel->dispo_occupations ?? []) as $o)
+                    <div style="font-size:10.5px;color:var(--text3);margin-top:2px;line-height:1.4;">
+                        🔒 {{ $o['client_name'] ?? '—' }} · {{ $o['start_date'] }} → {{ $o['end_date'] }}
+                    </div>
+                @endforeach
+            </div>
+        @endif
         @if(($showOccupants ?? false) && $panel->relationLoaded('campaigns') && $panel->campaigns->isNotEmpty())
             @php $occ = $panel->campaigns->first(); @endphp
             <div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border);font-size:11px;line-height:1.5;">

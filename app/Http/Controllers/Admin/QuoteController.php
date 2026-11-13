@@ -252,6 +252,36 @@ class QuoteController extends Controller
         $this->authorize('create', Quote::class);
         $q = trim((string) $request->input('q', ''));
 
+        // ─── Période visée (2026-11-13) ──────────────────────────────
+        // Le badge doit dire si le panneau est libre SUR LA PÉRIODE DU
+        // DEVIS, pas aujourd'hui. Avant, searchPanels() renvoyait
+        // panels.status (l'état du jour) : un panneau occupé jusqu'au
+        // 22/11/2026 s'affichait OCCUPE pour un devis de 2027.
+        // La règle vit dans AvailabilityService — jamais recopiée ici.
+        $periodStart = $request->input('period_start');
+        $periodEnd   = $request->input('period_end');
+        $hasPeriod   = false;
+        if ($periodStart && $periodEnd) {
+            try {
+                $d1 = \Carbon\Carbon::parse($periodStart)->startOfDay();
+                $d2 = \Carbon\Carbon::parse($periodEnd)->startOfDay();
+                // Dates inversées : on refuse la période plutôt que de
+                // calculer n'importe quoi (le formulaire le signale aussi).
+                if ($d1->lte($d2)) {
+                    $periodStart = $d1->toDateString();
+                    $periodEnd   = $d2->toDateString();
+                    $hasPeriod   = true;
+                }
+            } catch (\Throwable $e) {
+                $hasPeriod = false;
+            }
+        }
+        if (!$hasPeriod) { $periodStart = $periodEnd = null; }
+
+        // Le client du devis : son propre renouvellement confirmé ne doit
+        // pas le bloquer (même règle que réservation et campagne).
+        $clientId = $request->integer('client_id') ?: null;
+
         // Colonnes réelles dans Panora : adresse (fr), format_id (belongsTo PanelFormat).
         // Surface m² = format.surface (colonne calculée) OU format.width * format.height.
         //
@@ -263,41 +293,134 @@ class QuoteController extends Controller
         $requete = \App\Models\Panel::vendables()
             ->with(['commune:id,name', 'format:id,width,height,surface,name']);
         $colonnesAxe = app(\App\Services\Axes\AxeService::class)->colonnesPresentes();
-        $panels = \App\Support\RecherchePanneaux::appliquer($requete, $q)
-            ->whereNull('deleted_at')
-            ->orderBy('reference')
-            ->limit(30)
-            ->get(array_merge(
-                ['id', 'reference', 'name', 'adresse', 'quartier', 'commune_id', 'format_id', 'monthly_rate', 'status'],
-                $colonnesAxe ? ['axe_id', 'pied_numero'] : []
-            ));
+
+        // Revalidation (2026-11-13) : le formulaire redemande le verdict
+        // pour des panneaux DÉJÀ choisis quand les dates changent. Même
+        // route, même règle — on filtre par id au lieu du texte.
+        $ids = array_filter(array_map('intval', (array) $request->input('ids', [])));
+        $colonnes = array_merge(
+            ['id', 'reference', 'name', 'adresse', 'quartier', 'commune_id', 'format_id', 'monthly_rate', 'status'],
+            $colonnesAxe ? ['axe_id', 'pied_numero'] : []
+        );
+
+        if ($ids) {
+            // Sans vendables() : la revalidation porte sur ce qui est DÉJÀ
+            // dans le devis, axes compris (une ligne d'axe porte l'id de
+            // l'axe, que vendables() écarterait — l'alerte ne sortirait
+            // jamais pour un axe).
+            $panels = \App\Models\Panel::with(['commune:id,name', 'format:id,width,height,surface,name'])
+                ->whereIn('id', array_slice($ids, 0, 60))
+                ->whereNull('deleted_at')
+                ->orderBy('reference')
+                ->get($colonnes);
+        } else {
+            $panels = \App\Support\RecherchePanneaux::appliquer($requete, $q)
+                ->whereNull('deleted_at')
+                ->orderBy('reference')
+                ->limit(30)
+                ->get($colonnes);
+        }
 
         // Axes (2026-11-12) : un résultat par AXE, avec tous ses pieds à
         // cocher dans la ligne — une ligne de devis par axe.
         $axes = app(\App\Services\Axes\AxeService::class);
         $axeIds = $colonnesAxe ? $panels->pluck('axe_id')->filter()->unique()->values()->all() : [];
-        $resultatsAxes = [];
+        $piedsParAxe = collect();
         if ($axeIds) {
             $piedsParAxe = \App\Models\Panel::whereIn('axe_id', $axeIds)->whereNull('deleted_at')
-                ->orderBy('pied_numero')->get(['id', 'reference', 'axe_id', 'pied_numero', 'monthly_rate'])->groupBy('axe_id');
+                ->orderBy('pied_numero')
+                ->get(['id', 'reference', 'axe_id', 'pied_numero', 'monthly_rate', 'status'])
+                ->groupBy('axe_id');
+        }
+
+        // ─── Disponibilité sur la période (2026-11-13) ───────────────
+        // Un seul appel pour tout le monde : panneaux trouvés, axes
+        // parents et pieds de ces axes. includeCampaignBlockings = true,
+        // sinon un panneau engagé dans une campagne directe (sans
+        // réservation) passerait pour libre — c'est le cas de ta capture.
+        $dispo = collect();
+        if ($hasPeriod) {
+            $idsDispo = $panels->pluck('id')
+                ->merge($axeIds)
+                ->merge($piedsParAxe->flatten(1)->pluck('id'))
+                ->filter()->unique()->values()->all();
+            if ($idsDispo) {
+                $dispo = app(\App\Services\AvailabilityService::class)->getPanelAvailabilityData(
+                    $idsDispo, $periodStart, $periodEnd,
+                    null,      // pas de réservation à exclure
+                    true,      // inclure les blocages de campagne directe
+                    null,
+                    $clientId  // son propre renouvellement ne bloque pas
+                );
+            }
+        }
+
+        // Verdict d'un panneau : quoi afficher + a-t-on le droit de le
+        // choisir. La règle vit dans AvailabilityService::verdictSelection().
+        $verdict = function ($panelId, $rawStatus) use ($dispo, $hasPeriod, $periodEnd) {
+            $a = $dispo->get($panelId, ['available' => true, 'release_date' => null, 'occupations' => []]);
+            $v = \App\Services\AvailabilityService::verdictSelection(
+                is_object($rawStatus) ? ($rawStatus->value ?? null) : $rawStatus,
+                $hasPeriod,
+                (bool) ($a['available'] ?? true),
+                $a['release_date'] ?? null,
+                $periodEnd
+            );
+            $v['libre_le_fr'] = $v['libre_le']
+                ? \Carbon\Carbon::parse($v['libre_le'])->format('d/m/Y')
+                : null;
+            $v['occupations'] = array_slice($a['occupations'] ?? [], 0, 3);
+            return $v;
+        };
+
+        $resultatsAxes = [];
+        if ($axeIds) {
             foreach (\App\Models\Panel::with(['commune:id,name', 'format:id,width,height,surface,name'])->whereIn('id', $axeIds)->get() as $axe) {
-                $ligne = $axes->ligneDevis($axe, $piedsParAxe->get($axe->id, collect()));
+                $piedsAxe = $piedsParAxe->get($axe->id, collect());
+                $ligne = $axes->ligneDevis($axe, $piedsAxe);
+
+                // Chaque pied a son propre verdict ; l'axe est proposable
+                // tant qu'il reste au moins un pied sélectionnable.
+                $piedsPayload = $piedsAxe->map(function ($x) use ($verdict) {
+                    $v = $verdict($x->id, $x->status);
+                    return [
+                        'id'             => $x->id,
+                        'reference'      => $x->reference,
+                        'numero'         => $x->pied_numero,
+                        'monthly_rate'   => (int) ($x->monthly_rate ?? 0),
+                        'selectable'     => $v['selectable'],
+                        'display_status' => $v['display_status'],
+                        'libre_le_fr'    => $v['libre_le_fr'],
+                    ];
+                })->values()->all();
+
+                $libres = array_values(array_filter($piedsPayload, fn ($x) => $x['selectable']));
+                $vAxe   = $verdict($axe->id, $axe->status);
+
                 $resultatsAxes[$axe->id] = [
-                    'id'           => $axe->id,
-                    'text'         => $ligne['designation'],
-                    'reference'    => $axe->reference,
-                    'name'         => $axes->nomCourt($axe->name),
-                    'address'      => $axes->nomCourt($axe->name),
-                    'commune_id'   => $axe->commune_id,
-                    'commune_name' => $axe->commune?->name,
-                    'dimension_m2' => $ligne['dimension_m2'],
-                    'monthly_rate' => (int) ($axe->monthly_rate ?? 0),
-                    'status'       => null,
-                    'est_axe'      => true,
-                    'pieds'        => $piedsParAxe->get($axe->id, collect())->map(fn ($x) => [
-                        'id' => $x->id, 'reference' => $x->reference,
-                        'numero' => $x->pied_numero, 'monthly_rate' => (int) ($x->monthly_rate ?? 0),
-                    ])->values()->all(),
+                    'id'             => $axe->id,
+                    'text'           => $ligne['designation'],
+                    'reference'      => $axe->reference,
+                    'name'           => $axes->nomCourt($axe->name),
+                    'address'        => $axes->nomCourt($axe->name),
+                    'commune_id'     => $axe->commune_id,
+                    'commune_name'   => $axe->commune?->name,
+                    'dimension_m2'   => $ligne['dimension_m2'],
+                    'monthly_rate'   => (int) ($axe->monthly_rate ?? 0),
+                    'status'         => null,
+                    'est_axe'        => true,
+                    'has_period'     => $hasPeriod,
+                    // L'axe reste proposable s'il a au moins un pied libre,
+                    // même si l'axe parent porte un blocage hérité.
+                    'selectable'     => $hasPeriod ? count($libres) > 0 : true,
+                    'display_status' => $hasPeriod
+                        ? (count($libres) > 0 ? 'libre' : 'occupe')
+                        : 'sans_periode',
+                    'libre_le_fr'    => $vAxe['libre_le_fr'],
+                    'pieds_total'    => count($piedsPayload),
+                    'pieds_libres'   => count($libres),
+                    'occupations'    => $vAxe['occupations'],
+                    'pieds'          => $piedsPayload,
                 ];
             }
         }
@@ -317,21 +440,33 @@ class QuoteController extends Controller
         }
 
         return response()->json([
-            'results' => $resultats->map(function ($p) {
+            // Le formulaire a besoin de savoir si le serveur a pu juger
+            // sur une période, pour afficher « statut du jour » sinon.
+            'has_period' => $hasPeriod,
+            'period'     => $hasPeriod ? ['start' => $periodStart, 'end' => $periodEnd] : null,
+            'results'    => $resultats->map(function ($p) use ($verdict, $hasPeriod) {
                 if (is_array($p)) return $p; // entrée d'axe, déjà prête
                 $addr    = $p->adresse ?: $p->quartier ?: $p->name;
                 $surface = (float) ($p->format?->surface ?? (($p->format?->width ?? 0) * ($p->format?->height ?? 0)));
+                $v       = $verdict($p->id, $p->status);
                 return [
-                    'id'           => $p->id,
-                    'text'         => trim(($p->reference ?? '') . ' — ' . ($addr ?? '')),
-                    'reference'    => $p->reference,
-                    'name'         => $p->name,
-                    'address'      => $addr,
-                    'commune_id'   => $p->commune_id,
-                    'commune_name' => $p->commune?->name,
-                    'dimension_m2' => $surface,
-                    'monthly_rate' => (int) $p->monthly_rate,
-                    'status'       => $p->status,
+                    'id'             => $p->id,
+                    'text'           => trim(($p->reference ?? '') . ' — ' . ($addr ?? '')),
+                    'reference'      => $p->reference,
+                    'name'           => $p->name,
+                    'address'        => $addr,
+                    'commune_id'     => $p->commune_id,
+                    'commune_name'   => $p->commune?->name,
+                    'dimension_m2'   => $surface,
+                    'monthly_rate'   => (int) $p->monthly_rate,
+                    // Statut brut conservé (compat : rien d'existant ne casse).
+                    'status'         => $p->status,
+                    // Nouveau — verdict calculé SUR LA PÉRIODE du devis.
+                    'has_period'     => $hasPeriod,
+                    'display_status' => $v['display_status'],
+                    'selectable'     => $v['selectable'],
+                    'libre_le_fr'    => $v['libre_le_fr'],
+                    'occupations'    => $v['occupations'],
                 ];
             })->values(),
         ]);
@@ -652,7 +787,92 @@ class QuoteController extends Controller
             }
         }
 
+        // ═══ Panneau occupé sur la période — refus serveur (2026-11-13) ═══
+        // RÈGLE VALIDÉE PAR ÉCRIT : « occupé sur la période visée → pas
+        // moyen de le sélectionner ». Le Select2 le bloque déjà, mais une
+        // page restée ouverte pendant qu'un autre commercial réservait
+        // passerait outre. On refuse donc aussi ici.
+        //
+        // On ne contrôle QUE les panneaux nouvellement ajoutés : un devis
+        // existant dont un panneau s'est fait prendre entre-temps doit
+        // rester modifiable (sinon on ne pourrait plus ni le corriger ni
+        // retirer le panneau fautif). Le conflit reste de toute façon
+        // bloqué à la conversion par QuoteConverter.
+        $this->refuserPanneauxOccupes($data, $quote);
+
         return $data;
+    }
+
+    /**
+     * Refuse les panneaux occupés sur la période du devis, parmi ceux qui
+     * n'y étaient pas déjà. Source de vérité : AvailabilityService — la
+     * règle n'est pas recopiée ici.
+     */
+    protected function refuserPanneauxOccupes(array $data, ?Quote $quote): void
+    {
+        $debut = $data['period_start'] ?? null;
+        $fin   = $data['period_end']   ?? null;
+        // Sans période, on ne peut rien affirmer : on ne bloque pas.
+        if (!$debut || !$fin) return;
+
+        // Panneaux déjà présents sur le devis : laissés tels quels.
+        $dejaLa = $quote
+            ? $quote->lines()->whereNotNull('panel_id')->pluck('panel_id')
+                ->map(fn ($id) => (int) $id)->all()
+            : [];
+
+        $nouveaux = [];
+        foreach (($data['lines'] ?? []) as $i => $l) {
+            $pid = (int) ($l['panel_id'] ?? 0);
+            if ($pid && !in_array($pid, $dejaLa, true)) $nouveaux[$i] = $pid;
+            // Les pieds cochés d'un axe sont vendus eux aussi : ils comptent.
+            foreach ((array) ($l['pieds'] ?? []) as $pied) {
+                $pied = (int) $pied;
+                if ($pied && !in_array($pied, $dejaLa, true)) $nouveaux[$i . ':' . $pied] = $pied;
+            }
+        }
+        if (!$nouveaux) return;
+
+        $dispo = app(\App\Services\AvailabilityService::class)->getPanelAvailabilityData(
+            array_values(array_unique($nouveaux)),
+            \Carbon\Carbon::parse($debut)->toDateString(),
+            \Carbon\Carbon::parse($fin)->toDateString(),
+            null,
+            true,                                     // blocages de campagne directe inclus
+            null,
+            (int) ($data['client_id'] ?? 0) ?: null   // son propre renouvellement ne bloque pas
+        );
+
+        // Référence ET statut : un panneau en maintenance doit être refusé
+        // lui aussi, et verdictSelection() a besoin du statut pour ça.
+        $infos = \App\Models\Panel::whereIn('id', array_values($nouveaux))
+            ->get(['id', 'reference', 'status'])->keyBy('id');
+        $erreurs = [];
+
+        foreach ($nouveaux as $cle => $pid) {
+            $a = $dispo->get($pid, ['available' => true, 'release_date' => null]);
+            $panneau = $infos->get($pid);
+            $v = \App\Services\AvailabilityService::verdictSelection(
+                $panneau?->status?->value,
+                true,
+                (bool) ($a['available'] ?? true),
+                $a['release_date'] ?? null,
+                \Carbon\Carbon::parse($fin)->toDateString()
+            );
+            if ($v['selectable']) continue;
+
+            $ref   = $panneau?->reference ?? ('Panneau #' . $pid);
+            $champ = 'lines.' . explode(':', (string) $cle)[0] . '.panel_id';
+            $erreurs[$champ] = $v['display_status'] === 'maintenance'
+                ? $ref . ' est en maintenance — il n\'est pas vendable.'
+                : $ref . ' est occupé sur la période du devis'
+                    . ($v['libre_le'] ? ' (libre le ' . \Carbon\Carbon::parse($v['libre_le'])->format('d/m/Y') . ')' : '')
+                    . ' — retire-le ou change les dates.';
+        }
+
+        if ($erreurs) {
+            throw \Illuminate\Validation\ValidationException::withMessages($erreurs);
+        }
     }
 
     /**

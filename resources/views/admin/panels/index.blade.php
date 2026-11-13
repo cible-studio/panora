@@ -198,6 +198,43 @@
                 </button>
             </div>
         </div>
+
+        {{-- ═══ DISPONIBILITÉ SUR UNE PÉRIODE (2026-11-13) ═══
+             La colonne STATUT montre l'état DU JOUR. Ici on demande
+             « ce panneau est-il libre entre telle et telle date ? ».
+             Même moteur que le devis et la réservation
+             (AvailabilityService) : une seule règle pour tout Panora. --}}
+        <div class="filter-bar" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:0 16px 16px;border-top:1px solid var(--border);margin-top:4px;padding-top:14px;">
+            <div class="filter-group" style="flex:0 0 auto;">
+                <label class="filter-label" style="color:var(--accent);">📅 Vérifier la disponibilité</label>
+                <div style="font-size:11px;color:var(--text3);margin-top:-2px;">
+                    Le statut ci-dessus est celui du jour — ici, sur la période de ton choix.
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Du</label>
+                <input type="date" id="filter-dispo-debut" class="filter-input" style="width:150px;"
+                       value="{{ $dispoDebut ?? '' }}">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Au</label>
+                <input type="date" id="filter-dispo-fin" class="filter-input" style="width:150px;"
+                       value="{{ $dispoFin ?? '' }}">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Afficher</label>
+                <select id="filter-dispo" class="filter-select" style="width:190px;">
+                    <option value="">Tous (statut annoté)</option>
+                    <option value="libre"  @selected(($dispoFiltre ?? '') === 'libre')>Libres sur la période</option>
+                    <option value="occupe" @selected(($dispoFiltre ?? '') === 'occupe')>Occupés sur la période</option>
+                </select>
+            </div>
+            <div class="filter-group" id="dispo-alerte" style="display:none;flex:1 1 100%;">
+                <div style="padding:8px 12px;background:#fef2f2;color:#991b1b;border-left:3px solid #dc2626;border-radius:6px;font-size:11.5px;">
+                    ⛔ <strong>Dates inversées</strong> — la date de fin est avant la date de début. La période est ignorée.
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- TABLEAU --}}
@@ -406,7 +443,11 @@
                     status: '',
                     category_id: '',
                     format_id: '',
-                    client_id: ''
+                    client_id: '',
+                    // Disponibilité sur une période (2026-11-13)
+                    dispo_debut: @json($dispoDebut ?? ''),
+                    dispo_fin: @json($dispoFin ?? ''),
+                    dispo: @json($dispoFiltre ?? '')
                 };
                 let debounceTimer = null;
 
@@ -418,6 +459,10 @@
                     category: document.getElementById('filter-category'),
                     format: document.getElementById('filter-format'),
                     client: document.getElementById('filter-client'),
+                    dispoDebut: document.getElementById('filter-dispo-debut'),
+                    dispoFin: document.getElementById('filter-dispo-fin'),
+                    dispo: document.getElementById('filter-dispo'),
+                    dispoAlerte: document.getElementById('dispo-alerte'),
                     resetBtn: document.getElementById('btn-reset'),
                     resetWrapper: document.getElementById('reset-wrapper'),
                     sourceBtns: document.querySelectorAll('.filter-source-btn'),
@@ -432,11 +477,33 @@
                         currentFilters.category_id ||
                         currentFilters.format_id ||
                         currentFilters.client_id ||
+                        currentFilters.dispo_debut ||
+                        currentFilters.dispo_fin ||
+                        currentFilters.dispo ||
                         currentFilters.source !== 'all';
 
                     if (elements.resetWrapper) {
                         elements.resetWrapper.style.display = hasFilters ? 'flex' : 'none';
                     }
+                }
+
+                // Dates inversées : on prévient et on n'envoie pas la période
+                // (le serveur l'ignore aussi — ceinture et bretelles).
+                function datesDispoValides() {
+                    const d = currentFilters.dispo_debut;
+                    const f = currentFilters.dispo_fin;
+                    const inversees = !!(d && f && d > f);
+                    if (elements.dispoAlerte) {
+                        elements.dispoAlerte.style.display = inversees ? 'block' : 'none';
+                    }
+                    return !inversees && !!d && !!f;
+                }
+
+                function ajouterParamsDispo(params) {
+                    if (!datesDispoValides()) return;
+                    params.set('dispo_debut', currentFilters.dispo_debut);
+                    params.set('dispo_fin', currentFilters.dispo_fin);
+                    if (currentFilters.dispo) params.set('dispo', currentFilters.dispo);
                 }
 
                 async function applyFilters() {
@@ -449,6 +516,7 @@
                     if (currentFilters.category_id) params.set('category_id', currentFilters.category_id);
                     if (currentFilters.format_id) params.set('format_id', currentFilters.format_id);
                     if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
+                    ajouterParamsDispo(params);
                     params.set('ajax', '1');
 
                     const tbody = document.getElementById('table-body');
@@ -520,6 +588,21 @@
                         });
                     }
                 });
+
+                // Disponibilité sur une période (2026-11-13)
+                [elements.dispoDebut, elements.dispoFin, elements.dispo].forEach(el => {
+                    if (!el) return;
+                    el.addEventListener('change', () => {
+                        currentFilters.dispo_debut = elements.dispoDebut?.value || '';
+                        currentFilters.dispo_fin   = elements.dispoFin?.value || '';
+                        currentFilters.dispo       = elements.dispo?.value || '';
+                        updateResetButton();
+                        // Dates incomplètes : on recharge quand même, pour
+                        // retirer les annotations de l'ancienne période.
+                        applyFilters();
+                    });
+                });
+                datesDispoValides();
 
                 // Boutons source
                 elements.sourceBtns.forEach(btn => {
@@ -610,7 +693,10 @@
                             status: '',
                             category_id: '',
                             format_id: '',
-                            client_id: ''
+                            client_id: '',
+                            dispo_debut: '',
+                            dispo_fin: '',
+                            dispo: ''
                         };
 
                         // Réinitialiser tous les champs
@@ -621,6 +707,10 @@
                         if (elements.category) elements.category.value = '';
                         if (elements.format) elements.format.value = '';
                         if (elements.client) elements.client.value = '';
+                        if (elements.dispoDebut) elements.dispoDebut.value = '';
+                        if (elements.dispoFin) elements.dispoFin.value = '';
+                        if (elements.dispo) elements.dispo.value = '';
+                        datesDispoValides();
 
                         // Réinitialiser l'apparence des boutons source
                         elements.sourceBtns.forEach(btn => {
@@ -668,6 +758,7 @@
                     if (currentFilters.category_id) params.set('category_id', currentFilters.category_id);
                     if (currentFilters.format_id) params.set('format_id', currentFilters.format_id);
                     if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
+                    ajouterParamsDispo(params);
                     params.set('page', page);
                     params.set('ajax', '1');
 
