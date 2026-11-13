@@ -394,6 +394,79 @@ class AxeService
      * @param  int[] $panelIds
      * @return array<int, int>
      */
+    /**
+     * Nombre de FACES portées par un pied d'axe.
+     *
+     * ═══ MESURE DU 2026-11-13 (sonde production) ═══
+     * Le format d'un axe porte la surface d'UNE SEULE FACE, pas celle du
+     * pied entier : les 12 axes Lumipub ont tous un format « 3m² » alors
+     * que leur nom annonce 3 faces par pied. Un pied Lumipub, c'est donc
+     * 3 faces × 3 m² = 9 m², et Panora n'en comptait que 3.
+     *
+     * Le nombre de faces vient du NOM de l'axe — « (11P x 3F) »,
+     * « (12Panneaux double face) » — que lireStructure() sait déjà
+     * analyser. On n'utilise PAS `nombre_faces` : la dette technique du
+     * 2026-11-11 a mesuré qu'il porte deux significations différentes
+     * (1 sur 320 panneaux, 4 sur les chevalets, 3 sur un seul axe) et le
+     * qualifie d'inexploitable. Sur les 101 pieds créés, il vaut 1.
+     *
+     * ⚠ Conséquence : un nom d'axe mal saisi fausse la surface taxable.
+     * La face est donc remontée dans les lignes de taxe pour être lue.
+     *
+     * Renvoie 1 pour un panneau ordinaire, ou quand le nom de l'axe ne
+     * se laisse pas analyser : on ne gonfle jamais une surface au hasard.
+     */
+    public function facesParPied(?Panel $panel): int
+    {
+        // L'absence d'axe se teste AVANT colonnesPresentes() : inutile
+        // d'interroger le schéma pour un panneau ordinaire, et ça permet
+        // de tester la règle sans base de données.
+        if (! $panel || empty($panel->axe_id) || ! $this->colonnesPresentes()) {
+            return 1;
+        }
+
+        $axe = $panel->relationLoaded('axe') && $panel->axe
+            ? $panel->axe
+            : Panel::select('id', 'name')->find($panel->axe_id);
+
+        return $this->facesDeLAxe($axe);
+    }
+
+    /** Faces annoncées par le nom d'un axe (1 si illisible). */
+    public function facesDeLAxe(?Panel $axe): int
+    {
+        $structure = $axe ? $this->lireStructure($axe->name) : null;
+
+        return max(1, (int) ($structure['faces'] ?? 1));
+    }
+
+    /**
+     * Faces par pied pour tout un lot, en une requête.
+     * Clé = id du pied, valeur = nombre de faces.
+     *
+     * @param  int[] $panelIds
+     * @return array<int, int>
+     */
+    public function facesParLot(array $panelIds): array
+    {
+        $axeParPied = $this->axeParPied($panelIds);
+        if (empty($axeParPied)) {
+            return [];
+        }
+
+        $faces = Panel::whereIn('id', array_values(array_unique($axeParPied)))
+            ->get(['id', 'name'])
+            ->mapWithKeys(fn (Panel $a) => [$a->id => $this->facesDeLAxe($a)])
+            ->all();
+
+        $resultat = [];
+        foreach ($axeParPied as $piedId => $axeId) {
+            $resultat[(int) $piedId] = $faces[$axeId] ?? 1;
+        }
+
+        return $resultat;
+    }
+
     public function axeParPied(array $panelIds): array
     {
         $panelIds = array_values(array_unique(array_filter(array_map('intval', $panelIds))));

@@ -378,6 +378,16 @@
                         <td>
                             {{ $row['dimensions'] }}
                             <div style="font-size:10px;color:var(--text3);">{{ rtrim(rtrim(number_format($row['surface'], 2), '0'), '.') }} m²</div>
+                            {{-- 2026-11-13 — Un pied d'axe porte plusieurs faces :
+                                 la surface taxable est surface_face × faces. Le nombre
+                                 de faces vient du NOM de l'axe, donc on l'affiche :
+                                 une erreur de saisie doit pouvoir se repérer ici. --}}
+                            @if(($row['faces_pied'] ?? 1) > 1)
+                                <div style="font-size:10px;color:#78350f;font-weight:700;"
+                                     title="Surface taxable = {{ rtrim(rtrim(number_format($row['surface_face'] ?? 0, 2), '0'), '.') }} m² par face × {{ $row['faces_pied'] }} faces. Le nombre de faces est lu dans le nom de l'axe.">
+                                    {{ rtrim(rtrim(number_format($row['surface_face'] ?? 0, 2), '0'), '.') }} m² × {{ $row['faces_pied'] }} faces
+                                </div>
+                            @endif
                         </td>
                         <td>
                             <span class="badge" style="background:{{ $tc['bg'] }};color:{{ $tc['c'] }};font-weight:700;">

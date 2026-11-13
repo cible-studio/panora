@@ -147,6 +147,15 @@ class TaxCalculationService
 
         $filterType = $filters['type'] ?? null;
 
+        // ═══ Faces d'un pied d'axe — 2026-11-13 ═══
+        // Mesuré en production : le format d'un axe porte la surface d'UNE
+        // FACE. Les 12 axes Lumipub ont un format « 3m² » alors que leur
+        // nom annonce 3 faces par pied → un pied, c'est 9 m², pas 3.
+        // Un seul appel pour tout le lot (cf. AxeService::facesParLot).
+        $facesParPied = $colonnesAxe
+            ? app(\App\Services\Axes\AxeService::class)->facesParLot($panels->pluck('id')->all())
+            : [];
+
         $lines = collect();
         foreach ($panels as $panel) {
             $commune = $communes[$panel->commune_id] ?? null;
@@ -161,7 +170,12 @@ class TaxCalculationService
             $hasClientCampaignFilter = !empty($filters['client_id']) || !empty($filters['campaign_id']);
             if ($hasClientCampaignFilter && !$assignment) continue;
 
-            $surface = (float) ($panel->format?->surface ?? 0);
+            // Surface TAXABLE = surface d'une face × nombre de faces.
+            // Vaut 1 face pour tout panneau ordinaire : rien ne change
+            // hors des pieds d'axe.
+            $faces      = $facesParPied[$panel->id] ?? 1;
+            $surfaceUne = (float) ($panel->format?->surface ?? 0);
+            $surface    = $surfaceUne * $faces;
             $dimensions = $panel->format?->name ?? '—';
 
             foreach (self::TYPES as $type) {
@@ -278,6 +292,12 @@ class TaxCalculationService
                     // période (le montant est déjà calculé au prorata).
                     'est_pied'       => $colonnesAxe && !empty($panel->axe_id),
                     'demantele_le'   => $panel->deleted_at,
+                    // Faces du pied (2026-11-13) : la surface taxable vaut
+                    // surface_une_face × faces. Remontée pour être lue —
+                    // elle vient du NOM de l'axe, donc une erreur de saisie
+                    // doit pouvoir se repérer sur la ligne.
+                    'faces_pied'     => $faces,
+                    'surface_face'   => $surfaceUne,
                 ]);
             }
         }
@@ -575,7 +595,9 @@ class TaxCalculationService
         if ($rate <= 0) return 0;
         $total = 0.0;
         foreach ($this->panneauxPourCalcul($commune) as $panel) {
-            $surface = (float) ($panel->format?->surface ?? 0);
+            // Surface taxable = une face × nombre de faces (2026-11-13).
+            $surface = (float) ($panel->format?->surface ?? 0)
+                * app(\App\Services\Axes\AxeService::class)->facesParPied($panel);
             if ($surface <= 0) continue;
             $moisExistence = $this->moisExistencePanneau($panel, $debut, $fin);
             if ($moisExistence === 0) continue;
@@ -596,7 +618,9 @@ class TaxCalculationService
         if ($rate <= 0) return 0;
         $total = 0.0;
         foreach ($this->panneauxPourCalcul($commune) as $panel) {
-            $surface = (float) ($panel->format?->surface ?? 0);
+            // Surface taxable = une face × nombre de faces (2026-11-13).
+            $surface = (float) ($panel->format?->surface ?? 0)
+                * app(\App\Services\Axes\AxeService::class)->facesParPied($panel);
             if ($surface <= 0) continue;
             $moisOccupation = $this->moisOccupationPanneau($panel, $debut, $fin);
             if ($moisOccupation === 0) continue;
