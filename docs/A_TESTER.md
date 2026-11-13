@@ -1939,3 +1939,90 @@ Les repérer avant qu'un client ne les accepte —
 ### Tests automatisés
 `tests/Unit/DevisDisponibilitePeriodeTest.php` — 18 tests, 43 assertions,
 sans base de données (tournent sur le poste à base vide).
+
+---
+
+## § 23 — Taxes : maintenance, démantèlement et pieds Lumipub (2026-11-13)
+
+### Trois défauts corrigés
+
+**1. La maintenance écartait le panneau de TOUTES les périodes.** Le filtre
+lisait `panels.status`, l'état *du jour* : un panneau passé en maintenance
+aujourd'hui disparaissait de janvier, février, mars… où il était pourtant
+debout et occupé. Même défaut que le sélecteur du devis — un état courant
+qui juge le passé.
+
+**RÈGLE VALIDÉE PAR ÉCRIT** : « l'ODP reste due tant que le mât occupe le
+sol ». Une panne ne déplante pas le mât. Le panneau reste donc dans la liste
+et reste taxé. La TM se régule seule : elle exige une campagne sur la
+période, donc un panneau en panne et vide donne 0.
+
+➜ **Le sens de la case s'inverse** : la maintenance est désormais **incluse**
+par défaut, et une case « Exclure » retrouve l'ancienne vue.
+
+**2. Les panneaux démantelés n'apparaissaient jamais dans la liste.** Le
+démantèlement est modélisé par le soft delete (`deleted_at` = la date où le
+mât a quitté le sol). Le **prorata existait déjà** — `moisODPDansPeriode()`
+reçoit `$panel->deleted_at` — mais `whereNull('deleted_at')` empêchait la
+ligne d'arriver. Or les totaux par commune (`panneauxPourCalcul`, en
+`withTrashed`) la comptaient : **le total d'une commune ne se raccordait pas
+à ses propres lignes.**
+
+**3. Les Lumipub étaient entièrement hors du calcul** depuis le 12/11 (axe
+*et* pieds), pour corriger un double comptage.
+
+**RÈGLE VALIDÉE PAR ÉCRIT** : une ligne par **pied**. Un pied = un mât
+planté. La **ligne d'axe n'est jamais taxée** dans aucun cas — elle ne
+correspond à aucun mât, et la compter en plus de ses pieds, c'est reproduire
+le bug du 12/11 (11 pieds comptés 12 fois). Décoché par défaut.
+
+### À vérifier
+- [ ] `/admin/taxes/details` : la case Maintenance dit maintenant
+      « **Exclure** », décochée. Un panneau aujourd'hui en maintenance
+      apparaît dans la liste, avec son ODP.
+- [ ] Cocher « Exclure » : il disparaît (ancienne vue retrouvée).
+- [ ] Un panneau démantelé en cours d'année apparaît avec le badge rouge
+      « **DÉMANTELÉ jj/mm/aaaa** », et son ODP est calculée **jusqu'à cette
+      date seulement**. Vérifier le montant à la main sur un cas.
+- [ ] Ses campagnes passées génèrent toujours leur TM (c'est la demande
+      « retracer les taxes sur les périodes où ils étaient occupés »).
+- [ ] Case « **Lumipub · Inclure les pieds** », décochée : **le total ne
+      doit pas bouger** par rapport à aujourd'hui. C'est le contrôle le plus
+      important : rien ne doit changer tant qu'on ne le demande pas.
+- [ ] Cocher : une ligne par pied, badge orange « PIED LUMIPUB ».
+      **Compter les lignes d'un axe connu** (CDYLUP-004 → 11 pieds = 11
+      lignes, PAS 12). Si 12 apparaissent, la ligne d'axe est revenue : stop.
+- [ ] `/admin/taxes` (dashboard) : mêmes deux cases, et **le même total que
+      l'écran de détail** pour la même période et les mêmes cases.
+- [ ] Export PDF et Excel : l'en-tête annonce « maintenance=exclue » et/ou
+      « lumipub=inclus » quand les cases sont cochées. Un document remis à
+      la mairie doit dire sur quelle base il est bâti.
+- [ ] URL enregistrée contenant l'ancien `include_maintenance=1` : elle ne
+      plante pas, le paramètre est simplement sans effet.
+
+### Point de méthode à trancher avec le MP
+`type_panne` est un **champ texte libre** (« Ex: Éclairage défaillant, Bâche
+déchirée… »). Impossible de s'y fier pour détecter un démantèlement :
+« démantèlement », « demantelement », « démantelé » s'écriraient autrement
+selon qui saisit.
+
+**La date fiable est le `deleted_at` du panneau.** Donc : quand un mât est
+démantelé, il faut **supprimer le panneau dans Panora** (suppression douce,
+il reste en base et dans l'historique). Cette date devient le point d'arrêt
+du prorata. Une simple maintenance intitulée « démantèlement » ne suffira
+pas — le mât resterait taxé.
+
+### Resté en l'état, volontairement
+- `TaxController::showCommune()` exclut toujours la maintenance de son
+  **instantané du jour** (nombre de panneaux, taux d'occupation). C'est un
+  KPI de l'état courant, pas un calcul de période. À noter : le taux
+  d'occupation s'en trouve calculé sur un dénominateur réduit.
+- `TaxReportService` (Rapport Taxes + Dashboard KPI) garde ses propres
+  règles. **La divergence de formule signalée le 12/11 reste ouverte** : il
+  calcule `taux × nb_panneaux` sans la surface, là où le module Taxes fait
+  `taux × m² × mois`. Les deux écrans ne peuvent pas s'accorder tant que ce
+  n'est pas tranché.
+
+### Tests automatisés
+`tests/Unit/TaxesMaintenanceEtLumipubTest.php` — 10 tests, 29 assertions,
+sans base de données.

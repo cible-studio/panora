@@ -140,15 +140,38 @@
                      par défaut (cohérent avec le dashboard /admin/taxes). Cette
                      case permet de les réintégrer quand la mairie les réclame
                      quand même — l'ODP reste due tant que le mât occupe le sol. --}}
+                {{-- 2026-11-13 — La maintenance n'écarte PLUS le panneau par
+                     défaut : règle validée par écrit, « l'ODP reste due tant
+                     que le mât occupe le sol ». Une panne ne déplante pas le
+                     mât. Avant, le filtre lisait panels.status — l'état du
+                     jour — et faisait disparaître le panneau des mois passés
+                     où il était pourtant debout et occupé.
+                     La TM se régule seule : elle exige une campagne. --}}
                 <div class="filter-group">
                     <label class="filter-label">Maintenance</label>
                     <label style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:12px;cursor:pointer;white-space:nowrap;"
-                           title="Par défaut les panneaux en maintenance ne sont pas taxés. Cochez pour les inclure dans le calcul.">
-                        <input type="checkbox" name="include_maintenance" value="1"
-                               {{ !empty($filters['include_maintenance']) ? 'checked' : '' }}
+                           title="L'ODP reste due pendant une panne : le mât occupe toujours le sol. Cochez pour retirer du calcul les panneaux aujourd'hui en maintenance (ancienne vue).">
+                        <input type="checkbox" name="exclure_maintenance" value="1"
+                               {{ !empty($filters['exclure_maintenance']) ? 'checked' : '' }}
                                onchange="this.form.submit()"
                                style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
-                        <span>Inclure</span>
+                        <span>Exclure</span>
+                    </label>
+                </div>
+                {{-- 2026-11-13 — Lumipub : une ligne par PIED (jamais la ligne
+                     d'axe, qui ne correspond à aucun mât planté — la taxer en
+                     plus de ses pieds, c'est le double comptage du 12/11).
+                     Décochée par défaut : les totaux déjà déclarés ne bougent
+                     pas tant qu'on ne l'a pas demandé. --}}
+                <div class="filter-group">
+                    <label class="filter-label">Lumipub</label>
+                    <label style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:10px;font-size:12px;cursor:pointer;white-space:nowrap;border:1px solid {{ !empty($filters['inclure_lumipub']) ? 'var(--accent)' : 'var(--border)' }};background:{{ !empty($filters['inclure_lumipub']) ? 'var(--surface2)' : 'var(--surface)' }};"
+                           title="Les pieds des axes Lumipub : un mât = une ligne. L'axe lui-même n'est jamais taxé. Décoché = l'ODP/TM de ces mâts se saisit à la main, comme aujourd'hui.">
+                        <input type="checkbox" name="inclure_lumipub" value="1"
+                               {{ !empty($filters['inclure_lumipub']) ? 'checked' : '' }}
+                               onchange="this.form.submit()"
+                               style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
+                        <span>Inclure les pieds</span>
                     </label>
                 </div>
                 {{-- 2026-10-06 — Catégories de panneau : toutes cochées par
@@ -331,6 +354,22 @@
                                     <span class="badge" style="background:#eef2ff;color:#4338ca;font-size:9px;font-weight:700;vertical-align:middle;"
                                           title="Panneau double-face ({{ implode(' + ', $row['faces_refs'] ?? []) }}) — ODP facturée une seule fois">
                                         {{ $row['faces_count'] }} faces → 1 ODP
+                                    </span>
+                                @endif
+                                {{-- 2026-11-13 — Pied d'un axe Lumipub : un mât réel,
+                                     une ligne. L'axe parent n'est jamais taxé. --}}
+                                @if(!empty($row['est_pied']))
+                                    <span class="badge" style="background:#fef3c7;color:#78350f;font-size:9px;font-weight:700;vertical-align:middle;"
+                                          title="Pied d'un axe Lumipub — un mât planté, donc une ligne. La ligne d'axe elle-même n'est jamais taxée.">
+                                        PIED LUMIPUB
+                                    </span>
+                                @endif
+                                {{-- 2026-11-13 — Mât démantelé : le montant est déjà
+                                     calculé au prorata, jusqu'à cette date. --}}
+                                @if(!empty($row['demantele_le']))
+                                    <span class="badge" style="background:#fee2e2;color:#991b1b;font-size:9px;font-weight:700;vertical-align:middle;"
+                                          title="Mât démantelé le {{ \Carbon\Carbon::parse($row['demantele_le'])->format('d/m/Y') }} — taxe calculée au prorata jusqu'à cette date.">
+                                        DÉMANTELÉ {{ \Carbon\Carbon::parse($row['demantele_le'])->format('d/m/Y') }}
                                     </span>
                                 @endif
                             </div>

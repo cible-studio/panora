@@ -265,11 +265,23 @@ class Panel extends Model
      * leurs pieds (cf. taxesSaisiesALaMain). À utiliser dans le module
      * Taxes. Avant la migration des axes : tous les panneaux.
      */
-    public function scopeAvecTaxesAutomatiques($query)
+    public function scopeAvecTaxesAutomatiques($query, bool $inclureLumipub = false)
     {
-        return app(\App\Services\Axes\AxeService::class)->colonnesPresentes()
-            ? $query->where('est_axe', false)->whereNull('axe_id')
-            : $query;
+        if (!app(\App\Services\Axes\AxeService::class)->colonnesPresentes()) {
+            return $query;
+        }
+
+        // La LIGNE D'AXE n'est jamais taxée : elle ne correspond à aucun mât
+        // planté dans le sol, c'est un regroupement commercial. La taxer en
+        // plus de ses pieds, c'est le double comptage du 2026-11-12 (un axe
+        // de 11 pieds comptait 12 fois).
+        $query->where('est_axe', false);
+
+        // Les PIEDS, eux, sont des mâts réels : une ligne par pied
+        // (règle validée par écrit le 2026-11-13). Exclus par défaut pour
+        // que rien ne bouge sans qu'on l'ait demandé — la case « Lumipub »
+        // du module Taxes les réintègre.
+        return $inclureLumipub ? $query : $query->whereNull('axe_id');
     }
 
     // ───────────── Helpers ─────────────
