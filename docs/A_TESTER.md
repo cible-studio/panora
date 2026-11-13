@@ -1889,13 +1889,52 @@ Centralisée dans `AvailabilityService::verdictSelection()`, à côté de
       **et** client).
 - [ ] « ↺ Réinitialiser » vide aussi les trois champs de période.
 
-### Non touché volontairement
-- `PoseController::searchPanels()` et `MaintenanceController::searchPanels()`
-  gardent le statut du jour : une pose ou une maintenance porte sur le
-  panneau physique, pas sur sa commercialisation. **À confirmer par le MP.**
-- `QuoteConverter.php:66` — un devis **sans période** est toujours converti
-  après un contrôle sur « aujourd'hui → aujourd'hui + durée max des lignes ».
-  Les dates restent `nullable`. À trancher : faut-il les rendre obligatoires ?
+### Pose et maintenance — tranché le 2026-11-13 : aucun changement
+Vérifié dans le code, pas supposé :
+- **Pose** : le sélecteur n'affiche aucun statut commercial. Il montre
+  `task_status` et `task_date` (l'état de la pose), et travaille dans une
+  campagne déjà vendue. La disponibilité n'a pas de sens ici.
+- **Maintenance** : affiche bien `panels.status`, mais c'est le bon
+  renseignement — on signale une panne le jour où elle arrive, et savoir
+  qu'une campagne tourne dessus est précisément ce qui compte.
+
+Décision enregistrée pour ne pas y revenir. Si le MP veut malgré tout une
+période sur la maintenance (planifier une intervention hors campagne),
+c'est une évolution à part, pas une incohérence à corriger.
+
+### Période obligatoire dès qu'un panneau est engagé — corrigé le 2026-11-13
+
+**Ce que j'ai trouvé en creusant.** Les dates inventées par
+`QuoteConverter` (« aujourd'hui → aujourd'hui + durée max des lignes »)
+ne servaient pas qu'au contrôle de disponibilité : elles étaient écrites
+dans `start_date` / `end_date` de la **réservation ferme** créée dans la
+foulée. Un devis sans dates produisait donc un engagement contractuel sur
+une période que personne n'avait choisie — et comme le client accepte
+seul, depuis son espace ou le lien public, aucun commercial n'était là
+pour le rattraper.
+
+**Trois verrous** (le fallback ne survit que pour un devis de services
+seuls, qui ne bloque aucun emplacement) :
+
+- [ ] **Saisie** — devis avec un panneau du parc et sans dates :
+      l'enregistrement est refusé, message sur le champ « Début de campagne ».
+- [ ] **Formulaire** — poser un panneau fait passer le bandeau de la période
+      en rouge « ⛔ Période obligatoire » ; retirer le panneau le repasse en
+      bleu informatif. Le bouton Enregistrer ne part pas tant que c'est rouge.
+- [ ] **Envoi** — un devis créé AVANT cette règle (donc sans dates) ne peut
+      plus être envoyé : message d'erreur au commercial.
+- [ ] **Conversion** — si un tel devis est quand même accepté par le client :
+      aucune réservation n'est créée, le devis passe en `ACCEPTE_AVEC_CONFLIT`
+      avec le motif « Période de campagne absente », et une alerte part au
+      commercial. **Le client voit « Les dates de campagne restent à préciser »**
+      et non « certains panneaux ne sont plus disponibles » (vérifier dans
+      l'espace client ET sur le lien public).
+- [ ] Devis de **services seuls**, sans aucun panneau : toujours
+      enregistrable et convertible sans dates. Comportement inchangé.
+
+À surveiller en production : des devis existants peuvent être sans dates.
+Les repérer avant qu'un client ne les accepte —
+`Quote::whereIn('status', ['envoye'])->whereNull('period_start')->whereHas('lines', fn($l) => $l->whereNotNull('panel_id'))->pluck('reference')`
 
 ### Tests automatisés
 `tests/Unit/DevisDisponibilitePeriodeTest.php` — 18 tests, 43 assertions,

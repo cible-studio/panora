@@ -74,12 +74,18 @@ class PublicQuoteController extends Controller
             );
         }
 
+        // Période absente (2026-11-13) : distinguer du conflit de
+        // disponibilité — ce n'est pas le même message pour le client.
+        $message = match (true) {
+            $result['status'] === 'converted' => 'Devis accepté ! Votre commercial vous contactera pour la suite.',
+            ($result['motif'] ?? null) === 'periode_absente'
+                => "Votre acceptation est bien enregistrée. Les dates de campagne restent à préciser : "
+                   . "votre commercial va vous contacter pour les fixer.",
+            default => "Devis accepté, mais certains panneaux ne sont plus disponibles. Votre commercial va vous contacter.",
+        };
+
         return redirect()->route('public.quote.show', $token)
-            ->with($result['status'] === 'converted' ? 'success' : 'warning',
-                $result['status'] === 'converted'
-                    ? 'Devis accepté ! Votre commercial vous contactera pour la suite.'
-                    : "Devis accepté, mais certains panneaux ne sont plus disponibles. Votre commercial va vous contacter."
-            );
+            ->with($result['status'] === 'converted' ? 'success' : 'warning', $message);
     }
 
     public function refuse(Request $request, string $token)

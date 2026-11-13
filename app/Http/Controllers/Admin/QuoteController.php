@@ -304,10 +304,10 @@ class QuoteController extends Controller
         );
 
         if ($ids) {
-            // Sans vendables() : la revalidation porte sur ce qui est DÉJÀ
-            // dans le devis, axes compris (une ligne d'axe porte l'id de
-            // l'axe, que vendables() écarterait — l'alerte ne sortirait
-            // jamais pour un axe).
+            // Volontairement SANS le filtre des axes : la revalidation
+            // porte sur ce qui est DÉJÀ dans le devis, axes compris. Une
+            // ligne d'axe porte l'id de l'axe, que ce filtre écarterait —
+            // l'alerte ne sortirait alors jamais pour un axe.
             $panels = \App\Models\Panel::with(['commune:id,name', 'format:id,width,height,surface,name'])
                 ->whereIn('id', array_slice($ids, 0, 60))
                 ->whereNull('deleted_at')
@@ -570,6 +570,21 @@ class QuoteController extends Controller
     {
         $this->authorize('send', $quote);
 
+        // Période obligatoire avant envoi (2026-11-13) — rattrape les devis
+        // créés AVANT cette règle. Une fois parti, le client peut accepter
+        // seul depuis son espace ou le lien public : la réservation serait
+        // créée sur une période inventée, sans personne pour la corriger.
+        $quote->loadMissing('lines');
+        $engagePanneaux = $quote->lines->contains(
+            fn ($l) => $l->panel_id || $l->external_panel_id || $l->idsPieds()
+        );
+        if ($engagePanneaux && (!$quote->period_start || !$quote->period_end)) {
+            return back()->with('error',
+                "Devis {$quote->reference} : renseigne la période de campagne avant de l'envoyer. "
+                . "Le client peut accepter seul, et la réservation serait créée sur des dates inventées."
+            );
+        }
+
         // Marque le devis comme envoyé et calcule la date d'expiration.
         $quote->update([
             'status'     => QuoteStatus::ENVOYE->value,
@@ -785,6 +800,22 @@ class QuoteController extends Controller
                 }
                 $seenExtern[$l['external_panel_id']] = true;
             }
+        }
+
+        // ═══ Période obligatoire dès qu'il y a un panneau (2026-11-13) ═══
+        // Sans dates, QuoteConverter inventait la période à l'acceptation
+        // (« aujourd'hui → aujourd'hui + durée max des lignes ») et l'écrivait
+        // telle quelle dans start_date/end_date de la réservation FERME. Le
+        // client accepte depuis son espace ou le lien public : personne
+        // n'est là pour rattraper. On exige donc les dates à la source.
+        $aUnPanneau = collect($data['lines'] ?? [])->contains(
+            fn ($l) => !empty($l['panel_id']) || !empty($l['external_panel_id']) || !empty($l['pieds'])
+        );
+        if ($aUnPanneau && (empty($data['period_start']) || empty($data['period_end']))) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'period_start' => "Renseigne la période de campagne : ce devis engage des panneaux du parc. "
+                    . "Sans dates, la réservation créée à l'acceptation porterait des dates inventées.",
+            ]);
         }
 
         // ═══ Panneau occupé sur la période — refus serveur (2026-11-13) ═══

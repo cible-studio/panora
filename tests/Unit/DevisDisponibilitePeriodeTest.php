@@ -244,4 +244,71 @@ class DevisDisponibilitePeriodeTest extends TestCase
         $this->assertStringContainsString('verdictSelection(', $src);
         $this->assertStringContainsString('periodeDemandee(', $src);
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // PÉRIODE OBLIGATOIRE DÈS QU'UN PANNEAU EST ENGAGÉ (2026-11-13)
+    // ══════════════════════════════════════════════════════════════
+    // Les dates inventées par QuoteConverter n'alimentaient pas que le
+    // contrôle de disponibilité : elles devenaient start_date/end_date de
+    // la réservation FERME. Et le client accepte seul, depuis son espace
+    // ou le lien public. Trois verrous : saisie, envoi, conversion.
+
+    public function test_la_saisie_exige_la_periode_quand_un_panneau_est_engage(): void
+    {
+        $src = file_get_contents(__DIR__ . '/../../app/Http/Controllers/Admin/QuoteController.php');
+
+        $this->assertStringContainsString('$aUnPanneau', $src);
+        $this->assertStringContainsString("'period_start' => \"Renseigne la période de campagne", $src,
+            "La validation doit refuser un devis à panneaux sans dates.");
+    }
+
+    public function test_l_envoi_exige_la_periode_quand_un_panneau_est_engage(): void
+    {
+        $src = file_get_contents(__DIR__ . '/../../app/Http/Controllers/Admin/QuoteController.php');
+
+        $this->assertStringContainsString('$engagePanneaux', $src,
+            "send() doit rattraper les devis créés avant la règle.");
+    }
+
+    /**
+     * Le cœur du correctif : plus aucune date inventée dès qu'un panneau
+     * est engagé. Le fallback ne survit que pour un devis de services
+     * seuls, qui ne bloque aucun emplacement.
+     */
+    public function test_le_convertisseur_n_invente_plus_de_periode_avec_des_panneaux(): void
+    {
+        $src = file_get_contents(__DIR__ . '/../../app/Services/QuoteConverter.php');
+
+        $this->assertStringContainsString('periode_absente', $src,
+            "La conversion doit refuser explicitement, pas inventer.");
+        $this->assertStringContainsString('$engagePanneaux = !empty($panelIds) || !empty($extPanelIds);', $src);
+
+        // Le refus doit précéder le fallback, sinon il ne sert à rien.
+        $posRefus    = strpos($src, "return ['status' => 'conflict', 'motif' => 'periode_absente'");
+        $posFallback = strpos($src, '$periodStart = $quote->period_start?->toDateString() ?? now()');
+        $this->assertIsInt($posRefus);
+        $this->assertIsInt($posFallback);
+        $this->assertLessThan($posFallback, $posRefus,
+            "Le refus doit être évalué AVANT le fallback des dates inventées.");
+    }
+
+    public function test_les_deux_espaces_client_distinguent_periode_absente_et_conflit(): void
+    {
+        foreach ([
+            'app/Http/Controllers/Client/ClientQuoteController.php',
+            'app/Http/Controllers/PublicQuoteController.php',
+        ] as $fichier) {
+            $src = file_get_contents(__DIR__ . '/../../' . $fichier);
+            $this->assertStringContainsString("periode_absente", $src,
+                "$fichier doit distinguer « dates à préciser » de « panneau indisponible ».");
+        }
+    }
+
+    public function test_le_formulaire_bloque_l_enregistrement_sans_periode_avec_panneaux(): void
+    {
+        $js = file_get_contents(self::FORM_DEVIS);
+
+        $this->assertStringContainsString('devisEngageDesPanneaux', $js);
+        $this->assertStringContainsString('Période obligatoire', $js);
+    }
 }
