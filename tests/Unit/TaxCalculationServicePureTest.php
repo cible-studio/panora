@@ -118,15 +118,34 @@ class TaxCalculationServicePureTest extends TestCase
      * alors que generateLines() les incluait : les deux écrans affichaient
      * des totaux différents pour la même période.
      */
-    public function test_maintenance_panels_are_excluded_by_default(): void
+    /**
+     * 2026-11-13 — TX-12 EST RENVERSÉ, règle validée par écrit :
+     * « l'ODP reste due tant que le mât occupe le sol ». Une panne ne
+     * déplante pas le mât, donc le panneau reste taxé.
+     *
+     * Le filtre d'origine lisait panels.status, l'état DU JOUR : un panneau
+     * passé en maintenance aujourd'hui disparaissait de janvier, février,
+     * mars… où il était pourtant debout et occupé. On ne juge plus une
+     * période passée sur un état courant.
+     *
+     * Ce canari protège désormais le sens INVERSE : l'exclusion doit rester
+     * une option explicite, jamais le défaut.
+     */
+    public function test_maintenance_panels_are_included_by_default(): void
     {
         $source = file_get_contents(__DIR__ . '/../../app/Services/TaxCalculationService.php');
 
         $this->assertStringContainsString(
+            "if (!empty(\$filters['exclure_maintenance'])) {",
+            $source,
+            'generateLines() doit INCLURE les panneaux en maintenance par ' .
+            'défaut — l\'ODP court tant que le mât occupe le sol — et ne les ' .
+            'retirer que sur demande explicite (exclure_maintenance).'
+        );
+        $this->assertStringNotContainsString(
             "if (empty(\$filters['include_maintenance'])) {",
             $source,
-            'RÉGRESSION TX-12 : generateLines() doit exclure les panneaux en ' .
-            'maintenance sauf si le filtre include_maintenance est actif.'
+            'L\'ancien défaut « maintenance exclue » ne doit pas réapparaître.'
         );
     }
 

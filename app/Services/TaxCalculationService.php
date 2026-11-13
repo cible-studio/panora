@@ -72,6 +72,10 @@ class TaxCalculationService
     {
         [$periodStart, $periodEnd, $months] = $this->resolvePeriod($periodType, $periodValue, $year, $periodEndValue);
 
+        // Les colonnes d'axe n'existent qu'après la migration (cf. AxeService) :
+        // sans ce garde-fou, l'écran casse sur un environnement non migré.
+        $colonnesAxe = app(\App\Services\Axes\AxeService::class)->colonnesPresentes();
+
         // Pré-charge toutes les communes (pour leur historique tarifaire)
         // — peu nombreuses (~30) donc OK en mémoire.
         $communes = Commune::all()->keyBy('id');
@@ -85,19 +89,37 @@ class TaxCalculationService
         );
 
         // Charge panneaux avec leur commune, format, dimensions.
-        // On ne prend PAS les soft-deleted (parc actuel uniquement).
-        $panelsQuery = Panel::with(['commune:id,name', 'format:id,name,width,height,surface'])
-            ->whereNull('deleted_at')
-            // Axes Lumipub et leurs pieds (2026-11-12) : ODP et TM gérées à
-            // la main par les comptables, jamais calculées ici. Sans ce
-            // filtre, depuis le découpage, un axe de 11 pieds comptait 12 fois.
-            ->avecTaxesAutomatiques();
-        // TX-12 (2026-09-23) — Panneaux en maintenance EXCLUS par défaut,
-        // conformément au dashboard /admin/taxes et à la légende affichée.
-        // Avant : generateLines() les incluait alors que le dashboard les
-        // excluait → les deux écrans ne tombaient pas sur le même total.
-        // Le filtre 'include_maintenance' permet de les réintégrer.
-        if (empty($filters['include_maintenance'])) {
+        // ═══ Panneaux démantelés — prorata (2026-11-13) ═══
+        // Le démantèlement est modélisé par le soft delete : deleted_at = la
+        // date où le mât a quitté le sol (cf. moisExistencePanneau, ligne 646).
+        // Le prorata EXISTAIT déjà — moisODPDansPeriode reçoit $panel->deleted_at
+        // plus bas — mais `whereNull('deleted_at')` l'empêchait d'arriver ici :
+        // la liste n'affichait jamais un panneau démantelé, alors que les
+        // totaux par commune (panneauxPourCalcul, withTrashed) le comptaient.
+        // Les deux écrans ne se raccordaient donc pas.
+        // On reprend les démantelés dont la vie croise encore la période.
+        $panelsQuery = Panel::withTrashed()
+            ->with(['commune:id,name', 'format:id,name,width,height,surface'])
+            ->where(fn ($q) => $q->whereNull('deleted_at')
+                ->orWhere('deleted_at', '>=', $periodStart->toDateString()))
+            // Lumipub (2026-11-13) : une ligne par PIED, jamais la ligne
+            // d'axe. Exclus par défaut, réintégrés par la case « Lumipub ».
+            ->avecTaxesAutomatiques(!empty($filters['inclure_lumipub']));
+
+        // ═══ Maintenance — n'écarte plus le panneau (2026-11-13) ═══
+        // RÈGLE VALIDÉE PAR ÉCRIT : « l'ODP reste due tant que le mât occupe
+        // le sol ». Une panne ne retire pas le mât : l'ODP court.
+        // Avant (TX-12), le filtre lisait panels.status — l'état DU JOUR. Un
+        // panneau passé en maintenance aujourd'hui disparaissait de janvier,
+        // février, mars… alors qu'il y était debout et occupé. Même défaut
+        // que le sélecteur du devis : un état courant qui juge le passé.
+        // La TM, elle, se régule seule : elle exige une campagne sur la
+        // période (isEligible), donc un panneau en panne et vide donne 0.
+        // 'exclure_maintenance' reste disponible pour retrouver l'ancienne
+        // vue ; l'ancien 'include_maintenance' n'a plus d'effet (c'est
+        // devenu le comportement par défaut) et reste accepté sans casser
+        // les URLs et exports enregistrés.
+        if (!empty($filters['exclure_maintenance'])) {
             $panelsQuery->whereNotIn('status', ['maintenance']);
         }
         if (!empty($filters['commune_id'])) {
@@ -251,6 +273,11 @@ class TaxCalculationService
                     'rate'           => $unitRate,          // Tarif mensuel stocké (référence)
                     'rate_applied'   => $rateApplied,       // Tarif effectivement appliqué (= tarif brut depuis TX-12)
                     'amount'         => $amount,
+                    // 2026-11-13 — De quoi lire la ligne sans ouvrir la fiche :
+                    // un pied d'axe Lumipub, et un mât démantelé en cours de
+                    // période (le montant est déjà calculé au prorata).
+                    'est_pied'       => $colonnesAxe && !empty($panel->axe_id),
+                    'demantele_le'   => $panel->deleted_at,
                 ]);
             }
         }
@@ -721,12 +748,14 @@ class TaxCalculationService
      * les soft-deleted dont deleted_at est >= debut de la période (sinon
      * impossible d'avoir des mois d'existence dans la fenêtre).
      */
-    protected function panneauxPourCalcul(Commune $commune)
+    protected function panneauxPourCalcul(Commune $commune, bool $inclureLumipub = false)
     {
         return Panel::withTrashed()
             ->with('format:id,name,width,height,surface')
             ->where('commune_id', $commune->id)
-            ->avecTaxesAutomatiques() // axes : ODP/TM à la main (2026-11-12)
+            // Ligne d'axe toujours écartée ; pieds Lumipub sur demande
+            // seulement (2026-11-13) — cf. Panel::scopeAvecTaxesAutomatiques.
+            ->avecTaxesAutomatiques($inclureLumipub)
             ->get();
     }
 }

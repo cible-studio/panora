@@ -619,13 +619,19 @@ class AxesMultiPiedsTest extends TestCase
     {
         // Canari : chaque calcul de taxes qui lit le parc passe par la règle.
         // Sans elle, depuis le découpage, un axe de 11 pieds comptait 12 fois.
+        // 2026-11-13 — Le scope prend désormais un argument (inclure ou non
+        // les PIEDS Lumipub), donc on compte les appels, pas la chaîne nue.
+        // La LIGNE D'AXE, elle, reste exclue dans tous les cas : c'est elle
+        // qui causait le ×12, et Panel::scopeAvecTaxesAutomatiques l'écarte
+        // avant même de regarder l'argument (test dédié dans
+        // TaxesMaintenanceEtLumipubTest).
         $sources = [
             'app/Services/TaxCalculationService.php' => 2, // generateLines + panneauxPourCalcul
             'app/Services/TaxAutoService.php'        => 1,
-            'app/Http/Controllers/Admin/TaxController.php' => 1,
+            'app/Http/Controllers/Admin/TaxController.php' => 2, // showCommune + calcul (dashboard)
         ];
         foreach ($sources as $fichier => $attendu) {
-            $this->assertSame($attendu, substr_count(file_get_contents(base_path($fichier)), '->avecTaxesAutomatiques()'), $fichier);
+            $this->assertSame($attendu, substr_count(file_get_contents(base_path($fichier)), '->avecTaxesAutomatiques('), $fichier);
         }
         $this->assertStringContainsString('taxesSaisiesALaMain()', file_get_contents(base_path('app/Services/TaxReportService.php')));
     }

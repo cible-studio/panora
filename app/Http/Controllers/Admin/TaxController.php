@@ -130,6 +130,14 @@ class TaxController extends Controller
             'type'        => $request->input('type')        ?: null,
         ]);
         $filters['include_maintenance'] = $request->boolean('include_maintenance');
+        // 2026-11-13 — La maintenance n'écarte plus le panneau par défaut
+        // (l'ODP reste due, le mât occupe toujours le sol). Cette case
+        // permet de retrouver l'ancienne vue.
+        $filters['exclure_maintenance'] = $request->boolean('exclure_maintenance');
+        // 2026-11-13 — Lumipub : une ligne par PIED, jamais la ligne d'axe.
+        // Décochée par défaut (règle validée) pour ne rien changer aux
+        // totaux déjà déclarés tant qu'on ne l'a pas demandé.
+        $filters['inclure_lumipub'] = $request->boolean('inclure_lumipub');
 
         $exclues = array_values(array_unique(array_filter(
             array_map('intval', (array) $request->input('exclure_categories', [])),
@@ -274,9 +282,16 @@ class TaxController extends Controller
                 $filterParts[] = "campagne={$cm->name}";
             }
         }
-        if (!empty($filters['include_maintenance'])) {
-            $filterMeta[]  = ['label' => 'Maintenance', 'value' => 'Panneaux en maintenance inclus'];
-            $filterParts[] = 'maintenance=incluse';
+        // 2026-11-13 — La maintenance est désormais incluse par défaut
+        // (l'ODP court tant que le mât est planté) : c'est l'EXCLUSION
+        // qui mérite d'être écrite sur le PDF.
+        if (!empty($filters['exclure_maintenance'])) {
+            $filterMeta[]  = ['label' => 'Maintenance', 'value' => 'Panneaux en maintenance exclus'];
+            $filterParts[] = 'maintenance=exclue';
+        }
+        if (!empty($filters['inclure_lumipub'])) {
+            $filterMeta[]  = ['label' => 'Lumipub', 'value' => 'Pieds des axes inclus (une ligne par mât)'];
+            $filterParts[] = 'lumipub=inclus';
         }
         if ($cats = $this->excludedCategoryNames($filters)) {
             $filterMeta[]  = ['label' => 'Catégories exclues', 'value' => $cats];
@@ -334,7 +349,8 @@ class TaxController extends Controller
         if (!empty($filters['client_id']))   { $c = Client::find($filters['client_id']);    if ($c) $parts[] = "client={$c->name}"; }
         if (!empty($filters['campaign_id'])) { $c = Campaign::find($filters['campaign_id']);if ($c) $parts[] = "campagne={$c->name}"; }
         if (!empty($filters['type']))        $parts[] = 'type=' . strtoupper($filters['type']);
-        if (!empty($filters['include_maintenance'])) $parts[] = 'maintenance=incluse';
+        if (!empty($filters['exclure_maintenance'])) $parts[] = 'maintenance=exclue';
+        if (!empty($filters['inclure_lumipub']))     $parts[] = 'lumipub=inclus';
         if ($cats = $this->excludedCategoryNames($filters)) $parts[] = "categories_exclues={$cats}";
         $filterSummary = implode(' · ', $parts);
 
@@ -817,15 +833,21 @@ class TaxController extends Controller
         // colonnes pour rester léger : un parc de 1000 panneaux × 34
         // communes = ~30k cellules, l'agrégation est instantanée en mémoire.
         //
-        // TX-12 (2026-09-23) — La maintenance est exclue par défaut mais
-        // devient pilotable, comme sur /admin/taxes/details : les deux
-        // écrans doivent répondre au même filtre.
-        $includeMaintenance = $request->boolean('include_maintenance');
+        // TX-12 (2026-09-23) — La maintenance est pilotable, comme sur
+        // /admin/taxes/details : les deux écrans doivent répondre au même
+        // filtre, sinon leurs totaux ne se raccordent pas.
+        // 2026-11-13 — Le sens par défaut s'inverse : la maintenance est
+        // INCLUSE (l'ODP court tant que le mât occupe le sol), et c'est
+        // 'exclure_maintenance' qui la retire. 'include_maintenance' reste
+        // accepté sans effet pour ne pas casser les URLs enregistrées.
+        $exclureMaintenance = $request->boolean('exclure_maintenance');
+        $inclureLumipub     = $request->boolean('inclure_lumipub');
         $communes = Commune::query()
             ->with([
                 'panels' => fn($q) => $q
                     ->whereNull('deleted_at')
-                    ->when(!$includeMaintenance, fn($qq) => $qq->whereNotIn('status', ['maintenance']))
+                    ->avecTaxesAutomatiques($inclureLumipub)
+                    ->when($exclureMaintenance, fn($qq) => $qq->whereNotIn('status', ['maintenance']))
                     ->with('format:id,name,width,height'),
             ])
             ->whereNotNull('odp_rate')
@@ -961,7 +983,8 @@ class TaxController extends Controller
         $odpParCommuneFormat = $calc
             ->generateLines($periodType, $periodValue, $periodYear, [
                 'type'                => TaxCalculationService::TYPE_ODP,
-                'include_maintenance' => $includeMaintenance,
+                'exclure_maintenance' => $exclureMaintenance,
+                'inclure_lumipub'     => $inclureLumipub,
             ], $periodEndValue)
             ->groupBy(fn($l) => $l['commune_id'] . '|' . $l['format_id'])
             ->map(fn($g) => (float) $g->sum('amount'));

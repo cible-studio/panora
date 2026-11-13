@@ -49,11 +49,22 @@
 
         {{-- TX-12 (2026-09-23) — Même filtre que /admin/taxes/details, pour que
              les deux écrans annoncent toujours le même total. --}}
+        {{-- 2026-11-13 — Le sens s'inverse : la maintenance est désormais
+             comptée par défaut (l'ODP court tant que le mât occupe le sol).
+             Cette case retrouve l'ancienne vue. --}}
         <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;white-space:nowrap;"
-               title="Par défaut les panneaux en maintenance ne sont pas taxés.">
-            <input type="checkbox" id="include-maintenance"
+               title="L'ODP reste due pendant une panne : le mât occupe toujours le sol. Cochez pour retirer du calcul les panneaux aujourd'hui en maintenance.">
+            <input type="checkbox" id="exclure-maintenance"
                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
-            <span style="color:var(--text2);">Inclure la maintenance</span>
+            <span style="color:var(--text2);">Exclure la maintenance</span>
+        </label>
+        {{-- 2026-11-13 — Lumipub : une ligne par pied, jamais la ligne d'axe.
+             Décochée par défaut, comme sur l'écran de détail. --}}
+        <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;white-space:nowrap;"
+               title="Les pieds des axes Lumipub : un mât = une ligne. L'axe lui-même n'est jamais taxé.">
+            <input type="checkbox" id="inclure-lumipub"
+                   style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
+            <span style="color:var(--text2);">Inclure les pieds Lumipub</span>
         </label>
 
         <span id="period-label" style="margin-left:auto;font-size:12px;color:var(--text3);"></span>
@@ -498,8 +509,14 @@ window.TaxModule = (function () {
     // Lu à chaque appel plutôt que mis en cache : la case est le seul
     // point de vérité, et loadCalcul() est rappelé à chaque changement
     // de période.
-    function includeMaintenance() {
-        const cb = document.getElementById('include-maintenance');
+    function excludeMaintenance() {
+        const cb = document.getElementById('exclure-maintenance');
+        return !!(cb && cb.checked);
+    }
+
+    // 2026-11-13 — Pieds des axes Lumipub dans le calcul (décoché par défaut).
+    function includeLumipub() {
+        const cb = document.getElementById('inclure-lumipub');
         return !!(cb && cb.checked);
     }
 
@@ -514,10 +531,11 @@ window.TaxModule = (function () {
         if (currentPeriodType === 'personnalise') {
             params.set('period_end_value', String(currentPeriodEndValue));
         }
-        // TX-12 (2026-09-23) — Propage le filtre maintenance au serveur.
-        if (includeMaintenance()) {
-            params.set('include_maintenance', '1');
-        }
+        // TX-12 (2026-09-23) — Propage les filtres au serveur. Depuis le
+        // 2026-11-13 : la maintenance est incluse par défaut, et les pieds
+        // Lumipub sont exclus par défaut.
+        if (excludeMaintenance()) params.set('exclure_maintenance', '1');
+        if (includeLumipub())     params.set('inclure_lumipub', '1');
 
         try {
             const r = await fetch(`{{ route('admin.taxes.calcul') }}?${params}`, {
@@ -924,8 +942,10 @@ window.TaxModule = (function () {
             // décoche la maintenance. Le serveur refait l'agrégation :
             // impossible de filtrer côté client, les panneaux en
             // maintenance ne sont pas descendus dans la réponse.
-            const cbMaint = document.getElementById('include-maintenance');
-            if (cbMaint) cbMaint.addEventListener('change', () => loadCalcul());
+            ['exclure-maintenance', 'inclure-lumipub'].forEach(id => {
+                const cb = document.getElementById(id);
+                if (cb) cb.addEventListener('change', () => loadCalcul());
+            });
 
             // Premier chargement
             loadCalcul();
