@@ -2265,3 +2265,44 @@ DG (13,7 M pour tout Abidjan) s'en trouve aggravé, pas résolu.
 
 ### Tests automatisés
 `tests/Unit/LumipubFacesSurfaceTest.php` — 12 tests, 56 assertions.
+
+---
+
+## § 27 — Faces : état réel du parc après les réparations (2026-11-13)
+
+Tout ce qui suit a été **exécuté en production le 13/11**.
+
+| Quoi | Combien | État |
+|---|---|---|
+| Ancienneté ODP des pieds | 101 | ✅ alignée sur l'axe (`NULL` = préexistant) |
+| `nombre_faces` ↔ `faces_par_pied` | 114 (101 pieds + 13 axes) | ✅ convergées |
+| Lumipub autonome `MRYLUP-001` | 1 | ✅ ses 3 faces comptent pour la taxe |
+| Chevalets | 27 | ⛔ **volontairement hors du calcul** |
+
+### Ce qui reste à trancher — les chevalets
+Les 27 chevalets portent `nombre_faces = 4`, et leur nom le confirme :
+`Chevalet 4×6m²`, `4×20m²`, `4×2m²`, `4×15m²` — soit 4 faces, le format
+portant la surface d'**une** face. La règle appliquée aux Lumipub
+(`surface taxable = format × faces`) leur vaudrait donc ×4.
+
+**Aucun traitement automatique ne les vise**, ni l'inventaire ni
+`axes:reparer-odp`, et un test échoue si quelqu'un les fait entrer dans le
+calcul. La décision peut attendre sans bloquer les exports.
+
+→ **Avant de trancher**, demander le chiffrage commune par commune (ODP et
+TM, avant/après). Vu les écarts constatés aujourd'hui, ne pas appliquer à
+l'aveugle.
+
+### Rectification d'une analyse erronée du matin
+J'avais écrit (§ 25) que `nombre_faces` portait deux significations
+contradictoires, en m'appuyant sur `docs/TECHNICAL_DEBT.md`. **C'est faux.**
+Le champ porte partout le même sens : le nombre de faces du support. La
+dette visait un **autre usage** — s'en servir pour deviner que deux lignes
+Panora sont le même mât physique — où il est effectivement inutilisable.
+Cette confusion a fait restreindre la règle aux seuls axes, d'où le
+Lumipub autonome oublié.
+
+### ⚠ Toujours ouvert — l'anomalie d'ordre de grandeur (§ 25)
+Les quatre correctifs du jour vont tous dans le sens de la hausse. La
+question du **tarif au m², mensuel ou annuel**, reste la pièce manquante
+pour confronter Panora aux réclamations des mairies.
