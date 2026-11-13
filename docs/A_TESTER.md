@@ -1800,8 +1800,10 @@ En production :
 - [x] Si la simulation est bonne : `php artisan axes:decouper-campagnes --appliquer`
       → **appliqué en production le 13/11** : 6 axes, 49 pieds, 49 poses de pied
       (poses #538, 540, 541, 543 BEM · #547 MOOV · #404 LADILI annulées « découpées »).
-- [ ] Relancer `php artisan axes:decouper-campagnes` : « Aucun axe entier dans une
-      campagne en cours : rien à faire. »
+- [x] Relancer `php artisan axes:decouper-campagnes` : « Aucun axe entier dans une
+      campagne en cours : rien à faire. » — vu le 13/11. Poses de pied : BEM 33
+      (23 planifiées, 9 en cours CDYLUP-008, 1 réalisée CDYLUP-007-P09 à 10h18 après
+      le découpage), MOOV 10, LADILI 6.
 - [ ] LADILI : attribuer un technicien aux 6 poses de pied (en lot) avant le 01/12.
 - [ ] Espace technicien de Yannick (ou du technicien des poses) : BEM, MOOV et
       LADILI s'affichent en carte d'axe avec ses pieds, comme les autres.
