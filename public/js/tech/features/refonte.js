@@ -208,6 +208,11 @@ function surStatut(e) {
         statutAxe(carte, status, status === 'en_cours' ? 50 : 25);
         return;
     }
+    // Axe entier (« Y aller » / « Je suis arrivé » depuis sa fiche) : sa pastille.
+    if (ligne?.matches('[data-axe-entier]')) {
+        poserPilule(ligne.querySelector('[data-tx-axe-statut]'), status);
+        return;
+    }
     // « Maintenant » : sa pilule sur la photo.
     const hero = ligne?.closest('.tx-hero');
     if (hero) {
@@ -364,16 +369,18 @@ function photoAxeEntier(ligne, data, photo) {
     const photos = data.photos_count ?? ((parseInt(ligne.dataset.photos, 10) || 0) + 1);
     ligne.dataset.photos = photos;
     ligne.dataset.taskStatus = 'en_cours';
-    poserPilule(ligne.querySelector('.tx-pill'), 'en_cours');
+    poserPilule(ligne.querySelector('[data-tx-axe-statut]') || ligne.querySelector('.tx-pill'), 'en_cours');
     const compte = ligne.querySelector('[data-tx-photos-compte]');
     if (compte) compte.textContent = photos;
+    // Segments « N / 9 photos » (forme compacte du 2026-11-13).
+    ligne.querySelectorAll('[data-tx-axe-segments] i').forEach((s, i) => s.classList.toggle('envoyee', i < photos));
 
     if (photo instanceof Blob) {
         let galerie = ligne.querySelector('.tx-photos-envoyees');
         if (!galerie) {
             galerie = document.createElement('div');
             galerie.className = 'tx-photos-envoyees';
-            ligne.querySelector('.tx-axe-actions')?.before(galerie);
+            (ligne.querySelector('.tx-axe-route') || ligne).prepend(galerie);
         }
         const vignette = document.createElement('i');
         vignette.style.backgroundImage = `url('${URL.createObjectURL(photo)}')`;

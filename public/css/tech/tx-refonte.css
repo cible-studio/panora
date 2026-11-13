@@ -185,6 +185,16 @@ body.tx .tx-corps { display: grid; gap: 12px; padding-top: 12px; }
 .tx-photos-envoyees { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 12px 10px; }
 .tx-photos-envoyees i { width: 34px; height: 34px; border-radius: 7px; background: #c7dcef center/cover no-repeat; }
 .tx-axe-entier .tx-aide { padding: 0 12px 10px; }
+/* Axe entier, forme compacte (2026-11-13) : la ligne « N / 9 photos » replie /
+   déplie ; photos envoyées et aide dans la partie repliable. */
+.tx-axe-bascule { width: 100%; background: none; border: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.tx-chevron { display: inline-block; margin-left: 4px; color: var(--tx-texte3); transition: transform .2s; }
+.tx-axe.ouvert .tx-chevron { transform: rotate(180deg); }
+.tx-axe-entier .tx-axe-route .tx-photos-envoyees { padding: 8px 0 2px; }
+.tx-axe-entier .tx-axe-route .tx-aide { padding: 0; }
+/* Vignette d'une ligne : elle porte aussi .pose-thumb (lue par le tiroir) —
+   on fige sa taille sans dépendre de l'ordre des feuilles de style. */
+.tx-vignette.pose-thumb { flex: none; width: 48px; height: 48px; border-radius: 10px; box-shadow: none; }
 
 /* Une pose dont la photo vient de partir (sans rechargement). */
 .tx-envoyee { opacity: .5; filter: grayscale(1); pointer-events: none; transition: opacity .4s, filter .4s; }

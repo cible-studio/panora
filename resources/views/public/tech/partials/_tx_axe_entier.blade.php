@@ -2,40 +2,48 @@
      découpage : BEM, MOOV, LADILI). Choix validé (4b) : le technicien
      envoie une photo par pied sur la même tâche, et la ferme lui-même avec
      « Terminé ». Une photo ne la clôt plus (TechSpaceController::uploadPhoto,
-     PigeObserver::closePoseTask). --}}
+     PigeObserver::closePoseTask).
+
+     2026-11-13 (retour terrain) : même forme que la carte d'un axe (_tx_axe) —
+     compacte, repliable — au lieu d'une carte toujours ouverte avec un grand
+     encadré répété sur chaque axe. L'en-tête ouvre la fiche de la pose
+     (tiroir) ; la ligne « N / 9 photos » replie / déplie les photos envoyées
+     et l'aide. La pastille ne porte plus .pose-dot (elle l'écrasait en rond).
+
+     Paramètres : $task ; $maintenant (carte en tête de « Ma journée »). --}}
 @php
     $d = \App\Support\TechCarte::donnees($task);
     $panel = $task->panel;
+    $axes = app(\App\Services\Axes\AxeService::class);
     $piges = \App\Models\Pige::where('pose_task_id', $task->id)->orderByDesc('taken_at')->get(['id', 'photo_thumb', 'photo_path']);
     $nbPieds = \App\Models\Panel::where('axe_id', $panel->id)->count()
-        ?: (app(\App\Services\Axes\AxeService::class)->lireStructure($panel->name)['pieds'] ?? 0);
+        ?: ($axes->lireStructure($panel->name)['pieds'] ?? 0);
+    $nbPhotos = $piges->count();
     $statut = (string) $task->status;
+    $classe = ['en_cours' => 'place', 'en_route' => 'route'][$statut] ?? 'planifiee';
     $libelle = ['en_cours' => 'Sur place', 'en_route' => 'En route'][$statut] ?? 'Planifiée';
+    $ouvert = !empty($maintenant) || $statut === 'en_cours';
 @endphp
-<div class="pose pose-line tx-axe tx-axe-entier ouvert {{ $d['hasProblem'] ? 'has-problem' : '' }}"
+<article class="pose pose-line tx-axe tx-axe-entier {{ $ouvert ? 'ouvert' : '' }} {{ !empty($maintenant) ? 'tx-maintenant' : '' }} {{ $d['hasProblem'] ? 'has-problem' : '' }}"
      {!! \App\Support\TechCarte::attributs($task, $d) !!}
-     data-axe-entier="1" data-pieds-total="{{ $nbPieds }}" data-photos="{{ $piges->count() }}">
+     data-axe-entier="1" data-pieds-total="{{ $nbPieds }}" data-photos="{{ $nbPhotos }}">
     <div class="tx-axe-tete">
         <span class="pose-thumb tx-vignette" @if($d['photoUrl']) style="background-image: url('{{ $d['photoUrl'] }}')" @endif></span>
         <span class="tx-ligne-inf">
-            <span class="tx-ligne-l1"><span class="pose-ref">{{ $panel->reference }}</span><span class="tx-badge tx-badge-axe">Axe entier · {{ $nbPieds }} pieds</span></span>
-            <span class="pose-name tx-axe-nom">{{ app(\App\Services\Axes\AxeService::class)->nomCourt($panel->name) }}</span>
+            <span class="tx-ligne-l1"><span class="pose-ref tx-ref">{{ $panel->reference }}</span><span class="tx-badge tx-badge-axe">Axe entier · {{ $nbPieds }} pieds</span></span>
+            <span class="pose-name tx-axe-nom">{{ $axes->nomCourt($panel->name) }}</span>
             <span class="tx-ligne-sous">{{ $task->campaign?->name }}</span>
         </span>
-        <span class="pose-dot tx-pill tx-pill-{{ $statut === 'en_cours' ? 'place' : ($statut === 'en_route' ? 'route' : 'planifiee') }}">{{ $libelle }}</span>
+        <span class="tx-pill tx-pill-{{ $classe }}" data-tx-axe-statut>{{ $libelle }}</span>
     </div>
-    <div class="tx-ancien">
-        <strong>Contrat signé avant le découpage</strong>
-        Envoie une photo par pied. La tâche reste ouverte : tu la fermes toi-même avec « Terminé » quand tous les pieds sont faits.
-    </div>
-    <div class="tx-axe-avance"><span><b data-tx-photos-compte>{{ $piges->count() }}</b> photo(s) envoyée(s) · {{ $nbPieds }} pieds</span></div>
-    @if($piges->isNotEmpty())
-        <div class="tx-photos-envoyees">
-            @foreach($piges->take(12) as $pg)
-                <i style="background-image: url('{{ \Illuminate\Support\Facades\Storage::url($pg->photo_thumb ?: $pg->photo_path) }}')"></i>
-            @endforeach
-        </div>
-    @endif
+
+    <button type="button" class="tx-axe-avance tx-axe-bascule" data-tx-axe-toggle aria-expanded="{{ $ouvert ? 'true' : 'false' }}">
+        <span><b data-tx-photos-compte>{{ $nbPhotos }}</b> / {{ $nbPieds }} photos <span class="tx-chevron" aria-hidden="true">▾</span></span>
+        <span class="tx-segments" data-tx-axe-segments aria-hidden="true">
+            @for($i = 0; $i < max(1, $nbPieds); $i++)<i class="{{ $i < $nbPhotos ? 'envoyee' : '' }}"></i>@endfor
+        </span>
+    </button>
+
     <div class="tx-axe-actions">
         <label class="tx-btn tx-btn-orange">
             <input type="file" accept="image/*" data-photo-input>
@@ -45,5 +53,15 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>Terminé
         </button>
     </div>
-    <p class="tx-aide" data-tx-terminer-aide>ⓘ « Terminé » demande une confirmation s'il manque des photos.</p>
-</div>
+
+    <div class="tx-axe-route">
+        @if($piges->isNotEmpty())
+            <div class="tx-photos-envoyees">
+                @foreach($piges->take(12) as $pg)
+                    <i style="background-image: url('{{ \Illuminate\Support\Facades\Storage::url($pg->photo_thumb ?: $pg->photo_path) }}')"></i>
+                @endforeach
+            </div>
+        @endif
+        <p class="tx-aide" data-tx-terminer-aide>ⓘ Contrat signé avant le découpage : une photo par pied, sur cette même pose. Touche « Terminé » quand tous les pieds sont faits (confirmation s'il manque des photos).</p>
+    </div>
+</article>
