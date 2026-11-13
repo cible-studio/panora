@@ -176,6 +176,10 @@
                 <div class="qf-hint">Dernier jour d'affichage prévu</div>
             </div>
         </div>
+        {{-- Contrôle en direct des dates (2026-11-13) : dates inversées
+             signalées tout de suite, et rappel que la recherche de
+             panneaux dépend de cette période. --}}
+        <div id="qf-dates-alerte" class="qf-dates-alerte est-info" style="display:none"></div>
 
         <div style="margin-top:16px;padding:10px 14px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0">
             <div style="font-size:12px;font-weight:700;color:#78350f;margin-bottom:4px">⏱ Validité du devis</div>
@@ -241,7 +245,14 @@
                                             <option value="{{ $l['panel_id'] }}" selected>{{ $l['panel_label'] ?? ('Panneau #' . $l['panel_id']) }}</option>
                                         @endif
                                     </select>
-                                    <input type="text" name="lines[{{ $i }}][designation]" required maxlength="200" value="{{ $l['designation'] ?? '' }}" placeholder="ex. SP-001 — San-Pedro Triangle (ou saisie libre)" class="ql-input ql-designation">
+                                    {{-- Libellé (2026-11-13) : masqué dès qu'un panneau du parc
+                                         est choisi — le Select2 affiche déjà « RÉF — adresse »,
+                                         la double ligne ne servait à rien. Rouvrable au besoin. --}}
+                                    <div class="ql-desig-wrap">
+                                        <input type="text" name="lines[{{ $i }}][designation]" required maxlength="200" value="{{ $l['designation'] ?? '' }}" placeholder="ex. SP-001 — San-Pedro Triangle (ou saisie libre)" class="ql-input ql-designation">
+                                    </div>
+                                    <button type="button" class="ql-desig-toggle" style="display:none">✎ Modifier le libellé</button>
+                                    <div class="ql-panel-alerte" style="display:none"></div>
                                     {{-- Axe Lumipub (2026-11-12) : pieds proposés + ODP/TM saisies
                                          à la main. Rempli par QuoteForm.setAxe() à la sélection. --}}
                                     @php
@@ -644,13 +655,56 @@
         font-size:10px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;
     }
     .panel-result .pr-badge-libre    { background:#dcfce7; color:#166534; }
-    .panel-result .pr-badge-option   { background:#fef3c7; color:#78350f; }
+    .panel-result .pr-badge-libre_des { background:#dbeafe; color:#1e40af; }
+    .panel-result .pr-badge-option,
+    .panel-result .pr-badge-option_periode { background:#fef3c7; color:#78350f; }
     .panel-result .pr-badge-confirme,
+    .panel-result .pr-badge-renouvellement,
     .panel-result .pr-badge-occupe   { background:#fee2e2; color:#991b1b; }
     .panel-result .pr-badge-maintenance { background:#e0e7ff; color:#3730a3; }
+    .panel-result .pr-badge-sans_periode { background:#e2e8f0; color:#334155; }
     .panel-result .pr-sub { font-size:11.5px; color:var(--text3, #64748b); }
+    .panel-result .pr-occ { font-size:11px; color:#b91c1c; margin-top:2px; font-weight:600; }
     .panel-result .pr-meta { font-size:11px; color:var(--text3, #64748b); margin-top:2px; }
     .panel-result .pr-meta strong { color:var(--accent, #e8a020); }
+
+    /* ── Lisibilité sur la ligne survolée (2026-11-13) ──
+       Le survol passe le fond en orange plein (--accent). Les couleurs
+       explicites de .pr-head / .pr-sub / .pr-meta l'emportaient sur le
+       color:#fff du conteneur : l'adresse restait en gris #64748b sur
+       orange, illisible. On repasse tout le bloc en blanc, et les
+       badges prennent un fond blanc en gardant leur couleur de texte —
+       ainsi LIBRE reste vert et OCCUPÉ reste rouge, mais lisibles. */
+    .select2-results__option--highlighted[aria-selected] .panel-result .pr-head,
+    .select2-results__option--highlighted[aria-selected] .panel-result .pr-sub,
+    .select2-results__option--highlighted[aria-selected] .panel-result .pr-meta,
+    .select2-results__option--highlighted[aria-selected] .panel-result .pr-meta strong,
+    .select2-results__option--highlighted[aria-selected] .panel-result .pr-occ {
+        color: #fff !important;
+    }
+    .select2-results__option--highlighted[aria-selected] .panel-result .pr-badge {
+        background: #fff !important;
+        box-shadow: 0 0 0 1px rgba(0,0,0,.08);
+    }
+    .select2-results__option--highlighted[aria-selected] .pr-badge-libre       { color:#166534 !important; }
+    .select2-results__option--highlighted[aria-selected] .pr-badge-libre_des   { color:#1e40af !important; }
+    .select2-results__option--highlighted[aria-selected] .pr-badge-occupe,
+    .select2-results__option--highlighted[aria-selected] .pr-badge-confirme,
+    .select2-results__option--highlighted[aria-selected] .pr-badge-renouvellement { color:#991b1b !important; }
+    .select2-results__option--highlighted[aria-selected] .pr-badge-option,
+    .select2-results__option--highlighted[aria-selected] .pr-badge-option_periode { color:#78350f !important; }
+    .select2-results__option--highlighted[aria-selected] .pr-badge-maintenance  { color:#3730a3 !important; }
+    .select2-results__option--highlighted[aria-selected] .pr-badge-sans_periode { color:#334155 !important; }
+
+    /* Panneau non sélectionnable : visible, mais clairement hors jeu. */
+    .select2-results__option[aria-disabled="true"] {
+        cursor: not-allowed !important;
+        background: repeating-linear-gradient(45deg, transparent, transparent 7px, rgba(148,163,184,.10) 7px, rgba(148,163,184,.10) 14px) !important;
+    }
+    .select2-results__option[aria-disabled="true"] .panel-result { opacity:.72; }
+    .select2-results__option[aria-disabled="true"].select2-results__option--highlighted {
+        background: #94a3b8 !important;
+    }
     .select2-results__option:last-child { border-bottom: none !important; }
     .select2-results__option[aria-selected="true"] {
         background: var(--surface2, #f8fafc) !important;
@@ -780,6 +834,28 @@
         #quote-services-table tr.qs-row td:last-child { align-self: end; text-align: right; }
     }
     .qf-panel-hint { font-size:11px; color:var(--text3); margin-top:2px; }
+
+    /* ── Période & disponibilité (2026-11-13) ── */
+    .qf-dates-alerte {
+        margin-top:10px; padding:8px 12px; border-radius:6px;
+        font-size:11.5px; line-height:1.5;
+    }
+    .qf-dates-alerte.est-info   { background:#eff6ff; color:#1e3a8a; border-left:3px solid #3b82f6; }
+    .qf-dates-alerte.est-erreur { background:#fef2f2; color:#991b1b; border-left:3px solid #dc2626; }
+
+    .ql-panel-alerte {
+        margin-top:4px; padding:5px 8px; border-radius:5px;
+        font-size:11px; font-weight:600; line-height:1.4;
+    }
+    .ql-panel-alerte.est-info   { background:#eff6ff; color:#1e3a8a; }
+    .ql-panel-alerte.est-erreur { background:#fef2f2; color:#991b1b; }
+
+    .ql-desig-toggle {
+        margin-top:3px; padding:0; border:none; background:none;
+        font-size:10.5px; color:var(--text3, #64748b);
+        cursor:pointer; text-decoration:underline;
+    }
+    .ql-desig-toggle:hover { color:var(--accent, #e8a020); }
 </style>
 
 <script>
@@ -790,6 +866,113 @@ window.QuoteForm = (function() {
     let serviceIdx  = {{ count($services) }};
 
     const $ = window.jQuery;
+
+    // ══════════════════════════════════════════════════════════════
+    // PÉRIODE DU DEVIS (2026-11-13)
+    // ══════════════════════════════════════════════════════════════
+    // Le sélecteur de panneaux doit juger sur la période de campagne
+    // saisie, pas sur l'état du jour. Tout part d'ici.
+    function champsPeriode() {
+        return {
+            debut: document.querySelector('#quote-form input[name="period_start"]'),
+            fin:   document.querySelector('#quote-form input[name="period_end"]'),
+        };
+    }
+
+    // Dates ISO (yyyy-mm-dd) : la comparaison de chaînes suffit.
+    function periodeDevis() {
+        const { debut, fin } = champsPeriode();
+        const s = debut?.value || '';
+        const e = fin?.value || '';
+        if (!s || !e || s > e) return { start: '', end: '', valide: false };
+        return { start: s, end: e, valide: true };
+    }
+
+    // Dates inversées : signalées PENDANT la saisie. Avant, on ne
+    // l'apprenait qu'au moment d'enregistrer, devis entièrement rempli
+    // (la validation serveur after_or_equal existait déjà).
+    function verifierDates() {
+        const { debut, fin } = champsPeriode();
+        const zone = document.getElementById('qf-dates-alerte');
+        if (!debut || !fin || !zone) return true;
+        const inversees = !!(debut.value && fin.value && debut.value > fin.value);
+        const absentes  = !debut.value || !fin.value;
+
+        zone.style.display = (inversees || absentes) ? 'block' : 'none';
+        zone.className     = inversees ? 'qf-dates-alerte est-erreur' : 'qf-dates-alerte est-info';
+        zone.innerHTML = inversees
+            ? '⛔ <strong>Dates inversées</strong> — la fin de campagne ('
+              + fin.value.split('-').reverse().join('/') + ') est avant le début ('
+              + debut.value.split('-').reverse().join('/') + '). Le devis sera refusé à l\'enregistrement.'
+            : '💡 <strong>Renseigne la période de campagne</strong> pour que la recherche de panneaux '
+              + 'affiche la disponibilité sur ces dates. Sans dates, le statut affiché est celui du jour.';
+
+        [debut, fin].forEach(c => { c.style.borderColor = inversees ? '#dc2626' : ''; });
+        return !inversees;
+    }
+
+    // Les dates ont changé → les panneaux déjà choisis peuvent être
+    // devenus indisponibles. On redemande le verdict AU SERVEUR pour
+    // ces panneaux précis (même route, même règle).
+    let jetonRevalidation = 0;
+    async function revaliderPanneaux() {
+        const mien = ++jetonRevalidation;
+        const selects = [...document.querySelectorAll('#quote-lines-tbody .ql-panel-search')];
+        selects.forEach(s => majAlerteLigne($(s).closest('tr.ql-row')[0], null));
+
+        const p = periodeDevis();
+        const ids = selects.map(s => s.value).filter(Boolean);
+        if (!p.valide || !ids.length) return;
+
+        try {
+            const params = new URLSearchParams();
+            ids.forEach(id => params.append('ids[]', id));
+            params.set('period_start', p.start);
+            params.set('period_end', p.end);
+            params.set('client_id', document.getElementById('quote-client')?.value || '');
+            const r = await fetch(searchUrl + '?' + params.toString(), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!r.ok) return;
+            const data = await r.json();
+            if (mien !== jetonRevalidation) return; // réponse périmée
+
+            const parId = {};
+            (data.results || []).forEach(x => { parId[String(x.id)] = x; });
+            selects.forEach(s => {
+                const info = parId[String(s.value || '')];
+                if (!info) return;
+                majAlerteLigne($(s).closest('tr.ql-row')[0], info);
+            });
+        } catch (e) {
+            // Une revalidation en panne ne doit jamais bloquer la saisie.
+            console.warn('Revalidation panneaux indisponible :', e.message);
+        }
+    }
+
+    function majAlerteLigne(row, info) {
+        if (!row) return;
+        const zone = row.querySelector('.ql-panel-alerte');
+        if (!zone) return;
+        if (!info || info.selectable !== false) {
+            // Cas « libre dès le … » : on le dit, sans bloquer.
+            if (info && info.display_status === 'libre_des') {
+                zone.className = 'ql-panel-alerte est-info';
+                zone.style.display = 'block';
+                zone.textContent = 'ℹ ' + (info.reference || 'Ce panneau')
+                    + ' n\'est libre qu\'à partir du ' + (info.libre_le_fr || '—') + '.';
+                return;
+            }
+            zone.style.display = 'none';
+            zone.textContent = '';
+            return;
+        }
+        zone.className = 'ql-panel-alerte est-erreur';
+        zone.style.display = 'block';
+        zone.textContent = '⛔ ' + (info.reference || 'Ce panneau') + ' est occupé sur la période saisie'
+            + (info.libre_le_fr ? ' (libre le ' + info.libre_le_fr + ')' : '')
+            + ' — retire-le ou change les dates.';
+    }
 
     // ── Init des Select2 "identité" du devis (client + campagne) ──
     function initHeaderSelects() {
@@ -836,13 +1019,37 @@ window.QuoteForm = (function() {
             const commune = p.commune_name || '—';
             const m2      = p.dimension_m2 ? Number(p.dimension_m2).toLocaleString('fr-FR') + ' m²' : '';
             const tarif   = p.monthly_rate ? Number(p.monthly_rate).toLocaleString('fr-FR') + ' FCFA/mois' : '';
-            const status  = (p.status || '').toLowerCase();
-            const badge   = status ? `<span class="pr-badge pr-badge-${escapeHtml(status)}">${escapeHtml(status)}</span>` : '';
-            const meta    = [commune, m2, tarif].filter(Boolean).map(escapeHtml).join(' · ');
+            // Statut SUR LA PÉRIODE du devis (2026-11-13). Le serveur a
+            // tranché via AvailabilityService — on ne recalcule rien ici.
+            const ds = String(p.display_status || p.status || '').toLowerCase();
+            const libelles = {
+                libre:        'LIBRE',
+                libre_des:    'LIBRE DÈS LE ' + (p.libre_le_fr || ''),
+                occupe:       'OCCUPÉ' + (p.libre_le_fr ? ' — LIBRE LE ' + p.libre_le_fr : ''),
+                maintenance:  'MAINTENANCE',
+                sans_periode: 'SAISIS LES DATES',
+            };
+            const badge = ds
+                ? `<span class="pr-badge pr-badge-${escapeHtml(ds)}">${escapeHtml(libelles[ds] || ds)}</span>`
+                : '';
+
+            // Par qui, et jusqu'à quand — c'est ce qui permet au commercial
+            // de décider sans ouvrir la fiche du panneau.
+            const occ = (p.occupations || [])[0];
+            const occTxt = (ds === 'occupe' || ds === 'libre_des') && occ
+                ? `${occ.client_name || '—'} · ${occ.start_date} → ${occ.end_date}`
+                : '';
+
+            const metaParts = [commune, m2, tarif];
+            if (p.est_axe && p.has_period) {
+                metaParts.push(`${p.pieds_libres}/${p.pieds_total} pieds libres`);
+            }
+            const meta = metaParts.filter(Boolean).map(escapeHtml).join(' · ');
             return $(`
-                <div class="panel-result">
+                <div class="panel-result${p.selectable === false ? ' pr-bloque' : ''}">
                     <div class="pr-head">${escapeHtml(p.reference || '—')} ${badge}</div>
                     <div class="pr-sub">${escapeHtml(addr)}</div>
+                    ${occTxt ? '<div class="pr-occ">🔒 ' + escapeHtml(occTxt) + '</div>' : ''}
                     <div class="pr-meta">${meta ? '<strong>' + meta + '</strong>' : ''}</div>
                 </div>
             `);
@@ -871,9 +1078,27 @@ window.QuoteForm = (function() {
                 url: searchUrl,
                 dataType: 'json',
                 delay: 250,
-                data: params => ({ q: params.term || '' }),
-                processResults: data => ({ results: data.results || [] }),
-                cache: true,
+                // La période du devis part avec la recherche : c'est elle
+                // qui décide du badge, pas l'état du jour (2026-11-13).
+                data: params => {
+                    const p = periodeDevis();
+                    return {
+                        q:            params.term || '',
+                        period_start: p.start,
+                        period_end:   p.end,
+                        client_id:    document.getElementById('quote-client')?.value || '',
+                    };
+                },
+                processResults: data => ({
+                    results: (data.results || []).map(r => Object.assign({}, r, {
+                        // Select2 refuse de sélectionner un résultat disabled :
+                        // c'est ce qui applique « occupé → pas sélectionnable ».
+                        disabled: r.selectable === false,
+                    })),
+                }),
+                // Surtout pas de cache : il resservirait les badges calculés
+                // pour l'ancienne période après un changement de dates.
+                cache: false,
             },
         }).on('select2:select', function(e) {
             const p   = e.params?.data || {};
@@ -923,10 +1148,27 @@ window.QuoteForm = (function() {
             }
             // Axe Lumipub (2026-11-12) : ses pieds à cocher + ODP/TM à saisir.
             setAxe(row, p.est_axe ? p : null);
+            // Une seule ligne à l'écran (2026-11-13) + rappel « libre dès le… ».
+            majAffichageDesignation(row);
+            majAlerteLigne(row, p);
         }).on('select2:clear', function() {
             // Réinit hidden panel_id — le champ désignation reste (le user peut vouloir le garder)
             setAxe(row, null);
+            majAffichageDesignation(row);
+            majAlerteLigne(row, null);
         });
+
+        // ── Libellé : masqué quand un panneau du parc est choisi ──
+        const bascule = $row.find('.ql-desig-toggle')[0];
+        if (bascule) {
+            bascule.addEventListener('click', () => {
+                const wrap = row.querySelector('.ql-desig-wrap');
+                wrap.dataset.ouvert = wrap.dataset.ouvert === '1' ? '0' : '1';
+                majAffichageDesignation(row);
+                if (wrap.dataset.ouvert === '1') row.querySelector('.ql-designation')?.focus();
+            });
+        }
+        majAffichageDesignation(row);
 
         // Select2 sur la commune de la ligne (recherche parmi la liste locale)
         const $commune = $row.find('.ql-commune-select');
@@ -940,6 +1182,32 @@ window.QuoteForm = (function() {
                 searching: () => 'Recherche…',
             },
         });
+    }
+
+    // ── Une seule ligne à l'écran (2026-11-13) ──
+    // Quand un panneau du parc est choisi, le Select2 affiche déjà
+    // « CDY-048 — Avenue Eden » : le champ libellé en dessous répétait
+    // la même chose. On le masque (et on retire `required`, sinon le
+    // navigateur refuse de soumettre un champ requis non affichable).
+    // Un bouton le rouvre pour les libellés négociés à la main.
+    function majAffichageDesignation(row) {
+        if (!row) return;
+        const sel     = row.querySelector('.ql-panel-search');
+        const wrap    = row.querySelector('.ql-desig-wrap');
+        const input   = row.querySelector('.ql-designation');
+        const bascule = row.querySelector('.ql-desig-toggle');
+        if (!wrap || !input) return;
+
+        const choisi = !!(sel && sel.value);
+        const ouvert = wrap.dataset.ouvert === '1';
+        const masque = choisi && !ouvert;
+
+        wrap.style.display = masque ? 'none' : '';
+        input.required     = !masque;
+        if (bascule) {
+            bascule.style.display = choisi ? 'inline-block' : 'none';
+            bascule.textContent   = ouvert ? '✕ Garder le libellé du panneau' : '✎ Modifier le libellé';
+        }
     }
 
     // ── Axe Lumipub (2026-11-12) ──
@@ -958,11 +1226,20 @@ window.QuoteForm = (function() {
             return;
         }
         const idx = row.getAttribute('data-index');
-        zone.innerHTML = (p.pieds || []).map(x =>
-            `<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">`
-            + `<input type="checkbox" class="ql-pied" name="lines[${idx}][pieds][]" value="${Number(x.id)}" data-rate="${Number(x.monthly_rate) || 0}" checked>`
-            + ` Pied ${echapperPied(x.numero)}</label>`
-        ).join('');
+        // Chaque pied a son propre verdict sur la période (2026-11-13) :
+        // un pied occupé est décoché, désactivé et marqué 🔒 — on ne peut
+        // pas vendre un pied déjà pris sous prétexte que l'axe est libre.
+        zone.innerHTML = (p.pieds || []).map(x => {
+            const libre = x.selectable !== false;
+            const note  = libre
+                ? (x.display_status === 'libre_des' ? ' — libre le ' + (x.libre_le_fr || '') : '')
+                : ' — occupé' + (x.libre_le_fr ? ", libre le " + x.libre_le_fr : '');
+            return `<label title="${echapperPied((x.reference || '') + note)}"`
+                + ` style="display:inline-flex;align-items:center;gap:4px;cursor:${libre ? 'pointer' : 'not-allowed'};opacity:${libre ? '1' : '.5'};">`
+                + `<input type="checkbox" class="ql-pied" name="lines[${idx}][pieds][]" value="${Number(x.id)}"`
+                + ` data-rate="${Number(x.monthly_rate) || 0}"${libre ? ' checked' : ' disabled'}>`
+                + ` Pied ${echapperPied(x.numero)}${libre ? '' : ' 🔒'}</label>`;
+        }).join('');
         bloc.querySelectorAll('.ql-odp, .ql-tm').forEach(inp => { if (inp.value === '') inp.value = '0'; });
         bloc.style.display = 'block';
         majPiedsAxe(row);
@@ -989,7 +1266,11 @@ window.QuoteForm = (function() {
             <td class="ql-td">
                 <div class="ql-cell-stack">
                     <select name="lines[${i}][panel_id]" class="ql-panel-search" data-line-index="${i}" data-placeholder="🔍 Rechercher un panneau du parc…"><option value=""></option></select>
-                    <input type="text" name="lines[${i}][designation]" required maxlength="200" placeholder="ex. SP-001 — San-Pedro Triangle (ou saisie libre)" class="ql-input ql-designation">
+                    <div class="ql-desig-wrap">
+                        <input type="text" name="lines[${i}][designation]" required maxlength="200" placeholder="ex. SP-001 — San-Pedro Triangle (ou saisie libre)" class="ql-input ql-designation">
+                    </div>
+                    <button type="button" class="ql-desig-toggle" style="display:none">✎ Modifier le libellé</button>
+                    <div class="ql-panel-alerte" style="display:none"></div>
                     <div class="ql-axe" style="display:none;margin-top:6px;font-size:11px;color:var(--text2);">
                         <div class="ql-axe-pieds" style="display:flex;flex-wrap:wrap;gap:4px 10px;"></div>
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;">
@@ -1070,6 +1351,26 @@ window.QuoteForm = (function() {
     $(function() {
         initHeaderSelects();
         document.querySelectorAll('#quote-lines-tbody .ql-row').forEach(initLineSelects);
+
+        // ── Période du devis (2026-11-13) ──
+        // Les dates pilotent la recherche de panneaux : dès qu'elles
+        // changent, on revérifie ce qui est déjà dans le devis.
+        const champs = champsPeriode();
+        [champs.debut, champs.fin].forEach(c => c?.addEventListener('change', () => {
+            verifierDates();
+            revaliderPanneaux();
+        }));
+        verifierDates();
+        revaliderPanneaux();
+
+        // Dates inversées : on arrête avant l'aller-retour serveur.
+        document.getElementById('quote-form')?.addEventListener('submit', e => {
+            if (!verifierDates()) {
+                e.preventDefault();
+                document.getElementById('qf-dates-alerte')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
 
         // Titre proposé d'après le client et la campagne, tant qu'on ne
         // l'a pas écrit soi-même.

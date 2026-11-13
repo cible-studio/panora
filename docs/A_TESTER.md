@@ -1817,3 +1817,86 @@ En production :
       mène à la pose annulée : normal, les nouvelles poses de pied sont dans
       « Ma journée ».
 - [ ] LADILI : la facture brouillon existante n'est pas touchée.
+
+---
+
+## § 22 — Disponibilité selon la période : devis + inventaire (2026-11-13)
+
+**Le défaut corrigé.** Le sélecteur de panneaux du devis affichait le statut
+du jour (`panels.status`) au lieu de la disponibilité sur la période de
+campagne saisie. CDY-048, occupé jusqu'au 22/11/2026, s'affichait `OCCUPE`
+pour un devis de 2027. `searchPanels()` ne recevait aucune date.
+
+**La règle, validée par écrit le 2026-11-13.**
+
+| Situation sur la période saisie | Affichage | Sélection |
+|---|---|---|
+| Aucun chevauchement | `LIBRE` | ✅ |
+| Occupé, se libère **pendant** la période | `LIBRE DÈS LE jj/mm/aaaa` | ✅ |
+| Occupé jusqu'à la fin de la période ou au-delà | `OCCUPÉ — libre le jj/mm/aaaa` | ⛔ |
+| Maintenance | `MAINTENANCE` | ⛔ |
+| Aucune date saisie | statut du jour | ✅ (on ne bloque pas sur l'inconnu) |
+
+Centralisée dans `AvailabilityService::verdictSelection()`, à côté de
+`displayStatusForPeriod()`. Jamais recopiée en JavaScript.
+
+### Devis — à vérifier
+- [ ] Nouveau devis **sans dates** : bandeau bleu « Renseigne la période »,
+      les badges disent `SAISIS LES DATES`, rien n'est bloqué.
+- [ ] Période **01/01/2027 → 31/12/2027**, chercher `CDY-048` : badge `LIBRE`
+      (et non `OCCUPE`). C'est le cas d'origine.
+- [ ] Période **01/11/2026 → 30/11/2026**, chercher `CDY-048` : badge
+      `OCCUPÉ — LIBRE LE 23/11/2026`, ligne `🔒 AOS AFRICA · 22/10/2026 →
+      22/11/2026`, **impossible à sélectionner** (rayé, curseur interdit).
+- [ ] Période **01/11/2026 → 31/12/2026** : badge `LIBRE DÈS LE 23/11/2026`,
+      **sélectionnable**. Une fois choisi, bandeau bleu sous la ligne.
+- [ ] Choisir un panneau libre, **puis** changer les dates pour une période où
+      il est pris → bandeau rouge ⛔ sous la ligne, sans rien effacer.
+- [ ] Survoler un résultat dans la liste : l'adresse et la commune restent
+      lisibles sur le fond orange (c'était le défaut de lisibilité signalé).
+- [ ] Dates inversées (début après la fin) : bandeau rouge immédiat, bordures
+      rouges, l'enregistrement est bloqué avant l'aller-retour serveur.
+- [ ] Axe Lumipub sur une période où certains pieds sont pris : les pieds
+      occupés sont décochés, grisés, marqués 🔒 ; le compteur dit
+      « N/M pieds libres ». L'axe reste proposable s'il reste un pied libre.
+- [ ] **Garde-fou serveur** : laisser la page ouverte, faire réserver le
+      panneau ailleurs, puis enregistrer → refus avec le nom du panneau.
+      Seuls les panneaux **nouvellement ajoutés** sont contrôlés : un devis
+      existant dont un panneau s'est fait prendre reste modifiable.
+
+### Devis — une seule ligne (capture 2)
+- [ ] Choisir un panneau du parc : le champ libellé en dessous disparaît,
+      il ne reste que la ligne du sélecteur.
+- [ ] Bouton « ✎ Modifier le libellé » : rouvre le champ pour un libellé
+      négocié, puis « ✕ Garder le libellé du panneau ».
+- [ ] Retirer le panneau (croix) : le champ libellé revient et redevient
+      obligatoire. **Enregistrer doit marcher dans les deux cas** (le champ
+      masqué perd `required`, sinon le navigateur refuse de soumettre).
+- [ ] Désignation libre (sans panneau du parc) : inchangée.
+
+### Inventaire — vérifier la disponibilité sur des dates (capture 1)
+- [ ] Bloc « 📅 Vérifier la disponibilité » sous les filtres : Du / Au /
+      Afficher. Vide par défaut → l'écran est exactement celui d'avant.
+- [ ] Saisir une période : chaque ligne reçoit sous son statut un second
+      badge `✅ Libre sur la période` / `🕗 Libre dès le …` / `⛔ Occupé —
+      libre le …`, avec le client et les dates qui bloquent.
+- [ ] « Libres sur la période » : le compteur en haut doit correspondre au
+      nombre réel sur **tout le parc filtré**, pas seulement la page 1
+      (le filtre s'applique avant la pagination).
+- [ ] « Occupés sur la période » : liste complémentaire de la précédente.
+- [ ] Pagination page 2+ : la période est conservée.
+- [ ] Dates inversées : bandeau rouge, la période est ignorée (serveur
+      **et** client).
+- [ ] « ↺ Réinitialiser » vide aussi les trois champs de période.
+
+### Non touché volontairement
+- `PoseController::searchPanels()` et `MaintenanceController::searchPanels()`
+  gardent le statut du jour : une pose ou une maintenance porte sur le
+  panneau physique, pas sur sa commercialisation. **À confirmer par le MP.**
+- `QuoteConverter.php:66` — un devis **sans période** est toujours converti
+  après un contrôle sur « aujourd'hui → aujourd'hui + durée max des lignes ».
+  Les dates restent `nullable`. À trancher : faut-il les rendre obligatoires ?
+
+### Tests automatisés
+`tests/Unit/DevisDisponibilitePeriodeTest.php` — 18 tests, 43 assertions,
+sans base de données (tournent sur le poste à base vide).

@@ -929,6 +929,79 @@ class AvailabilityService
         };
     }
 
+    /**
+     * Verdict d'un panneau dans un SÉLECTEUR COMMERCIAL (devis), pour une
+     * période donnée : quoi afficher, et a-t-on le droit de le choisir.
+     *
+     * ═══ RÈGLE MÉTIER VALIDÉE PAR ÉCRIT — 2026-11-13 ═══
+     *   « Quand le panneau est réellement occupé sur la période visée, on
+     *     l'affiche occupé mais pas moyen de le sélectionner. Mais s'il est
+     *     occupé et sera libre dans la période saisie, on l'affiche et on
+     *     indique la date de libération. »
+     *
+     * Traduction, pour une fenêtre [S, E] :
+     *   - aucun chevauchement               → LIBRE, sélectionnable
+     *   - chevauchement se terminant < E    → LIBRE DÈS le lendemain,
+     *                                         sélectionnable, date affichée
+     *   - chevauchement courant jusqu'à E   → OCCUPÉ, bloqué
+     *   - maintenance                       → bloqué quelle que soit la période
+     *   - aucune période saisie             → statut du jour, sélectionnable
+     *     (on ne bloque jamais sur une période inconnue — sinon le
+     *      commercial ne pourrait plus rien saisir avant d'avoir les dates)
+     *
+     * Complète displayStatusForPeriod() : celle-ci dit quoi AFFICHER sur un
+     * écran de consultation, celle-là ajoute le droit de SÉLECTIONNER.
+     *
+     * @param  string|null $rawStatus    panels.status (cache de lecture)
+     * @param  bool        $hasPeriod    une période est-elle saisie
+     * @param  bool        $available    sortie de getPanelAvailabilityData()
+     * @param  string|null $releaseDate  max(end_date) des occupations (Y-m-d)
+     * @param  string|null $periodEnd    fin de la fenêtre demandée (Y-m-d)
+     * @return array{display_status:string, selectable:bool, libre_le:?string}
+     */
+    public static function verdictSelection(
+        ?string $rawStatus,
+        bool    $hasPeriod,
+        bool    $available,
+        ?string $releaseDate = null,
+        ?string $periodEnd   = null
+    ): array {
+        $rawStatus = $rawStatus ?: 'libre';
+
+        // Maintenance : HS terrain, aucune période n'y change rien.
+        if ($rawStatus === 'maintenance') {
+            return ['display_status' => 'maintenance', 'selectable' => false, 'libre_le' => null];
+        }
+
+        // Pas de période → on ne peut rien affirmer, donc on ne bloque rien.
+        if (!$hasPeriod || !$periodEnd) {
+            return ['display_status' => 'sans_periode', 'selectable' => true, 'libre_le' => null];
+        }
+
+        if ($available) {
+            return ['display_status' => 'libre', 'selectable' => true, 'libre_le' => null];
+        }
+
+        // Occupé sur la fenêtre. Se libère-t-il AVANT la fin de celle-ci ?
+        $libreLe = $releaseDate
+            ? \Carbon\Carbon::parse($releaseDate)->addDay()->startOfDay()
+            : null;
+
+        if ($libreLe && $libreLe->lte(\Carbon\Carbon::parse($periodEnd)->startOfDay())) {
+            return [
+                'display_status' => 'libre_des',
+                'selectable'     => true,
+                'libre_le'       => $libreLe->toDateString(),
+            ];
+        }
+
+        return [
+            'display_status' => 'occupe',
+            'selectable'     => false,
+            'libre_le'       => $libreLe?->toDateString(),
+        ];
+    }
+
     public function getExternalPanelBookingMap(
         array  $externalPanelIds,
         string $startDate,
