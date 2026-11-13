@@ -2126,3 +2126,83 @@ création de la campagne. **À faire trancher** si ce n'est pas la bonne règle.
 ### Tests automatisés
 `tests/Unit/BonDeCommandeTest.php` — 17 tests, 56 assertions, sans base de
 données.
+
+---
+
+## § 25 — Surface taxable d'un pied d'axe : les faces (2026-11-13)
+
+### Ce qui a été mesuré en production
+Le format d'un axe porte la surface d'**une seule face**, pas celle du pied
+entier. Sonde du 13/11 sur les 13 axes :
+
+| Axe | Pieds | Faces annoncées | Format | Surface format |
+|---|---|---|---|---|
+| CDYLUP-001 … CDYLUP-008, CDYLUP-10, CDYPUB-09, TVILUP-001/002 | 2 à 11 | **3** | `3m²` | **3,00** |
+| BK-002 (Adiaké-Assinie) | 12 | **2** | `6m²` | **6,00** |
+
+Un pied Lumipub, c'est donc **3 faces × 3 m² = 9 m²**, et Panora n'en
+comptait que **3**. ODP et TM étaient **divisées par 3** sur tout le parc
+Lumipub.
+
+### La règle appliquée
+```
+surface taxable = surface d'une face × nombre de faces du pied
+```
+Le nombre de faces vient du **nom de l'axe** (`(11P x 3F)`,
+`(12Panneaux double face)`), lu par `AxeService::lireStructure()`.
+**Pas** de `nombre_faces` : la dette technique du 11/11 a mesuré qu'il porte
+deux significations (1 sur 320 panneaux, 4 sur les chevalets) — s'en servir
+multiplierait par 4 la surface de chaque chevalet. Sur les 101 pieds créés
+il vaut 1 partout.
+
+⚠ **Conséquence** : un nom d'axe mal saisi fausse la surface taxable. Le
+détail `3 m² × 3 faces` est donc affiché sur chaque ligne de taxe pour que
+l'erreur se repère à l'œil.
+
+### ⚠ Anomalie d'ordre de grandeur — NON RÉSOLUE
+Avec les faces, l'ODP annuelle des **seuls Lumipub** passe de 14,7 M à
+**43,3 M FCFA**. Or le fichier de la DG donne **13 776 000 pour tout le parc
+d'Abidjan** (192 panneaux). Les Lumipub seuls feraient plus de **trois fois**
+l'ODP déclarée de toute la ville.
+
+La correction des faces est juste — elle est confirmée par les données. Il
+reste donc une erreur **en amont**, et la piste la plus probable est la
+question posée le 12/11 et restée sans réponse :
+
+> **Le tarif ODP au m² (Cocody 5 000, Plateau 15 000, les autres 1 000) est-il
+> par MOIS ou par AN ?** Le code applique du mensuel. En annuel, les Lumipub
+> tomberaient à 3,6 M — cohérent avec les 13,7 M de la DG.
+
+**Tant que ce point n'est pas tranché, l'écran de taxes ne peut pas servir à
+contester une réclamation de mairie.**
+
+### Ce qui limite le risque
+Les pieds Lumipub sont **décochés par défaut** (cf. § 23) : cette correction
+ne change **aucun total affiché** tant que la case « Lumipub · Inclure les
+pieds » n'est pas cochée.
+
+### À vérifier
+- [ ] Écran de détail, case Lumipub **décochée** : le total ne bouge pas.
+- [ ] Case **cochée** : chaque ligne de pied affiche `3 m² × 3 faces` sous
+      la dimension, et la colonne m² indique **9**, pas 3.
+- [ ] Un pied de CDYLUP-006 à Cocody sur 12 mois : ODP = 5 000 × 9 × 12 =
+      **540 000** (c'était 180 000).
+- [ ] Un panneau **ordinaire** (hors axe) : surface inchangée, aucune
+      mention de faces.
+- [ ] Un **chevalet** (`nombre_faces = 4`) : surface inchangée — on ne lit
+      pas cette colonne.
+- [ ] Fiche commune (totaux) et écran de détail doivent donner **le même
+      montant** : les deux multiplient par les faces.
+
+### ⚠ À trancher — BK-002
+`Axe Carrefour Adiaké Assinie (12 Panneaux double face)`, format 6 m²,
+2 faces. **Ce n'est pas un Lumipub.** Par la même logique il passe à 12 m²
+par pied, soit 864 000 → **1 728 000** par an. La règle du 13/11 ne portait
+que sur les Lumipub : **à confirmer** avant de considérer ce montant comme
+acquis. Le code l'applique déjà (la règle est générique) — si BK-002 doit
+être exclu, me le dire.
+
+### Tests automatisés
+`tests/Unit/LumipubFacesSurfaceTest.php` — 8 tests, 49 assertions, sans base
+de données. Les 13 noms d'axes réels de production y sont figés : si l'un
+cesse d'être analysé, le test tombe.
