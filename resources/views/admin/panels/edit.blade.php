@@ -153,9 +153,25 @@
                 <div class="section-label">Caractéristiques techniques</div>
 
                 <div class="form-3col">
+                    {{-- 2026-11-13 — Sur un axe ou un pied, c'est faces_par_pied
+                         qui pilote la surface taxable (ODP et TM). Le champ doit
+                         donc l'afficher, sinon on verrait « 1 » sur un pied à
+                         3 faces et un simple enregistrement l'écraserait. --}}
+                    @php
+                        $estAxeOuPied = ($panel->est_axe ?? false) || !empty($panel->axe_id);
+                        $facesAffichees = $estAxeOuPied
+                            ? ($panel->faces_par_pied ?: ($panel->nombre_faces ?: 1))
+                            : ($panel->nombre_faces ?? 1);
+                    @endphp
                     <div class="mfg">
                         <label>Nombre de faces</label>
-                        <input type="number" name="nombre_faces" value="{{ old('nombre_faces', $panel->nombre_faces ?? 1) }}" min="1" max="6">
+                        <input type="number" name="nombre_faces" value="{{ old('nombre_faces', $facesAffichees) }}" min="1" max="6">
+                        @if($estAxeOuPied)
+                            <div style="font-size:11px;color:#78350f;margin-top:3px;line-height:1.4">
+                                ⚠ Cette valeur sert au calcul de l'<strong>ODP et de la TM</strong> :
+                                surface taxable = surface du format × nombre de faces.
+                            </div>
+                        @endif
                     </div>
                     <div class="mfg">
                         <label>Type de support</label>

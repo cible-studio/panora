@@ -57,7 +57,7 @@ class ReparerOdpDesPieds extends Command
         }
 
         $pieds = $requete->orderBy('reference')->get(
-            ['id', 'reference', 'axe_id', 'odp_start_date', 'faces_par_pied']
+            ['id', 'reference', 'axe_id', 'odp_start_date', 'faces_par_pied', 'nombre_faces']
         );
 
         if ($pieds->isEmpty()) {
@@ -69,15 +69,26 @@ class ReparerOdpDesPieds extends Command
             ->get(['id', 'reference', 'name', 'odp_start_date', 'faces_par_pied'])
             ->keyBy('id');
 
-        $lignes      = [];
-        $aCorriger   = [];
-        $sansFaces   = 0;
+        $lignes       = [];
+        $aCorriger    = [];
+        $sansFaces    = 0;
+        $facesADealigner = [];
 
         foreach ($pieds as $pied) {
             $axe = $parAxe->get($pied->axe_id);
             if (! $axe) continue;
 
             if (empty($pied->faces_par_pied)) $sansFaces++;
+
+            // Les deux colonnes de faces doivent dire la même chose :
+            // `nombre_faces` est celle qu'on voit et qu'on modifie depuis
+            // l'inventaire, `faces_par_pied` celle que lit le calcul des
+            // taxes. Tant qu'elles divergent, l'écran ment — et enregistrer
+            // la fiche écraserait la bonne valeur par la mauvaise.
+            $facesUtiles = (int) ($pied->faces_par_pied ?: 0);
+            if ($facesUtiles > 0 && (int) $pied->nombre_faces !== $facesUtiles) {
+                $facesADealigner[] = $pied;
+            }
 
             $actuelle = $pied->odp_start_date?->toDateString();
             $attendue = $axe->odp_start_date?->toDateString();
@@ -93,11 +104,48 @@ class ReparerOdpDesPieds extends Command
             ];
         }
 
-        if (empty($aCorriger)) {
-            $this->info("✅ Les {$pieds->count()} pied(s) portent déjà l'ancienneté de leur axe.");
+        // Les lignes d'axe aussi : elles s'éditent depuis l'inventaire.
+        foreach ($parAxe as $axe) {
+            $facesUtiles = (int) ($axe->faces_par_pied ?: 0);
+            if ($facesUtiles > 0 && (int) $axe->nombre_faces !== $facesUtiles) {
+                $facesADealigner[] = $axe;
+            }
+        }
+
+        if ($facesADealigner) {
+            $this->newLine();
+            $this->warn(count($facesADealigner) . ' panneau(x) dont « nombre de faces » affiché '
+                . "diverge de la valeur utilisée pour la taxe :");
+            $this->table(
+                ['RÉFÉRENCE', 'AFFICHÉ (nombre_faces)', 'UTILISÉ POUR LA TAXE'],
+                collect($facesADealigner)->take(20)->map(fn ($p) => [
+                    $p->reference,
+                    (int) ($p->nombre_faces ?: 1),
+                    (int) $p->faces_par_pied,
+                ])->all()
+            );
+            if (count($facesADealigner) > 20) {
+                $this->line('   … et ' . (count($facesADealigner) - 20) . ' autre(s).');
+            }
+        }
+
+        if (empty($aCorriger) && empty($facesADealigner)) {
+            $this->info("✅ Les {$pieds->count()} pied(s) portent déjà l'ancienneté de leur axe,");
+            $this->info('   et les deux colonnes de faces concordent.');
             if ($sansFaces) {
                 $this->warn("⚠ {$sansFaces} pied(s) sans faces_par_pied : le calcul retombe sur le nom de l'axe.");
             }
+            return self::SUCCESS;
+        }
+
+        if (empty($aCorriger)) {
+            $this->newLine();
+            $this->info("Les dates ODP sont déjà bonnes — seules les faces sont à aligner.");
+            if (! $applique) {
+                $this->line('Relance avec --appliquer pour écrire les corrections.');
+                return self::SUCCESS;
+            }
+            $this->aligner($facesADealigner);
             return self::SUCCESS;
         }
 
@@ -128,9 +176,35 @@ class ReparerOdpDesPieds extends Command
         ]);
 
         $this->newLine();
-        $this->info('✅ ' . count($aCorriger) . ' pied(s) corrigé(s).');
+        $this->info('✅ ' . count($aCorriger) . ' pied(s) corrigé(s) sur l\'ancienneté ODP.');
+
+        if ($facesADealigner) {
+            $this->aligner($facesADealigner);
+        }
+
         $this->line("Recalcule l'ODP annuelle : les pieds doivent maintenant compter 12 mois.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Recopie faces_par_pied (la valeur qui sert au calcul) dans
+     * nombre_faces (celle qu'on voit et qu'on modifie à l'inventaire),
+     * pour que les deux cessent de diverger.
+     *
+     * @param  \App\Models\Panel[] $panneaux
+     */
+    private function aligner(array $panneaux): void
+    {
+        foreach ($panneaux as $p) {
+            $p->forceFill(['nombre_faces' => (int) $p->faces_par_pied])->save();
+        }
+
+        Log::info('axes.reparer_faces', [
+            'panneaux_alignes' => count($panneaux),
+            'par'              => auth()->id(),
+        ]);
+
+        $this->info('✅ ' . count($panneaux) . ' panneau(x) : « nombre de faces » aligné sur la valeur de calcul.');
     }
 }
