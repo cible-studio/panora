@@ -828,6 +828,10 @@ class EspaceTechAxesTest extends TestCase
         $r->assertSee('Je suis arrivé');
         $r->assertSee('data-axe-entier="1"', false);
         $r->assertSee('data-tx-terminer', false);
+        // Axe entier (2026-11-13) : forme compacte des axes ; sa pastille ne
+        // porte plus .pose-dot (qui l'écrasait en rond).
+        $r->assertSee('data-tx-axe-segments', false);
+        $this->assertDoesNotMatchRegularExpression('/class="pose-dot[^"]*tx-pill/', $r->getContent());
         $r->assertSee('1 / 5 aujourd', false);
         // Les pieds partagent la photo et la position de l'axe ; le pied 3,
         // déjà fait, dessine la route sans action.

@@ -94,7 +94,10 @@
 //   - v2.13.0 : retours du test sur dev — aperçu photo pleine largeur,
 //               carte « Maintenant » et filtres des alertes réparés, jusqu'à
 //               3 photos par pose (« Ajouter une photo (2/3) »).
-const SW_VERSION = 'v2.13.0';
+//   - v2.14.0 : axe entier (contrats d'avant le découpage : BEM, MOOV,
+//               LADILI) en carte compacte comme les autres axes ; sa
+//               pastille n'est plus écrasée en rond (2026-11-13).
+const SW_VERSION = 'v2.14.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

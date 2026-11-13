@@ -10,7 +10,7 @@
         @if($entree['type'] === 'axe')
             @include('public.tech.partials._tx_axe', ['entree' => $entree, 'maintenant' => true])
         @elseif($entree['task']->panel?->estAxe())
-            @include('public.tech.partials._tx_axe_entier', ['task' => $entree['task']])
+            @include('public.tech.partials._tx_axe_entier', ['task' => $entree['task'], 'maintenant' => true])
         @else
             @include('public.tech.partials._tx_maintenant', ['task' => $entree['task']])
         @endif
