@@ -300,8 +300,18 @@ export function init() {
             return;
         }
 
+        // Axe entier (2026-11-13) : la carte se déplie comme celle d'un axe ;
+        // la fiche s'ouvre par son lien « Fiche » seulement.
+        const fiche = e.target.closest('[data-tx-fiche]');
+        if (fiche) {
+            e.preventDefault();
+            open(fiche.closest('.pose-line[data-task-id]'));
+            return;
+        }
+
         const pose = e.target.closest('.pose-line[data-task-id]');
         if (!pose) return;
+        if (pose.matches('[data-axe-entier]')) return;
 
         // Ne pas voler le clic des boutons internes de la card
         if (isActionable(e.target)) return;
