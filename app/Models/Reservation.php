@@ -28,6 +28,15 @@ class Reservation extends Model
         'total_amount',
         'notes',
         'confirmed_at',
+        // Bon de commande (2026-11-13) — « sans BC, pas de campagne ».
+        // Cf. App\Services\BonDeCommandeService.
+        'bc_attendu_jusqu_au',
+        'bc_recu_at',
+        'bc_recu_par',
+        'bc_reference',
+        'bc_relance_j15_at',
+        'bc_relance_j7_at',
+        'bc_relance_j2_at',
         'is_technical',
         'proposition_token',
         'proposition_sent_at',
@@ -81,6 +90,12 @@ class Reservation extends Model
         'start_date'             => 'date',
         'end_date'               => 'date',
         'confirmed_at'           => 'datetime',
+        'bc_attendu_jusqu_au'    => 'date',
+        'bc_recu_at'             => 'datetime',
+        'bc_recu_par'            => 'integer',
+        'bc_relance_j15_at'      => 'datetime',
+        'bc_relance_j7_at'       => 'datetime',
+        'bc_relance_j2_at'       => 'datetime',
         'cancelled_at'           => 'datetime',
         'total_amount'           => 'integer', // RÈGLE 4 — entier FCFA (audit Phase 8E)
         'status'                 => ReservationStatus::class,

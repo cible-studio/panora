@@ -87,14 +87,30 @@ class ReservationService
                 'user_id'        => auth()->id(),
             ]);
 
+            // ═══ Sans BC, pas de campagne — 2026-11-13 ═══
+            // Règle validée par écrit : un engagement client ouvre une
+            // attente de bon de commande (30 j) ; la campagne n'est créée
+            // qu'après réception du BC, par le MP. Vaut aussi pour une
+            // résa ferme saisie à la main — sinon il resterait une porte
+            // ouverte et la règle ne tiendrait pas.
+            //
+            // Le nom de campagne saisi n'est pas perdu : il est conservé
+            // dans les notes du dossier pour que le MP le reprenne.
             $campaign = null;
             if ($data['type'] === 'ferme' && $campaignName !== '') {
-                $campaign = $this->createCampaignFromReservation(
-                    $reservation,
-                    $campaignName,
-                    $panelIds,
-                    $total
-                );
+                app(\App\Services\BonDeCommandeService::class)->ouvrirAttente($reservation);
+
+                $reservation->forceFill([
+                    'notes' => trim(($reservation->notes ? $reservation->notes . "\n" : '')
+                        . 'Nom de campagne prévu : ' . $campaignName),
+                ])->save();
+
+                Log::info('reservation.campagne_differee_bc', [
+                    'reservation_id' => $reservation->id,
+                    'reference'      => $reservation->reference,
+                    'campagne_prevue'=> $campaignName,
+                    'bc_jusqu_au'    => $reservation->bc_attendu_jusqu_au,
+                ]);
             }
 
             return ['reservation' => $reservation, 'campaign' => $campaign];

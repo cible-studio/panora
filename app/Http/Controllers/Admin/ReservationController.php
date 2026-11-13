@@ -2001,60 +2001,30 @@ class ReservationController extends Controller
                     $this->availability->syncExternalPanelStatuses(array_keys($externalAttach));
                 }
 
+                // ═══ Sans BC, pas de campagne — 2026-11-13 ═══
+                // Règle validée par écrit. Même une résa ferme saisie ici
+                // ouvre d'abord l'attente du bon de commande ; le MP crée
+                // la campagne ensuite. Le nom saisi est conservé dans les
+                // notes pour qu'il le reprenne.
                 if ($request->type === 'ferme' && $request->filled('campaign_name')) {
                     if (Campaign::where('client_id', $request->client_id)->where('name', $request->campaign_name)->exists()) {
                         throw new \RuntimeException('CAMPAIGN_EXISTS:Une campagne avec ce nom existe déjà pour ce client.');
                     }
 
-                    $campStatus = now()->startOfDay()->lt(
-                        \Carbon\Carbon::parse($request->start_date)->startOfDay()
-                    )
-                        ? CampaignStatus::PLANIFIE->value
-                        : CampaignStatus::ACTIF->value;
+                    app(\App\Services\BonDeCommandeService::class)->ouvrirAttente($reservation);
+                    $reservation->forceFill([
+                        'notes' => trim(((string) $request->notes ? (string) $request->notes . "\n" : '')
+                            . 'Nom de campagne prévu : ' . $request->campaign_name),
+                    ])->save();
 
-                    $campaign = Campaign::create([
-                        'name'           => $request->campaign_name,
-                        'client_id'      => $request->client_id,
-                        'client_contact_id' => $reservation->client_contact_id, // interlocuteur (2026-10-29)
-                        'reservation_id' => $reservation->id,
-                        'user_id'        => auth()->id(),
-                        'start_date'     => $request->start_date,
-                        'end_date'       => $request->end_date,
-                        'status'         => $campStatus,
-                        'total_panels'   => count($internalIds) + count($externalIds),
-                        'total_amount'   => $total,
-                        'notes'          => (string) $request->notes,
+                    Log::info('reservation.campagne_differee_bc', [
+                        'reservation_id'  => $reservation->id,
+                        'reference'       => $reference,
+                        'campagne_prevue' => $request->campaign_name,
+                        'bc_jusqu_au'     => $reservation->bc_attendu_jusqu_au,
                     ]);
-
-                    if ($attach) {
-                        $campaign->panels()->sync(array_keys($attach));
-                    }
-
-                    // Le pivot campaign_panels supporte external_panel_id —
-                    // on attache aussi les externes pour pouvoir les retrouver
-                    // dans les vues campagne (pige, suivi, etc.).
-                    if ($externalAttach) {
-                        $campaignPanelsRows = [];
-                        foreach (array_keys($externalAttach) as $extId) {
-                            $campaignPanelsRows[] = [
-                                'campaign_id'       => $campaign->id,
-                                'external_panel_id' => $extId,
-                                'type'              => 'externe',
-                                'created_at'        => now(),
-                                'updated_at'        => now(),
-                            ];
-                        }
-                        DB::table('campaign_panels')->insert($campaignPanelsRows);
-                    }
-
-                    // Lot 9.1 — Auto-créer les tâches de pose pour cette
-                    // nouvelle campagne (réservation type="ferme"). L'observer
-                    // `created` ne pouvait pas le faire car les panneaux ne
-                    // sont liés qu'après l'INSERT.
-                    $campaign->ensurePoseTasksAutoCreated();
-
-                    $createdCampaignId = $campaign->id;
                 }
+
 
                 Log::info('reservation.created', [
                     'reference' => $reference,
@@ -2138,8 +2108,19 @@ class ReservationController extends Controller
         }
 
         // ── Notification récapitulative ──────────────────────────────
+        // 2026-11-13 — Une résa ferme ne lance plus la campagne : elle
+        // ouvre l'attente du bon de commande. Le message doit le dire,
+        // sinon l'utilisateur cherche une campagne qui n'existe pas.
+        $echeanceBc = $reservation?->bc_attendu_jusqu_au
+            ? \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y')
+            : null;
+
         $successMsg = $request->type === 'ferme'
-            ? ($createdCampaignId ? 'Réservation ferme créée et campagne lancée. ✅' : 'Réservation ferme créée. Panneaux confirmés. ✅')
+            ? ($createdCampaignId
+                ? 'Réservation ferme créée et campagne lancée. ✅'
+                : 'Réservation créée. ⏳ En attente du bon de commande'
+                  . ($echeanceBc ? " jusqu'au {$echeanceBc}" : '')
+                  . ' — la campagne sera créée à sa réception.')
             : 'Panneaux mis sous option. ⏳';
 
         // ── Récap : panneaux différés (inclus mais démarrent plus tard) ──
@@ -2904,6 +2885,133 @@ class ReservationController extends Controller
         return back()->with('success',
             "🔁 Contre-proposition envoyée au client : {$newStart->format('d/m/Y')} → {$newEnd->format('d/m/Y')}{$diffFmt}."
         );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // BON DE COMMANDE — « sans BC, pas de campagne » (2026-11-13)
+    // ══════════════════════════════════════════════════════════════
+    // Règle validée par écrit. L'acceptation du client ouvre une attente
+    // de 30 jours ; le COMMERCIAL enregistre la réception du BC (une
+    // confirmation verbale suffit, la référence est facultative) ; le MP
+    // crée ensuite la campagne dédiée.
+
+    /** Le commercial confirme avoir reçu le bon de commande. */
+    public function enregistrerBc(Request $request, Reservation $reservation)
+    {
+        $data = $request->validate([
+            // Champ LIBRE et FACULTATIF : numéro de BC, ou toute autre
+            // information utile (« reçu par mail le 12/11 »…).
+            'bc_reference' => 'nullable|string|max:190',
+        ]);
+
+        $bc = app(\App\Services\BonDeCommandeService::class);
+
+        if (!$reservation->bc_attendu_jusqu_au) {
+            return back()->with('error',
+                "Ce dossier n'attend pas de bon de commande (il est antérieur à cette règle).");
+        }
+        if ($bc->estRecu($reservation)) {
+            return back()->with('info', 'Le bon de commande était déjà enregistré.');
+        }
+
+        $bc->enregistrerReception($reservation, $data['bc_reference'] ?? null, $request->user());
+
+        // Prévenir le MP : c'est lui qui crée la campagne ensuite.
+        try {
+            \App\Services\AlertService::notify(
+                'bc_recu',
+                '📥 Bon de commande reçu — ' . $reservation->reference,
+                sprintf(
+                    "%s a enregistré le bon de commande de %s%s.\nLa campagne peut maintenant être créée.",
+                    $request->user()?->name ?? 'Un commercial',
+                    $reservation->client?->name ?? 'ce client',
+                    $reservation->bc_reference ? ' (réf. ' . $reservation->bc_reference . ')' : ''
+                ),
+                $reservation,
+                ['lien' => route('admin.reservations.show', $reservation->id)]
+            );
+        } catch (\Throwable $e) {
+            Log::error('bc.recu.alerte', ['resa' => $reservation->id, 'erreur' => $e->getMessage()]);
+        }
+
+        return back()->with('success',
+            '📥 Bon de commande enregistré. Le média-planneur peut créer la campagne.');
+    }
+
+    /** Admin seulement : corriger une réception saisie par erreur. */
+    public function annulerBc(Reservation $reservation)
+    {
+        if ($reservation->campaign) {
+            return back()->with('error',
+                "La campagne {$reservation->campaign->name} existe déjà : annule-la d'abord.");
+        }
+
+        app(\App\Services\BonDeCommandeService::class)->annulerReception($reservation);
+
+        return back()->with('success', 'Réception du bon de commande annulée.');
+    }
+
+    /**
+     * Le MP crée la campagne dédiée, une fois le BC reçu.
+     *
+     * Toute la mécanique (blocage ferme des panneaux, annulation des
+     * dossiers concurrents, création de la campagne, tâches de pose) vit
+     * déjà dans PropositionService::confirmer() : on la réutilise telle
+     * quelle. Le verrou « BC reçu » y est posé, donc aucun chemin ne peut
+     * créer une campagne sans bon de commande.
+     */
+    public function creerCampagneApresBc(Request $request, Reservation $reservation)
+    {
+        $bc = app(\App\Services\BonDeCommandeService::class);
+
+        if ($reservation->campaign) {
+            return redirect()->route('admin.campaigns.show', $reservation->campaign->id)
+                ->with('info', 'La campagne existe déjà.');
+        }
+        if (!$bc->peutCreerCampagne($reservation)) {
+            return back()->with('error', $bc->motifBlocage($reservation));
+        }
+
+        $reservation->loadMissing(['panels', 'externalPanels', 'client']);
+
+        try {
+            $campaign = app(\App\Services\PropositionService::class)->confirmer($reservation);
+        } catch (\RuntimeException $e) {
+            $message = str_starts_with($e->getMessage(), 'BC_MANQUANT:')
+                ? substr($e->getMessage(), 12)
+                : "Un panneau n'est plus disponible sur cette période : " . $e->getMessage();
+            return back()->with('error', $message);
+        } catch (\Throwable $e) {
+            Log::error('bc.creer_campagne.erreur', [
+                'resa'   => $reservation->id,
+                'erreur' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Erreur lors de la création de la campagne.');
+        }
+
+        // Le mail « votre campagne est lancée » part d'ici, et plus de
+        // l'acceptation du client : avant, il annonçait une campagne qui
+        // n'existait pas encore.
+        $reservation->refresh()->loadMissing('client');
+        $adresses = $campaign && $reservation->client
+            ? array_column($reservation->client->destinatairesSuivi($campaign->interlocuteur ?? $reservation->interlocuteur), 'email')
+            : [];
+        if ($adresses) {
+            try {
+                \Illuminate\Support\Facades\Mail::to($adresses)
+                    ->send(new \App\Mail\ClientCampaignStartedMail($reservation, $campaign));
+            } catch (\Throwable $e) {
+                Log::warning('client.campaign_started.mail_failed', [
+                    'reservation_id' => $reservation->id,
+                    'error'          => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $campaign
+            ? redirect()->route('admin.campaigns.show', $campaign->id)
+                ->with('success', '🚀 Campagne créée à partir du bon de commande.')
+            : back()->with('success', 'Réservation confirmée.');
     }
 
     public function annuler(Request $request, Reservation $reservation)

@@ -18,7 +18,16 @@ Schedule::command('reservations:expire-options')->dailyAt('01:15');
 
 // 2b. Options trop anciennes (> 7j) même si période future → libère les panneaux bloqués
 //     Tous les jours à 01h20
+//     ⚠ Ignore les dossiers en attente de bon de commande : ceux-là ont
+//     leur propre échéance (30 j) et leur propre commande, ci-dessous.
 Schedule::command('reservations:expire-old-options', ['--days' => 7])->dailyAt('01:20');
+
+// 2b-bis. Bon de commande (2026-11-13) — « sans BC, pas de campagne ».
+//     Les options nées d'un engagement client vivent 30 jours en attendant
+//     le BC. Expiration d'abord (01h22), relances ensuite (09h05) : on ne
+//     relance jamais un dossier qu'on vient d'annuler le matin même.
+Schedule::command('reservations:expire-bc')->dailyAt('01:22');
+Schedule::command('reservations:relancer-bc')->dailyAt('09:05');
 
 // 2c. Cycle de vie devis commerciaux : alerte J-3 + bascule EXPIRE
 //     Tous les jours à 01h25 — indépendant des réservations.

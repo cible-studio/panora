@@ -55,8 +55,76 @@ class PropositionService
      * Confirme une proposition → crée une campagne si pas encore créée.
      * Retourne la Campaign créée ou existante.
      */
+    /**
+     * ═══ LE CLIENT ACCEPTE — 2026-11-13, règle validée par écrit ═══
+     *
+     * Avant, le clic du client appelait directement confirmer(), qui
+     * bloquait fermement les panneaux, annulait les options concurrentes
+     * ET CRÉAIT LA CAMPAGNE. Or le client n'a pas forcément envoyé son bon
+     * de commande, et « sans BC, pas de campagne ».
+     *
+     * Désormais l'acceptation ne fait qu'ouvrir la fenêtre BC :
+     *   - la réservation RESTE en option (status en_attente, type option) ;
+     *   - les panneaux ne sont PAS bloqués fermement ;
+     *   - les options concurrentes ne sont PAS annulées — plusieurs
+     *     dossiers peuvent attendre un BC sur le même panneau, le premier
+     *     BC gagne (conséquence assumée, les écrans l'affichent) ;
+     *   - aucune campagne n'est créée.
+     *
+     * Le commercial enregistrera la réception du BC, puis le MP créera la
+     * campagne via confirmer().
+     *
+     * On vérifie quand même qu'aucun panneau n'a été pris FERMEMENT
+     * entre-temps : accepter sur un panneau déjà vendu n'aurait aucun sens.
+     */
+    public function accepterClient(Reservation $reservation): Reservation
+    {
+        return DB::transaction(function () use ($reservation) {
+            $availability = app(AvailabilityService::class);
+
+            $panelIds = $reservation->panels->pluck('id')->toArray();
+            $start    = Carbon::parse($reservation->start_date)->toDateString();
+            $end      = Carbon::parse($reservation->end_date)->toDateString();
+
+            if (!empty($panelIds)) {
+                \App\Models\Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
+                // Bloque uniquement sur du FERME (résa confirmée, campagne
+                // active) — pas sur les autres options, qui coexistent.
+                $availability->assertLibresFermement(
+                    $panelIds, $start, $end,
+                    $reservation->id,
+                    $reservation->campaign()->value('id'),
+                    (int) $reservation->client_id
+                );
+            }
+
+            app(\App\Services\BonDeCommandeService::class)->ouvrirAttente($reservation);
+
+            // Les panneaux restent en « option » : on resynchronise leur
+            // cache de lecture sans changer la nature du blocage.
+            if (!empty($panelIds)) {
+                $availability->syncPanelStatuses($panelIds);
+            }
+
+            return $reservation->refresh();
+        });
+    }
+
+    /**
+     * Confirme fermement et crée la campagne.
+     *
+     * 2026-11-13 — N'est plus appelée par le clic du client : elle
+     * intervient APRÈS réception du bon de commande, quand le MP crée la
+     * campagne dédiée. Le verrou est posé ici, pas chez les appelants :
+     * aucun chemin ne doit pouvoir créer une campagne sans BC.
+     */
     public function confirmer(Reservation $reservation): ?Campaign
     {
+        $bc = app(\App\Services\BonDeCommandeService::class);
+        if (!$bc->peutCreerCampagne($reservation)) {
+            throw new \RuntimeException('BC_MANQUANT:' . $bc->motifBlocage($reservation));
+        }
+
         $campaign = null;
 
         DB::transaction(function () use ($reservation, &$campaign) {

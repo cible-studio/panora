@@ -16,6 +16,14 @@ class ExpireReservationOptions extends Command
         $expired = Reservation::where('status', 'en_attente')
             ->where('type', 'option')
             ->where('created_at', '<', now()->subDays($days))
+            // ═══ Ne pas tuer une attente de bon de commande (2026-11-13) ═══
+            // Un dossier en attente de BC vit 30 jours (config/bon_de_commande)
+            // avec des relances à J-15, J-7, J-2. Sans ce garde-fou, cette
+            // commande — planifiée tous les jours à 01h20 — l'annulait dès le
+            // 7e jour, AVANT même la première relance.
+            // Ces dossiers-là sont expirés par `reservations:expire-bc`,
+            // qui respecte leur propre échéance.
+            ->whereNull('bc_attendu_jusqu_au')
             ->with(['panels', 'externalPanels'])
             ->get();
 
