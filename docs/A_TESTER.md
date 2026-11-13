@@ -1792,12 +1792,17 @@ pause :
   sur la période est laissé de côté (signalé).
 
 En production :
-- [ ] `php artisan axes:decouper-campagnes` → lire la simulation (6 axes
+- [x] `php artisan axes:decouper-campagnes` → lire la simulation (6 axes
       attendus : CDYLUP-001, -007, -008, TVILUP-002 pour BEM ; TVILUP-001
       pour MOOV ; CDYLUP-002 pour LADILI). **CDYLUP-008 est « en cours »** : si
       sa pose a déjà des photos, la simulation le dit — la fermer avec
       « Terminé » ou la laisser en axe entier.
-- [ ] Si la simulation est bonne : `php artisan axes:decouper-campagnes --appliquer`
+- [x] Si la simulation est bonne : `php artisan axes:decouper-campagnes --appliquer`
+      → **appliqué en production le 13/11** : 6 axes, 49 pieds, 49 poses de pied
+      (poses #538, 540, 541, 543 BEM · #547 MOOV · #404 LADILI annulées « découpées »).
+- [ ] Relancer `php artisan axes:decouper-campagnes` : « Aucun axe entier dans une
+      campagne en cours : rien à faire. »
+- [ ] LADILI : attribuer un technicien aux 6 poses de pied (en lot) avant le 01/12.
 - [ ] Espace technicien de Yannick (ou du technicien des poses) : BEM, MOOV et
       LADILI s'affichent en carte d'axe avec ses pieds, comme les autres.
 - [ ] Admin, campagne BEM → onglet Panneaux : les pieds ; onglet Poses : une
