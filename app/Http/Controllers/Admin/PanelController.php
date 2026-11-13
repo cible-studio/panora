@@ -633,12 +633,18 @@ class PanelController extends Controller
         // ne bougeait pas. On les synchronise désormais, pour que la
         // valeur visible soit toujours celle qui compte.
         //
-        // Volontairement limité aux axes et à leurs pieds : sur un
-        // panneau ordinaire — un chevalet porte nombre_faces = 4 —
-        // écrire faces_par_pied multiplierait sa surface taxable sans
-        // que personne ne l'ait demandé.
+        // Portée : les axes, leurs pieds, et les LUMIPUB autonomes —
+        // MRYLUP-001 est un seul support à 3 faces de 3 m², exactement la
+        // même réalité physique qu'un pied d'axe (2026-11-13).
+        //
+        // Volontairement PAS les chevalets : ils portent nombre_faces = 4
+        // et leur règle fiscale n'est pas tranchée. Écrire faces_par_pied
+        // chez eux quadruplerait leur surface taxable sans décision.
+        $estLumipub = \Illuminate\Support\Str::contains(
+            \Illuminate\Support\Str::lower((string) $panel->category?->name), 'lumipub'
+        );
         if (app(\App\Services\Axes\AxeService::class)->colonnesPresentes()
-            && ($panel->est_axe || $panel->axe_id)) {
+            && ($panel->est_axe || $panel->axe_id || $estLumipub)) {
             $faces = max(1, (int) ($request->nombre_faces ?: 1));
             if ((int) $panel->faces_par_pied !== $faces) {
                 $panel->forceFill(['faces_par_pied' => $faces])->save();
