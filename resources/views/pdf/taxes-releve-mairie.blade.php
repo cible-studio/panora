@@ -17,7 +17,7 @@
 
 @include('pdf.partials.tax-doc-header', [
     'docTitle'  => 'Relevé des taxes ODP et TM — ' . $commune->name,
-    'docPeriod' => 'Exercice ' . $exercice . ($reprise ? ' (exercice de reprise)' : ''),
+    'docPeriod' => 'Exercice ' . $exercice . ($reprise ? ' (année de reprise)' : ''),
 ])
 
 @include('pdf.partials.tax-doc-meta', ['metaCols' => [
@@ -79,7 +79,7 @@
             <td class="tdoc-amount mono">{{ $fmt($ligne['total_paye']) }}<span>FCFA</span></td>
         </tr>
         <tr class="tdoc-total">
-            <td colspan="4" class="right">{{ $ligne['solde'] >= 0 ? 'SOLDE RESTANT DÛ' : 'TROP-PERÇU EN FAVEUR DE LA RÉGIE' }}</td>
+            <td colspan="4" class="right">{{ $ligne['solde'] >= 0 ? 'SOLDE RESTANT DÛ' : 'PAYÉ EN TROP — DÉDUIT DE L\'ANNÉE SUIVANTE' }}</td>
             <td class="tdoc-amount mono">{{ $fmt(abs($ligne['solde'])) }}<span>FCFA</span></td>
         </tr>
     </tbody>
@@ -94,7 +94,7 @@
         Arriérés = solde de l'exercice {{ $exercice - 1 }}.
     @endif
     @if($ligne['exigible'] > 0 && $ligne['exigible'] !== $ligne['solde'])
-        <br>■ Exigible au {{ now()->format('d/m/Y') }} (trimestres déjà commencés) : <b>{{ $fmt($ligne['exigible']) }} FCFA</b>.
+        <br>■ Dû au {{ now()->format('d/m/Y') }} (trimestres déjà commencés) : <b>{{ $fmt($ligne['exigible']) }} FCFA</b>.
     @endif
 </div>
 

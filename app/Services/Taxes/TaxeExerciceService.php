@@ -371,6 +371,30 @@ class TaxeExerciceService
     }
 
     /**
+     * Libellés des statuts à l'écran et dans les documents — SOURCE UNIQUE
+     * (2026-11-16 : « trouve des expressions simples et compréhensibles »).
+     * [classe du badge, libellé, explication au survol].
+     */
+    public const LIBELLES_STATUT = [
+        'a_saisir' => ['badge-orange', '✍ Réclamé à saisir', 'Ce que la mairie a réclamé pour l\'année de reprise n\'est pas encore saisi.'],
+        'solde'    => ['badge-green',  '✓ À jour',           'Tout ce qui est dû est payé.'],
+        'credit'   => ['badge-blue',   '↺ Payé en trop',     'La régie a payé plus que dû : la différence est déduite de l\'année suivante.'],
+        'partiel'  => ['badge-orange', '◐ Payé en partie',   'Une partie est payée, il reste un solde.'],
+        'non_paye' => ['badge-red',    '⏳ Rien payé',        'Aucun règlement saisi pour cette année.'],
+        'rien_du'  => ['badge-gray',   '— Rien à payer',     'Aucune taxe due et aucun règlement.'],
+    ];
+
+    /**
+     * Le statut à afficher : pendant l'année de reprise, une mairie dont le
+     * montant réclamé n'est pas saisi est « à saisir » — sinon un versement
+     * déjà enregistré la ferait apparaître « payé en trop ».
+     */
+    public static function statutAffiche(array $ligne): string
+    {
+        return !empty($ligne['a_saisir']) ? 'a_saisir' : $ligne['statut'];
+    }
+
+    /**
      * Statut lu par les écrans qui ont leurs propres libellés
      * (page Taxes : paye / partiel / non_paye / aucun).
      */

@@ -341,8 +341,15 @@ class TaxeExerciceServiceTest extends TestCase
             }
             $fiche = $ctrl->commune(\Illuminate\Http\Request::create('/', 'GET', ['exercice' => $exercice]), Commune::find(1))->render();
             $this->assertStringContainsString('COCODY', $fiche);
-            $this->assertStringContainsString($exercice === 2026 ? 'Ce que la mairie a réclamé' : 'Prévu', $fiche);
+            $this->assertStringContainsString($exercice === 2026 ? 'Ce que la mairie a réclamé' : 'À venir', $fiche);
         }
+
+        // Libellés simples (2026-11-16). En 2026, Daloa a un versement mais
+        // rien de réclamé saisi : « Réclamé à saisir », pas « Payé en trop ».
+        $tableau2026 = $ctrl->index(\Illuminate\Http\Request::create('/', 'GET', ['exercice' => 2026, 'zone' => 'interieur']))->render();
+        $this->assertStringContainsString('Réclamé à saisir', $tableau2026);
+        $this->assertStringNotContainsString('Payé en trop', $tableau2026);
+        $this->assertStringContainsString('Dû à ce jour', $tableau2026);
 
         $tableau2027 = $ctrl->index(\Illuminate\Http\Request::create('/', 'GET', ['exercice' => 2027, 'zone' => 'abidjan']))->render();
         $this->assertStringContainsString('41 680 000', $tableau2027, 'solde 2027 de Cocody');

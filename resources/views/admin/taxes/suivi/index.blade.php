@@ -15,13 +15,12 @@
 
 @php
     $fmt = fn ($n) => number_format((int) $n, 0, ',', ' ');
-    $statuts = [
-        'solde'    => ['badge-green',  '✓ Soldé'],
-        'credit'   => ['badge-blue',   '↺ Trop-perçu'],
-        'partiel'  => ['badge-orange', '◐ Partiel'],
-        'non_paye' => ['badge-red',    '⏳ Non payé'],
-        'rien_du'  => ['badge-gray',   '— Rien dû'],
-    ];
+    // Libellés des statuts : source unique dans TaxeExerciceService.
+    $statuts = \App\Services\Taxes\TaxeExerciceService::LIBELLES_STATUT;
+    $badge = function (array $l) use ($statuts) {
+        [$classe, $libelle, $aide] = $statuts[\App\Services\Taxes\TaxeExerciceService::statutAffiche($l)];
+        return '<span class="badge ' . $classe . '" title="' . e($aide) . '">' . e($libelle) . '</span>';
+    };
     $libellesZones = ['abidjan' => 'Abidjan et banlieue', 'interieur' => 'Intérieur', 'tout' => 'Toutes les mairies'];
     $tg = $totaux['tout'];
 @endphp
@@ -59,8 +58,8 @@
         @endforeach
     </div>
     @if($reprise)
-        <span class="badge badge-orange">Exercice de reprise</span>
-        <x-aide titre="Exercice de reprise">
+        <span class="badge badge-orange">Année de reprise</span>
+        <x-aide titre="Année de reprise">
             Pour {{ $exercice }}, le montant dû d'une mairie est ce qu'elle a réclamé
             (arriérés compris), saisi par les comptables dans sa fiche. Le calcul de
             Panora est affiché à côté pour contrôle, sans compter dans le solde.
@@ -106,8 +105,8 @@
         <div class="sm-kpi-s">{{ $tg['mairies'] }} mairie{{ $tg['mairies'] > 1 ? 's' : '' }}</div>
     </div>
     <div class="sm-kpi" style="border-left:4px solid #f59e0b">
-        <div class="sm-kpi-l">Exigible à ce jour
-            <x-aide titre="Exigible à ce jour">Ce qu'une mairie peut réclamer aujourd'hui : arriérés, plus l'ODP et la TM des trimestres déjà commencés, moins ce qui est payé.</x-aide>
+        <div class="sm-kpi-l">Dû à ce jour
+            <x-aide titre="Dû à ce jour">Ce qu'une mairie peut réclamer aujourd'hui : arriérés, plus l'ODP et la TM des trimestres déjà commencés, moins ce qui est payé.</x-aide>
         </div>
         <div class="sm-kpi-v" style="color:#b45309">{{ $fmt($tg['exigible']) }}</div>
         <div class="sm-kpi-s">au {{ now()->format('d/m/Y') }}</div>
@@ -115,14 +114,14 @@
     @if($reprise)
         <div class="sm-kpi" style="border-left:4px solid #64748b">
             <div class="sm-kpi-l">Calcul Panora
-                <x-aide>Ce que Panora calcule pour {{ $exercice }} avec ses panneaux et ses tarifs. Contrôle seulement : n'entre pas dans le solde de l'exercice de reprise.</x-aide>
+                <x-aide>Ce que Panora calcule pour {{ $exercice }} avec ses panneaux et ses tarifs. Contrôle seulement : n'entre pas dans le solde de l'année de reprise.</x-aide>
             </div>
             <div class="sm-kpi-v" style="color:var(--text2)">{{ $fmt($tg['controle']) }}</div>
             <div class="sm-kpi-s">contrôle, hors solde</div>
         </div>
     @else
         <div class="sm-kpi" style="border-left:4px solid #a855f7">
-            <div class="sm-kpi-l">Prévu
+            <div class="sm-kpi-l">À venir
                 <x-aide>TM des campagnes planifiées qui n'ont pas encore démarré. Hors solde : elle y entre quand la campagne démarre.</x-aide>
             </div>
             <div class="sm-kpi-v" style="color:#7e22ce">{{ $fmt($tg['prevu_tm']) }}</div>
@@ -162,7 +161,7 @@
                     <th class="num">Total dû</th>
                     <th class="num">Payé</th>
                     <th class="num">Solde</th>
-                    <th class="num">Exigible</th>
+                    <th class="num">Dû à ce jour</th>
                     <th>Statut</th>
                 </tr>
             </thead>
@@ -171,9 +170,6 @@
                 <tr data-ligne-url="{{ route('admin.taxes.suivi.commune', ['commune' => $l['commune_id'], 'exercice' => $exercice]) }}">
                     <td>
                         <strong>{{ $l['commune']->name }}</strong>
-                        @if($l['a_saisir'])
-                            <div><span class="badge badge-orange" style="font-size:10px">réclamé à saisir</span></div>
-                        @endif
                     </td>
                     <td class="num">{{ $l['nb_panneaux'] ?: '—' }}</td>
                     <td class="num">{{ $l['nb_faces'] ?: '—' }}</td>
@@ -196,7 +192,7 @@
                     </td>
                     <td class="num {{ $l['solde'] > 0 ? 'sm-pos' : ($l['solde'] < 0 ? 'sm-neg' : '') }}"><strong>{{ $fmt($l['solde']) }}</strong></td>
                     <td class="num">{{ $l['exigible'] ? $fmt($l['exigible']) : '—' }}</td>
-                    <td><span class="badge {{ $statuts[$l['statut']][0] }}">{{ $statuts[$l['statut']][1] }}</span></td>
+                    <td>{!! $badge($l) !!}</td>
                 </tr>
             @empty
                 <tr><td colspan="14" style="text-align:center;padding:30px;color:var(--text3)">Aucune mairie sur cet exercice.</td></tr>
