@@ -839,6 +839,9 @@ class QuoteController extends Controller
 
             'services'                     => 'nullable|array|max:30',
             'services.*.label'             => 'required_with:services|string|max:200',
+            // Quantité (2026-11-16) : absente = 1. Plafond haut mais fini,
+            // pour qu'une saisie fautive ne produise pas un montant absurde.
+            'services.*.quantite'          => 'nullable|integer|min:1|max:100000',
             'services.*.prix_ht'           => 'required_with:services|numeric|min:0',
             // TVA au choix sur chaque service (2026-10-30). Absent = soumis.
             'services.*.tva_applicable'    => 'nullable|boolean',
@@ -1113,9 +1116,14 @@ class QuoteController extends Controller
             if ($label === '' || $prix <= 0) {
                 continue;
             }
+            // Quantité (2026-11-16) : absente = 1, donc l'aperçu d'un
+            // devis saisi avant ce champ reste identique.
+            $qte = max(1, (int) ($s['quantite'] ?? 1));
             $services[] = [
                 'label'          => $label,
+                'quantite'       => $qte,
                 'prix_ht'        => $prix,
+                'montant_ht'     => $prix * $qte,
                 'tva_applicable' => !array_key_exists('tva_applicable', $s)
                     || filter_var($s['tva_applicable'], FILTER_VALIDATE_BOOLEAN),
             ];
@@ -1137,8 +1145,12 @@ class QuoteController extends Controller
             'services' => array_map(fn (array $s) => [
                 'label'          => $s['label'],
                 'tva_applicable' => $s['tva_applicable'],
-                'ht'             => (int) round($s['prix_ht']),
-                'ttc'            => (int) round($s['tva_applicable'] ? $s['prix_ht'] * (1 + $tva / 100) : $s['prix_ht']),
+                'quantite'       => $s['quantite'],
+                'pu_ht'          => (int) round($s['prix_ht']),
+                // `ht` reste le montant de la LIGNE (quantité comprise) :
+                // c'est ce que l'écran additionne.
+                'ht'             => (int) round($s['montant_ht']),
+                'ttc'            => (int) round($s['tva_applicable'] ? $s['montant_ht'] * (1 + $tva / 100) : $s['montant_ht']),
             ], $services),
         ]);
     }
@@ -1152,6 +1164,9 @@ class QuoteController extends Controller
             if ($label === '' || $prix <= 0) continue;
             $quote->services()->create([
                 'label'       => $label,
+                // Quantité (2026-11-16) : absente du formulaire = 1, donc
+                // prix_ht reste le montant de la ligne comme avant.
+                'quantite'    => max(1, (int) ($s['quantite'] ?? 1)),
                 'prix_ht'     => (int) round($prix),
                 // TVA au choix, service par service (2026-10-30). Absent du
                 // formulaire = soumis à TVA, comme avant.

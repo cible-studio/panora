@@ -17,6 +17,33 @@
      * modèle Quote (calculés par QuoteBuilder → InvoiceCalculator :
      * source unique). Modifier ici ne change JAMAIS le montant du devis.
      */
+    // ═══ PALETTE DU MODÈLE OFFICIEL (2026-11-16) ═══
+    //
+    // Décision du 2026-11-16 : ce PDF doit être IDENTIQUE au modèle de
+    // devis que la direction envoie aux clients. Il reprend donc sa
+    // palette (bleu nuit + or) et non la charte du 2026-10-01
+    // (rouge / noir / jaune), qui reste en vigueur sur les autres PDF —
+    // facture FNE, rapports.
+    //
+    // Les valeurs ne sont pas approximées : elles ont été extraites des
+    // opérateurs de couleur du PDF de référence
+    // (docs/devis/DEVIS HAVAS 05 PANNEAUX 12M².pdf).
+    //
+    // Les POLICES, elles, restent celles de la charte ($charte['ff_titres']) :
+    // seules les couleurs changent.
+    $dv = [
+        'bleu'       => '#1C2E3D', // bandeaux de section, en-têtes, texte fort
+        'bleu_moyen' => '#327DAF', // sous-titres des conditions générales
+        'bleu_pale'  => '#EEF5FB', // fonds de sous-section
+        'or'         => '#FAAF00', // valeurs mises en avant (n°, date, totaux)
+        'or_vif'     => '#FFC000', // liséré haut
+        'or_pale'    => '#FFF4CC', // bandes de sous-total
+        'ardoise'    => '#445566', // texte secondaire
+        'gris'       => '#D7DEE5', // filets de tableau
+        'gris_clair' => '#F8F9FA', // fonds neutres
+        'blanc'      => '#FFFFFF',
+    ];
+
     $company = config('billing.company');
     $bank    = config('billing.bank');
 
@@ -64,6 +91,18 @@
     $totalTtc      = (int) $quote->amount_ttc;      // panneaux HT + TVA + TSP
     $servicesHtTot = (int) $quote->services_ht_total;
     $totalAPayer   = (int) $quote->total_a_payer;   // TTC + Taxes pub + Services
+
+    // TVA et TTC des services (2026-11-16).
+    // Seuls les services soumis à TVA la portent (interrupteur
+    // `tva_applicable`, 2026-10-30) ; montantHt() tient compte de la
+    // quantité. Ces deux montants ne sont pas des colonnes de `quotes` :
+    // on les recompose ici avec la MÊME règle que InvoiceCalculator, pour
+    // que le détail affiché redonne exactement le total net.
+    $servicesHtTaxes   = (int) $quote->services
+        ->filter(fn ($s) => (bool) $s->tva_applicable)
+        ->sum(fn ($s) => $s->montantHt());
+    $servicesTvaAmount = (int) round($servicesHtTaxes * ((float) $quote->tva) / 100);
+    $servicesTtcTot    = $servicesHtTot + $servicesTvaAmount;
 
     // Somme en toutes lettres (français, jusqu'aux millions)
     $montantEnLettres = function (int $n): string {
@@ -117,95 +156,95 @@
     <style>
         /* !important : « * { margin:0 } » annule sinon la marge @page sous DomPDF.
            Marge basse 18 mm : réserve la place du pied fixe charte-footer. */
-        @page { margin: 12mm 10mm 18mm 10mm !important; size: A4 portrait; }
+        @page { margin: 9mm 9mm 15mm 9mm !important; size: A4 portrait; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-size: 9.5px; color: {{ $charte['noir'] }}; line-height: 1.2; }
+        body { font-size: 9px; color: {{ $dv['bleu'] }}; line-height: 1.2; }
         table { border-collapse: collapse; width: 100%; }
         td, th { vertical-align: middle; }
         strong, b { font-weight: 700; }
         .page-break { page-break-after: always; }
         .no-break { page-break-inside: avoid; }
 
-        /* ═══ HEADER : logo à gauche, bandeau titre à droite (accent rouge) ═══ */
+        /* ═══ HEADER (2026-11-16) ═══
+           Logo à gauche, puis « DEVIS » et le couple N° / Date à droite,
+           comme le modèle officiel. Le gros titre espacé sur fond gris
+           avec son liséré a disparu : le modèle n'en a pas. */
         .header-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
         .header-left  {
-            width: 28%;
-            padding: 8px 10px;
-            background: {{ $charte['blanc'] }};
-            border: 1px solid {{ $charte['gris'] }};
-            border-right: none;
+            width: 38%;
+            padding: 4px 0 8px 0;
             vertical-align: middle;
-            text-align: center;
+            text-align: left;
         }
-        .header-left img { max-height: 60px; max-width: 160px; }
-        .header-left .company-name { font-family: {!! $charte['ff_titres'] !!}; font-size: 22px; font-weight: 900; color: {{ $charte['noir'] }}; }
+        .header-left img { max-height: 54px; max-width: 170px; }
+        .header-left .company-name { font-family: {!! $charte['ff_titres'] !!}; font-size: 22px; font-weight: 900; color: {{ $dv['bleu'] }}; }
         .header-right {
-            width: 72%;
-            background: {{ $charte['gris_clair'] }};
-            border-left: 5px solid {{ $charte['rouge'] }};
-            padding: 10px 16px;
+            width: 62%;
+            padding: 4px 0 8px 0;
             vertical-align: middle;
         }
         .header-right .title {
             font-family: {!! $charte['ff_titres'] !!};
-            font-size: 28px;
+            font-size: 13px;
             font-weight: 800;
-            color: {{ $charte['noir'] }};
-            letter-spacing: 3px;
-            line-height: 1;
+            color: {{ $dv['bleu'] }};
+            letter-spacing: 0.5px;
+            line-height: 1.4;
         }
         .header-right .meta {
             font-size: 11px;
-            color: {{ $charte['noir'] }};
-            margin-top: 6px;
-            line-height: 1.4;
+            color: {{ $dv['bleu'] }};
+            margin-top: 2px;
+            line-height: 1.5;
         }
-        .header-right .meta .lbl { font-weight: 700; display: inline-block; width: 42px; }
-        .header-right .meta .val { color: {{ $charte['rouge'] }}; font-weight: 700; }
+        .header-right .meta .lbl { font-weight: 700; display: inline-block; width: 52px; }
+        .header-right .meta .val { color: {{ $dv['or'] }}; font-weight: 700; }
 
-        /* ═══ SECTION HEADER (noir) — utilisé partout ═══ */
+        /* Liséré or en tête de page, comme le modèle. */
+        .liseré-or { height: 4px; background: {{ $dv['or_vif'] }}; margin-bottom: 8px; }
+
+        /* ═══ SECTION HEADER (bleu nuit) — utilisé partout ═══ */
         .section-header {
-            background: {{ $charte['noir'] }};
-            color: {{ $charte['blanc'] }};
+            background: {{ $dv['bleu'] }};
+            color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
             font-size: 10px;
             font-weight: 700;
             padding: 6px 10px;
             letter-spacing: 1px;
             text-transform: uppercase;
-            border-left: 4px solid {{ $charte['rouge'] }};
         }
 
         /* ═══ BLOC ÉMETTEUR / CLIENT ═══ */
         .party-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        .party-table td { vertical-align: top; width: 50%; border: 1px solid {{ $charte['gris'] }}; padding: 0; }
+        .party-table td { vertical-align: top; width: 50%; border: 1px solid {{ $dv['gris'] }}; padding: 0; }
         .party-body {
-            padding: 8px 10px;
-            font-size: 9.5px;
-            line-height: 1.4;
+            padding: 5px 9px;
+            font-size: 9px;
+            line-height: 1.3;
         }
         .party-body .row { padding: 1px 0; }
-        .party-body .lbl { font-weight: 700; color: {{ $charte['noir'] }}; display: inline-block; min-width: 78px; }
-        .party-body .link { color: {{ $charte['bleu'] }}; text-decoration: underline; }
+        .party-body .lbl { font-weight: 700; color: {{ $dv['bleu'] }}; display: inline-block; min-width: 78px; }
+        .party-body .link { color: {{ $dv['bleu_moyen'] }}; text-decoration: underline; }
 
         /* ═══ TABLEAU DES LIGNES PANNEAUX ═══ */
         .panneaux-table { width: 100%; border-collapse: collapse; margin-bottom: 0; font-size: 9px; }
         .panneaux-table th {
-            background: {{ $charte['noir'] }};
-            color: {{ $charte['blanc'] }};
+            background: {{ $dv['bleu'] }};
+            color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
             padding: 6px 4px;
             text-align: center;
             font-size: 9px;
             font-weight: 700;
-            border-right: 1px solid {{ $charte['texte_doux'] }};
+            border-right: 1px solid {{ $dv['ardoise'] }};
         }
         .panneaux-table th:last-child { border-right: none; }
         .panneaux-table th.left { text-align: left; padding-left: 10px; }
         .panneaux-table td {
-            padding: 6px 4px;
-            border-bottom: 1px solid {{ $charte['gris'] }};
-            border-right: 1px solid {{ $charte['gris_clair'] }};
+            padding: 4px 4px;
+            border-bottom: 1px solid {{ $dv['gris'] }};
+            border-right: 1px solid {{ $dv['gris_clair'] }};
             vertical-align: middle;
             font-size: 9px;
             text-align: center;
@@ -219,197 +258,235 @@
         }
         .panneaux-table td.designation-cell .row-desc { display: block; }
         .panneaux-table td.num { text-align: right; padding-right: 8px; }
-        .panneaux-table td.montant-ht-col { background: {{ $charte['gris_clair'] }}; text-align: right; padding-right: 8px; font-weight: 700; }
+        .panneaux-table td.montant-ht-col { background: {{ $dv['gris_clair'] }}; text-align: right; padding-right: 8px; font-weight: 700; }
 
         /* ═══ SOUS-TOTAUX (colonne 55% droite) ═══ */
         .subtotals { width: 55%; margin-left: 45%; border-collapse: collapse; margin-top: 0; }
         .subtotals td {
-            padding: 6px 10px;
+            padding: 4px 10px;
             font-size: 10px;
-            border: 1px solid {{ $charte['gris'] }};
+            border: 1px solid {{ $dv['gris'] }};
         }
-        .subtotals .lbl { text-align: right; background: {{ $charte['gris_clair'] }}; font-weight: 700; }
+        .subtotals .lbl { text-align: right; background: {{ $dv['gris_clair'] }}; font-weight: 700; }
         .subtotals .val { text-align: right; font-weight: 700; width: 40%; }
         .subtotals tr.ttc td {
-            background: {{ $charte['noir'] }};
-            color: {{ $charte['blanc'] }};
+            background: {{ $dv['bleu'] }};
+            color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
             font-size: 12px;
             font-weight: 800;
             padding: 9px 10px;
-            border-color: {{ $charte['noir'] }};
+            border-color: {{ $dv['bleu'] }};
         }
-        .subtotals tr.ttc td.val { font-size: 13px; color: {{ $charte['jaune'] }}; }
+        .subtotals tr.ttc td.val { font-size: 13px; color: {{ $dv['or'] }}; }
 
         /* ═══ SECTIONS TAXES / SERVICES ═══ */
-        .section-tbl { width: 100%; border-collapse: collapse; margin-top: 12px; border: 1px solid {{ $charte['gris'] }}; }
+        .section-tbl { width: 100%; border-collapse: collapse; margin-top: 8px; border: 1px solid {{ $dv['gris'] }}; }
+        /* En-têtes de colonnes : bandeau bleu moyen, texte blanc — le gris
+           du modèle d'avant ne se distinguait pas des lignes. */
         .section-tbl thead th {
-            background: {{ $charte['gris'] }};
-            color: {{ $charte['noir'] }};
+            background: {{ $dv['bleu_moyen'] }};
+            color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
             font-size: 9.5px;
             font-weight: 700;
             padding: 6px 8px;
             text-align: left;
-            border-right: 1px solid {{ $charte['blanc'] }};
+            border-right: 1px solid {{ $dv['blanc'] }};
         }
         .section-tbl thead th:last-child { border-right: none; }
         .section-tbl thead th.num { text-align: right; }
         .section-tbl tbody td {
-            padding: 6px 8px;
-            border-top: 1px solid {{ $charte['gris'] }};
+            padding: 4px 8px;
+            border-top: 1px solid {{ $dv['gris'] }};
             font-size: 9.5px;
         }
         .section-tbl tbody td.num { text-align: right; }
-        .section-tbl tbody td.empty { text-align: center; color: {{ $charte['texte_pale'] }}; font-style: italic; }
-        .section-tbl tfoot td {
-            padding: 7px 10px;
-            font-weight: 700;
-            font-size: 10px;
-            background: {{ $charte['gris_clair'] }};
+        .section-tbl tbody td.center { text-align: center; }
+        .section-tbl tbody td.empty { text-align: center; color: {{ $dv['ardoise'] }}; font-style: italic; }
+        /* Service refacturé sans TVA : le dire sur la ligne, sinon le
+           client ne comprend pas pourquoi elle échappe au calcul. */
+        .svc-ht-flag { color: {{ $dv['ardoise'] }}; font-size: 8.5px; font-style: italic; }
+
+        /* ═══ BANDE DE SOUS-TOTAL BRUT (modèle officiel) ═══
+           Le cumul des lignes avant taxes, détaché du bloc de totaux. */
+        .bande-soustotal { width: 100%; border-collapse: collapse; margin: 0; }
+        .bande-soustotal td {
+            background: {{ $dv['or_pale'] }};
+            color: {{ $dv['bleu'] }};
+            font-family: {!! $charte['ff_titres'] !!};
+            font-size: 11px;
+            font-weight: 800;
             text-align: right;
-            border-top: 2px solid {{ $charte['noir'] }};
+            padding: 6px 10px;
+            border: 1px solid {{ $dv['gris'] }};
+            border-top: none;
         }
-        .section-tbl tfoot td.num { color: {{ $charte['rouge'] }}; }
+        /* Sous-total de section sur bande or, comme les cumuls du modèle.
+           On garde le LIBELLÉ, que le modèle n'a pas : une bande portant
+           un nombre seul ne dit pas de quoi il est le total. */
+        .section-tbl tfoot td {
+            padding: 6px 10px;
+            font-weight: 800;
+            font-size: 10px;
+            background: {{ $dv['or_pale'] }};
+            color: {{ $dv['bleu'] }};
+            text-align: right;
+            border-top: 1px solid {{ $dv['gris'] }};
+        }
+        .section-tbl tfoot td.num { color: {{ $dv['bleu'] }}; }
 
         /* Services : pas de sous-header coloré (juste le titre de section) */
-        .section-tbl.no-thead-color thead th { background: transparent; color: {{ $charte['noir'] }}; padding: 4px 8px; }
+        .section-tbl.no-thead-color thead th { background: transparent; color: {{ $dv['bleu'] }}; padding: 4px 8px; }
 
         /* ═══ MONTANT NET TOTAL À PAYER ═══ */
+        /* Bandeau du net à payer : fond bleu nuit, libellé blanc, montant
+           en or — c'est la ligne la plus lue du devis, elle est traitée
+           comme sur le modèle. */
         .montant-net {
-            margin-top: 14px;
-            border: 2px solid {{ $charte['rouge'] }};
-            border-left: 6px solid {{ $charte['rouge'] }};
-            padding: 12px 16px;
+            margin-top: 12px;
             width: 100%;
             border-collapse: collapse;
         }
-        .montant-net td { padding: 0; vertical-align: middle; }
+        .montant-net td {
+            background: {{ $dv['bleu'] }};
+            padding: 10px 14px;
+            vertical-align: middle;
+        }
         .montant-net .lbl-net {
             font-family: {!! $charte['ff_titres'] !!};
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 800;
-            color: {{ $charte['noir'] }};
+            color: {{ $dv['blanc'] }};
             text-transform: uppercase;
             letter-spacing: 1px;
         }
         .montant-net .val-net {
             font-family: {!! $charte['ff_titres'] !!};
             text-align: right;
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 800;
-            color: {{ $charte['rouge'] }};
+            color: {{ $dv['or'] }};
         }
         .montant-lettres {
-            padding: 6px 14px;
+            padding: 4px 14px;
             font-style: italic;
             font-size: 9px;
-            color: {{ $charte['texte_doux'] }};
-            border: 1px solid {{ $charte['gris'] }};
+            color: {{ $dv['ardoise'] }};
+            border: 1px solid {{ $dv['gris'] }};
             border-top: none;
         }
 
         /* ═══ MODALITÉS DE RÈGLEMENT ═══ */
-        .modalites { width: 100%; border-collapse: collapse; margin-top: 12px; border: 1px solid {{ $charte['gris'] }}; }
-        .modalites td { padding: 6px 10px; font-size: 9.5px; border-top: 1px solid {{ $charte['gris'] }}; }
-        .modalites td.lbl { background: {{ $charte['gris_clair'] }}; font-weight: 700; width: 32%; color: {{ $charte['noir'] }}; }
+        .modalites { width: 100%; border-collapse: collapse; margin-top: 8px; border: 1px solid {{ $dv['gris'] }}; }
+        .modalites td { padding: 4px 10px; font-size: 9px; border-top: 1px solid {{ $dv['gris'] }}; }
+        .modalites td.lbl { background: {{ $dv['gris_clair'] }}; font-weight: 700; width: 32%; color: {{ $dv['bleu'] }}; }
         .modalites .cb {
             display: inline-block;
             width: 10px; height: 10px;
-            border: 1.2px solid {{ $charte['noir'] }};
+            border: 1.2px solid {{ $dv['bleu'] }};
             margin-right: 4px;
             vertical-align: middle;
         }
         .bon-accord {
-            background: {{ $charte['noir'] }};
-            color: {{ $charte['blanc'] }};
+            background: {{ $dv['bleu'] }};
+            color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
-            padding: 8px 12px;
-            font-size: 11px;
+            padding: 6px 12px;
+            margin-top: 10px;
+            font-size: 10.5px;
             font-weight: 800;
             letter-spacing: .8px;
             text-align: center;
             text-transform: uppercase;
-            border-bottom: 3px solid {{ $charte['rouge'] }};
+            border-bottom: 3px solid {{ $dv['or'] }};
         }
 
-        /* ═══ SIGNATURES (page 2) ═══ */
+        /* ═══ SIGNATURES ═══
+           2026-11-16 : les cadres font 70px au lieu de 180px. Ils
+           occupaient une page entière, alors que le modèle les pose sous
+           le bandeau « Bon pour accord », sur la même page que le devis. */
         .sig-title-block {
             text-align: center;
             margin-top: 30px;
             margin-bottom: 20px;
         }
-        .sig-title-block .st-title { font-family: {!! $charte['ff_titres'] !!}; font-size: 18px; font-weight: 800; color: {{ $charte['noir'] }}; letter-spacing: 2px; }
-        .sig-title-block .st-sub   { font-size: 11px; color: {{ $charte['rouge'] }}; margin-top: 4px; font-weight: 700; }
-        .sig-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .sig-title-block .st-title { font-family: {!! $charte['ff_titres'] !!}; font-size: 18px; font-weight: 800; color: {{ $dv['bleu'] }}; letter-spacing: 2px; }
+        .sig-title-block .st-sub   { font-size: 11px; color: {{ $dv['or'] }}; margin-top: 4px; font-weight: 700; }
+        .sig-table { width: 100%; border-collapse: collapse; margin-top: 0; }
         .sig-table td {
             width: 50%;
-            border: 1px solid {{ $charte['gris'] }};
-            padding: 16px 18px;
+            border: 1px solid {{ $dv['gris'] }};
+            border-top: none;
+            padding: 8px 14px 10px 14px;
             vertical-align: top;
-            height: 180px;
-            background: {{ $charte['gris_clair'] }};
+            height: 70px;
+            background: {{ $dv['blanc'] }};
         }
         .sig-table .sig-label {
             font-family: {!! $charte['ff_titres'] !!};
             font-size: 11px;
             font-weight: 800;
-            color: {{ $charte['noir'] }};
+            color: {{ $dv['bleu'] }};
             text-align: center;
         }
         .sig-table .sig-role {
             font-size: 10px;
-            color: {{ $charte['texte_doux'] }};
+            color: {{ $dv['ardoise'] }};
             text-align: center;
             margin-top: 4px;
         }
         .sig-table .sig-line {
-            border-bottom: 1px solid {{ $charte['noir'] }};
+            border-bottom: 1px solid {{ $dv['bleu'] }};
             width: 70%;
             margin: 100px auto 0 auto;
         }
 
         /* ═══ CGV (page 3) ═══ */
         .cgv-header {
-            background: {{ $charte['noir'] }};
-            color: {{ $charte['blanc'] }};
+            background: {{ $dv['bleu'] }};
+            color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
             padding: 8px 12px;
             font-size: 11px;
             font-weight: 800;
             letter-spacing: 1px;
             text-transform: uppercase;
-            border-left: 4px solid {{ $charte['rouge'] }};
+            border-left: 4px solid {{ $dv['or'] }};
         }
         .cgv-header .site {
             float: right;
             font-size: 10px;
             font-weight: 600;
-            color: {{ $charte['jaune'] }};
+            color: {{ $dv['or'] }};
             text-transform: none;
             letter-spacing: 0;
         }
+        /* Titres d'articles : bandeau bleu moyen, comme le modèle (l'or
+           est réservé aux montants mis en avant). */
         .cgv-art-title {
-            background: {{ $charte['rouge'] }};
-            color: {{ $charte['blanc'] }};
+            background: {{ $dv['bleu_moyen'] }};
+            color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
-            padding: 5px 10px;
-            font-size: 10px;
+            padding: 4px 10px;
+            font-size: 9px;
             font-weight: 800;
-            margin-top: 6px;
+            margin-top: 4px;
             text-transform: uppercase;
             letter-spacing: .5px;
         }
+        /* 2026-11-16 : interlignes resserrés pour que les 8 articles
+           tiennent avec le devis en 2 pages, comme le modèle. */
         .cgv-body {
-            padding: 7px 12px;
-            font-size: 9.5px;
-            line-height: 1.35;
-            color: {{ $charte['noir'] }};
-            border: 1px solid {{ $charte['gris'] }};
+            padding: 5px 12px;
+            font-size: 8.5px;
+            line-height: 1.25;
+            color: {{ $dv['bleu'] }};
+            border: 1px solid {{ $dv['gris'] }};
             border-top: none;
         }
-        .cgv-body ul { margin: 4px 0 4px 20px; }
-        .cgv-body li { margin: 2px 0; }
+        .cgv-body ul { margin: 2px 0 2px 18px; }
+        .cgv-body li { margin: 1px 0; }
         .cgv-body .hi { font-weight: 700; }
     </style>
 </head>
@@ -419,9 +496,11 @@
          PAGE 1
     ═══════════════════════════════════════════════════════════════ --}}
 
-    {{-- HEADER logo + bandeau titre (2026-10-01 — charte graphique : liseré 5 couleurs
-         au-dessus, bandeau clair à accent rouge au lieu de l'orange) --}}
-    @include('pdf.partials.charte-lisere')
+    {{-- HEADER (2026-11-16) : liséré or, logo, puis « DEVIS » avec le
+         numéro et la date en or — disposition du modèle officiel. Le
+         liséré 5 couleurs de la charte a été retiré de ce document : il
+         n'existe pas sur le modèle envoyé aux clients. --}}
+    <div class="liseré-or"></div>
     <table class="header-table">
         <tr>
             <td class="header-left">
@@ -491,22 +570,23 @@
         <tbody>
             @foreach($quote->lines as $line)
                 @php
-                    $panel  = $line->panel_id ? \App\Models\Panel::find($line->panel_id) : null;
-                    $refPan = $panel?->reference ?? '';
-                    $addr   = $panel?->adresse ?: $panel?->quartier ?: $line->designation;
-                    $periodeLine = ($quote->period_start && $quote->period_end)
-                        ? 'Du ' . $quote->period_start->translatedFormat('j F Y') . ' au ' . $quote->period_end->translatedFormat('j F Y')
+                    // `Panel::find()` par ligne (2026-11-16) : conservé pour
+                    // retrouver l'adresse réelle quand la ligne n'en porte
+                    // pas. withTrashed() — un panneau démantelé depuis
+                    // l'émission du devis ne doit pas vider sa désignation.
+                    $panel  = $line->panel_id
+                        ? \App\Models\Panel::withTrashed()->find($line->panel_id)
                         : null;
+                    $addr   = $panel?->adresse ?: $panel?->quartier ?: $line->designation;
                 @endphp
                 <tr>
+                    {{-- Emplacement seul (2026-11-16), comme le modèle
+                         officiel. La période et le code du panneau en ont
+                         été retirés : la période figure déjà en tête du
+                         devis, et le modèle envoyé au client ne les porte
+                         pas. --}}
                     <td class="designation-cell">
-                        <span class="row-desc"><strong>Emplacement :</strong> {{ $addr ?: $line->snapshot_commune_name ?? '—' }}</span>
-                        @if($periodeLine)
-                            <span class="row-desc"><strong>Période :</strong> {{ $periodeLine }}</span>
-                        @endif
-                        @if($refPan)
-                            <span class="row-desc"><strong>Code :</strong> {{ $refPan }}</span>
-                        @endif
+                        Emplacement : {{ $addr ?: ($line->snapshot_commune_name ?? '—') }}
                     </td>
                     <td>{{ (int) $line->dimension_m2 }}</td>
                     <td>{{ $line->snapshot_commune_name ?: '—' }}</td>
@@ -519,15 +599,19 @@
         </tbody>
     </table>
 
-    {{-- SOUS-TOTAUX --}}
+    {{-- Bande de sous-total brut, comme le modèle officiel : le cumul des
+         lignes avant taxes, détaché du bloc de totaux. --}}
+    <table class="bande-soustotal">
+        <tr><td>{{ $fmt($netHt) }}</td></tr>
+    </table>
+
+    {{-- SOUS-TOTAUX
+         2026-11-16 : la ligne « Total HT » faisait doublon avec
+         « Montant Total HT » — même valeur, affichée deux fois. --}}
     <table class="subtotals">
         <tr>
             <td class="lbl">Montant Total HT</td>
             <td class="val">{{ $fmt($netHt) }} FCFA</td>
-        </tr>
-        <tr>
-            <td class="lbl"><strong>Total HT</strong></td>
-            <td class="val"><strong>{{ $fmt($netHt) }} FCFA</strong></td>
         </tr>
         <tr>
             <td class="lbl">TVA ({{ $tvaRate }}%)</td>
@@ -574,38 +658,46 @@
         </tfoot>
     </table>
 
-    {{-- SERVICES ADDITIONNELS --}}
+    {{-- SERVICES ADDITIONNELS
+         2026-11-16 — Trois corrections :
+           · la quantité apparaît (« 30 × 20 000 = 600 000 »), le client
+             peut refaire le calcul ;
+           · la TVA des services est affichée, comme sur le modèle ;
+           · le total passe en TTC. Il était en HT alors que le MONTANT NET
+             plus bas additionne les services TTC : les chiffres du PDF ne
+             se recoupaient pas. --}}
     <div class="section-header" style="margin-top:12px">Services additionnels</div>
     <table class="section-tbl no-thead-color no-break" style="margin-top:0;border-top:none">
         <tbody>
-            @if($quote->services->isEmpty())
+            @forelse($quote->services as $svc)
+                @php
+                    $svcQte = max(1, (int) ($svc->quantite ?: 1));
+                    $svcHt  = $svc->montantHt();
+                @endphp
                 <tr>
-                    <td style="width:35%">Frais d'impression</td>
-                    <td style="width:30%"></td>
-                    <td class="num" style="width:20%">0 FCFA</td>
-                    <td class="num" style="width:15%">0 FCFA</td>
+                    <td style="width:45%">{{ $svc->label }}@unless($svc->tva_applicable) <span class="svc-ht-flag">(HT strict)</span>@endunless</td>
+                    <td class="center" style="width:12%">{{ $svcQte }}</td>
+                    <td class="num" style="width:21%">{{ $svc->prix_ht > 0 ? $fmt($svc->prix_ht) . ' FCFA' : 'OFFERT' }}</td>
+                    <td class="num" style="width:22%">{{ $svcHt > 0 ? $fmt($svcHt) . ' FCFA' : 'OFFERT' }}</td>
                 </tr>
+            @empty
+                <tr><td colspan="4" class="empty">Aucun service additionnel</td></tr>
+            @endforelse
+
+            {{-- TVA des services : seuls ceux qui y sont soumis comptent
+                 (interrupteur `tva_applicable`, 2026-10-30). --}}
+            @if($servicesTvaAmount > 0)
                 <tr>
-                    <td>Frais de pose et dépose</td>
-                    <td></td>
-                    <td class="num">OFFERT</td>
-                    <td class="num">OFFERT</td>
+                    <td colspan="2"></td>
+                    <td class="num">TVA ({{ $tvaRate }}%)</td>
+                    <td class="num">{{ $fmt($servicesTvaAmount) }} FCFA</td>
                 </tr>
-            @else
-                @foreach($quote->services as $svc)
-                    <tr>
-                        <td style="width:35%">{{ $svc->label }}</td>
-                        <td style="width:30%"></td>
-                        <td class="num" style="width:20%">{{ $svc->prix_ht > 0 ? $fmt($svc->prix_ht) . ' FCFA' : 'OFFERT' }}</td>
-                        <td class="num" style="width:15%">{{ $svc->prix_ht > 0 ? $fmt($svc->prix_ht) . ' FCFA' : 'OFFERT' }}</td>
-                    </tr>
-                @endforeach
             @endif
         </tbody>
         <tfoot>
             <tr>
                 <td colspan="3">Total Services Additionnels</td>
-                <td class="num">{{ $fmt($servicesHtTot) }} FCFA</td>
+                <td class="num">{{ $fmt($servicesTtcTot) }} FCFA</td>
             </tr>
         </tfoot>
     </table>
@@ -618,12 +710,16 @@
         </tr>
     </table>
     <div class="montant-lettres">
-        Arrêté le présent devis à la somme de : <strong>{{ ucfirst($montantEnLettres($totalAPayer)) }} francs CFA</strong>
+        Arrêté le présent devis à la somme de : <strong>{{ ucfirst($montantEnLettres($totalAPayer)) }} francs</strong>
     </div>
 
-    {{-- MODALITÉS DE RÈGLEMENT --}}
+    {{-- MODALITÉS DE RÈGLEMENT
+         Le bandeau et son tableau restent solidaires (no-break sur le
+         groupe) : sans cela le titre « Modalités de règlement » tombait
+         seul en bas de page, ses lignes sur la suivante. --}}
+    <div class="no-break">
     <div class="section-header" style="margin-top:12px">Modalités de règlement</div>
-    <table class="modalites no-break" style="margin-top:0;border-top:none">
+    <table class="modalites" style="margin-top:0;border-top:none">
         <tr>
             <td class="lbl">Moyens de paiement :</td>
             <td>Espèces · Chèque · Virement bancaire</td>
@@ -649,34 +745,10 @@
             <td>{{ $bank['iban'] ?? '' }}</td>
         </tr>
     </table>
+    {{-- BON POUR ACCORD + signatures, à la suite des modalités
+         (2026-11-16). La page de signatures séparée a été supprimée : le
+         modèle officiel pose les deux cadres juste sous le bandeau. --}}
     <div class="bon-accord">BON POUR ACCORD — Lu et approuvé</div>
-
-    <div class="page-break"></div>
-
-    {{-- ═══════════════════════════════════════════════════════════════
-         PAGE 2 — SIGNATURES
-    ═══════════════════════════════════════════════════════════════ --}}
-    @include('pdf.partials.charte-lisere')
-    <table class="header-table">
-        <tr>
-            <td class="header-left">
-                @if($logoSrc)<img src="{{ $logoSrc }}" alt="{{ $company['name'] }}">@endif
-            </td>
-            <td class="header-right">
-                <div class="title">DEVIS</div>
-                <div class="meta">
-                    <span class="lbl">N° :</span> <span class="val">{{ $quote->reference }}</span><br>
-                    <span class="lbl">Date :</span> <span class="val">{{ $dateEmission }}</span>
-                </div>
-            </td>
-        </tr>
-    </table>
-
-    <div class="sig-title-block">
-        <div class="st-title">SIGNATURES</div>
-        <div class="st-sub">Devis : {{ $quote->reference }}</div>
-    </div>
-
     <table class="sig-table">
         <tr>
             <td>
@@ -691,11 +763,12 @@
             </td>
         </tr>
     </table>
-
-    <div class="page-break"></div>
+    </div>{{-- /no-break : modalités + accord + signatures restent groupés --}}
 
     {{-- ═══════════════════════════════════════════════════════════════
-         PAGE 3 — CONDITIONS GÉNÉRALES
+         CONDITIONS GÉNÉRALES — enchaînées sans saut de page forcé,
+         comme le modèle : elles commencent sous les signatures et se
+         terminent sur la page suivante.
     ═══════════════════════════════════════════════════════════════ --}}
     <div class="cgv-header">
         {{ $company['name'] ?? 'CIBLE SARL' }} — Conditions générales

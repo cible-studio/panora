@@ -26,14 +26,34 @@ class InvoiceService extends Model implements Auditable
     protected $auditExclude = ['updated_at'];
 
     protected $fillable = [
-        'invoice_id', 'label', 'prix_ht', 'tva_applicable', 'order_index',
+        'invoice_id', 'label', 'quantite', 'prix_ht', 'tva_applicable', 'order_index',
     ];
 
     protected $casts = [
+        'quantite'       => 'integer',
         'prix_ht'        => 'integer',
         'tva_applicable' => 'boolean',
         'order_index'    => 'integer',
     ];
+
+    /**
+     * Montant HT de la ligne (2026-11-16).
+     *
+     * `prix_ht` est le prix UNITAIRE depuis l'ajout de la quantité. Les
+     * lignes antérieures ont quantite = 1 : leur montant ne change pas.
+     * Même règle que QuoteService::montantHt() — un devis accepté devient
+     * une facture, les deux doivent compter pareil.
+     */
+    public function montantHt(): int
+    {
+        return (int) ($this->prix_ht * max(1, (int) ($this->quantite ?: 1)));
+    }
+
+    /** Montant TTC : avec ou sans TVA selon `tva_applicable`. */
+    public function montantTtc(float $tauxTva): int
+    {
+        return (int) round($this->montantHt() * ($this->tva_applicable ? 1 + $tauxTva / 100 : 1));
+    }
 
     public function invoice(): BelongsTo
     {

@@ -356,7 +356,13 @@
                 <thead>
                     <tr>
                         <th class="ql-th" style="text-align:left">Libellé</th>
-                        <th class="ql-th" style="text-align:right;width:150px">Prix HT (FCFA)</th>
+                        {{-- Quantité (2026-11-16) : le modèle de devis officiel
+                             facture « 30 × 20 000 = 600 000 ». Le client doit
+                             pouvoir refaire le calcul. Laisser 1 revient à la
+                             saisie d'avant : le prix est le montant. --}}
+                        <th class="ql-th" style="text-align:right;width:90px">Qté</th>
+                        <th class="ql-th" style="text-align:right;width:150px">PU HT (FCFA)</th>
+                        <th class="ql-th" style="text-align:right;width:140px">Montant HT</th>
                         {{-- TVA au choix, service par service (2026-10-30) :
                              même règle que la facture FNE. Un frais déjà taxé
                              par le fournisseur se refacture sans TVA. --}}
@@ -370,7 +376,9 @@
                         @php $svcTva = !array_key_exists('tva_applicable', $s) || (bool) $s['tva_applicable']; @endphp
                         <tr class="qs-row">
                             <td style="padding:6px" data-label="Libellé"><input type="text" name="services[{{ $i }}][label]" maxlength="200" value="{{ $s['label'] ?? '' }}" placeholder="ex. Impression affiches dos bleu" class="ql-input"></td>
-                            <td style="padding:6px" data-label="Prix HT"><input type="number" name="services[{{ $i }}][prix_ht]" min="0" step="1" value="{{ $s['prix_ht'] ?? 0 }}" class="ql-input ql-num qs-prix"></td>
+                            <td style="padding:6px" data-label="Qté"><input type="number" name="services[{{ $i }}][quantite]" min="1" step="1" value="{{ max(1, (int) ($s['quantite'] ?? 1)) }}" class="ql-input ql-num qs-qte"></td>
+                            <td style="padding:6px" data-label="PU HT"><input type="number" name="services[{{ $i }}][prix_ht]" min="0" step="1" value="{{ $s['prix_ht'] ?? 0 }}" class="ql-input ql-num qs-prix"></td>
+                            <td style="padding:6px;text-align:right" data-label="Montant HT"><span class="qs-ht" style="font-weight:600;color:var(--text2)">—</span></td>
                             <td style="padding:6px;text-align:center" data-label="TVA">
                                 {{-- Le champ caché garantit qu'un interrupteur éteint
                                      envoie « 0 » : sans lui, rien n'est transmis et
@@ -1398,7 +1406,9 @@ window.QuoteForm = (function() {
         const valeur = libelle ? ` value="${libelle.replace(/"/g, '&quot;')}"` : '';
         row.innerHTML = `
             <td style="padding:6px" data-label="Libellé"><input type="text" name="services[${i}][label]" maxlength="200"${valeur} placeholder="ex. Impression affiches dos bleu" class="ql-input"></td>
-            <td style="padding:6px" data-label="Prix HT"><input type="number" name="services[${i}][prix_ht]" min="0" step="1" value="0" class="ql-input ql-num qs-prix"></td>
+            <td style="padding:6px" data-label="Qté"><input type="number" name="services[${i}][quantite]" min="1" step="1" value="1" class="ql-input ql-num qs-qte"></td>
+            <td style="padding:6px" data-label="PU HT"><input type="number" name="services[${i}][prix_ht]" min="0" step="1" value="0" class="ql-input ql-num qs-prix"></td>
+            <td style="padding:6px;text-align:right" data-label="Montant HT"><span class="qs-ht" style="font-weight:600;color:var(--text2)">—</span></td>
             <td style="padding:6px;text-align:center" data-label="TVA">
                 <label class="qs-tva-toggle ${etat}">
                     <input type="hidden" name="services[${i}][tva_applicable]" value="0">
@@ -1432,9 +1442,16 @@ window.QuoteForm = (function() {
 
         document.querySelectorAll('#quote-services-tbody .qs-row').forEach(row => {
             const prix   = parseFloat(row.querySelector('.qs-prix')?.value) || 0;
+            // Quantité (2026-11-16) : prix unitaire × quantité. Vide ou
+            // absente = 1, la saisie d'avant reste donc valable telle quelle.
+            const qte    = Math.max(1, parseInt(row.querySelector('.qs-qte')?.value, 10) || 1);
+            const ht     = Math.round(prix * qte);
             const coche  = row.querySelector('.qs-tva')?.checked;
-            const ttc    = coche ? Math.round(prix * (1 + taux / 100)) : Math.round(prix);
+            const ttc    = coche ? Math.round(ht * (1 + taux / 100)) : ht;
             totalTtc    += ttc;
+
+            const cibleHt = row.querySelector('.qs-ht');
+            if (cibleHt) cibleHt.textContent = prix > 0 ? ht.toLocaleString('fr-FR') + ' F' : '—';
 
             const cible = row.querySelector('.qs-ttc');
             if (cible) cible.textContent = prix > 0 ? ttc.toLocaleString('fr-FR') + ' F' : '—';
@@ -1493,7 +1510,7 @@ window.QuoteForm = (function() {
         // Services : TTC recalculé à chaque saisie de prix, à chaque
         // bascule de TVA, et quand le taux du devis change.
         document.addEventListener('input', e => {
-            if (e.target.matches('.qs-prix, [name="tva"]')) recalcServices();
+            if (e.target.matches('.qs-prix, .qs-qte, [name="tva"]')) recalcServices();
         });
         document.addEventListener('change', e => {
             if (e.target.matches('.qs-tva, [name="tva"]')) recalcServices();
@@ -1586,12 +1603,18 @@ window.QuoteForm = (function() {
             if (detail) {
                 detail.innerHTML = services.length === 0
                     ? '<div class="qf-recap-vide">Aucun service ajouté</div>'
-                    : services.map(s =>
-                        '<div class="qf-recap-ligne">'
-                        + '<span title="' + echapper(s.label) + '">' + echapper(s.label)
-                        + (s.tva_applicable ? '' : '<span class="qf-badge-ht">HT</span>')
-                        + '</span><strong>' + fmt(s.ttc) + '</strong></div>'
-                      ).join('');
+                    : services.map(s => {
+                        // Quantité (2026-11-16) : on montre « × 30 » dès que
+                        // la ligne en porte une, pour que le montant du
+                        // récapitulatif se vérifie d'un coup d'œil.
+                        const qte = (s.quantite && s.quantite > 1)
+                            ? '<span class="qf-recap-qte"> × ' + s.quantite + '</span>'
+                            : '';
+                        return '<div class="qf-recap-ligne">'
+                            + '<span title="' + echapper(s.label) + '">' + echapper(s.label) + qte
+                            + (s.tva_applicable ? '' : '<span class="qf-badge-ht">HT</span>')
+                            + '</span><strong>' + fmt(s.ttc) + '</strong></div>';
+                      }).join('');
             }
         } catch (e) {
             // Un récapitulatif en panne ne doit jamais gêner la saisie.

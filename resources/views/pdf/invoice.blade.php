@@ -109,9 +109,12 @@
     // taxer que ceux qui l'exigent (les autres restent en HT strict).
     $servicesWithTva = $invoice->services->filter(fn($s) => (bool) $s->tva_applicable);
     $servicesNoTva   = $invoice->services->filter(fn($s) => !(bool) $s->tva_applicable);
-    $servicesHtTot   = (int) $invoice->services->sum('prix_ht');
-    $servicesHtWithTva = (int) $servicesWithTva->sum('prix_ht');
-    $servicesHtNoTva   = (int) $servicesNoTva->sum('prix_ht');
+    // Quantité (2026-11-16) : `prix_ht` n'est plus que le prix UNITAIRE.
+    // On somme le montant de ligne (prix × quantité) — sans quoi une
+    // facture de 30 impressions n'en compterait qu'une.
+    $servicesHtTot     = (int) $invoice->services->sum(fn($s) => $s->montantHt());
+    $servicesHtWithTva = (int) $servicesWithTva->sum(fn($s) => $s->montantHt());
+    $servicesHtNoTva   = (int) $servicesNoTva->sum(fn($s) => $s->montantHt());
     $servicesTvaAmount = (int) round($servicesHtWithTva * ($tvaRate / 100));
     $servicesTtcTot    = $servicesHtWithTva + $servicesTvaAmount + $servicesHtNoTva;
 
@@ -573,12 +576,15 @@
                 <tr>
                     <td class="ref">{{ $ref }}</td>
                     <td>{{ $svc->label }}{{ $svcHasTva ? '' : ' (HT strict)' }}</td>
+                    {{-- Quantité (2026-11-16) : la colonne affichait « 1 » en
+                         dur et répétait le prix en montant. Un service facturé
+                         30 fois se lit désormais 30 × PU = montant. --}}
                     <td class="num">{{ $fmt($svc->prix_ht) }}</td>
-                    <td class="center">1</td>
+                    <td class="center">{{ max(1, (int) ($svc->quantite ?: 1)) }}</td>
                     <td class="center">—</td>
                     <td class="center">{{ $svcHasTva ? 'TVA (' . (int) $tvaRate . ')' : '—' }}</td>
                     <td class="num">0</td>
-                    <td class="num">{{ $fmt($svc->prix_ht) }}</td>
+                    <td class="num">{{ $fmt($svc->montantHt()) }}</td>
                 </tr>
             @endforeach
         </tbody>

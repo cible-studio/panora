@@ -2539,3 +2539,90 @@ réellement libre.
 - [ ] Le sélecteur de panneaux du **devis** n'applique pas cette règle
       (décision du 16/11) : le commercial y cherche volontairement un
       panneau précis.
+
+---
+
+## § 31 — PDF devis aligné sur le modèle officiel, quantité sur les services *(2026-11-16)*
+
+Référence : `docs/devis/DEVIS HAVAS 05 PANNEAUX 12M².pdf` (non versionné).
+
+### Ce qui a changé
+
+**1. Quantité sur les services annexes.** Le modèle facture
+« 30 × 20 000 = 600 000 ». `prix_ht` devient le prix **unitaire**, le montant
+de ligne vaut prix × quantité. Défaut **1** : aucun devis ni aucune facture
+déjà émis ne change de total. Posé sur `quote_services` **et**
+`invoice_services` — un devis accepté devient une facture, les deux doivent
+compter pareil.
+
+**2. Trois défauts de montant, trouvés en comparant au modèle :**
+- Le PDF annonçait « Total Services Additionnels » en **HT** alors que le
+  MONTANT NET additionne les services **TTC** : les chiffres du document ne
+  se recoupaient pas.
+- La TVA des services n'apparaissait nulle part sur le PDF.
+- L'écran de détail du devis appliquait la TVA à **tous** les services, en
+  ignorant l'interrupteur `tva_applicable` du 30/10. Il pouvait donc
+  annoncer un montant différent du PDF et de la facture.
+
+**3. Habillage.** Le devis reprend la palette du modèle (bleu nuit `#1C2E3D`,
+bleu moyen `#327DAF`, or `#FAAF00`), extraite des opérateurs de couleur du
+PDF de référence. La charte du 01/10 (rouge/noir/jaune) reste en vigueur sur
+les autres PDF. Les **polices** restent celles de la charte.
+
+**4. Structure.** Colonne désignation réduite à l'emplacement seul ; ligne
+« Total HT » en doublon supprimée ; bande de sous-total brut ajoutée ; page
+de signatures séparée supprimée (les cadres suivent le bandeau « Bon pour
+accord »).
+
+### À vérifier sur la vraie base
+
+#### Les montants — le plus important
+- [ ] Créer un devis avec un service **quantité 30 à 20 000 FCFA** :
+      le formulaire doit afficher 600 000 HT, et le PDF
+      `30 | 20 000 FCFA | 600 000 FCFA` puis `TVA (18%) 108 000` puis
+      `Total Services Additionnels 708 000 FCFA`.
+- [ ] **Le MONTANT NET TOTAL À PAYER doit tomber juste** : TTC panneaux +
+      taxes publicitaires + services TTC.
+- [ ] Un service avec l'interrupteur sur **HT** : il ne doit porter aucune
+      TVA, ni sur l'écran de détail, ni sur le PDF, ni sur la facture.
+- [ ] **Ouvrir un devis et une facture ANTÉRIEURS au 16/11** : leurs totaux
+      ne doivent pas avoir bougé d'un franc (quantité = 1 par défaut).
+- [ ] Accepter un devis avec services en quantité → la facture qui en
+      découle doit porter les mêmes montants.
+- [ ] Facture FNE : la carte service affiche Qté / PU HT, et le
+      récapitulatif de droite suit la saisie.
+
+#### Le PDF
+- [ ] Comparer côte à côte avec `DEVIS HAVAS 05 PANNEAUX 12M².pdf`.
+- [ ] La somme en toutes lettres doit correspondre au total. *(Le PDF de
+      référence se trompe sur ce point : il annonce « six millions… » pour
+      1 634 280 FCFA. Panora écrit la bonne somme — c'est voulu.)*
+- [ ] La durée de validité doit être celle saisie sur le devis. *(La
+      référence écrit « quinze (7) jours », contradictoire. Non reproduit.)*
+- [ ] Les quatre chemins donnent le même PDF : bouton admin, espace client,
+      lien public, pièce jointe du mail d'envoi.
+
+### Écarts assumés avec le modèle — à trancher
+
+- [ ] **Le PDF fait 3 pages, le modèle 2.** Les conditions générales de
+      Panora sont plus longues : elles proposent une **Option B** de
+      paiement (70 % à la signature, 30 % à J-15) que le modèle n'a pas,
+      et deux cases sur la page des modalités au lieu d'une. Supprimer
+      l'Option B ramènerait très probablement le devis à 2 pages — mais
+      c'est une condition commerciale, pas une question de mise en page :
+      à confirmer avant de la retirer.
+
+- [ ] **Les coordonnées de l'émetteur diffèrent du modèle.** Elles viennent
+      de la configuration (`config/billing.php` / `.env`), pas du gabarit :
+      | Modèle | Panora aujourd'hui |
+      |---|---|
+      | CIBLE SARL | CIBLE |
+      | Rue des Majorettes, Biétry — Abidjan | 08 BP 687 ABIDJAN (VILLE) |
+      | Tél. +225 27 22 20 80 08 · Mob. 07 98 49 66 74 | 27 22 20 80 08 |
+      | CC : N°018 46 70 J | N°0184670J |
+      | finance@ \| commercial@cible-ci.com | commercial@cible-ci.com |
+      À corriger dans le `.env` de production si le modèle fait foi.
+
+- [ ] **Cachet et signature scannés** de la Directrice Commerciale : absents
+      (décision du 16/11). Fournir l'image pour les intégrer — en sachant
+      que tout devis sortirait alors déjà signé, brouillon compris.

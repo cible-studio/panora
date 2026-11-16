@@ -243,9 +243,15 @@ class InvoiceCalculator
             foreach ($opts['services'] as $s) {
                 $prix = (float) ($s['prix_ht'] ?? 0);
                 if ($prix <= 0) continue;
+                // Quantité (2026-11-16) : `prix_ht` est désormais le prix
+                // UNITAIRE. Absente ou nulle = 1, donc toutes les lignes
+                // antérieures gardent exactement leur montant.
+                $qte = max(1, (int) ($s['quantite'] ?? 1));
                 $svcLines[] = [
                     'label'          => (string) ($s['label'] ?? 'Service'),
+                    'quantite'       => $qte,
                     'prix_ht'        => $prix,
+                    'montant_ht'     => $prix * $qte,
                     // Défaut = true (rétro-compat toutes factures avant
                     // 2026-08-03 : toujours soumises à TVA).
                     'tva_applicable' => array_key_exists('tva_applicable', $s)
@@ -256,8 +262,8 @@ class InvoiceCalculator
         } else {
             $legacyPrint = max(0.0, (float) ($opts['services_impression']  ?? 0));
             $legacyPose  = max(0.0, (float) ($opts['services_pose_depose'] ?? 0));
-            if ($legacyPrint > 0) $svcLines[] = ['label' => "Frais d'impression",       'prix_ht' => $legacyPrint, 'tva_applicable' => true];
-            if ($legacyPose  > 0) $svcLines[] = ['label' => 'Frais de pose et dépose', 'prix_ht' => $legacyPose,  'tva_applicable' => true];
+            if ($legacyPrint > 0) $svcLines[] = ['label' => "Frais d'impression",       'quantite' => 1, 'prix_ht' => $legacyPrint, 'montant_ht' => $legacyPrint, 'tva_applicable' => true];
+            if ($legacyPose  > 0) $svcLines[] = ['label' => 'Frais de pose et dépose', 'quantite' => 1, 'prix_ht' => $legacyPose,  'montant_ht' => $legacyPose,  'tva_applicable' => true];
         }
 
         $totalHtBrut = 0.0;
@@ -296,12 +302,14 @@ class InvoiceCalculator
 
         // Services annexes : chaque service applique (ou pas) la TVA
         // selon son flag tva_applicable.
-        $servicesHt  = array_sum(array_column($svcLines, 'prix_ht'));
+        // On somme `montant_ht` (prix unitaire × quantité, 2026-11-16) et
+        // non `prix_ht`, qui n'est plus que le prix UNITAIRE.
+        $servicesHt  = array_sum(array_column($svcLines, 'montant_ht'));
         $servicesTtc = 0.0;
         foreach ($svcLines as $s) {
             $servicesTtc += $s['tva_applicable']
-                ? $s['prix_ht'] * (1 + $tvaRate / 100)
-                : $s['prix_ht'];
+                ? $s['montant_ht'] * (1 + $tvaRate / 100)
+                : $s['montant_ht'];
         }
 
         // Rétro-compat pour les champs invoices.services_impression /
@@ -312,8 +320,11 @@ class InvoiceCalculator
         $legacyPose  = 0.0;
         foreach ($svcLines as $s) {
             $label = mb_strtolower($s['label']);
-            if (str_contains($label, 'impression')) $legacyPrint += $s['prix_ht'];
-            if (str_contains($label, 'pose'))       $legacyPose  += $s['prix_ht'];
+            // Montant de la ligne, quantité comprise : ces deux champs
+            // alimentent les rapports legacy, ils doivent valoir ce qui
+            // est réellement facturé.
+            if (str_contains($label, 'impression')) $legacyPrint += $s['montant_ht'];
+            if (str_contains($label, 'pose'))       $legacyPose  += $s['montant_ht'];
         }
 
         $autresTaxes = $tspAmount + $totalTm + $totalOdp;
@@ -365,6 +376,9 @@ class InvoiceCalculator
         $linesArr = $invoice->lines->map(fn(InvoiceLine $l) => $l->toArray())->all();
         $svcArr   = $invoice->services->map(fn($s) => [
             'label'          => $s->label,
+            // Quantité (2026-11-16) : même lecture que côté devis, pour
+            // qu'un devis accepté et sa facture annoncent le même montant.
+            'quantite'       => max(1, (int) ($s->quantite ?: 1)),
             'prix_ht'        => (float) $s->prix_ht,
             'tva_applicable' => (bool) $s->tva_applicable,
         ])->all();

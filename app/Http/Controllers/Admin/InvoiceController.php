@@ -422,6 +422,9 @@ class InvoiceController extends Controller
             // reçoit le tableau moderne 'services'.
             'services'                     => 'nullable|array|max:30',
             'services.*.label'             => 'required_with:services|string|max:200',
+            // Quantite (2026-11-16) : absente = 1. Plafond haut mais fini,
+            // pour qu'une saisie fautive ne produise pas un montant absurde.
+            'services.*.quantite'             => 'nullable|integer|min:1|max:100000',
             'services.*.prix_ht'           => 'required_with:services|numeric|min:0',
             // Flag TVA par service (2026-08-03). Absent = true (défaut).
             'services.*.tva_applicable'    => 'nullable|boolean',
@@ -552,6 +555,9 @@ class InvoiceController extends Controller
                 : true;
             $invoice->services()->create([
                 'label'          => $label,
+                // Quantité (2026-11-16) : absente du formulaire = 1, donc
+                // prix_ht reste le montant de la ligne comme avant.
+                'quantite'       => max(1, (int) ($s['quantite'] ?? 1)),
                 'prix_ht'        => $prix,
                 'tva_applicable' => $tvaFlag,
                 'order_index'    => $idx++,
@@ -823,6 +829,9 @@ class InvoiceController extends Controller
             // Services annexes libres (prompt v2)
             'services'                     => 'nullable|array|max:30',
             'services.*.label'             => 'required_with:services|string|max:200',
+            // Quantite (2026-11-16) : absente = 1. Plafond haut mais fini,
+            // pour qu'une saisie fautive ne produise pas un montant absurde.
+            'services.*.quantite'             => 'nullable|integer|min:1|max:100000',
             'services.*.prix_ht'           => 'required_with:services|numeric|min:0',
             'services.*.tva_applicable'    => 'nullable|boolean',
             // Legacy : conservés pour rétrocompat factures historiques
