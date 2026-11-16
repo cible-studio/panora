@@ -12,6 +12,10 @@
     </x-slot:topbarLeft>
 
     <x-slot name="topbarActions">
+        {{-- Un panneau sorti du parc (soft-deleted) n'a plus ni fiche PDF, ni
+             édition, ni planning : ces routes n'acceptent pas un panneau
+             supprimé et renverraient un 404. Seule la consultation reste. --}}
+        @unless($panel->trashed())
         <a href="{{ route('admin.panels.pdf', $panel) }}" class="btn btn-ghost btn-sm" title="Télécharger la fiche PDF du panneau">
             📄 <span class="btn-label">Export PDF</span>
         </a>
@@ -23,7 +27,30 @@
         <a href="{{ route('admin.panels.availability', $panel) }}" class="btn btn-blue btn-sm keep-label" title="Voir le planning de disponibilité">
             📅 <span class="btn-label">Disponibilités</span>
         </a>
+        @endunless
     </x-slot>
+
+    {{-- PANNEAU SORTI DU PARC (2026-11-16)
+         Le démantèlement et la suppression se traduisent tous deux par un
+         soft-delete. La fiche reste accessible pour que les piges, poses,
+         factures et devis qui la citent gardent un lien valide ; le bandeau
+         dit clairement que le panneau n'est plus exploitable. --}}
+    @if($panel->trashed())
+    <div style="background:linear-gradient(90deg,rgba(100,116,139,.14),rgba(100,116,139,.04));border:1px solid rgba(100,116,139,.45);border-left:4px solid #64748b;border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="font-size:24px;">🗂</div>
+        <div>
+            <div style="font-weight:700;color:var(--text);font-size:14px;">
+                Panneau sorti du parc
+            </div>
+            <div style="font-size:12px;color:var(--text2);margin-top:3px;">
+                Retiré le <strong>{{ $panel->deleted_at?->format('d/m/Y') ?? '—' }}</strong>.
+                La fiche est conservée en lecture seule : les piges, poses,
+                factures et devis qui la citent restent consultables.
+                Ce panneau n'est plus réservable.
+            </div>
+        </div>
+    </div>
+    @endif
 
     {{-- ALERTE MAINTENANCE ACTIVE (placée au-dessus de tout) --}}
     @isset($activeMaintenance)

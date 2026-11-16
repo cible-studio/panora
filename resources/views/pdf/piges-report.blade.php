@@ -100,9 +100,13 @@
             {{-- EN-TÊTE --}}
             <div class="pige-header">
                 <div>
-                    <span class="pige-ref">{{ $pige->panel->reference }}</span>
+                    {{-- ?-> (2026-11-16) : un panneau démantelé est soft-deleted.
+                         Pige::panel() le récupère désormais via withTrashed(),
+                         mais on garde la garde ici pour qu'un export PDF ne
+                         puisse jamais tomber sur un panneau introuvable. --}}
+                    <span class="pige-ref">{{ $pige->panel?->reference ?? '—' }}</span>
                     <span style="color:#64748b; font-size:11px; margin-left:8px;">
-                        {{ $pige->panel->commune->name }}
+                        {{ $pige->panel?->commune?->name ?? '—' }}
                     </span>
                 </div>
                 <div style="display:flex; align-items:center; gap:10px;">

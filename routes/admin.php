@@ -443,8 +443,13 @@ Route::prefix('admin')
         // générer un aperçu live de la référence sans recharger la page.
         Route::get('panels/generate-reference', [PanelController::class, 'generateReference'])
             ->name('panels.generate-reference');
+        // withTrashed() (2026-11-16) : un panneau démantelé reste consultable.
+        // Les piges, poses, factures et devis qui le citent pointent ici ;
+        // sans cela le lien renvoie un 404 au lieu de la fiche historique.
+        // Volontairement limité à show : edit/update/destroy restent fermés
+        // sur un panneau sorti du parc.
         Route::get('panels/{panel}', [PanelController::class, 'show'])
-            ->whereNumber('panel')->name('panels.show');
+            ->whereNumber('panel')->withTrashed()->name('panels.show');
         Route::get('panels/{panel}/availability', [PanelController::class, 'availability'])
             ->whereNumber('panel')->name('panels.availability');
         Route::get('panels/{panel}/pdf', [PanelController::class, 'exportPdf'])
