@@ -32,6 +32,11 @@ class AppServiceProvider extends ServiceProvider
     {
         // Liste des noms de fiches lue une fois par requête / par job (2026-10-29).
         $this->app->scoped(\App\Support\NomEntreprise::class);
+
+        // Suivi des mairies (2026-11-16) : le calcul d'un exercice (12 mois
+        // × tout le parc) est mémorisé le temps d'une requête, partagé par
+        // tous les écrans qui le lisent pendant cette requête.
+        $this->app->scoped(\App\Services\Taxes\TaxeExerciceService::class);
     }
 
     public function boot(): void

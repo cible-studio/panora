@@ -28,7 +28,7 @@ class SeedParc extends Command {
         // users / taxes / external_agencies / clients / roles / permissions
         // (préservation explicite des données opérationnelles non-parc).
         $vider = [
-            "satisfaction_surveys","commune_tax_payments","audit_logs","alerts",
+            "satisfaction_surveys","commune_tax_payments","taxe_reglements","taxe_reprises","audit_logs","alerts",
             "piges","pose_tasks","invoices","propositions",
             "campaign_panels","campaigns","reservation_panels","reservations",
             "maintenances","client_contacts","client_users",

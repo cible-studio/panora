@@ -146,6 +146,71 @@ class TaxPeriodCalculator
     }
 
     /**
+     * TM — mois de campagne qui COMMENCENT dans la période (2026-11-16).
+     *
+     * ═══ RÈGLE VALIDÉE PAR ÉCRIT — 2026-11-16 ═══
+     * « TM : toutes les campagnes d'un panneau sont comptées, et chaque mois
+     *   de campagne va dans le trimestre où il commence. »
+     *
+     * La campagne se découpe en mois de date à date depuis SON début — la
+     * règle de moisAnniversaireEntames(), validée le 2026-07-29 (« mois
+     * entamés strictement depuis le début de la campagne »). Chaque mois est
+     * ensuite rangé dans la période où il commence.
+     *
+     * Pourquoi pas moisTMDansPeriode() : elle recoupe d'abord la campagne
+     * avec la période, puis recompte les mois à partir du 1er jour de la
+     * période. Les périodes ne s'additionnaient donc pas : une campagne du
+     * 15/03 au 14/05 (2 mois) faisait 1 mois en mars + 1 en avril + 1 en mai
+     * = 3 en mensuel, et 2 en annuel. Ici : mars 1, avril 1, mai 0 → 2,
+     * comme l'année. T1 + T2 + T3 + T4 = l'année, à l'unité près.
+     *
+     *   15/03 → 14/05 : mois 1 commence le 15/03 (T1), mois 2 le 15/04 (T2)
+     *   01/01 → 31/12 : 12 mois, un par mois calendaire
+     */
+    public function moisTMCommencantDansPeriode(
+        CarbonInterface $campaignStart,
+        CarbonInterface $campaignEnd,
+        CarbonInterface $periodStart,
+        CarbonInterface $periodEnd
+    ): int {
+        $ps = Carbon::parse($periodStart)->startOfDay();
+        $pe = Carbon::parse($periodEnd)->startOfDay();
+
+        $n = 0;
+        foreach ($this->debutsMoisTM($campaignStart, $campaignEnd) as $debut) {
+            if ($debut->greaterThanOrEqualTo($ps) && $debut->lessThanOrEqualTo($pe)) {
+                $n++;
+            }
+        }
+
+        return $n;
+    }
+
+    /**
+     * Date de début de chaque mois de campagne, dans l'ordre. Même pas que
+     * moisAnniversaireEntames() — même nombre d'éléments, garanti par test :
+     * le 1er mois commence au début de la campagne, chaque suivant à
+     * l'anniversaire que la fin dépasse strictement.
+     *
+     * @return array<int, Carbon>
+     */
+    public function debutsMoisTM(CarbonInterface $campaignStart, CarbonInterface $campaignEnd): array
+    {
+        $s = Carbon::parse($campaignStart)->startOfDay();
+        $e = Carbon::parse($campaignEnd)->startOfDay();
+        if ($e->lessThan($s)) return [];
+
+        $debuts = [$s->copy()];
+        $anniversaire = $s->copy()->addMonthNoOverflow();
+        while ($e->greaterThan($anniversaire)) {
+            $debuts[] = $anniversaire->copy();
+            $anniversaire->addMonthNoOverflow();
+        }
+
+        return $debuts;
+    }
+
+    /**
      * Compte les trimestres ODP pour un panneau, restreints à une période
      * filtre. Utilisé pour la vue théorique et les rapports.
      *

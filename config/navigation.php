@@ -59,6 +59,7 @@ return [
         'maintenances'           => ['route' => 'admin.maintenances.index',           'label' => 'Maintenances'],
         'piges'                  => ['route' => 'admin.piges.index',                  'label' => 'Piges photos'],
         'taxes'                  => ['route' => 'admin.taxes.index',                  'label' => 'Taxes communales'],
+        'taxes.suivi'            => ['route' => 'admin.taxes.suivi.index',            'label' => 'Suivi des mairies'],
         'renouvellements'        => ['route' => 'admin.renouvellements.index',        'label' => 'Renouvellements'],
         'diffusion'              => ['route' => 'admin.diffusion-dispos.index',       'label' => 'Diffusion des disponibilités'],
         'external-agencies'      => ['route' => 'admin.external-agencies.index',      'label' => 'Régies externes'],
@@ -114,6 +115,7 @@ return [
         'admin.settings.index',
         'admin.signalements.index',
         'admin.taxes.index',
+        'admin.taxes.suivi.index',
         'admin.users.index',
     ],
 

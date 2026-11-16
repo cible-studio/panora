@@ -83,6 +83,8 @@ class WipeTestData extends Command
         'users', 'roles', 'permissions', 'model_has_roles', 'model_has_permissions', 'role_has_permissions',
         'communes', 'zones', 'panel_categories', 'panel_formats',
         'taxes', 'commune_tax_payments',
+        // Suivi des mairies (2026-11-16) : règlements et montants réclamés.
+        'taxe_reglements', 'taxe_reprises',
         'external_agencies', 'clients',
         'migrations',
     ];

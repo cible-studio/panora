@@ -412,72 +412,18 @@ class TaxController extends Controller
      */
     public function communePaymentsHistory(Commune $commune, Request $request, TaxCalculationService $calc)
     {
-        $year = (int) $request->input('year', date('Y'));
-
-        // Hotfix TX-6 + TX-10 (2026-06-22) : on filtre STRICTEMENT par
-        // l'année du paid_at (date de versement) ET non par period_year.
-        // Avant : aucun filtre → un versement 22/06/2026 apparaissait dans
-        // l'historique 2021. Maintenant : 2021 affiche zéro si rien n'a
-        // été versé en 2021. Si paid_at est NULL on garde le fallback
-        // period_year (cas legacy avant l'introduction de paid_at).
-        // withTrashed() conservé : immutabilité fiscale (les annulations
-        // sont des paiements négatifs, jamais une suppression physique).
-        $payments = CommuneTaxPayment::withTrashed()
-            ->where('commune_id', $commune->id)
-            ->where(function ($q) use ($year) {
-                $q->whereYear('paid_at', $year)
-                  ->orWhere(function ($qq) use ($year) {
-                      $qq->whereNull('paid_at')->where('period_year', $year);
-                  });
-            })
-            ->with('recordedBy:id,name')
-            ->orderBy('paid_at')
-            ->orderBy('created_at')
-            ->get();
-
-        // Cumul payé chrono — calculé en PHP au fil des lignes.
-        $cumulOdp = 0;
-        $cumulTm  = 0;
-        $rows = $payments->map(function (CommuneTaxPayment $p) use (&$cumulOdp, &$cumulTm) {
-            $cumulOdp += (int) $p->odp_paye;
-            $cumulTm  += (int) $p->tm_paye;
-            return [
-                'payment'      => $p,
-                'cumul_odp'    => $cumulOdp,
-                'cumul_tm'     => $cumulTm,
-                'cumul_total'  => $cumulOdp + $cumulTm,
-            ];
-        });
-
-        // Total dû "live" pour l'année sélectionnée. Le solde restant final
-        // tient compte de ce live.
-        $totalDuLive = $this->computeAnnualTotalDue($commune, $year, $calc);
-
-        // Pour chaque ligne, on calcule le solde "as of payment" :
-        //   solde = total dû recalculé live − cumul payé jusqu'à cette ligne
-        $rows = $rows->map(function ($r) use ($totalDuLive) {
-            $r['solde_apres'] = max(0, $totalDuLive - $r['cumul_total']);
-            return $r;
-        });
-
-        // Hotfix TX-5 (2026-06-22) : taux couverture cohérent — base sur
-        // les MÊMES données que cette vue (cumulOdp + cumulTm pour l'année).
-        $totalPaye  = $cumulOdp + $cumulTm;
-        $soldeFinal = max(0, $totalDuLive - $totalPaye);
-        $tauxCouv   = $totalDuLive > 0
-            ? (int) round(min(100, ($totalPaye / $totalDuLive) * 100))
-            : ($totalPaye > 0 ? 100 : 0); // pas de dû mais paiement = trop-payé → 100%
-
-        return view('admin.taxes.commune-history', [
-            'commune'        => $commune,
-            'rows'           => $rows,
-            'year'           => $year,
-            'totalDuLive'    => $totalDuLive,
-            'totalPaye'      => $totalPaye,
-            'soldeFinal'     => $soldeFinal,
-            'tauxCouverture' => $tauxCouv,
-            'anneesDispos'   => range(date('Y') + 1, max(2020, date('Y') - 5)),
-        ]);
+        // 2026-11-16 — Remplacé par la fiche du Suivi des mairies : les
+        // règlements y sont rattachés à l'exercice qu'ils règlent, avec les
+        // arriérés reportés. L'ancien écran lisait commune_tax_payments par
+        // date de versement et comparait à un dû recalculé sans arriérés —
+        // le « solde après versement » ne correspondait donc à rien de ce
+        // que la mairie réclame. Les anciennes lignes sont recopiées par
+        // `taxes:reprendre-reglements`. L'adresse reste valable (liens
+        // enregistrés) et mène au même endroit.
+        return redirect()->to(
+            route('admin.taxes.suivi.commune', ['commune' => $commune, 'exercice' => (int) $request->input('year', date('Y'))])
+            . '#reglements'
+        );
     }
 
     /**
@@ -545,127 +491,24 @@ class TaxController extends Controller
 
     /**
      * LOT 2 (cahier 2026-06-19) — Fiche commune détaillée.
-     *
-     * Construit pour une commune et une année :
-     *   - infos générales (panneaux, occupés, taux occupation)
-     *   - matrice mensuelle 12 lignes (ODP dû · TM due · Total dû · Total payé · Solde)
-     *   - cumuls trimestriels (4 lignes Q1..Q4)
-     *   - cumul annuel
-     *
-     * Source unique pour le calcul théorique : TaxCalculationService.
-     * Source unique pour les paiements : CommuneTaxPayment (cohérent
-     * avec /admin/taxes/calcul, agrégation multi-périodicité prorata).
+     * Depuis le 2026-11-16 : redirige vers la fiche du Suivi des mairies
+     * (TaxeSuiviController::commune). La vue admin.taxes.commune-show reste
+     * sur le disque, plus servie.
      */
     public function showCommune(Commune $commune, Request $request, TaxCalculationService $calc)
     {
-        $year = (int) $request->input('year', date('Y'));
-        $anneesDispos = range(date('Y') + 1, max(2020, date('Y') - 5));
-
-        // ── Infos générales (snapshot live) ────────────────────────
-        $panels = $commune->panels()
-            ->whereNull('deleted_at')
-            ->whereNotIn('status', ['maintenance'])
-            ->avecTaxesAutomatiques() // axes : ODP/TM à la main (2026-11-12)
-            ->get();
-        $nbPanneaux = $panels->count();
-        $nbOccupes  = $panels->whereIn('status', ['occupe', 'confirme', 'option'])->count();
-        $tauxOccupation = $nbPanneaux > 0 ? round(($nbOccupes / $nbPanneaux) * 100, 1) : 0;
-
-        // ── Paiements de l'année (filtre TX-6 : on prend les paiements
-        //    dont paid_at tombe dans l'année courante, fallback period_year
-        //    pour les enregistrements legacy sans paid_at). ───────────
-        $allPayments = CommuneTaxPayment::where('commune_id', $commune->id)
-            ->where(function ($q) use ($year) {
-                $q->whereYear('paid_at', $year)
-                  ->orWhere(function ($qq) use ($year) {
-                      $qq->whereNull('paid_at')->where('period_year', $year);
-                  });
-            })
-            ->get();
-
-        // ── Matrice mensuelle (Jan..Déc) ──────────────────────────
-        $monthNames = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-                              'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
-        // TX-14 (2026-09-24) — L'ODP est MENSUELLE : chaque mois porte le
-        // sien, et la colonne s'additionne naturellement en trimestre puis
-        // en année. (TX-11 avait dû la reporter sur le 1er mois de chaque
-        // trimestre tant qu'elle était comptée au trimestre — plus besoin.)
-        $matrix = [];
-        for ($m = 1; $m <= 12; $m++) {
-            // Calcul théorique mois m (TaxCalculationService — Phase 1
-            // émet désormais odp_total/tm_total → fix TX-4).
-            $lines  = $calc->generateLines(TaxCalculationService::PERIOD_MONTHLY, $m, $year, ['commune_id' => $commune->id]);
-            $totals = $calc->summarize($lines);
-            $odpTheo = (int) ($totals['odp_total'] ?? 0);
-            $tmTheo  = (int) ($totals['tm_total']  ?? 0);
-
-            // Hotfix TX-8 (2026-06-22) : un paiement = 1 ligne sur le mois
-            // de paid_at. Avant : la répartition prorata 1/count(months)
-            // divisait fictivement un versement annuel de 11 616 000 en
-            // 12 × 968 000 sur chaque mois — illisible pour la patronne.
-            // Maintenant : on affiche le montant réellement versé ce mois
-            // précis, peu importe la périodicité initialement déclarée.
-            $odpPaye = 0;
-            $tmPaye  = 0;
-            foreach ($allPayments as $p) {
-                if (!$p->paid_at) continue; // legacy sans date → ignoré ici
-                if ((int) $p->paid_at->month !== $m) continue;
-                $odpPaye += (int) $p->odp_paye;
-                $tmPaye  += (int) $p->tm_paye;
-            }
-            $totalTheo  = $odpTheo + $tmTheo;
-            $totalPaye  = $odpPaye + $tmPaye;
-            $solde      = max(0, $totalTheo - $totalPaye);
-
-            $matrix[] = [
-                'mois'        => $m,
-                'mois_label'  => $monthNames[$m],
-                'odp_du'      => $odpTheo,
-                'tm_du'       => $tmTheo,
-                'total_du'    => $totalTheo,
-                'total_paye'  => $totalPaye,
-                'solde'       => $solde,
-                'statut'      => $totalTheo === 0 ? 'aucun'
-                               : ($totalPaye <= 0 ? 'non_paye'
-                               : ($totalPaye >= $totalTheo - 1 ? 'paye' : 'partiel')),
-            ];
-        }
-
-        // ── Cumul trimestriel Q1..Q4 (somme des 3 mois du trimestre)
-        $quarterly = [];
-        for ($q = 1; $q <= 4; $q++) {
-            $monthsInQ = range(($q - 1) * 3 + 1, $q * 3);
-            $slice = collect($matrix)->whereIn('mois', $monthsInQ);
-            $quarterly[] = [
-                'q'           => $q,
-                'label'       => 'T' . $q . ' (' . $monthNames[$monthsInQ[0]] . '-' . $monthNames[$monthsInQ[2]] . ')',
-                'odp_du'      => $slice->sum('odp_du'),
-                'tm_du'       => $slice->sum('tm_du'),
-                'total_du'    => $slice->sum('total_du'),
-                'total_paye'  => $slice->sum('total_paye'),
-                'solde'       => $slice->sum('solde'),
-            ];
-        }
-
-        // ── Cumul annuel ─────────────────────────────────────────
-        $annual = [
-            'odp_du'     => collect($matrix)->sum('odp_du'),
-            'tm_du'      => collect($matrix)->sum('tm_du'),
-            'total_du'   => collect($matrix)->sum('total_du'),
-            'total_paye' => collect($matrix)->sum('total_paye'),
-            'solde'      => collect($matrix)->sum('solde'),
-        ];
-
-        return view('admin.taxes.commune-show', [
-            'commune'        => $commune,
-            'year'           => $year,
-            'anneesDispos'   => $anneesDispos,
-            'nbPanneaux'     => $nbPanneaux,
-            'nbOccupes'      => $nbOccupes,
-            'tauxOccupation' => $tauxOccupation,
-            'matrix'         => $matrix,
-            'quarterly'      => $quarterly,
-            'annual'         => $annual,
+        // 2026-11-16 — Remplacé par la fiche du Suivi des mairies (exercice,
+        // arriérés, ODP et TM par trimestre, règlements, relevé PDF). Deux
+        // défauts de l'ancienne fiche disparaissent avec elle :
+        //   · le solde se calculait mois par mois avec max(0, dû − payé), sans
+        //     compensation : une année réglée en une fois en mars affichait
+        //     encore un solde sur les onze autres mois ;
+        //   · les versements étaient rangés par date de paiement, quand la
+        //     page Taxes les rangeait par année réglée.
+        // L'adresse reste valable et mène à la nouvelle fiche.
+        return redirect()->route('admin.taxes.suivi.commune', [
+            'commune'  => $commune,
+            'exercice' => (int) $request->input('year', date('Y')),
         ]);
     }
 
@@ -853,112 +696,30 @@ class TaxController extends Controller
             ->whereNotNull('odp_rate')
             ->get(['id', 'name', 'odp_rate', 'tm_rate']);
 
-        // ── Hotfix TX-OCC-1 (2026-06-22) ────────────────────────────
-        // Pré-calcule en BULK, pour CHAQUE panneau du parc, le nombre de
-        // mois où il est OCCUPÉ par une campagne ACTIVE chevauchant la
-        // période [periodStart, periodEnd]. Évite la TM forfaitaire
-        // appliquée à TOUS les panneaux (bug BOUAFLE 1 666 FCFA sur
-        // panneau jamais loué).
-        //
-        // Stratégie : 1 seule requête pour toutes les campagnes actives
-        // qui chevauchent la fenêtre, groupBy panel_id, puis comptage
-        // mois calendaires en mémoire. Pas de N+1.
-        $queryMonthsAll = self::monthsForPeriod($periodType, $periodValue, $periodEndValue);
-        $lastMonth = $queryMonthsAll ? max($queryMonthsAll) : 12;
-        $firstMonth = $queryMonthsAll ? min($queryMonthsAll) : 1;
-        $periodStart = \Carbon\Carbon::create($periodYear, $firstMonth, 1)->startOfDay();
-        $periodEnd   = \Carbon\Carbon::create($periodYear, $lastMonth, 1)->endOfMonth();
+        // ── 2026-11-16 — TM : SOURCE UNIQUE (TaxCalculationService) ──────
+        // Avant, ce tableau recalculait la TM avec sa propre formule : mois
+        // CALENDAIRES occupés × tarif × m² (un jour de campagne dans le mois
+        // = un mois), alors que le détail, le PDF, l'Excel et la fiche
+        // commune comptent les mois de campagne de date à date (règle
+        // validée le 2026-07-29). Deux TM pour la même période. Elle vient
+        // désormais de generateLines(), comme l'ODP depuis TX-12 — avec la
+        // règle du 2026-11-16 : toutes les campagnes du panneau, chaque mois
+        // rangé dans la période où il commence.
 
-        $allPanelIds = $communes->flatMap(fn($c) => $c->panels->pluck('id'))->unique()->values()->all();
-
-        // Hotfix urgent 2026-06-22 : la requête SQL ci-dessous a planté en
-        // prod (HTTP 500 reproductible sur /admin/taxes/calcul). Sans accès
-        // aux logs locaux MySQL on n'a pas pu identifier la cause exacte
-        // (panneau orphelin sans campaign_panels ? colonne absente ?
-        // collation ?). On wrappe défensivement : si la query échoue, on
-        // log la cause + fallback "0 mois occupés" pour TOUS les panneaux,
-        // ce qui équivaut au comportement de la refonte initiale (TM = 0
-        // partout). C'est restrictif mais ça préserve l'endpoint.
-        $assignmentsByPanel = [];
-        $moisOccByPanel = [];
-        try {
-            if (!empty($allPanelIds)) {
-                $assignmentsByPanel = \DB::table('campaign_panels')
-                    ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
-                    ->whereIn('campaign_panels.panel_id', $allPanelIds)
-                    // FIX 2026-06-26 — Aligné avec TaxCalculationService : inclure
-                    // 'termine' pour que la fiche commune et le dashboard taxes
-                    // affichent le même montant que /admin/taxes/details.
-                    ->whereIn('campaigns.status', [\App\Enums\CampaignStatus::ACTIF->value, \App\Enums\CampaignStatus::TERMINE->value])
-                    ->whereNull('campaigns.deleted_at')
-                    ->where('campaigns.start_date', '<=', $periodEnd->toDateString())
-                    ->where('campaigns.end_date',   '>=', $periodStart->toDateString())
-                    ->get([
-                        'campaign_panels.panel_id',
-                        'campaigns.start_date',
-                        'campaigns.end_date',
-                    ])
-                    ->groupBy('panel_id')
-                    ->all();
-            }
-
-            // Compte mois calendaires où au moins 1 campagne du panneau
-            // chevauche le mois entier. Pratique métier OOH : 1 jour de
-            // campagne dans le mois = mois compté.
-            $countOccupiedMonths = function ($rows, \Carbon\Carbon $pStart, \Carbon\Carbon $pEnd): int {
-                if (empty($rows)) return 0;
-                $count = 0;
-                $current = $pStart->copy()->startOfMonth();
-                $endC    = $pEnd->copy()->endOfMonth();
-                while ($current->lessThanOrEqualTo($endC)) {
-                    $monthEnd = $current->copy()->endOfMonth();
-                    foreach ($rows as $r) {
-                        $cStart = \Carbon\Carbon::parse($r->start_date);
-                        $cEnd   = \Carbon\Carbon::parse($r->end_date);
-                        if ($cStart->lessThanOrEqualTo($monthEnd) && $cEnd->greaterThanOrEqualTo($current)) {
-                            $count++;
-                            break;
-                        }
-                    }
-                    $current->addMonth();
-                }
-                return $count;
-            };
-
-            // Map finale : panel_id → nb_mois_occupes dans la fenêtre.
-            foreach ($allPanelIds as $pid) {
-                $rows = $assignmentsByPanel[$pid] ?? null;
-                $rowsArr = $rows ? (is_array($rows) ? $rows : $rows->all()) : [];
-                $moisOccByPanel[$pid] = $countOccupiedMonths($rowsArr, $periodStart, $periodEnd);
-            }
-        } catch (\Throwable $e) {
-            Log::error('tax.calcul.occupation_bulk_failed', [
-                'message'      => $e->getMessage(),
-                'period_type'  => $periodType,
-                'period_value' => $periodValue,
-                'period_year'  => $periodYear,
-                'panel_count'  => count($allPanelIds),
-                'trace_first'  => collect($e->getTrace())->take(3)->all(),
-            ]);
-            // Fallback : 0 mois occupés partout → TM = 0 partout.
-            // Préfère 0 (rare faux négatif) à un crash 500 sur tout l'endpoint.
-            $moisOccByPanel = array_fill_keys($allPanelIds, 0);
-        }
-
-        // ── Agrégation des paiements multi-périodicité ──────────────
-        // Bug avant : on ne lookupait que les paiements de la périodicité
-        // EXACTE demandée (mensuel/trimestriel/annuel). Conséquence : payer
-        // ADIAKE en mensuel février → la vue trimestre Q1 et la vue annuelle
-        // affichaient "Non payé" comme si rien n'avait été versé.
-        //
-        // Fix : on charge TOUS les paiements de l'année et on agrège ceux
-        // qui couvrent la fenêtre de mois de la période demandée. Prorata
-        // appliqué quand un paiement déborde la fenêtre (ex: paiement
-        // annuel vu en Q1 = 25% du montant payé).
+        // ── 2026-11-16 — Payé, solde et statut : ceux de l'EXERCICE ──────
+        // Source unique : TaxeExerciceService (Suivi des mairies). Avant, ce
+        // tableau lisait commune_tax_payments par period_year, avec un
+        // prorata quand un versement débordait la période, pendant que la
+        // fiche commune rangeait les mêmes versements par date de paiement :
+        // deux écrans, deux « payé ». Un règlement se rattache désormais à un
+        // exercice, pas à un mois ; le dû théorique de la PÉRIODE reste
+        // affiché à part (colonnes ODP / TM / Total).
         $queryMonths = self::monthsForPeriod($periodType, $periodValue, $periodEndValue);
 
-        $allPayments = CommuneTaxPayment::where('period_year', $periodYear)
-            ->whereIn('period_type', ['mensuel', 'trimestriel', 'annuel'])
+        $suivi = app(\App\Services\Taxes\TaxeExerciceService::class);
+        $exercicesSuivis = $suivi->exercices($periodYear);
+        $reglementsAnnee = \App\Models\TaxeReglement::valides()
+            ->where('exercice', $periodYear)
             ->get()
             ->groupBy('commune_id');
 
@@ -980,52 +741,38 @@ class TaxController extends Controller
         // (divergence ×3 en mensuel, désaccord sur la maintenance et sur
         // les mâts double-face depuis TX-10). On consomme désormais le
         // service, agrégé par (commune, format) pour alimenter le tableau.
-        $odpParCommuneFormat = $calc
+        // 2026-11-16 — Même chose pour la TM : un seul appel, les deux types.
+        $theoParCommuneFormat = $calc
             ->generateLines($periodType, $periodValue, $periodYear, [
-                'type'                => TaxCalculationService::TYPE_ODP,
                 'exclure_maintenance' => $exclureMaintenance,
                 'inclure_lumipub'     => $inclureLumipub,
             ], $periodEndValue)
-            ->groupBy(fn($l) => $l['commune_id'] . '|' . $l['format_id'])
+            ->groupBy(fn($l) => $l['commune_id'] . '|' . $l['format_id'] . '|' . $l['type'])
             ->map(fn($g) => (float) $g->sum('amount'));
 
-        $rows = $communes->map(function ($commune) use ($nbMois, $allPayments, $queryMonths, $periodType, $periodYear, $periodValue, $rateDate, $moisOccByPanel, $odpParCommuneFormat) {
+        $rows = $communes->map(function ($commune) use ($periodYear, $rateDate, $theoParCommuneFormat, $suivi, $exercicesSuivis, $reglementsAnnee) {
             // Phase audit 8E — tarifs HISTORISÉS, pas courants.
             // Avant : $commune->odp_rate (valeur actuelle) → divergeait
             // avec la facturation qui utilise ratesAt(issued_at).
             $rates   = $commune->ratesAt($rateDate);
             $odpRate = (float) ($rates['odp'] ?? 0);
-            $tmRate  = (float) ($rates['tm']  ?: config('billing.tm_default', 1000));
+            // 2026-11-16 — Tarif TM affiché tel qu'il est : le calcul vient de
+            // generateLines(), qui n'applique aucun tarif par défaut à une
+            // commune sans tarif TM (afficher 1 000 aurait contredit la TM 0).
+            $tmRate  = (float) ($rates['tm'] ?? 0);
 
             // Lignes détaillées par format (pour affichage tableau)
             $lignes = $commune->panels
                 ->groupBy('format_id')
-                ->map(function ($panels) use ($tmRate, $odpRate, $nbMois, $moisOccByPanel, $odpParCommuneFormat, $commune) {
+                ->map(function ($panels) use ($tmRate, $odpRate, $theoParCommuneFormat, $commune) {
                     $fmt = $panels->first()->format;
                     if (!$fmt?->width || !$fmt?->height) return null;
 
                     $m2  = round((float) $fmt->width * (float) $fmt->height, 2);
                     $qty = $panels->count();
-                    // TX-12 (2026-09-23) — ODP lue depuis TaxCalculationService
-                    // (règle : tarif mensuel × m² × nb trimestres, un mât
-                    // double-face compté une seule fois, départ au
-                    // odp_start_date du panneau). La formule locale
-                    // $odpRate × m² × qty × nbMois a été retirée : elle
-                    // ignorait ces trois règles.
-                    $odp = round($odpParCommuneFormat[$commune->id . '|' . $fmt->id] ?? 0);
-
-                    // TM panneau-par-panneau selon l'OCCUPATION EFFECTIVE.
-                    // Un panneau jamais loué sur la fenêtre contribue 0.
-                    // moisOccByPanel donne le nombre de mois d'occupation
-                    // effective (déjà calculé, prend en compte les vraies
-                    // dates de campagne sur la fenêtre).
-                    $tm = 0.0;
-                    foreach ($panels as $p) {
-                        $moisOcc = $moisOccByPanel[$p->id] ?? 0;
-                        if ($moisOcc === 0) continue;
-                        $tm += $tmRate * $m2 * $moisOcc;
-                    }
-                    $tm = round($tm);
+                    $cle = $commune->id . '|' . $fmt->id . '|';
+                    $odp = round($theoParCommuneFormat[$cle . TaxCalculationService::TYPE_ODP] ?? 0);
+                    $tm  = round($theoParCommuneFormat[$cle . TaxCalculationService::TYPE_TM]  ?? 0);
 
                     return [
                         'format_id'  => $fmt->id,
@@ -1049,98 +796,16 @@ class TaxController extends Controller
             $tmTheo  = (float) $lignes->sum('tm');
             $totalTheo = $odpTheo + $tmTheo;
 
-            // Agrégation des paiements de cette commune × intersection
-            // avec la fenêtre de la période demandée.
-            $communePayments = $allPayments->get($commune->id) ?? collect();
-            $odpPaye = 0.0;
-            $tmPaye  = 0.0;
-            $latestPaidAt = null;
-            $anyAttestation = false;
-            $directPaymentId = null;
-            // LOT 1 — Pré-remplissage modale si le paiement direct existe.
-            $directMode = $directReference = $directComment = null;
-
-            foreach ($communePayments as $p) {
-                // Hotfix TX-2 v2 (2026-06-22) : monthsForPeriod throw
-                // désormais sur period_type/value invalide. On absorbe
-                // l'exception ici pour ne pas crasher TOUT l'endpoint
-                // à cause d'un seul enregistrement legacy corrompu.
-                // L'admin verra dans les logs quelle ligne ignorer.
-                try {
-                    $paymentMonths = self::monthsForPeriod($p->period_type, $p->period_value);
-                } catch (\InvalidArgumentException $e) {
-                    Log::warning('tax.payment.skipped_invalid_period', [
-                        'payment_id'   => $p->id,
-                        'commune_id'   => $commune->id,
-                        'period_type'  => $p->period_type,
-                        'period_value' => $p->period_value,
-                        'error'        => $e->getMessage(),
-                    ]);
-                    continue;
-                }
-                if (empty($paymentMonths)) continue; // garde-fou extra
-                $overlap = array_values(array_intersect($paymentMonths, $queryMonths));
-                if (empty($overlap)) continue;
-                $prorata = count($overlap) / count($paymentMonths);
-
-                $odpPaye += ((float) $p->odp_paye) * $prorata;
-                $tmPaye  += ((float) $p->tm_paye)  * $prorata;
-
-                if ($p->paid_at) {
-                    if (!$latestPaidAt || $p->paid_at->gt($latestPaidAt)) {
-                        $latestPaidAt = $p->paid_at;
-                    }
-                }
-                $anyAttestation = $anyAttestation || (bool) $p->attestation_recue;
-
-                // ID du paiement direct (= même périodicité ET même valeur)
-                // → utilisé par le bouton "Modifier" pour rééditer cette
-                // ligne précise. S'il n'existe pas, le bouton restera "Payer".
-                if ($p->period_type === $periodType && (int) $p->period_value === (int) $periodValue) {
-                    $directPaymentId = $p->id;
-                    $directMode      = $p->mode;
-                    $directReference = $p->reference;
-                    $directComment   = $p->comment;
-                }
-            }
-
-            $odpPaye = round($odpPaye, 2);
-            $tmPaye  = round($tmPaye,  2);
-            $totalPaye = round($odpPaye + $tmPaye, 2);
-
-            $statut = match (true) {
-                $totalTheo === 0.0           => 'aucun',
-                $totalPaye <= 0              => 'non_paye',
-                $totalPaye >= $totalTheo - 1 => 'paye',
-                default                      => 'partiel',
-            };
-
-            // FIX 2026-06-22 — Statut ANNUEL (sur 12 mois) en plus du statut période.
-            // Permet aux KPI Soldé/Partiel/Non payé de refléter l'état du DOSSIER
-            // de la commune sur l'année, indépendamment du mode (Mensuel / Trim /
-            // Annuel / Personnalisé). Sans ça, en mode Mensuel, le compteur Partiel
-            // affichait souvent 0 (une commune est rarement à "moitié payée" sur
-            // un mois précis — elle est plutôt "non payé" ou "soldé" sur ce mois).
-            // Avec ce calcul, on identifie les communes "en cours de règlement"
-            // sur l'année qui ont déjà commencé à payer mais pas tout soldé.
-            $totalTheoYear = round($odpTheo + $tmTheo, 2);
-            if ($nbMois > 0 && $nbMois !== 12) {
-                // Extrapolation simple : (théorique sur N mois) × (12 / N)
-                $totalTheoYear = round(($odpTheo + $tmTheo) * (12 / $nbMois), 2);
-            }
-            // Total payé sur l'année (TOUS les paiements de l'année cette commune,
-            // sans prorata d'intersection — vue dossier).
-            $totalPayeYear = 0.0;
-            foreach ($communePayments as $p) {
-                $totalPayeYear += ((float) $p->odp_paye) + ((float) $p->tm_paye);
-            }
-            $totalPayeYear = round($totalPayeYear, 2);
-            $statutYear = match (true) {
-                $totalTheoYear === 0.0              => 'aucun',
-                $totalPayeYear <= 0                 => 'non_paye',
-                $totalPayeYear >= $totalTheoYear - 1 => 'paye',
-                default                             => 'partiel',
-            };
+            // 2026-11-16 — Payé / solde / statut de l'EXERCICE (Suivi des
+            // mairies), arriérés compris. Exercice non suivi (avant la
+            // reprise) : aucune donnée de règlement fiable → « aucun ».
+            $ex   = $exercicesSuivis->get($commune->id);
+            $regl = $reglementsAnnee->get($commune->id, collect());
+            $totalPaye = (float) ($ex['total_paye'] ?? 0);
+            $statutEx  = $ex
+                ? \App\Services\Taxes\TaxeExerciceService::statutPageTaxes($ex['statut'])
+                : 'aucun';
+            $dernier = $regl->max('paid_at');
 
             return [
                 'commune'        => $commune->name,
@@ -1158,28 +823,27 @@ class TaxController extends Controller
                 'odp_theorique'  => $odpTheo,
                 'tm_theorique'   => $tmTheo,
                 'total_theorique'=> $totalTheo,
-                'odp_paye'       => $odpPaye,
-                'tm_paye'        => $tmPaye,
+                // Ventilation indicative (objet du règlement) ; « global » et
+                // « arriérés » ne sont ni ODP ni TM.
+                'odp_paye'       => (float) $regl->where('objet', \App\Models\TaxeReglement::OBJET_ODP)->sum('montant'),
+                'tm_paye'        => (float) $regl->where('objet', \App\Models\TaxeReglement::OBJET_TM)->sum('montant'),
                 'total_paye'     => $totalPaye,
-                'solde'          => max(0, $totalTheo - $totalPaye),
-                'paid_at'        => $latestPaidAt?->format('d/m/Y'),
-                'attestation'    => $anyAttestation,
-                'statut'         => $statut,        // statut sur la PÉRIODE courante (affichage tableau)
-                'statut_year'    => $statutYear,    // statut ANNUEL (filtres KPI Soldé/Partiel/Non payé)
-                // FIX 2026-06-22 — Cumul annuel des versements (inclut TOUS les paiements
-                // de l'année, complets + partiels, sans prorata). Utilisé pour le KPI
-                // global "Déjà payé" qui doit refléter la trésorerie réelle versée.
-                'total_paye_year' => $totalPayeYear,
-                'total_theorique_year' => $totalTheoYear,
-                'payment_id'     => $directPaymentId,
-                // LOT 1 — Champs de traçabilité pour pré-remplir la modale
-                // quand on modifie le paiement direct existant. Null si la
-                // ligne tableau correspond à des paiements multi-périodes
-                // (ex : trimestre vu en mensuel) — on ne sait pas lequel
-                // pré-remplir, le user devra ressaisir.
-                'mode'           => $directMode,
-                'reference'      => $directReference,
-                'comment'        => $directComment,
+                'solde'          => max(0, (int) ($ex['solde'] ?? 0)),
+                'paid_at'        => $dernier ? \Carbon\Carbon::parse($dernier)->format('d/m/Y') : null,
+                'attestation'    => $regl->contains(fn ($r) => !empty($r->quittance_path)),
+                // Un seul statut : celui de l'exercice. Les deux clés restent
+                // pour le JS et les filtres KPI existants.
+                'statut'         => $statutEx,
+                'statut_year'    => $statutEx,
+                'total_paye_year'      => $totalPaye,
+                'total_theorique_year' => (float) ($ex['total_du'] ?? 0),
+                'total_du_exercice'    => (float) ($ex['total_du'] ?? 0),
+                'a_saisir'       => (bool) ($ex['a_saisir'] ?? false),
+                // Plus de modale de paiement sur cet écran (2026-11-16).
+                'payment_id'     => null,
+                'mode'           => null,
+                'reference'      => null,
+                'comment'        => null,
                 'lignes'         => $lignes,
             ];
         })
@@ -1190,18 +854,19 @@ class TaxController extends Controller
         ->values();
 
         // KPIs globaux
-        // FIX 2026-06-22 — paye_total et solde_total sont calculés sur le CUMUL ANNUEL
-        // (tous les versements de l'année incluant les partiels), pas sur la prorata
-        // de la période courante. Sinon en mode Mensuel, "Déjà payé" affichait seulement
-        // la quote-part du mois (souvent quasi-vide alors que la régie avait versé
-        // des partiels à plusieurs mairies). Cohérent avec les compteurs Soldé/Partiel
-        // qui sont aussi sur statut_year.
+        // 2026-11-16 — « Déjà payé » et « Solde restant » sont ceux de
+        // l'EXERCICE, lus dans le Suivi des mairies (mêmes chiffres que son
+        // tableau, mairies sans panneau comprises : une mairie qui n'a plus
+        // que des arriérés reste due). Le solde est la somme des soldes
+        // positifs : un trop-perçu chez l'une n'efface pas la dette d'une autre.
+        $totExercice   = $suivi->totaux($exercicesSuivis);
+        $zonesExercice = $suivi->parZone($exercicesSuivis);
         $kpi = [
             'odp_total'        => (float) $rows->sum('odp_theorique'),
             'tm_total'         => (float) $rows->sum('tm_theorique'),
             'grand_total'      => (float) $rows->sum('total_theorique'),
-            'paye_total'       => (float) $rows->sum('total_paye_year'),
-            'solde_total'      => (float) max(0, $rows->sum('total_theorique_year') - $rows->sum('total_paye_year')),
+            'paye_total'       => (float) $totExercice['total_paye'],
+            'solde_total'      => (float) $totExercice['reste'],
             'communes_actives' => $rows->count(),
             'panneaux_total'   => (int) $rows->sum('nb_panneaux'),
             // FIX 2026-06-22 v2 — Compteurs basés sur le statut ANNUEL
@@ -1224,18 +889,20 @@ class TaxController extends Controller
         // calculé en amont via la liste blanche → plus de divergence.
         $abidjan   = $rows->filter(fn ($r) => !empty($r['is_abidjan']));
         $interieur = $rows->reject(fn ($r) => !empty($r['is_abidjan']));
+        $totAbidjanEx   = $suivi->totaux($zonesExercice['abidjan']);
+        $totInterieurEx = $suivi->totaux($zonesExercice['interieur']);
         $kpi['breakdown'] = [
             'abidjan' => [
                 'total_du'   => (float) $abidjan->sum('total_theorique'),
-                'total_paye' => (float) $abidjan->sum('total_paye'),
-                'solde'      => (float) $abidjan->sum('solde'),
+                'total_paye' => (float) $totAbidjanEx['total_paye'],
+                'solde'      => (float) $totAbidjanEx['reste'],
                 'communes'   => $abidjan->count(),
                 'panneaux'   => (int) $abidjan->sum('nb_panneaux'),
             ],
             'interieur' => [
                 'total_du'   => (float) $interieur->sum('total_theorique'),
-                'total_paye' => (float) $interieur->sum('total_paye'),
-                'solde'      => (float) $interieur->sum('solde'),
+                'total_paye' => (float) $totInterieurEx['total_paye'],
+                'solde'      => (float) $totInterieurEx['reste'],
                 'communes'   => $interieur->count(),
                 'panneaux'   => (int) $interieur->sum('nb_panneaux'),
             ],
@@ -1247,26 +914,25 @@ class TaxController extends Controller
                 'commune_id'      => $r['commune_id'],
                 'commune'         => $r['commune'],
                 'total_theorique' => (float) $r['total_theorique'],
+                'total_du_exercice' => (float) $r['total_du_exercice'],
                 'total_paye'      => (float) $r['total_paye'],
                 'solde'           => (float) $r['solde'],
             ])
             ->values();
-        // FIX 2026-06-22 — Taux de couverture sur base ANNUELLE pour rester
-        // cohérent avec paye_total et solde_total (eux aussi annuels).
-        // Sinon ratio (annuel / mensuel) donnait des taux > 100 % absurdes.
-        $totalDueYearGlobal = (float) $rows->sum('total_theorique_year');
+        // Taux de couverture : payé / dû de l'EXERCICE (2026-11-16), les deux
+        // venant du Suivi des mairies.
+        $totalDueYearGlobal = (float) $totExercice['total_du'];
         $kpi['taux_couverture'] = $totalDueYearGlobal > 0
             ? round(($kpi['paye_total'] / $totalDueYearGlobal) * 100, 1)
             : 0;
 
         // LOT 4 (cahier 2026-06-19) — Évolution mensuelle des paiements
-        // sur l'année en cours. Agrégat des CommuneTaxPayment par mois
-        // de paid_at (date effective du versement), ODP + TM cumulés.
-        // Utile pour visualiser les pics de recouvrement saisonniers.
-        $paymentsThisYear = CommuneTaxPayment::where('period_year', $periodYear)
-            ->whereNotNull('paid_at')
+        // sur l'année en cours, par mois de versement. Source depuis le
+        // 2026-11-16 : les règlements du Suivi des mairies (non annulés),
+        // quel que soit l'exercice réglé — c'est la trésorerie sortie.
+        $paymentsThisYear = \App\Models\TaxeReglement::valides()
             ->whereYear('paid_at', $periodYear)
-            ->get(['paid_at', 'odp_paye', 'tm_paye']);
+            ->get(['paid_at', 'montant']);
         $monthNamesShort = ['', 'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
         $paymentsEvolution = [];
         for ($m = 1; $m <= 12; $m++) {
@@ -1274,7 +940,7 @@ class TaxController extends Controller
             $paymentsEvolution[] = [
                 'mois'  => $m,
                 'label' => $monthNamesShort[$m],
-                'total' => (int) round($monthly->sum('odp_paye') + $monthly->sum('tm_paye')),
+                'total' => (int) $monthly->sum('montant'),
             ];
         }
         $kpi['payments_evolution'] = $paymentsEvolution;
@@ -1290,8 +956,14 @@ class TaxController extends Controller
     }
 
     /**
-     * Enregistre / met à jour le paiement d'une commune pour une période
-     * donnée. Idempotent via la contrainte unique (commune × période).
+     * Ancien point d'entrée de la modale « Enregistrer paiement ».
+     *
+     * 2026-11-16 — La modale a quitté la page Taxes. Ce point d'entrée reste
+     * (un onglet ouvert avant la mise en production peut encore l'appeler),
+     * mais il n'écrit plus dans commune_tax_payments : son updateOrCreate
+     * ÉCRASAIT le versement précédent de la même période. Chaque appel crée
+     * désormais un règlement du Suivi des mairies (TaxeReglement), rattaché
+     * à l'exercice period_year — jamais d'écrasement.
      */
     public function recordPayment(Request $request): JsonResponse
     {
@@ -1302,11 +974,10 @@ class TaxController extends Controller
             'period_value'      => 'required|integer|min:0|max:12',
             'odp_paye'          => 'required|numeric|min:0',
             'tm_paye'           => 'required|numeric|min:0',
-            'odp_theorique'     => 'required|numeric|min:0',
-            'tm_theorique'      => 'required|numeric|min:0',
-            'paid_at'           => 'nullable|date',
-            // LOT 1 (cahier 2026-06-19) — Traçabilité paiements.
-            'mode'              => 'nullable|in:' . implode(',', array_keys(\App\Models\CommuneTaxPayment::MODES)),
+            'odp_theorique'     => 'nullable|numeric|min:0',
+            'tm_theorique'      => 'nullable|numeric|min:0',
+            'paid_at'           => 'nullable|date|before_or_equal:today',
+            'mode'              => 'nullable|in:' . implode(',', array_keys(\App\Models\TaxeReglement::MODES)),
             'reference'         => 'nullable|string|max:100',
             'comment'           => 'nullable|string|max:2000',
             'attestation_recue' => 'sometimes|boolean',
@@ -1314,65 +985,57 @@ class TaxController extends Controller
             'notes'             => 'nullable|string|max:1000',
         ]);
 
-        // Phase 3 (2026-06-22) — Trace l'ancien montant AVANT modification
-        // pour audit fiscal (immutabilité de la piste de paiement, brief
-        // règle métier). On garde updateOrCreate pour permettre la
-        // correction d'une typo, mais l'historique est journalisé via
-        // Log::info et accessible dans les logs (et audits owen-it).
-        $existing = CommuneTaxPayment::where([
-            'commune_id'   => $data['commune_id'],
-            'period_type'  => $data['period_type'],
-            'period_year'  => $data['period_year'],
-            'period_value' => $data['period_value'],
-        ])->first();
-        $previousOdp = $existing ? (int) $existing->odp_paye : null;
-        $previousTm  = $existing ? (int) $existing->tm_paye  : null;
-        $isUpdate    = (bool) $existing;
+        $reprise = (int) config('taxes.exercice_reprise', 2026);
+        if ((int) $data['period_year'] < $reprise) {
+            return response()->json([
+                'ok'      => false,
+                'message' => "Le suivi des règlements commence à l'exercice {$reprise}.",
+            ], 422);
+        }
 
-        $payment = CommuneTaxPayment::updateOrCreate(
-            [
-                'commune_id'   => $data['commune_id'],
-                'period_type'  => $data['period_type'],
-                'period_year'  => $data['period_year'],
-                'period_value' => $data['period_value'],
-            ],
-            [
-                'odp_theorique'     => $data['odp_theorique'],
-                'tm_theorique'      => $data['tm_theorique'],
-                'odp_paye'          => $data['odp_paye'],
-                'tm_paye'           => $data['tm_paye'],
-                'paid_at'           => $data['paid_at'] ?? now(),
-                'mode'              => $data['mode']      ?? null,
-                'reference'         => $data['reference'] ?? null,
-                'comment'           => $data['comment']   ?? null,
-                'attestation_recue' => $data['attestation_recue'] ?? false,
-                'attestation_date'  => $data['attestation_date'] ?? null,
-                'notes'             => $data['notes'] ?? null,
-                'recorded_by'       => auth()->id(),
-            ]
-        );
+        $odp = (int) round((float) $data['odp_paye']);
+        $tm  = (int) round((float) $data['tm_paye']);
+        if ($odp + $tm <= 0) {
+            return response()->json(['ok' => false, 'message' => 'Le montant versé doit être supérieur à zéro.'], 422);
+        }
 
-        Log::info($isUpdate ? 'commune_tax_payment.updated' : 'commune_tax_payment.recorded', [
-            'commune_id'       => $data['commune_id'],
-            'period'           => "{$data['period_type']}-{$data['period_year']}-{$data['period_value']}",
-            'is_update'        => $isUpdate,
-            'previous_odp_paye'=> $previousOdp,
-            'previous_tm_paye' => $previousTm,
-            'new_odp_paye'     => (int) $data['odp_paye'],
-            'new_tm_paye'      => (int) $data['tm_paye'],
-            'by'               => auth()->id(),
+        $periode = $data['period_type'] . ' ' . $data['period_year']
+            . ($data['period_type'] === 'annuel' ? '' : '-' . str_pad((string) $data['period_value'], 2, '0', STR_PAD_LEFT));
+
+        $reglement = \App\Models\TaxeReglement::create([
+            'commune_id'  => (int) $data['commune_id'],
+            'exercice'    => (int) $data['period_year'],
+            'montant'     => $odp + $tm,
+            'paid_at'     => $data['paid_at'] ?? now()->toDateString(),
+            'objet'       => $tm === 0 ? \App\Models\TaxeReglement::OBJET_ODP
+                           : ($odp === 0 ? \App\Models\TaxeReglement::OBJET_TM : \App\Models\TaxeReglement::OBJET_GLOBAL),
+            'mode'        => $data['mode'] ?? null,
+            'reference'   => $data['reference'] ?? null,
+            'commentaire' => trim('Saisi depuis l\'ancien formulaire (' . $periode
+                           . ' · ODP ' . number_format($odp, 0, ',', ' ')
+                           . ' · TM ' . number_format($tm, 0, ',', ' ') . ').'
+                           . (!empty($data['comment']) ? "\n" . $data['comment'] : '')
+                           . (!empty($data['notes']) ? "\n" . $data['notes'] : '')),
+            'recorded_by' => auth()->id(),
+            'origine'     => \App\Models\TaxeReglement::ORIGINE_SAISIE,
+        ]);
+
+        Log::info('taxes.reglement.saisi_ancien_formulaire', [
+            'reglement_id' => $reglement->id,
+            'commune_id'   => $reglement->commune_id,
+            'exercice'     => $reglement->exercice,
+            'montant'      => $reglement->montant,
+            'by'           => auth()->id(),
         ]);
 
         return response()->json([
             'ok'      => true,
-            'message' => 'Paiement enregistré.',
+            'message' => 'Règlement enregistré dans le Suivi des mairies.',
             'payment' => [
-                'id'                => $payment->id,
-                'odp_paye'          => (float) $payment->odp_paye,
-                'tm_paye'           => (float) $payment->tm_paye,
-                'paid_at'           => $payment->paid_at?->format('d/m/Y'),
-                'attestation_recue' => (bool) $payment->attestation_recue,
-                'status'            => $payment->status,
+                'id'       => $reglement->id,
+                'odp_paye' => (float) $odp,
+                'tm_paye'  => (float) $tm,
+                'paid_at'  => $reglement->paid_at?->format('d/m/Y'),
             ],
         ]);
     }

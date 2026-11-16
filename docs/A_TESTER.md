@@ -2306,3 +2306,81 @@ Lumipub autonome oublié.
 Les quatre correctifs du jour vont tous dans le sens de la hausse. La
 question du **tarif au m², mensuel ou annuel**, reste la pièce manquante
 pour confronter Panora aux réclamations des mairies.
+
+---
+
+## § 28 — Suivi des mairies : arriérés, règlements, solde (2026-11-16)
+
+La fiche de la direction « GESTION DES TAXES (ODP ET TM) » tenue par Panora :
+menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
+- les panneaux et les tarifs de Panora font foi ;
+- TM de toutes les campagnes, chaque mois dans le trimestre où il commence ;
+- arriérés reportés d'un exercice à l'autre ;
+- un règlement = une ligne jamais effacée, annulée avec motif ;
+- prévu hors solde ;
+- **2026 = exercice de reprise** : le dû est ce que chaque mairie a réclamé,
+  saisi par les comptables, et le calcul de Panora sert de contrôle ;
+  à partir de 2027, le dû est le calcul de Panora.
+
+### À faire en production, dans cet ordre
+- [ ] Migrations (2 tables : `taxe_reglements`, `taxe_reprises`) si le
+      déploiement ne les a pas jouées : `php artisan migrate --force`.
+- [ ] Reprise des versements déjà saisis — d'abord la simulation :
+      `php artisan taxes:reprendre-reglements`, lire le tableau
+      (attendu : les 4 versements de 2026, 805 000 FCFA, et les éventuelles
+      lignes payées de l'ancienne table `taxes`), puis
+      `php artisan taxes:reprendre-reglements --appliquer`. Rejouable sans doublon.
+- [ ] Vérifier que `storage/app/private` est sur le volume persistant
+      (les quittances y sont rangées, `taxes/quittances/<exercice>/<mairie>/`).
+
+### Écrans à contrôler
+- [ ] Menu « Suivi des mairies » visible pour admin, MP et comptable ;
+      onglets Abidjan et banlieue / Intérieur / Toutes.
+- [ ] **2026** : bandeau « N mairies sans montant réclamé saisi ». Ouvrir
+      Cocody, saisir ce qu'elle a réclamé (fiche DG : arriérés 47 040 000,
+      TM 1 342 000 / 1 233 000 / 2 488 000) → total dû 52 103 000.
+      Le calcul Panora s'affiche à droite avec l'écart.
+- [ ] Saisir un règlement avec une quittance (PDF ou photo) → ligne ajoutée,
+      lien « 📎 Voir » qui ouvre le fichier ; en saisir un second sur le même
+      exercice → **deux lignes**, rien d'écrasé.
+- [ ] Annuler un règlement : le motif est obligatoire ; la ligne reste,
+      barrée, et sort du total payé et du solde.
+- [ ] **2027** : arriérés = solde 2026 de la mairie ; ODP et TM par
+      trimestre calculées ; colonne « Prévu » = campagnes planifiées.
+- [ ] Relevé PDF d'une mairie, PDF de l'exercice, Excel (feuilles ABIDJAN,
+      INTERIEUR, REGLEMENTS — même présentation que le fichier de la DG).
+- [ ] Page **Taxes** : « Déjà payé » et « Solde restant » = ceux du suivi
+      pour la même année ; le bouton « 💰 Règlements » ouvre la fiche du
+      suivi ; la fenêtre « Enregistrer paiement » n'existe plus.
+- [ ] Ancienne adresse `/admin/taxes/commune/<id>` → redirige vers la fiche du suivi.
+- [ ] Page Taxes, colonne TM : elle peut **augmenter** pour un panneau loué
+      à plusieurs clients dans l'année (avant, seule la dernière campagne
+      comptait) et changer en mensuel (même règle de mois partout).
+      Comparer une commune avec le détail par panneau : mêmes montants.
+- [ ] Rapport Taxes : matrice recalculée avec les m² (avant : tarif ×
+      nombre de panneaux) — chiffres différents d'avant, attendus ; bloc
+      « Dû aux mairies vs reversé » = chiffres du suivi.
+- [ ] Alerte de trimestre : `php artisan taxes:notify-due-soon --forcer`
+      → mail aux comptables et admins, mairies avec un exigible. Sans
+      `--forcer`, elle ne part que le premier jour ouvré (lundi-vendredi) du
+      trimestre — prochain envoi : vendredi 1er janvier 2027, férié, mais le
+      mail part quand même.
+- [ ] Synthèse mensuelle du 1er décembre : lignes « Taxes du mois (calcul
+      Panora) », « Règlements versés », « Reste à payer aux mairies ».
+
+### Pour les comptables — avant le 31/12/2026
+- [ ] Pour chaque mairie : ce qu'elle a réclamé pour 2026 (arriérés compris),
+      depuis l'avis ou la fiche de la DG.
+- [ ] Tous les versements 2026 avec leur quittance. Sans eux, le solde 2026
+      — donc l'arriéré 2027 — sera faux.
+
+### À confirmer
+- [ ] **Pieds Lumipub** : le suivi les compte (« on s'en tient aux panneaux
+      qui existent sur Panora »), la page Taxes les laisse décochés par défaut
+      (§ 23). Les colonnes ODP / TM des deux écrans ne se raccordent que case
+      cochée.
+- [ ] **Ordre de grandeur** : avec les tarifs actuels, 2027 sera calculé
+      autour de 160 M (ODP ≈ 140 M dont Cocody 60 M et Plateau 32 M) contre
+      ≈ 36 M réclamés en 2025. Si un tarif est faux, il se corrige dans la
+      commune avec une date d'effet (`/admin/settings/communes/tariffs`) et
+      tout se recalcule.

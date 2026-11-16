@@ -823,88 +823,44 @@ class RapportController extends Controller
             ->get(['id', 'name', 'client_id']);
         $communes  = \App\Models\Commune::orderBy('name')->get(['id', 'name']);
 
-        // COMMIT C — Comparaison collectées (théoriques) vs reversées (payées)
+        // COMMIT C — Comparaison dû vs reversé aux mairies.
         //
-        // ⚠ Deux sources de paiement coexistent dans le système :
-        //   1. Table legacy `taxes` (paiement individuel par écriture/année)
-        //   2. Table `commune_tax_payments` (paiement par commune × période,
-        //      utilisée par /admin/taxes/* refonte 2026).
-        //
-        // On agrège les DEUX pour éviter qu'un paiement enregistré via la
-        // page Taxes Communales n'apparaisse pas dans ce rapport, ce qui
-        // donnait l'illusion que rien n'était payé.
-        $legacyPaid = DB::table('taxes')
-            ->where('year', $year)
-            ->whereNotNull('paid_at')
-            ->select('commune_id',
-                DB::raw("SUM(CASE WHEN type = 'odp' THEN amount ELSE 0 END) as paid_odp"),
-                DB::raw("SUM(CASE WHEN type = 'tm'  THEN amount ELSE 0 END) as paid_tm"),
-                DB::raw('SUM(amount) as paid_total'),
-                DB::raw('MAX(paid_at) as last_paid_at'),
-                DB::raw('COUNT(*) as paid_count'),
-            )
-            ->groupBy('commune_id')
-            ->get()
-            ->keyBy('commune_id');
+        // 2026-11-16 — SOURCE UNIQUE : TaxeExerciceService (Suivi des
+        // mairies). Avant, ce bloc additionnait la table legacy `taxes` et
+        // commune_tax_payments (par period_year), et comparait au total de la
+        // matrice — sans arriérés, avec une formule de calcul propre au
+        // rapport. Désormais : dû = total dû de l'exercice (arriérés compris ;
+        // pour l'exercice de reprise, ce que la mairie a réclamé), payé = ses
+        // règlements non annulés, solde = la différence. Mêmes chiffres que le
+        // Suivi des mairies. Les filtres client / campagne ne s'appliquent pas
+        // à un règlement : la comparaison les ignore, le filtre commune non.
+        $suivi = app(\App\Services\Taxes\TaxeExerciceService::class);
+        $cidFilter = !empty($filters['commune_id']) ? (int) $filters['commune_id'] : null;
+        $exercices = $suivi->exercices($year)
+            ->when($cidFilter, fn ($c) => $c->filter(fn ($e) => $e['commune_id'] === $cidFilter));
 
-        $newPaid = DB::table('commune_tax_payments')
-            ->whereNull('deleted_at')
-            ->where('period_year', $year)
-            ->select('commune_id',
-                DB::raw('SUM(odp_paye) as paid_odp'),
-                DB::raw('SUM(tm_paye)  as paid_tm'),
-                DB::raw('SUM(odp_paye + tm_paye) as paid_total'),
-                DB::raw('MAX(paid_at) as last_paid_at'),
-                DB::raw('COUNT(*) as paid_count'),
-            )
-            ->groupBy('commune_id')
-            ->get()
-            ->keyBy('commune_id');
-
-        // Fusion des deux sources : on additionne montants et on prend la
-        // date max comme last_paid_at.
-        $paidByCommune = collect();
-        $allCids = $legacyPaid->keys()->merge($newPaid->keys())->unique();
-        foreach ($allCids as $cid) {
-            $a = $legacyPaid->get($cid);
-            $b = $newPaid->get($cid);
-            $lastA = $a?->last_paid_at;
-            $lastB = $b?->last_paid_at;
-            $lastDate = match (true) {
-                !$lastA           => $lastB,
-                !$lastB           => $lastA,
-                $lastA >= $lastB  => $lastA,
-                default           => $lastB,
-            };
-            $paidByCommune->put($cid, (object) [
-                'commune_id'   => (int) $cid,
-                'paid_odp'     => (float) ($a->paid_odp ?? 0) + (float) ($b->paid_odp ?? 0),
-                'paid_tm'      => (float) ($a->paid_tm  ?? 0) + (float) ($b->paid_tm  ?? 0),
-                'paid_total'   => (float) ($a->paid_total ?? 0) + (float) ($b->paid_total ?? 0),
-                'last_paid_at' => $lastDate,
-                'paid_count'   => (int) ($a->paid_count ?? 0) + (int) ($b->paid_count ?? 0),
-            ]);
-        }
-
-        // Synthèse comparaison par commune : enrichit le matrix
-        $comparison = $matrix->map(function ($row) use ($paidByCommune) {
-            $paid = $paidByCommune->get($row['commune_id']);
-            $paidTotal = (float) ($paid->paid_total ?? 0);
-            $due       = (float) $row['total'];
-            $balance   = $due - $paidTotal;
+        $comparison = $exercices->map(function ($e) {
+            $due  = (float) $e['total_du'];
+            $paid = (float) $e['total_paye'];
+            $valides = $e['reglements']->reject(fn ($r) => $r->estAnnule());
             return [
-                'commune_id'   => $row['commune_id'],
-                'commune'      => $row['commune'],
+                'commune_id'   => $e['commune_id'],
+                'commune'      => $e['commune']->name,
                 'due_total'    => $due,
-                'paid_odp'     => (float) ($paid->paid_odp ?? 0),
-                'paid_tm'      => (float) ($paid->paid_tm  ?? 0),
-                'paid_total'   => $paidTotal,
-                'balance'      => $balance,
-                'rate'         => $due > 0 ? round(($paidTotal / $due) * 100, 1) : ($paidTotal > 0 ? 100 : 0),
-                'last_paid_at' => $paid->last_paid_at ?? null,
-                'status'       => $balance <= 0 && $due > 0 ? 'paid' : ($paidTotal > 0 ? 'partial' : 'pending'),
+                'paid_odp'     => (float) $valides->where('objet', \App\Models\TaxeReglement::OBJET_ODP)->sum('montant'),
+                'paid_tm'      => (float) $valides->where('objet', \App\Models\TaxeReglement::OBJET_TM)->sum('montant'),
+                'paid_total'   => $paid,
+                'balance'      => (float) $e['solde'],
+                'rate'         => $due > 0 ? round(($paid / $due) * 100, 1) : ($paid > 0 ? 100 : 0),
+                'last_paid_at' => $valides->max('paid_at'),
+                'status'       => match ($e['statut']) {
+                    'solde', 'credit' => 'paid',
+                    'partiel'         => 'partial',
+                    default           => 'pending',
+                },
             ];
-        })->sortByDesc('due_total')->values();
+        })->filter(fn ($r) => $r['due_total'] > 0 || $r['paid_total'] > 0)
+          ->sortByDesc('due_total')->values();
 
         $comparisonTotals = [
             'due'     => (float) $comparison->sum('due_total'),
@@ -918,52 +874,26 @@ class RapportController extends Controller
             'pending_communes' => $comparison->where('status', 'pending')->count(),
         ];
 
-        // Évolution multi-années : 5 dernières années — ODP / TM / Reversé.
-        // Respecte le filtre commune (sinon le trend serait tout commune
-        // pendant qu'on affiche le détail d'une seule, créant l'illusion
-        // que cette commune génère le total global).
-        $cidFilter = !empty($filters['commune_id']) ? (int) $filters['commune_id'] : null;
+        // Évolution multi-années : 5 dernières années — ODP / TM (calcul
+        // Panora) et reversé (règlements de chaque exercice, non annulés).
+        // Respecte le filtre commune. Années passées : un appel annuel au
+        // moteur (totalsAnnuels) ; année affichée : les totaux ci-dessus.
         $yearlyTrend = collect();
         for ($y = $year - 4; $y <= $year; $y++) {
             try {
-                $yTotals = $service->totals($y, $filters);
-
-                // Source 1 : table legacy `taxes`
-                $yLegacyQuery = DB::table('taxes')
-                    ->where('year', $y)->whereNotNull('paid_at');
-                if ($cidFilter) $yLegacyQuery->where('commune_id', $cidFilter);
-                $yLegacy = $yLegacyQuery
-                    ->select(
-                        DB::raw("SUM(CASE WHEN type = 'odp' THEN amount ELSE 0 END) as paid_odp"),
-                        DB::raw("SUM(CASE WHEN type = 'tm'  THEN amount ELSE 0 END) as paid_tm"),
-                        DB::raw("SUM(amount) as paid_total"),
-                    )->first();
-
-                // Source 2 : table refonte `commune_tax_payments`
-                $yNewQuery = DB::table('commune_tax_payments')
-                    ->whereNull('deleted_at')
-                    ->where('period_year', $y);
-                if ($cidFilter) $yNewQuery->where('commune_id', $cidFilter);
-                $yNew = $yNewQuery
-                    ->select(
-                        DB::raw('SUM(odp_paye) as paid_odp'),
-                        DB::raw('SUM(tm_paye)  as paid_tm'),
-                        DB::raw('SUM(odp_paye + tm_paye) as paid_total'),
-                    )->first();
-
-                $yPaid = (object) [
-                    'paid_odp'   => (float) ($yLegacy->paid_odp ?? 0) + (float) ($yNew->paid_odp ?? 0),
-                    'paid_tm'    => (float) ($yLegacy->paid_tm  ?? 0) + (float) ($yNew->paid_tm  ?? 0),
-                    'paid_total' => (float) ($yLegacy->paid_total ?? 0) + (float) ($yNew->paid_total ?? 0),
-                ];
+                $yTotals = $y === $year ? $totals : $service->totalsAnnuels($y, $filters);
+                $yPaid = \App\Models\TaxeReglement::valides()
+                    ->where('exercice', $y)
+                    ->when($cidFilter, fn ($q) => $q->where('commune_id', $cidFilter))
+                    ->get(['objet', 'montant']);
                 $yearlyTrend->push([
                     'year'       => $y,
                     'odp'        => (float) ($yTotals['odp'] ?? 0),
                     'tm'         => (float) ($yTotals['tm'] ?? 0),
                     'total'      => (float) ($yTotals['total'] ?? 0),
-                    'paid_odp'   => (float) ($yPaid->paid_odp ?? 0),
-                    'paid_tm'    => (float) ($yPaid->paid_tm ?? 0),
-                    'paid_total' => (float) ($yPaid->paid_total ?? 0),
+                    'paid_odp'   => (float) $yPaid->where('objet', \App\Models\TaxeReglement::OBJET_ODP)->sum('montant'),
+                    'paid_tm'    => (float) $yPaid->where('objet', \App\Models\TaxeReglement::OBJET_TM)->sum('montant'),
+                    'paid_total' => (float) $yPaid->sum('montant'),
                 ]);
             } catch (\Throwable) {
                 // Année non encore initialisée
@@ -974,10 +904,12 @@ class RapportController extends Controller
             }
         }
 
+        $exerciceReprise = $suivi->exerciceReprise();
+
         return view('admin.rapports.taxes', compact(
             'year', 'months', 'matrix', 'totals', 'anneesDisponibles',
             'clients', 'campaigns', 'communes', 'filters',
-            'comparison', 'comparisonTotals', 'yearlyTrend'
+            'comparison', 'comparisonTotals', 'yearlyTrend', 'exerciceReprise'
         ));
     }
 
