@@ -2662,3 +2662,80 @@ Le nom « Campagne <ancien client> » devient « Campagne <nouveau client> »
 - [ ] Espace client : la campagne apparaît chez le nouveau client et
       disparaît chez l'ancien.
 - [ ] L'icône ⓘ à côté du champ Client explique ce qui suit.
+
+---
+
+## § 33 — Historique des panneaux d'une campagne *(2026-11-16)*
+
+### Ce qui a changé
+
+Demande : « une campagne commence avec 10 panneaux et se termine avec 6 ;
+plus tard on veut savoir quel panneau a été retiré, à quelle période, par
+qui et pour quelle raison ».
+
+Avant, rien n'était requêtable : un `Log::info` dans des fichiers qui
+tournent, une alerte, et **aucun motif demandé**.
+
+**Nouvelle table `campaign_panel_mouvements`** — une ligne par entrée et
+par sortie : date et heure, auteur, sens, motif, note, origine du
+mouvement. Ni modifiée ni supprimée : c'est un journal, l'état courant
+reste dans `campaign_panels`.
+
+**Source unique :** `App\Services\Campagnes\MouvementsPanneaux`. Tous les
+chemins y passent, y compris ceux qui touchaient la table directement :
+
+| Chemin | Motif posé |
+|---|---|
+| Retrait manuel d'un panneau | choisi par le MP, **obligatoire** |
+| Retrait d'un panneau de régie | choisi par le MP, **obligatoire** |
+| Ajout de panneaux en cours de campagne | « Ajouté en cours de campagne » |
+| Création depuis une réservation | « Panneau initial de la campagne » |
+| Import de campagne | « Panneau initial », source *import* |
+| Résolution de conflit | « Conflit de réservation résolu » |
+| Annulation de campagne | « Campagne annulée » |
+
+**Le motif est obligatoire** et choisi dans une liste fermée (demande du
+client, panneau démantelé, maintenance, remplacé, négociation, erreur de
+saisie, autre), plus une note libre facultative. Un motif tapé au clavier
+s'écrit de dix façons et ne se compte jamais.
+
+La **référence du panneau est figée** à l'écriture : un panneau démantelé
+ou renommé plus tard ne rend pas l'historique illisible.
+
+### À vérifier sur la vraie base
+
+- [ ] Ouvrir une campagne, retirer un panneau : la fenêtre **exige** un
+      motif, le retrait est refusé sans.
+- [ ] Le bloc « 🧾 Historique des panneaux » apparaît sous la fiche, avec
+      la date, l'heure, la référence, le sens, le motif, la note et l'auteur.
+- [ ] Retirer un second panneau : le motif du précédent **ne doit pas**
+      rester sélectionné dans la fenêtre.
+- [ ] Ajouter un panneau en cours de campagne → une ligne « Ajouté ».
+- [ ] Créer une campagne depuis une réservation → une ligne « Panneau
+      initial de la campagne » par panneau. C'est ce qui permet de dire
+      « elle a démarré avec 10 ».
+- [ ] Retirer un **panneau de régie partenaire** : même exigence de motif.
+- [ ] Résoudre un conflit depuis `/admin/conflits` en retirant le panneau
+      d'une campagne → ligne « Conflit de réservation résolu », auteur
+      renseigné. **C'était le trou principal** : cette page supprimait la
+      ligne sans laisser de trace.
+- [ ] Annuler une campagne → une ligne « Campagne annulée » par panneau.
+- [ ] Retirer un panneau puis le démanteler depuis l'inventaire :
+      l'historique doit **continuer d'afficher sa référence**.
+- [ ] Importer une campagne → lignes « Panneau initial », origine import.
+
+### Limite à connaître
+
+- [ ] **L'historique démarre le jour de la mise en production.** Les
+      retraits déjà effectués ne sont reconstituables nulle part : ils
+      n'ont jamais été enregistrés ailleurs que dans les fichiers de log,
+      qui tournent. Les campagnes en cours afficheront donc un historique
+      partiel — seulement ce qui bouge à partir de maintenant.
+
+### Piste pour plus tard
+
+- [ ] Un rapport transversal « panneaux retirés » (toutes campagnes, par
+      motif, par période, par client) deviendra possible une fois quelques
+      mois de données accumulés. La table est indexée pour ça
+      (`campaign_id + created_at`, et `panel_id` pour « dans quelles
+      campagnes ce panneau est-il passé ? »).

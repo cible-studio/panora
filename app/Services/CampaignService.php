@@ -22,6 +22,11 @@ class CampaignService
     public function __construct(
         protected AvailabilityService $availability,
         protected NotificationMailer  $mailer,
+        // Historique des panneaux (2026-11-16) : chaque entrée et chaque
+        // sortie laisse une ligne datée, signée et motivée. Source unique,
+        // cf. App\Services\Campagnes\MouvementsPanneaux.
+        protected \App\Services\Campagnes\MouvementsPanneaux $mouvements
+            = new \App\Services\Campagnes\MouvementsPanneaux(),
     ) {}
 
     // ══════════════════════════════════════════════════════════════
@@ -99,6 +104,12 @@ class CampaignService
             $campaign->panels()->syncWithoutDetaching($panelIds);
             $this->recalculateCampaignAmount($campaign);
             $this->availability->syncPanelStatuses($panelIds);
+
+            // Historique (2026-11-16) : sans la trace des ajouts, on ne
+            // peut pas reconstituer la composition de la campagne à une
+            // date donnée — un panneau ajouté puis retiré passerait pour
+            // un panneau perdu alors qu'il n'était pas là au départ.
+            $this->mouvements->ajoutInternes($campaign, $panelIds);
 
             // FIX critique : créer les PoseTasks pour les panneaux ajoutés
             // (sans cela, le tech terrain n'est pas convoqué pour les
@@ -224,6 +235,10 @@ class CampaignService
             $this->recalculateCampaignAmount($campaign);
             $this->availability->syncExternalPanelStatuses($externalPanelIds);
 
+            // Historique : un panneau de régie partenaire entre dans la
+            // campagne au même titre qu'un panneau du parc.
+            $this->mouvements->ajoutExternes($campaign, $externalPanelIds);
+
             Log::info('campaign.external_panels_added', [
                 'campaign_id'   => $campaign->id,
                 'external_ids'  => $externalPanelIds,
@@ -277,8 +292,18 @@ class CampaignService
     // correspondante). Même garde qu'un retrait interne : on refuse si
     // c'est le dernier panneau (toutes origines confondues).
     // ══════════════════════════════════════════════════════════════
-    public function removeExternalPanel(Campaign $campaign, \App\Models\ExternalPanel $externalPanel): array
-    {
+    /**
+     * @param string      $motif  code de CampaignPanelMouvement::MOTIFS
+     * @param string      $source d'où vient le retrait (manuel, conflit…)
+     * @param string|null $note   précision libre saisie par l'utilisateur
+     */
+    public function removeExternalPanel(
+        Campaign $campaign,
+        \App\Models\ExternalPanel $externalPanel,
+        string $motif = \App\Models\CampaignPanelMouvement::MOTIF_AUTRE,
+        string $source = \App\Models\CampaignPanelMouvement::SOURCE_MANUEL,
+        ?string $note = null,
+    ): array {
         if (!in_array($campaign->status->value, self::MODIFIABLE_STATUSES)) {
             return ['ok' => false, 'error' => 'Campagne non modifiable.'];
         }
@@ -292,7 +317,7 @@ class CampaignService
             ];
         }
 
-        return DB::transaction(function () use ($campaign, $externalPanel) {
+        return DB::transaction(function () use ($campaign, $externalPanel, $motif, $source, $note) {
             // Détache du pivot campaign_panels
             DB::table('campaign_panels')
                 ->where('campaign_id', $campaign->id)
@@ -317,6 +342,11 @@ class CampaignService
             $this->recalculateCampaignAmount($campaign);
             $this->availability->syncExternalPanelStatuses([$externalPanel->id]);
 
+            // Historique daté, signé et motivé du retrait.
+            $this->mouvements->retraitExternes(
+                $campaign, [$externalPanel->id], $motif, $source, $note
+            );
+
             Log::info('campaign.external_panel_removed', [
                 'campaign_id'  => $campaign->id,
                 'external_id'  => $externalPanel->id,
@@ -331,8 +361,22 @@ class CampaignService
     // ══════════════════════════════════════════════════════════════
     // RETIRER UN PANNEAU
     // ══════════════════════════════════════════════════════════════
-    public function removePanel(Campaign $campaign, Panel $panel): array
-    {
+    /**
+     * @param string      $motif  code de CampaignPanelMouvement::MOTIFS —
+     *                            obligatoire côté formulaire (décision du
+     *                            2026-11-16 : un motif facultatif n'est
+     *                            jamais rempli, et l'historique ne sert
+     *                            plus à rien six mois après).
+     * @param string      $source manuel, conflit, annulation…
+     * @param string|null $note   précision libre
+     */
+    public function removePanel(
+        Campaign $campaign,
+        Panel $panel,
+        string $motif = \App\Models\CampaignPanelMouvement::MOTIF_AUTRE,
+        string $source = \App\Models\CampaignPanelMouvement::SOURCE_MANUEL,
+        ?string $note = null,
+    ): array {
         if (!in_array($campaign->status->value, self::MODIFIABLE_STATUSES)) {
             return ['ok' => false, 'error' => 'Campagne non modifiable.'];
         }
@@ -355,7 +399,7 @@ class CampaignService
             ];
         }
 
-        return DB::transaction(function () use ($campaign, $panel) {
+        return DB::transaction(function () use ($campaign, $panel, $motif, $source, $note) {
             $campaign->panels()->detach($panel->id);
 
             if ($campaign->reservation_id) {
@@ -375,9 +419,19 @@ class CampaignService
             $this->recalculateCampaignAmount($campaign);
             $this->availability->syncPanelStatuses([$panel->id]);
 
+            // Historique (2026-11-16) : la réponse à « quel panneau est
+            // parti, quand, par qui et pourquoi ». Le Log::info ci-dessous
+            // reste pour le diagnostic technique, mais il n'est pas
+            // requêtable et les fichiers de log tournent.
+            $this->mouvements->retraitInternes(
+                $campaign, [$panel->id], $motif, $source, $note
+            );
+
             Log::info('campaign.panel_removed', [
                 'campaign_id'     => $campaign->id,
                 'panel_id'        => $panel->id,
+                'motif'           => $motif,
+                'source'          => $source,
                 'user_id'         => auth()->id(),
                 'tasks_cancelled' => $cancelledTasks,
             ]);
@@ -638,6 +692,19 @@ class CampaignService
         DB::transaction(function () use ($campaign, $reason, $cancellationReason, $cancellationNotes) {
             $internalIds = $this->collectAllPanelIds($campaign);
             $externalIds = $this->collectAllExternalPanelIds($campaign);
+
+            // Historique (2026-11-16) : l'annulation libère tous les
+            // panneaux d'un coup. Sans cette trace, ils disparaîtraient de
+            // la campagne sans la moindre ligne d'explication — c'est
+            // justement le cas où l'on se demande ce qui s'est passé.
+            // Écrit AVANT le détachement, pendant que la composition est
+            // encore lisible.
+            $this->mouvements->retraitDeTous(
+                $campaign,
+                \App\Models\CampaignPanelMouvement::MOTIF_ANNULATION,
+                \App\Models\CampaignPanelMouvement::SOURCE_ANNULATION,
+                $cancellationNotes ?: $cancellationReason,
+            );
 
             // Annuler la réservation liée (sans observer)
             if ($campaign->reservation_id) {
