@@ -2323,13 +2323,13 @@ menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
   à partir de 2027, le dû est le calcul de Panora.
 
 ### À faire en production, dans cet ordre
-- [ ] Migrations (2 tables : `taxe_reglements`, `taxe_reprises`) si le
-      déploiement ne les a pas jouées : `php artisan migrate --force`.
-- [ ] Reprise des versements déjà saisis — d'abord la simulation :
-      `php artisan taxes:reprendre-reglements`, lire le tableau
-      (attendu : les 4 versements de 2026, 805 000 FCFA, et les éventuelles
-      lignes payées de l'ancienne table `taxes`), puis
-      `php artisan taxes:reprendre-reglements --appliquer`. Rejouable sans doublon.
+- [x] Migrations (2 tables : `taxe_reglements`, `taxe_reprises`) : jouées
+      au déploiement (la commande de reprise a pu écrire dans `taxe_reglements`).
+- [x] Reprise des versements déjà saisis — **faite en production le 16/11** :
+      5 versements 2026, 805 000 FCFA, tous issus de `commune_tax_payments`
+      (Abengourou 296 000 · Odienné 288 000 + 51 000 · Bingerville 100 000 ·
+      Bassam 70 000). Aucune ligne payée dans l'ancienne table `taxes`.
+      Rejouable sans doublon.
 - [ ] Vérifier que `storage/app/private` est sur le volume persistant
       (les quittances y sont rangées, `taxes/quittances/<exercice>/<mairie>/`).
 
