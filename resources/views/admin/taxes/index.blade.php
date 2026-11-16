@@ -9,10 +9,14 @@
     <a href="{{ route('admin.rapports.taxes') }}" class="btn btn-ghost btn-sm" title="Rapport agrégé matrice mois × commune">
         📊 <span class="btn-label">Rapport</span>
     </a>
-    <a href="{{ route('admin.taxes.historique') }}" class="btn btn-ghost btn-sm" title="Historique des écritures legacy">
-        📋 <span class="btn-label">Historique</span>
+    {{-- 2026-11-16 — Les règlements se tiennent dans le Suivi des mairies
+         (une ligne par versement, jamais écrasée). L'ancien « Historique »
+         (table legacy `taxes`) et son PDF quittent l'écran ; leurs routes
+         restent en place. --}}
+    <a href="{{ route('admin.taxes.suivi.index', ['exercice' => $year]) }}" class="btn btn-ghost btn-sm" title="Arriérés, règlements et solde par mairie">
+        🏛️ <span class="btn-label">Suivi des mairies</span>
     </a>
-    <a href="{{ route('admin.taxes.export.pdf') }}" class="btn btn-ghost btn-sm" title="Télécharger le PDF de synthèse">📄 <span class="btn-label">PDF</span></a>
+    <a href="{{ route('admin.taxes.suivi.pdf', ['exercice' => $year]) }}" class="btn btn-ghost btn-sm" title="Fiche de l'exercice, par mairie">📄 <span class="btn-label">PDF</span></a>
 </x-slot>
 
 {{-- ════ EN-TÊTE PÉRIODE ════ --}}
@@ -75,9 +79,13 @@
         ODP = tarif commune × m² × nb de <strong>mois</strong> — réglée chaque trimestre
         (4 versements de 3 mois), et comptée <strong>une seule fois par panneau
         physique</strong> (un mât double-face A/B compte pour un) ·
-        TM = tarif commune × m² × nb mois de campagne, <strong>par face</strong>.
-        Calcul en temps réel sur le parc actuel. Les panneaux en maintenance sont exclus
-        sauf si la case ci-dessus est cochée.
+        TM = tarif commune × m² × nb mois de campagne, <strong>par face</strong> — toutes les
+        campagnes du panneau, chaque mois rangé dans la période où il commence.
+        Calcul en temps réel sur le parc actuel. Les panneaux en maintenance sont inclus,
+        sauf si la case « Exclure la maintenance » est cochée.
+        <strong>Payé et solde</strong> : ceux de l'exercice {{ $year }} dans le
+        <a href="{{ route('admin.taxes.suivi.index', ['exercice' => $year]) }}" style="color:var(--accent)">Suivi des mairies</a>
+        (arriérés compris).
     </div>
 </div>
 
@@ -89,8 +97,10 @@
             ['key'=>'tm_total',    'label'=>'TM théorique',  'color'=>'#a855f7', 'icon'=>'🏢', 'sub'=>'FCFA · sur la période · cliquer pour filtrer'],
             ['key'=>'grand_total', 'label'=>'Grand total',   'color'=>'#e8a020', 'icon'=>'💰', 'sub'=>'FCFA · ODP + TM sur la période · cliquer pour filtrer'],
             // FIX 2026-06-22 — paye_total et solde_total sont annuels (incluent partiels).
-            ['key'=>'paye_total',  'label'=>'Déjà payé',     'color'=>'#22c55e', 'icon'=>'✅', 'sub'=>'FCFA · cumul année · tous versements (complets + partiels)'],
-            ['key'=>'solde_total', 'label'=>'Solde restant', 'color'=>'#ef4444', 'icon'=>'⏳', 'sub'=>'FCFA · dû annuel − payé annuel'],
+            // 2026-11-16 — Payé et solde viennent du Suivi des mairies
+            // (TaxeExerciceService) : exercice de l'année, arriérés compris.
+            ['key'=>'paye_total',  'label'=>'Déjà payé',     'color'=>'#22c55e', 'icon'=>'✅', 'sub'=>'FCFA · règlements de l\'exercice (Suivi des mairies)'],
+            ['key'=>'solde_total', 'label'=>'Solde restant', 'color'=>'#ef4444', 'icon'=>'⏳', 'sub'=>'FCFA · reste à payer de l\'exercice, arriérés compris'],
         ];
     @endphp
     @foreach($kpiCfg as $k)
@@ -112,7 +122,7 @@
             <span style="font-size:14px">📊</span>
         </div>
         <div data-kpi="taux_couverture" style="font-size:18px;font-weight:800;color:#6366f1;font-variant-numeric:tabular-nums">—</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:3px">% payé / dû sur la période</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">% payé / dû sur l'exercice</div>
     </div>
     {{-- FIX 2026-06-22 — Compteur communes SOLDÉES (cliquable pour filtrer).
          La classe tax-kpi-value est requise pour que renderKpis() remplisse la valeur. --}}
@@ -179,7 +189,8 @@
 </div>
 
 {{-- LOT 4 (cahier 2026-06-19) — Évolution mensuelle des paiements de taxes
-     sur l'année courante. Source : CommuneTaxPayment.paid_at agrégé par mois. --}}
+     sur l'année courante. Source depuis le 2026-11-16 : les règlements du
+     Suivi des mairies (TaxeReglement non annulés), par mois de versement. --}}
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap">
         <div>
@@ -254,90 +265,10 @@
      les lignes construites en JS après le calcul des taxes. --}}
 @include('admin.partials.ligne-cliquable')
 
-{{-- ════ MODAL ENREGISTRER PAIEMENT ════ --}}
-<div id="payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;padding:16px;"
-     onclick="if(event.target===this)TaxModule.closePaymentModal()">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:560px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;"
-         onclick="event.stopPropagation()">
-        <div style="padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-            <h3 style="font-size:15px;font-weight:700;">💰 Enregistrer paiement — <span id="pm-commune">—</span></h3>
-            <button type="button" onclick="TaxModule.closePaymentModal()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);">✕</button>
-        </div>
-        <div style="padding:18px 22px;overflow-y:auto;flex:1;">
-            <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);">
-                <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;">Période</div>
-                <div id="pm-period-label" style="font-weight:600;">—</div>
-                <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;">
-                    <div>
-                        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;display:block;">ODP théorique</span>
-                        <strong id="pm-odp-theorique" style="color:#3b82f6;">—</strong>
-                    </div>
-                    <div>
-                        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;display:block;">TM théorique</span>
-                        <strong id="pm-tm-theorique" style="color:#a855f7;">—</strong>
-                    </div>
-                    <div>
-                        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;display:block;">Total</span>
-                        <strong id="pm-total-theorique" style="color:var(--accent);">—</strong>
-                    </div>
-                </div>
-            </div>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                <div>
-                    <label class="filter-label">ODP payé (FCFA)</label>
-                    <input type="number" id="pm-odp-paye" min="0" step="1" class="filter-input" style="width:100%;">
-                </div>
-                <div>
-                    <label class="filter-label">TM payé (FCFA)</label>
-                    <input type="number" id="pm-tm-paye" min="0" step="1" class="filter-input" style="width:100%;">
-                </div>
-                <div>
-                    <label class="filter-label">Date paiement</label>
-                    <input type="date" id="pm-paid-at" class="filter-input" style="width:100%;" value="{{ now()->format('Y-m-d') }}">
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;padding-top:18px;">
-                    <input type="checkbox" id="pm-attestation" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
-                    <label for="pm-attestation" style="font-size:12px;color:var(--text2);cursor:pointer;">Attestation reçue</label>
-                </div>
-                {{-- LOT 1 — Modes de paiement (cahier 2026-06-19). Le mode est
-                     fortement recommandé pour la traçabilité comptable (export
-                     vers le cabinet). Référence = N° chèque / bordereau /
-                     transaction Mobile Money. --}}
-                <div>
-                    <label class="filter-label">Mode de paiement <span style="color:var(--accent)">*</span></label>
-                    <select id="pm-mode" class="filter-input" style="width:100%;height:38px;font-weight:600">
-                        <option value="">— Choisir un mode —</option>
-                        @foreach(\App\Models\CommuneTaxPayment::MODES as $key => $label)
-                            <option value="{{ $key }}">{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="filter-label">Référence</label>
-                    <input type="text" id="pm-reference" class="filter-input" maxlength="100"
-                           style="width:100%;" placeholder="N° chèque / bordereau / transaction">
-                </div>
-                <div style="grid-column:1/3;">
-                    <label class="filter-label">Commentaire (banque, motif, observation)</label>
-                    <textarea id="pm-comment" rows="2" class="filter-input" style="width:100%;resize:vertical;font-family:inherit;" maxlength="2000" placeholder="Ex : Chèque BICICI déposé le 18/06, à l'attention de la mairie de Cocody…"></textarea>
-                </div>
-                <div style="grid-column:1/3;">
-                    <label class="filter-label">Notes internes (optionnel)</label>
-                    <textarea id="pm-notes" rows="2" class="filter-input" style="width:100%;resize:vertical;font-family:inherit;" maxlength="1000" placeholder="N° quittance, observations…"></textarea>
-                </div>
-            </div>
-
-            <div style="margin-top:12px;padding:8px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.2);border-radius:8px;font-size:11px;color:var(--text2);">
-                💡 Astuce : laissez 0 si seul un type de taxe est payé. Vous pouvez compléter plus tard.
-            </div>
-        </div>
-        <div style="padding:14px 22px;border-top:1px solid var(--border);background:var(--surface2);display:flex;gap:8px;justify-content:flex-end;">
-            <button type="button" onclick="TaxModule.closePaymentModal()" class="btn btn-ghost btn-sm">Annuler</button>
-            <button type="button" id="pm-submit-btn" onclick="TaxModule.submitPayment()" class="btn btn-primary btn-sm">💾 Enregistrer</button>
-        </div>
-    </div>
-</div>
+{{-- 2026-11-16 — La modale « Enregistrer paiement » a été retirée : elle écrivait
+     dans commune_tax_payments par updateOrCreate, si bien qu’un 2e versement sur
+     la même période écrasait le premier. Les règlements se saisissent dans le
+     Suivi des mairies (une ligne par versement, annulation avec motif). --}}
 
 <style>
 .tax-kpi-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
@@ -402,10 +333,12 @@ window.TaxModule = (function () {
     // FIX 2026-06-22 — Mode personnalisé : mois fin (mois début = currentPeriodValue).
     let currentPeriodEndValue = (new Date()).getMonth() + 1; // défaut = mois courant
     let currentData = null;
-    let pmContext = null;       // contexte de la modale paiement
     let activeKpiFilter = null; // filtre KPI actif (null = tous)
 
     const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
+    // 2026-11-16 — La fiche d'une mairie est celle du Suivi des mairies, sur
+    // l'exercice de l'année affichée (l'ancienne fiche y redirige).
+    const ficheUrl = id => `{{ url('/admin/taxes/suivi/mairie') }}/${id}?exercice=${currentPeriodYear}`;
 
     const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
     const quarterNames = ['Q1 (Jan-Mars)','Q2 (Avr-Juin)','Q3 (Juil-Sept)','Q4 (Oct-Déc)'];
@@ -614,9 +547,11 @@ window.TaxModule = (function () {
             } else {
                 topEl.innerHTML = top.map((c, i) => {
                     const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
-                    const pctPaye = c.total_theorique > 0 ? Math.round((c.total_paye / c.total_theorique) * 100) : 0;
+                    // 2026-11-16 — payé et dû de l'EXERCICE (Suivi des mairies) :
+                    // rapporter un payé annuel à un dû mensuel donnait > 100 %.
+                    const pctPaye = c.total_du_exercice > 0 ? Math.round((c.total_paye / c.total_du_exercice) * 100) : 0;
                     return `
-                        <a href="/admin/taxes/commune/${c.commune_id}"
+                        <a href="${ficheUrl(c.commune_id)}"
                            style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-radius:8px;text-decoration:none;color:inherit;transition:transform .15s"
                            onmouseenter="this.style.transform='translateX(2px)'"
                            onmouseleave="this.style.transform=''"
@@ -721,9 +656,9 @@ window.TaxModule = (function () {
                      sauf les boutons (payer, fiche, historique) qui gardent
                      leur rôle. Mécanisme : admin/partials/ligne-cliquable. --}}
                 <tr data-commune-id="${c.commune_id}" data-abidjan="${c.is_abidjan ? '1' : '0'}" data-search="${(c.commune || '').toLowerCase()}"
-                    data-ligne-url="/admin/taxes/commune/${c.commune_id}">
+                    data-ligne-url="${ficheUrl(c.commune_id)}">
                     <td>
-                        <a href="/admin/taxes/commune/${c.commune_id}" data-ligne-principal
+                        <a href="${ficheUrl(c.commune_id)}" data-ligne-principal
                            style="color:inherit" title="Ouvrir la fiche de ${c.commune}"><strong>${c.commune}</strong></a>
                         <div style="font-size:10px;color:var(--text3);margin-top:2px;" title="${lignesTooltip}">
                             ${(c.lignes || []).length} format(s) · ${lignesTooltip.length > 60 ? lignesTooltip.substr(0,60) + '…' : lignesTooltip}
@@ -736,61 +671,31 @@ window.TaxModule = (function () {
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:#a855f7;font-weight:600;">${fmt(c.tm_theorique)}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:var(--accent);">${fmt(c.total_theorique)}</td>
                     <td style="text-align:center;">
-                        {{-- FIX 2026-06-22 — Affichage à 2 niveaux :
-                             - Statut PÉRIODE (gros, principal)
-                             - Sous-info statut ANNUEL si différent + label "(année)"
-                             Toujours visible, peu importe le mode Mensuel/Trim/Perso
-                             ou le filtre KPI. Le user voit en un coup d'œil que la
-                             commune a soldé son mois mais reste en cours de règlement
-                             sur l'année. --}}
-                        ${statusPill(c.statut)}
-                        ${c.statut_year && c.statut_year !== c.statut
-                            ? `<div style="margin-top:3px">${statusPill(c.statut_year)}<span style="font-size:9px;color:var(--text3);margin-left:3px">année</span></div>`
-                            : ''}
+                        {{-- 2026-11-16 — Statut de l'EXERCICE ${currentPeriodYear}
+                             (Suivi des mairies, arriérés compris). Il n'existe plus
+                             de statut « de la période » : un règlement se rattache
+                             à un exercice, pas à un mois. --}}
+                        ${statusPill(c.statut_year)}
+                        <div style="font-size:9px;color:var(--text3);margin-top:2px">exercice ${currentPeriodYear}</div>
                         ${attestationBadge}
-                        ${c.paid_at ? `<div style="font-size:9px;color:var(--text3);margin-top:3px;">${c.paid_at}</div>` : ''}
-                        ${c.statut === 'partiel'
-                            ? `<div style="margin-top:4px;font-weight:800;font-size:13px;color:#c2570d;font-variant-numeric:tabular-nums;" title="Solde restant à payer">
+                        ${c.paid_at ? `<div style="font-size:9px;color:var(--text3);margin-top:3px;">dernier versement ${c.paid_at}</div>` : ''}
+                        ${c.statut_year === 'partiel' || (c.statut_year === 'non_paye' && c.solde > 0)
+                            ? `<div style="margin-top:4px;font-weight:800;font-size:13px;color:#c2570d;font-variant-numeric:tabular-nums;" title="Reste à payer sur l'exercice, arriérés compris">
                                   Solde&nbsp;: ${fmt(c.solde)}
                                </div>
-                               <div style="font-size:9px;color:var(--text3);">payé&nbsp;: ${fmt(c.total_paye)}</div>`
-                            : (c.total_paye > 0 && c.statut !== 'paye'
-                                ? `<div style="font-size:9px;color:var(--text3);margin-top:2px;">payé : ${fmt(c.total_paye)}</div>`
-                                : '')
+                               ${c.total_paye > 0 ? `<div style="font-size:9px;color:var(--text3);">payé&nbsp;: ${fmt(c.total_paye)}</div>` : ''}`
+                            : ''
                         }
                     </td>
                     <td style="text-align:center;white-space:nowrap;">
-                        {{-- FIX 2026-06-22 — En mode "personnalisé" (période multi-mois libre)
-                             le bouton "Payer" est désactivé : un paiement doit être rattaché à
-                             une période standard (mensuel/trimestriel/annuel) pour rester
-                             traçable. L'utilisateur passe par la fiche commune ou bascule
-                             le tab pour enregistrer un versement. --}}
-                        ${currentPeriodType === 'personnalise' ? `
-                            <button type="button" class="tax-pay-btn" disabled
-                                    style="opacity:.45;cursor:not-allowed"
-                                    title="Pour enregistrer un paiement, choisis d'abord une période standard (Mensuel / Trimestriel / Annuel). Les paiements sont rattachés à des périodes officielles pour la traçabilité.">
-                                💰 Payer
-                            </button>
-                        ` : `
-                            <button type="button"
-                                    class="tax-pay-btn ${c.payment_id ? 'tax-pay-btn-edit' : ''}"
-                                    onclick="TaxModule.openPaymentModal(${c.commune_id})">
-                                ${c.payment_id ? '✏️ Modifier' : '💰 Payer'}
-                            </button>
-                        `}
-                        {{-- LOT 2 — Fiche commune (suivi mensuel + cumul trim/annuel). --}}
-                        <a href="/admin/taxes/commune/${c.commune_id}"
+                        {{-- 2026-11-16 — Règlements, arriérés et relevé : fiche du
+                             Suivi des mairies (remplace « Payer », « Fiche » et
+                             « Historique »). --}}
+                        <a href="${ficheUrl(c.commune_id)}"
                            class="tax-pay-btn"
-                           style="margin-left:4px;background:rgba(232,160,32,.10);color:#b45309;border:1px solid rgba(232,160,32,.30);text-decoration:none;display:inline-block"
-                           title="Fiche détaillée de ${c.commune} (suivi mensuel + trimestriel + annuel)">
-                            🏛️ Fiche
-                        </a>
-                        {{-- LOT 3 — Historique paiements détaillé de cette commune. --}}
-                        <a href="/admin/taxes/commune/${c.commune_id}/payments-history"
-                           class="tax-pay-btn"
-                           style="margin-left:4px;background:rgba(59,130,246,.10);color:#1d4ed8;border:1px solid rgba(59,130,246,.30);text-decoration:none;display:inline-block"
-                           title="Voir l'historique complet des versements de ${c.commune}">
-                            📋 Historique
+                           style="text-decoration:none;display:inline-block"
+                           title="Règlements, arriérés et relevé de ${c.commune}">
+                            💰 Règlements
                         </a>
                     </td>
                 </tr>
@@ -950,134 +855,12 @@ window.TaxModule = (function () {
             // Premier chargement
             loadCalcul();
         },
-
-        openPaymentModal(communeId) {
-            const row = (currentData?.communes || []).find(c => c.commune_id === communeId);
-            if (!row) return;
-            pmContext = row;
-
-            document.getElementById('pm-commune').textContent = row.commune;
-            document.getElementById('pm-period-label').textContent = buildPeriodLabel();
-            document.getElementById('pm-odp-theorique').textContent = fmt(row.odp_theorique) + ' FCFA';
-            document.getElementById('pm-tm-theorique').textContent  = fmt(row.tm_theorique)  + ' FCFA';
-            document.getElementById('pm-total-theorique').textContent = fmt(row.total_theorique) + ' FCFA';
-
-            // Hotfix Phase 3 (2026-06-22) : saisie LIBRE des montants (brief
-            // règle métier : "pas d'auto-calcul Payé en totalité"). On ne
-            // pré-remplit qu'en mode édition d'un paiement existant
-            // (row.odp_paye > 0 ou row.tm_paye > 0). Sinon : vide pour que
-            // la patronne tape précisément ce qu'elle a versé à la mairie.
-            const isEdit = (row.odp_paye > 0 || row.tm_paye > 0);
-            document.getElementById('pm-odp-paye').value = isEdit ? row.odp_paye : '';
-            document.getElementById('pm-tm-paye').value  = isEdit ? row.tm_paye  : '';
-            document.getElementById('pm-attestation').checked = !!row.attestation;
-            document.getElementById('pm-notes').value = '';
-            // LOT 1 — Reset des champs de traçabilité (le user remplit à chaque
-            // versement, on ne pré-remplit pas avec l'ancien mode car ça
-            // pousserait à des erreurs si le moyen de paiement change).
-            document.getElementById('pm-mode').value      = row.mode      || '';
-            document.getElementById('pm-reference').value = row.reference || '';
-            document.getElementById('pm-comment').value   = row.comment   || '';
-            // paid_at : si déjà payé, restaurer la date saisie ; sinon today
-            // (on n'a pas la date back en JSON pour l'instant — date du jour OK).
-            document.getElementById('pm-paid-at').value = '{{ now()->format("Y-m-d") }}';
-
-            document.getElementById('payment-modal').style.display = 'flex';
-            document.body.style.overflow = 'hidden';
-        },
-
-        closePaymentModal() {
-            document.getElementById('payment-modal').style.display = 'none';
-            document.body.style.overflow = '';
-            pmContext = null;
-        },
-
-        async submitPayment() {
-            if (!pmContext) return;
-
-            // Hotfix TX-9 (2026-06-22) — Alerte non-bloquante "paiement
-            // annuel à mi-année". Si la patronne enregistre un paiement
-            // de type ANNUEL avec une date avant juillet, on lui demande
-            // confirmation : c'est suspect (la mairie ne facture pas le
-            // plein annuel avant juin/juillet typiquement). C'est une
-            // confirmation, pas un blocage : elle peut toujours valider.
-            const paidAtVal = document.getElementById('pm-paid-at').value;
-            if (currentPeriodType === 'annuel' && paidAtVal) {
-                const paidDate = new Date(paidAtVal);
-                if (paidDate.getMonth() < 6) { // jan..juin (mois 0..5)
-                    const moisFr = ['janvier','février','mars','avril','mai','juin'];
-                    const mLabel = moisFr[paidDate.getMonth()] || (paidDate.getMonth() + 1);
-                    const ok = confirm(
-                        '⚠️ Tu enregistres un paiement ANNUEL daté du ' +
-                        paidDate.toLocaleDateString('fr-FR') +
-                        ' (' + mLabel + ').\n\n' +
-                        'Habituellement les mairies facturent le plein annuel après juin. ' +
-                        "C'est bien volontaire ?\n\n" +
-                        '✓ OK pour continuer · Annuler pour rectifier la date ou la périodicité.'
-                    );
-                    if (!ok) return;
-                }
-            }
-
-            const btn = document.getElementById('pm-submit-btn');
-            btn.disabled = true;
-            btn.textContent = 'Enregistrement…';
-
-            const fd = new URLSearchParams({
-                _token:           csrf,
-                commune_id:       String(pmContext.commune_id),
-                period_type:      currentPeriodType,
-                period_year:      String(currentPeriodYear),
-                period_value:     String(currentPeriodValue),
-                odp_paye:         document.getElementById('pm-odp-paye').value || '0',
-                tm_paye:          document.getElementById('pm-tm-paye').value  || '0',
-                odp_theorique:    String(pmContext.odp_theorique),
-                tm_theorique:     String(pmContext.tm_theorique),
-                paid_at:          document.getElementById('pm-paid-at').value || '',
-                attestation_recue: document.getElementById('pm-attestation').checked ? '1' : '0',
-                notes:            document.getElementById('pm-notes').value || '',
-                // LOT 1 — Traçabilité paiements (cahier 2026-06-19).
-                mode:             document.getElementById('pm-mode').value      || '',
-                reference:        document.getElementById('pm-reference').value || '',
-                comment:          document.getElementById('pm-comment').value   || '',
-            });
-
-            try {
-                const r = await fetch(`{{ route('admin.taxes.payments.record') }}`, {
-                    method: 'POST',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-                    body: fd,
-                });
-                if (r.status === 422) {
-                    const data = await r.json().catch(() => ({}));
-                    const first = data.errors ? Object.values(data.errors).flat()[0] : (data.message || 'Données invalides.');
-                    alert(first);
-                    return;
-                }
-                const data = await r.json();
-                if (!r.ok || !data.ok) {
-                    alert(data.message || 'Erreur.');
-                    return;
-                }
-                this.closePaymentModal();
-                await loadCalcul(); // refresh KPIs + table
-            } catch (e) {
-                console.error(e);
-                alert('Erreur réseau.');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '💾 Enregistrer';
-            }
-        },
+        // 2026-11-16 — Les fonctions de la modale de paiement sont retirées :
+        // les règlements se saisissent dans le Suivi des mairies.
     };
 })();
 
 document.addEventListener('DOMContentLoaded', () => TaxModule.init());
-document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && document.getElementById('payment-modal')?.style.display === 'flex') {
-        TaxModule.closePaymentModal();
-    }
-});
 </script>
 @endpush
 

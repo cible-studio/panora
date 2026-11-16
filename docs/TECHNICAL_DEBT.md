@@ -515,6 +515,46 @@ pour les étapes suivantes :
 
 ---
 
+### Suivi des mairies : ce qui reste (2026-11-16)
+
+Livré : `TaxeExerciceService` (source unique de l'exercice), tables
+`taxe_reglements` et `taxe_reprises`, écrans `admin/taxes/suivi/*`. Restent :
+
+- **Anciennes tables conservées** (règle n° 3) : `commune_tax_payments` (ses
+  lignes sont recopiées par `taxes:reprendre-reglements`) et la table legacy
+  `taxes`. Plus aucun écran ne les écrit ni ne les lit pour un total. Les
+  routes legacy restent ouvertes par adresse, sans lien : `taxes.historique`,
+  `taxes.create/edit/show/update/destroy`, `taxes.pay`, `taxes.export.pdf`,
+  `taxes.auto.preview/generate`. **`TaxAutoService` porte encore une autre
+  formule** (nombre de panneaux × tarif annuel) — à retirer avec ces routes.
+- **Code sans usage** : vues `admin/taxes/commune-show` et `commune-history`
+  (leurs routes redirigent vers le suivi), `TaxController::computeAnnualTotalDue()`,
+  et le groupe `calculTMCommune()` / `totalDuCommune()` / `soldeRestant()`…
+  (cf. « cluster de code mort » plus haut ; `calculTMCommune` garde
+  l'ancienne règle d'occupation).
+- **Case « Lumipub » de la page Taxes** : décochée par défaut (règle du
+  13/11), alors que le Suivi des mairies compte tout le parc Panora, pieds
+  Lumipub compris. Les colonnes ODP / TM de la page Taxes ne se raccordent au
+  suivi que case cochée ; payé et solde, eux, sont toujours ceux du suivi.
+- **Cache du calcul** (10 min) : la clé porte une empreinte des panneaux,
+  campagnes, `campaign_panels`, communes et tarifs. Une écriture SQL brute qui
+  ne change ni `updated_at` ni le nombre de lignes reste invisible au plus
+  10 minutes.
+- **Coût** : un exercice = 12 appels mensuels + 4 trimestriels au moteur, plus
+  12 par exercice antérieur (arriérés) ; chaque appel relit les tarifs commune
+  par commune (`ratesAt`). Acceptable à ~450 panneaux ; à précharger si le
+  parc grossit nettement.
+- **TM, deux campagnes simultanées sur la même face** : chacune paie ses mois
+  (pas de dédoublonnage). Le contrôle de disponibilité doit l'empêcher en amont.
+- **Exercice de reprise** : l'ODP réclamée est annuelle (comme la fiche) ; elle
+  est comptée exigible dès le 1er trimestre.
+- **Rapport Taxes** : les panneaux des régies externes n'y sont plus (leurs
+  taxes ne sont pas dues par la régie) ; `days` n'est plus calculé (aucune vue
+  ne le lit). `DashboardKpiService::taxesByCommune()` n'est affiché par aucune
+  vue (calculé pour le rapport général, non lu).
+
+---
+
 ## Résolues
 
 ### Inscription libre `/register` ouverte en production — résolu le 2026-11-11

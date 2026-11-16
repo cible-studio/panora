@@ -811,6 +811,20 @@ Route::prefix('admin')
             Route::get ('taxes/commune/{commune}',
                 [TaxController::class, 'showCommune'])
                 ->name('taxes.commune.show');
+            // Suivi des mairies (2026-11-16) — la fiche de la direction tenue
+            // par Panora (exercice, arriérés, règlements, relevé, export).
+            // AVANT Route::resource : « suivi » serait pris pour un {tax}.
+            Route::prefix('taxes/suivi')->name('taxes.suivi.')->controller(\App\Http\Controllers\Admin\TaxeSuiviController::class)->group(function () {
+                Route::get ('/',                                  'index')            ->name('index');
+                Route::get ('export/excel',                       'excel')            ->name('excel');
+                Route::get ('export/pdf',                         'pdf')              ->name('pdf');
+                Route::get ('mairie/{commune}',                   'commune')          ->name('commune');
+                Route::get ('mairie/{commune}/releve',            'releve')           ->name('releve');
+                Route::post('mairie/{commune}/reglements',        'storeReglement')   ->name('reglements.store');
+                Route::put ('mairie/{commune}/reprise',           'saveReprise')      ->name('reprise');
+                Route::post('reglements/{reglement}/annuler',     'annulerReglement') ->name('reglements.annuler');
+                Route::get ('reglements/{reglement}/quittance',   'quittance')        ->name('reglements.quittance');
+            });
             Route::resource('taxes', TaxController::class);
             Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
             Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');

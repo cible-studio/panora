@@ -9,8 +9,11 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Taxes communales — rapport agrégé depuis les campagnes effectivement
- * actives (status actif/pose/termine) sur une année donnée.
+ * Taxes communales — rapport agrégé sur une année donnée.
+ *
+ * ⚠ 2026-11-16 : monthlyMatrix() lit désormais TaxCalculationService (cf.
+ * son en-tête) ; la « convention de calcul » ci-dessous est l'ANCIENNE,
+ * conservée pour l'historique.
  *
  * Convention de calcul (CIBLE CI / mairies CI) :
  *   tarif Commune.odp_rate / .tm_rate = montant ANNUEL par panneau.
@@ -34,147 +37,102 @@ class TaxReportService
 {
     public const TYPES = ['odp', 'tm'];
 
+    /** @var array<string, Collection> */
+    private array $memoMensuel = [];
+
     /**
      * Renvoie un tableau aplati :
      *   [
      *     'commune_id' => int,
      *     'commune'    => string,
      *     'month'      => int (1..12),
-     *     'panel_count'=> int   (panneaux distincts occupant ≥1j ce mois)
-     *     'days'       => int   (somme des jours d'occupation tous panneaux)
+     *     'panel_count'=> int   (panneaux taxés ce mois)
+     *     'days'       => 0     (plus calculé — clé gardée pour les appelants)
      *     'odp'        => float (montant ODP du mois)
      *     'tm'         => float (montant TM du mois)
      *     'total'      => float
      *   ]
      *
-     * Une ligne par couple (commune, mois) ayant au moins 1 panneau
-     * occupé. Les communes sans tarif sont ignorées (cf. TaxAutoService).
+     * Une ligne par couple (commune, mois) ayant au moins une ligne de taxe.
+     *
+     * ═══ 2026-11-16 — SOURCE UNIQUE ═══
+     * Ce rapport avait sa propre formule : tarif × NOMBRE de panneaux occupés
+     * (sans les m²), ODP comptée seulement les mois de campagne, campagnes
+     * planifiées et panneaux de régies externes compris. Ses montants ne se
+     * raccordaient ni à la page Taxes, ni au détail, ni au Suivi des mairies.
+     * Il lit désormais le moteur unique, mois par mois :
+     * TaxCalculationService::generateLines() — ODP = tarif × m² × mois où le
+     * panneau est debout, TM = tarif × m² × mois de campagne (toutes les
+     * campagnes, chaque mois dans le mois où il commence). Tout le parc
+     * Panora, pieds Lumipub compris, comme le Suivi des mairies. Les panneaux
+     * de régies externes n'y sont plus : leurs taxes ne sont pas dues par la
+     * régie.
      *
      * @return Collection<int, array>
      */
     public function monthlyMatrix(int $year, array $filters = []): Collection
     {
-        $start = Carbon::create($year, 1, 1)->startOfYear();
-        $end   = Carbon::create($year, 12, 31)->endOfYear();
-
-        // Toutes les campagnes qui touchent l'année (1 jour suffit). On
-        // exclut les annulées : pas de pose effective, donc pas de taxe.
-        // Filtres optionnels client_id / campaign_id / commune_id pour les
-        // rapports filtrés (spec Évolution 4 — 5.7 rapports combinables).
-        // Axes Lumipub (2026-11-12) : on charge de quoi les reconnaître, pour
-        // les écarter plus bas — leur ODP/TM se gère à la main.
-        $colonnesAxe = app(\App\Services\Axes\AxeService::class)->colonnesPresentes();
-        $campaignsQuery = Campaign::query()
-            ->whereIn('status', ['actif', 'termine', 'planifie'])
-            ->where('start_date', '<=', $end)
-            ->where('end_date',   '>=', $start)
-            ->with([
-                $colonnesAxe ? 'panels:id,commune_id,est_axe,axe_id' : 'panels:id,commune_id',
-                'externalPanels:id,commune_id',
-            ]);
-
-        if (!empty($filters['client_id']))   $campaignsQuery->where('client_id', $filters['client_id']);
-        if (!empty($filters['campaign_id'])) $campaignsQuery->where('id', $filters['campaign_id']);
-
-        // Filtre commune : on ne garde que les campagnes qui touchent la
-        // commune demandée — utilisé en aval pour les KPI et la matrice.
-        if (!empty($filters['commune_id'])) {
-            $cid = (int) $filters['commune_id'];
-            $campaignsQuery->where(function ($q) use ($cid) {
-                $q->whereHas('panels',        fn($p) => $p->where('commune_id', $cid))
-                  ->orWhereHas('externalPanels', fn($p) => $p->where('commune_id', $cid));
-            });
+        // annualByCommune() et totals() rappellent monthlyMatrix() : 12 appels
+        // au moteur à chaque fois sans cette mémoire.
+        $cle = $year . '|' . md5(json_encode($filters));
+        if (isset($this->memoMensuel[$cle])) {
+            return $this->memoMensuel[$cle];
         }
 
-        $campaigns = $campaignsQuery->get(['id','client_id','start_date','end_date','status']);
+        $calc = app(TaxCalculationService::class);
+        $filtres = array_filter([
+            'client_id'   => $filters['client_id']   ?? null,
+            'campaign_id' => $filters['campaign_id'] ?? null,
+            'commune_id'  => $filters['commune_id']  ?? null,
+        ]) + ['inclure_lumipub' => true];
 
-        // Index commune_id → tarifs (évite N requêtes)
-        $rates = Commune::pluck('odp_rate', 'id')->map(fn($r) => (float) $r);
-        $tmRates = Commune::pluck('tm_rate', 'id')->map(fn($r) => (float) $r);
-        $names = Commune::pluck('name', 'id');
+        $lignes = collect();
+        for ($mois = 1; $mois <= 12; $mois++) {
+            $parCommune = $calc->generateLines(TaxCalculationService::PERIOD_MONTHLY, $mois, $year, $filtres)
+                ->groupBy('commune_id');
 
-        // Buckets : "communeId:month" → ['panels' => [panelKey, ...], 'days' => int]
-        $buckets = [];
-
-        foreach ($campaigns as $c) {
-            // Période effective : intersection campagne ∩ année
-            $effStart = $c->start_date->lt($start) ? $start->copy() : $c->start_date->copy();
-            $effEnd   = $c->end_date->gt($end)     ? $end->copy()   : $c->end_date->copy();
-            if ($effStart->gt($effEnd)) continue;
-
-            $allPanels = $c->panels
-                // Axes et leurs pieds : ODP/TM à la main (2026-11-12).
-                ->reject(fn($p) => $p->taxesSaisiesALaMain())
-                ->concat($c->externalPanels)
-                ->filter(fn($p) => !empty($p->commune_id));
-
-            // Si filtre commune : on ignore les panneaux des autres communes
-            // de la même campagne — sinon une campagne ADJAME + COCODY ferait
-            // remonter COCODY dans le rapport filtré ADJAME.
-            if (!empty($filters['commune_id'])) {
-                $cid = (int) $filters['commune_id'];
-                $allPanels = $allPanels->filter(fn($p) => (int) $p->commune_id === $cid);
-            }
-
-            // Pour chaque panneau on découpe l'occupation par mois
-            foreach ($allPanels as $p) {
-                $cur = $effStart->copy()->startOfMonth();
-                while ($cur->lte($effEnd)) {
-                    $monthStart = $cur->copy();
-                    $monthEnd   = $cur->copy()->endOfMonth();
-                    $segStart   = $effStart->gt($monthStart) ? $effStart : $monthStart;
-                    $segEnd     = $effEnd->lt($monthEnd)     ? $effEnd   : $monthEnd;
-                    $days       = (int) $segStart->diffInDays($segEnd) + 1;
-
-                    if ($days > 0) {
-                        $key = $p->commune_id . ':' . $cur->month;
-                        if (!isset($buckets[$key])) {
-                            $buckets[$key] = [
-                                'commune_id' => (int) $p->commune_id,
-                                'month'      => (int) $cur->month,
-                                'panels'     => [],
-                                'days'       => 0,
-                            ];
-                        }
-                        // Clé panneau distincte interne/externe pour ne pas
-                        // additionner le même panneau s'il est sur 2 campagnes
-                        // qui se chevauchent partiellement.
-                        $panelKey = ($p->getTable() === 'external_panels' ? 'e' : 'i') . ':' . $p->id;
-                        $buckets[$key]['panels'][$panelKey] = true;
-                        $buckets[$key]['days'] += $days;
-                    }
-                    $cur->addMonth();
-                }
+            foreach ($parCommune as $communeId => $g) {
+                $odp = (float) $g->where('type', TaxCalculationService::TYPE_ODP)->sum('amount');
+                $tm  = (float) $g->where('type', TaxCalculationService::TYPE_TM)->sum('amount');
+                $lignes->push([
+                    'commune_id'  => (int) $communeId,
+                    'commune'     => $g->first()['commune'] ?? '—',
+                    'year'        => $year,
+                    'month'       => $mois,
+                    'panel_count' => $g->where('type', TaxCalculationService::TYPE_ODP)->count(),
+                    'days'        => 0,
+                    'odp'         => round($odp, 2),
+                    'tm'          => round($tm, 2),
+                    'total'       => round($odp + $tm, 2),
+                ]);
             }
         }
 
-        // Convertit les buckets en lignes formatées + applique les tarifs
-        return collect($buckets)
-            ->values()
-            ->map(function ($b) use ($rates, $tmRates, $names) {
-                // FIX TX-3 (2026-06-22, validé patronne) : tarifs MENSUELS, pas annuels.
-                // Avant : ($annual / 12) × panels → 12× trop bas.
-                // Maintenant : tarif_mensuel × panels (le bucket représente déjà 1 mois).
-                $panelCount = count($b['panels']);
-                $odpRate    = (float) ($rates[$b['commune_id']] ?? 0);
-                $tmRate     = (float) ($tmRates[$b['commune_id']] ?? 0);
+        return $this->memoMensuel[$cle] = $lignes->sortBy(['commune', 'month'])->values();
+    }
 
-                $odp = round($odpRate * $panelCount, 2);
-                $tm  = round($tmRate  * $panelCount, 2);
+    /**
+     * Totaux ODP / TM / total d'une année en UN appel annuel au moteur
+     * (2026-11-16) — pour la courbe pluriannuelle du rapport, où douze
+     * appels par année passée seraient trop lents. Mêmes règles que
+     * monthlyMatrix() ; seuls les tarifs sont ceux du 1er janvier.
+     *
+     * @return array{odp: float, tm: float, total: float}
+     */
+    public function totalsAnnuels(int $year, array $filters = []): array
+    {
+        $filtres = array_filter([
+            'client_id'   => $filters['client_id']   ?? null,
+            'campaign_id' => $filters['campaign_id'] ?? null,
+            'commune_id'  => $filters['commune_id']  ?? null,
+        ]) + ['inclure_lumipub' => true];
 
-                return [
-                    'commune_id'  => $b['commune_id'],
-                    'commune'     => $names[$b['commune_id']] ?? '—',
-                    'month'       => $b['month'],
-                    'panel_count' => $panelCount,
-                    'days'        => $b['days'],
-                    'odp'         => $odp,
-                    'tm'          => $tm,
-                    'total'       => $odp + $tm,
-                ];
-            })
-            ->sortBy(['commune', 'month'])
-            ->values();
+        $lignes = app(TaxCalculationService::class)
+            ->generateLines(TaxCalculationService::PERIOD_ANNUAL, 0, $year, $filtres);
+        $odp = (float) $lignes->where('type', TaxCalculationService::TYPE_ODP)->sum('amount');
+        $tm  = (float) $lignes->where('type', TaxCalculationService::TYPE_TM)->sum('amount');
+
+        return ['odp' => $odp, 'tm' => $tm, 'total' => $odp + $tm];
     }
 
     /**

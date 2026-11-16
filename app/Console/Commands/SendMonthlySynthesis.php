@@ -27,12 +27,23 @@ class SendMonthlySynthesis extends Command
         $stats      = $kpi->campaignStats();
         $decapStats = $kpi->decapStats();
 
-        $taxesDueMonth = DB::table('taxes')
-            ->whereBetween('due_date', [$startMonth, $endMonth])
-            ->sum('amount');
-        $taxesPaidMonth = DB::table('taxes')
-            ->whereBetween('paid_at', [$startMonth, $endMonth])
-            ->sum('amount');
+        // 2026-11-16 — Les taxes viennent du Suivi des mairies. Avant : la
+        // table legacy `taxes` (due_date / paid_at), que plus aucun écran ne
+        // remplit — les deux lignes affichaient 0.
+        //   · dues du mois  : le calcul Panora du mois (moteur unique) ;
+        //   · payées du mois : les règlements versés dans le mois ;
+        //   · reste à payer : somme des soldes positifs de l'exercice.
+        $taxesDueMonth = (int) round(app(\App\Services\TaxCalculationService::class)
+            ->generateLines(\App\Services\TaxCalculationService::PERIOD_MONTHLY, (int) $startMonth->month, (int) $startMonth->year, ['inclure_lumipub' => true])
+            ->sum('amount'));
+        $taxesPaidMonth = (int) \App\Models\TaxeReglement::valides()
+            ->whereBetween('paid_at', [$startMonth->toDateString(), $endMonth->toDateString()])
+            ->sum('montant');
+        $suivi = app(\App\Services\Taxes\TaxeExerciceService::class);
+        $exerciceMois = (int) $startMonth->year;
+        $resteExercice = $suivi->estSuivi($exerciceMois)
+            ? $suivi->totaux($suivi->exercices($exerciceMois))['reste']
+            : null;
 
         $lines = [
             "📅 Période : " . $startMonth->translatedFormat('F Y'),
@@ -51,9 +62,13 @@ class SendMonthlySynthesis extends Command
             "  • Décapages en retard : {$decapStats['overdue']}",
             '',
             '🏛️ FISCAL',
-            "  • Taxes dues ce mois : " . number_format($taxesDueMonth, 0, ',', ' ') . " FCFA",
-            "  • Taxes payées ce mois : " . number_format($taxesPaidMonth, 0, ',', ' ') . " FCFA",
+            "  • Taxes du mois (calcul Panora) : " . number_format($taxesDueMonth, 0, ',', ' ') . " FCFA",
+            "  • Règlements versés aux mairies ce mois : " . number_format($taxesPaidMonth, 0, ',', ' ') . " FCFA",
         ];
+        if ($resteExercice !== null) {
+            $lines[] = "  • Reste à payer aux mairies (exercice {$exerciceMois}, arriérés compris) : "
+                . number_format($resteExercice, 0, ',', ' ') . " FCFA";
+        }
 
         AdminAlertNotifier::notify(
             to: ['admin', 'comptable'],

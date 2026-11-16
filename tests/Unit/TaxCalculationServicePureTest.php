@@ -238,21 +238,27 @@ class TaxCalculationServicePureTest extends TestCase
     {
         $source = file_get_contents(__DIR__ . '/../../app/Http/Controllers/Admin/TaxController.php');
 
-        // 1) On doit calculer le moisOccByPanel en bulk avant la map.
+        // 2026-11-16 — La TM du tableau ne se calcule plus localement : elle
+        // vient du moteur unique (TaxCalculationService::generateLines), qui
+        // n'émet une ligne TM que pour un panneau ayant une campagne sur la
+        // période — l'intention de TX-OCC-1 (pas de TM sur un panneau jamais
+        // loué) est donc portée par le moteur, avec la même règle de mois
+        // que le détail, le PDF et le Suivi des mairies.
+
+        // 1) La TM est lue dans l'agrégat du moteur, par commune × format.
         $this->assertStringContainsString(
-            '$moisOccByPanel',
+            '$theoParCommuneFormat[$cle . TaxCalculationService::TYPE_TM]',
             $source,
-            'BUG TX-OCC-1 EN COURS DE RÉGRESSION : TaxController::calcul ' .
-            'doit pré-calculer une map panel_id → mois occupés via ' .
-            '$moisOccByPanel.'
+            'TX-OCC-1 / 2026-11-16 : TaxController::calcul doit lire la TM ' .
+            'dans le moteur unique, pas la recalculer.'
         );
 
-        // 2) Et la TM doit boucler par panneau plutôt que forfaitaire.
-        $this->assertStringContainsString(
-            '$moisOcc = $moisOccByPanel[$p->id] ?? 0;',
+        // 2) Plus de formule TM locale (mois calendaires × tarif × m²).
+        $this->assertStringNotContainsString(
+            '$tm += $tmRate * $m2 * $moisOcc;',
             $source,
-            'BUG TX-OCC-1 EN COURS DE RÉGRESSION : la TM doit lire ' .
-            'l\'occupation par panneau au lieu d\'appliquer tarif×m²×(nbMois/12).'
+            'Une TM locale est revenue dans TaxController::calcul : deux ' .
+            'formules TM pour la même période (cf. 2026-11-16).'
         );
 
         // 3) L'ancienne formule forfaitaire TM ne doit plus exister.

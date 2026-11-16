@@ -1572,21 +1572,27 @@ class DashboardKpiService
     // ══════════════════════════════════════════════════════════════
 
     /**
-     * Cumul taxes ODP + TM par commune sur la période. Utilise la table
-     * `taxes` (paiements effectifs).
+     * Taxes reversées aux mairies sur la période, par commune.
+     *
+     * 2026-11-16 — Source : les règlements du Suivi des mairies
+     * (taxe_reglements, hors annulés), par date de versement. Avant : la
+     * table legacy `taxes`, que plus aucun écran ne remplit. ODP / TM selon
+     * l'objet indiqué au règlement ; un règlement « global » ou « arriérés »
+     * ne compte que dans le total.
      */
     public function taxesByCommune(): Collection
     {
         return $this->cached('taxes_commune', function () {
-            return DB::table('taxes')
-                ->join('communes', 'communes.id', '=', 'taxes.commune_id')
-                ->whereBetween('taxes.paid_at', [$this->from, $this->to])
+            return DB::table('taxe_reglements')
+                ->join('communes', 'communes.id', '=', 'taxe_reglements.commune_id')
+                ->whereNull('taxe_reglements.annule_le')
+                ->whereBetween('taxe_reglements.paid_at', [$this->from->toDateString(), $this->to->toDateString()])
                 ->select(
                     'communes.id',
                     'communes.name as commune',
-                    DB::raw("SUM(CASE WHEN taxes.type = 'tm'  THEN taxes.amount ELSE 0 END) as tm_total"),
-                    DB::raw("SUM(CASE WHEN taxes.type = 'odp' THEN taxes.amount ELSE 0 END) as odp_total"),
-                    DB::raw("SUM(taxes.amount) as total"),
+                    DB::raw("SUM(CASE WHEN taxe_reglements.objet = 'tm'  THEN taxe_reglements.montant ELSE 0 END) as tm_total"),
+                    DB::raw("SUM(CASE WHEN taxe_reglements.objet = 'odp' THEN taxe_reglements.montant ELSE 0 END) as odp_total"),
+                    DB::raw("SUM(taxe_reglements.montant) as total"),
                 )
                 ->groupBy('communes.id', 'communes.name')
                 ->orderByDesc('total')

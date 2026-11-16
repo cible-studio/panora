@@ -263,18 +263,18 @@
 {{-- ════ COMPARAISON DÛ vs REVERSÉ (COMMIT C) ════ --}}
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-top:18px;">
     <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:13px;font-weight:700;color:var(--text);">⚖️ Taxes facturables clients vs reversées aux communes — {{ $year }}</span>
-        <a href="{{ route('admin.taxes.index', ['back' => 'rapports']) }}" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">Gérer les paiements →</a>
+        <span style="font-size:13px;font-weight:700;color:var(--text);">⚖️ Dû aux mairies vs reversé — exercice {{ $year }}</span>
+        <a href="{{ route('admin.taxes.suivi.index', ['exercice' => $year]) }}" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">Gérer les règlements →</a>
     </div>
 
     {{-- KPIs comparaison --}}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid var(--border);">
-        <div style="padding:16px 20px;border-right:1px solid var(--border);" title="Montant théorique facturable aux clients pour couvrir les taxes communales — base : campagnes actives × tarifs mairie">
-            <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Taxes facturables clients</div>
+        <div style="padding:16px 20px;border-right:1px solid var(--border);" title="Total dû de l'exercice dans le Suivi des mairies : arriérés + ODP + TM">
+            <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Dû aux mairies</div>
             <div style="font-size:18px;font-weight:800;color:#a855f7;font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['due']) }} <span style="font-size:11px;color:var(--text3);font-weight:400;">FCFA</span></div>
-            <div style="font-size:10px;color:var(--text3);margin-top:3px;">ODP + TM dus pour {{ $year }}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;">arriérés + ODP + TM {{ $year }}</div>
         </div>
-        <div style="padding:16px 20px;border-right:1px solid var(--border);" title="Montant effectivement payé aux mairies — table taxes.paid_at">
+        <div style="padding:16px 20px;border-right:1px solid var(--border);" title="Règlements de l'exercice saisis dans le Suivi des mairies (hors annulés)">
             <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Reversé aux communes</div>
             <div style="font-size:18px;font-weight:800;color:#16a34a;font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['paid']) }} <span style="font-size:11px;color:var(--text3);font-weight:400;">FCFA</span></div>
             <div style="font-size:10px;color:#16a34a;margin-top:3px;font-weight:600;">{{ $comparisonTotals['rate'] }}% complétés</div>
@@ -363,10 +363,12 @@
 </div>
 
 <div style="font-size:11px;color:var(--text3);margin-top:14px;line-height:1.6;padding:10px 14px;background:var(--surface2);border-radius:8px">
-    <strong>📐 Méthode de calcul :</strong> tarif annuel mairie ÷ 12 × nombre de panneaux distincts occupés au moins 1 jour
-    dans le mois (campagnes statut planifié / actif / pose / terminé). Les campagnes annulées sont exclues.
-    <br><strong>💰 Facturable client :</strong> montant que vous devez théoriquement facturer aux clients pour couvrir la taxe communale due. Inclut ODP (occupation domaine public) + TM (taxe municipale).
-    <br><strong>🏛️ Reversé aux mairies :</strong> montants effectivement payés (table <code>taxes</code> où <code>paid_at</code> est renseigné). Gérez les paiements depuis la liste taxes.
+    <strong>📐 Méthode de calcul (matrice) :</strong> le calcul de la page Taxes, mois par mois — ODP = tarif × m² × mois où le
+    panneau est debout ; TM = tarif × m² × mois de campagne (campagnes actives et terminées), chaque mois rangé dans le mois où il
+    commence. Tout le parc, pieds Lumipub compris ; panneaux des régies externes exclus.
+    <br><strong>🏛️ Dû aux mairies :</strong> total dû de l'exercice dans le Suivi des mairies, arriérés compris
+    @if($year === $exerciceReprise) (pour {{ $year }}, exercice de reprise : ce que chaque mairie a réclamé, saisi par la comptabilité ; il peut différer de la matrice)@endif.
+    <br><strong>💰 Reversé :</strong> règlements de l'exercice saisis dans le Suivi des mairies, hors annulés.
     <br><strong>⚖️ Solde :</strong> positif = à régler aux mairies, négatif = sur-versement.
 </div>
 

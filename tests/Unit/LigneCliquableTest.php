@@ -40,8 +40,11 @@ class LigneCliquableTest extends TestCase
             'regies'       => ['external-agencies/index.blade.php', 'external-agencies/index.blade.php',          "{{ route('admin.external-agencies.show', \$agency) }}"],
             'piges'        => ['piges/index.blade.php',             'piges/index.blade.php',                      "{{ route('admin.piges.show', \$pige) }}"],
             // Le tableau des taxes est construit en JS : l'adresse y est
-            // écrite en clair, pas par le générateur de routes.
-            'taxes'        => ['taxes/index.blade.php',             'taxes/index.blade.php',                      '/admin/taxes/commune/${c.commune_id}'],
+            // calculée par ficheUrl() (2026-11-16 : fiche du Suivi des
+            // mairies, sur l'exercice affiché).
+            'taxes'        => ['taxes/index.blade.php',             'taxes/index.blade.php',                      '${ficheUrl(c.commune_id)}'],
+            // Suivi des mairies (2026-11-16).
+            'suivi_mairies' => ['taxes/suivi/index.blade.php',      'taxes/suivi/index.blade.php',                "{{ route('admin.taxes.suivi.commune', ['commune' => \$l['commune_id'], 'exercice' => \$exercice]) }}"],
         ];
     }
 

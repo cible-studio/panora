@@ -145,6 +145,25 @@ class TaxCalculationService
             $filters['client_id']   ?? null
         );
 
+        // ═══ TM : TOUTES les campagnes du panneau — 2026-11-16 ═══
+        // RÈGLE VALIDÉE PAR ÉCRIT : « toutes les campagnes d'un panneau sont
+        // comptées, et chaque mois de campagne va dans le trimestre où il
+        // commence ». Avant, la TM ne lisait que $campaignAssignmentMap, qui
+        // ne garde que la campagne LA PLUS RÉCENTE : sur une année, un
+        // panneau loué de janvier à mars puis de juin à décembre ne payait
+        // que la seconde. La carte reste utilisée pour l'ODP (client affiché)
+        // et le filtre client/campagne ; la TM a désormais sa propre liste.
+        // 'statuts_tm' sert au « prévu » (campagnes planifiées), cf.
+        // TaxeExerciceService ; par défaut, actif + terminé comme avant.
+        $campagnesTM = $this->buildCampaignAssignmentsList(
+            $panels->pluck('id')->all(),
+            $periodStart,
+            $periodEnd,
+            $filters['campaign_id'] ?? null,
+            $filters['client_id']   ?? null,
+            $filters['statuts_tm']  ?? null
+        );
+
         $filterType = $filters['type'] ?? null;
 
         // ═══ Faces d'un pied d'axe — 2026-11-13 ═══
@@ -168,7 +187,7 @@ class TaxCalculationService
             // ODP et on filtre TM individuellement.
             $assignment = $campaignAssignmentMap[$panel->id] ?? null;
             $hasClientCampaignFilter = !empty($filters['client_id']) || !empty($filters['campaign_id']);
-            if ($hasClientCampaignFilter && !$assignment) continue;
+            if ($hasClientCampaignFilter && !$assignment && empty($campagnesTM[$panel->id])) continue;
 
             // Surface TAXABLE = surface d'une face × nombre de faces.
             // Vaut 1 face pour tout panneau ordinaire : rien ne change
@@ -180,10 +199,17 @@ class TaxCalculationService
 
             foreach (self::TYPES as $type) {
                 if ($filterType && $filterType !== $type) continue;
-                if (!$this->isEligible($panel, $type, $assignment)) continue;
 
                 $unitRate = (float) ($rates[$type] ?? 0);
                 if ($unitRate <= 0) continue; // pas tarif → ligne ignorée
+
+                // TM : une ligne par campagne (2026-11-16). ODP : une ligne
+                // par panneau, portant la campagne la plus récente pour info.
+                $occurrences = $type === self::TYPE_TM
+                    ? ($campagnesTM[$panel->id] ?? [])
+                    : ($this->isEligible($panel, $type, $assignment) ? [$assignment] : []);
+
+                foreach ($occurrences as $occurrence) {
 
                 // FIX TX-3 (2026-06-22, validé par patronne) — RÉVERSE DU TX-1.
                 // Les tarifs ODP/TM stockés dans communes.odp_rate / tm_rate
@@ -209,12 +235,19 @@ class TaxCalculationService
                 // avril = 2 mois). L'ODP comptait aussi les mois. La nouvelle
                 // règle est plus juste comptablement et alignée avec la
                 // pratique terrain du MP (validée par la patronne).
+                //
+                // 2026-11-16 — Les mois se comptent depuis le début de LA
+                // CAMPAGNE et chacun va dans la période où il commence
+                // (moisTMCommencantDansPeriode). Avant, moisTMDansPeriode
+                // recomptait depuis le 1er jour de la période : la somme des
+                // 12 mois dépassait l'année. Sur une campagne contenue dans
+                // la période (cas courant), le résultat ne change pas.
                 if ($type === self::TYPE_TM
-                    && !empty($assignment['campaign_start'])
-                    && !empty($assignment['campaign_end'])) {
-                    $lineMonths = $this->period->moisTMDansPeriode(
-                        $assignment['campaign_start'],
-                        $assignment['campaign_end'],
+                    && !empty($occurrence['campaign_start'])
+                    && !empty($occurrence['campaign_end'])) {
+                    $lineMonths = $this->period->moisTMCommencantDansPeriode(
+                        $occurrence['campaign_start'],
+                        $occurrence['campaign_end'],
                         $periodStart,
                         $periodEnd
                     );
@@ -271,15 +304,15 @@ class TaxCalculationService
                     'surface'        => $surface,
                     'type'           => $type,
                     'statut'         => $panel->status?->value ?? 'libre',
-                    'client_name'    => $assignment['client_name']    ?? null,
-                    'client_id'      => $assignment['client_id']      ?? null,
-                    'campaign_name'  => $assignment['campaign_name']  ?? null,
-                    'campaign_id'    => $assignment['campaign_id']    ?? null,
+                    'client_name'    => $occurrence['client_name']    ?? null,
+                    'client_id'      => $occurrence['client_id']      ?? null,
+                    'campaign_name'  => $occurrence['campaign_name']  ?? null,
+                    'campaign_id'    => $occurrence['campaign_id']    ?? null,
                     // FIX 2026-06-26 — Vraies dates de campagne (null pour les
                     // lignes ODP sans campagne). Affichées dans la colonne
                     // "Période campagne" du détail / PDF / Excel.
-                    'campaign_start' => $assignment['campaign_start'] ?? null,
-                    'campaign_end'   => $assignment['campaign_end']   ?? null,
+                    'campaign_start' => $occurrence['campaign_start'] ?? null,
+                    'campaign_end'   => $occurrence['campaign_end']   ?? null,
                     'period_start'   => $periodStart,
                     'period_end'     => $periodEnd,
                     'months'         => $lineMonths,        // Nb d'unités (mois pour TM, trimestres pour ODP)
@@ -299,6 +332,7 @@ class TaxCalculationService
                     'faces_pied'     => $faces,
                     'surface_face'   => $surfaceUne,
                 ]);
+                } // foreach $occurrences
             }
         }
 
@@ -468,6 +502,8 @@ class TaxCalculationService
         $map = [];
         foreach ($rows as $r) {
             // Premier match = plus récent (orderByDesc), on garde celui-là.
+            // ⚠ Une seule campagne par panneau : convient à l'ODP (client
+            // affiché), PAS à la TM — cf. buildCampaignAssignmentsList().
             if (!isset($map[$r->panel_id])) {
                 $map[$r->panel_id] = [
                     'campaign_id'    => (int) $r->campaign_id,
@@ -482,6 +518,65 @@ class TaxCalculationService
             }
         }
         return $map;
+    }
+
+    /**
+     * TM (2026-11-16) — TOUTES les campagnes de chaque panneau qui touchent
+     * la période, et pas seulement la plus récente.
+     *
+     * Map panel_id → liste de [campaign_id, campaign_name, campaign_start,
+     * campaign_end, client_id, client_name], une entrée par campagne.
+     *
+     * @param  array|null $statuts  statuts de campagne retenus ; défaut :
+     *                              actif + terminé (règle du 2026-06-26).
+     *                              ['planifie'] sert au « prévu ».
+     * @return array<int, array<int, array>>
+     */
+    private function buildCampaignAssignmentsList(array $panelIds, Carbon $periodStart, Carbon $periodEnd, ?int $campaignId = null, ?int $clientId = null, ?array $statuts = null): array
+    {
+        if (empty($panelIds)) return [];
+
+        $statuts ??= [CampaignStatus::ACTIF->value, CampaignStatus::TERMINE->value];
+
+        $q = \DB::table('campaign_panels')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+            ->leftJoin('clients', 'clients.id', '=', 'campaigns.client_id')
+            ->where('campaign_panels.type', 'interne')
+            ->whereIn('campaign_panels.panel_id', $panelIds)
+            ->whereIn('campaigns.status', $statuts)
+            ->whereNotNull('campaigns.start_date')
+            ->whereNotNull('campaigns.end_date')
+            ->where('campaigns.start_date', '<=', $periodEnd->toDateString())
+            ->where('campaigns.end_date',   '>=', $periodStart->toDateString())
+            ->whereNull('campaigns.deleted_at')
+            ->select(
+                'campaign_panels.panel_id',
+                'campaigns.id as campaign_id',
+                'campaigns.name as campaign_name',
+                'campaigns.start_date',
+                'campaigns.end_date',
+                'clients.id as client_id',
+                'clients.name as client_name'
+            );
+
+        if ($campaignId) $q->where('campaigns.id', $campaignId);
+        if ($clientId)   $q->where('campaigns.client_id', $clientId);
+
+        $liste = [];
+        foreach ($q->orderBy('campaigns.start_date')->orderBy('campaigns.id')->get() as $r) {
+            // Un panneau rattaché deux fois à la même campagne ne paie
+            // qu'une fois.
+            $liste[$r->panel_id][(int) $r->campaign_id] ??= [
+                'campaign_id'    => (int) $r->campaign_id,
+                'campaign_name'  => $r->campaign_name,
+                'campaign_start' => Carbon::parse($r->start_date),
+                'campaign_end'   => Carbon::parse($r->end_date),
+                'client_id'      => $r->client_id ? (int) $r->client_id : null,
+                'client_name'    => $r->client_name,
+            ];
+        }
+
+        return array_map('array_values', $liste);
     }
 
     /**

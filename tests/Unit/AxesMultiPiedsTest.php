@@ -625,15 +625,22 @@ class AxesMultiPiedsTest extends TestCase
         // qui causait le ×12, et Panel::scopeAvecTaxesAutomatiques l'écarte
         // avant même de regarder l'argument (test dédié dans
         // TaxesMaintenanceEtLumipubTest).
+        // 2026-11-16 — showCommune redirige vers le Suivi des mairies (plus de
+        // lecture du parc) ; le rapport Taxes et le Suivi des mairies lisent le
+        // parc via generateLines(), donc via la règle ci-dessus.
         $sources = [
             'app/Services/TaxCalculationService.php' => 2, // generateLines + panneauxPourCalcul
             'app/Services/TaxAutoService.php'        => 1,
-            'app/Http/Controllers/Admin/TaxController.php' => 2, // showCommune + calcul (dashboard)
+            'app/Http/Controllers/Admin/TaxController.php' => 1, // calcul (dashboard)
         ];
         foreach ($sources as $fichier => $attendu) {
             $this->assertSame($attendu, substr_count(file_get_contents(base_path($fichier)), '->avecTaxesAutomatiques('), $fichier);
         }
-        $this->assertStringContainsString('taxesSaisiesALaMain()', file_get_contents(base_path('app/Services/TaxReportService.php')));
+        foreach (['app/Services/TaxReportService.php', 'app/Services/Taxes/TaxeExerciceService.php'] as $fichier) {
+            $src = file_get_contents(base_path($fichier));
+            $this->assertStringContainsString('->generateLines(', $src, $fichier . ' doit lire le parc via le moteur unique.');
+            $this->assertStringNotContainsString('Panel::', $src, $fichier . ' ne doit pas relire le parc lui-même.');
+        }
     }
 
     // ══════════════════════════════════════════════════════════════
