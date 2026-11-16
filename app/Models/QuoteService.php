@@ -16,18 +16,31 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class QuoteService extends Model
 {
-    protected $fillable = ['quote_id', 'label', 'prix_ht', 'tva_applicable', 'order_index'];
+    protected $fillable = ['quote_id', 'label', 'quantite', 'prix_ht', 'tva_applicable', 'order_index'];
 
     protected $casts = [
+        'quantite'       => 'integer',
         'prix_ht'        => 'integer',
         'tva_applicable' => 'boolean',
         'order_index'    => 'integer',
     ];
 
+    /**
+     * Montant HT de la ligne (2026-11-16).
+     *
+     * `prix_ht` est le prix UNITAIRE depuis l'ajout de la quantité. Les
+     * lignes antérieures ont quantite = 1 : leur montant ne change pas.
+     * Le `?: 1` couvre une ligne chargée avant la migration.
+     */
+    public function montantHt(): int
+    {
+        return (int) ($this->prix_ht * max(1, (int) ($this->quantite ?: 1)));
+    }
+
     /** Montant TTC de ce service : avec ou sans TVA selon le choix. */
     public function montantTtc(float $tauxTva): int
     {
-        return (int) round($this->prix_ht * ($this->tva_applicable ? 1 + $tauxTva / 100 : 1));
+        return (int) round($this->montantHt() * ($this->tva_applicable ? 1 + $tauxTva / 100 : 1));
     }
 
     public function quote(): BelongsTo { return $this->belongsTo(Quote::class); }

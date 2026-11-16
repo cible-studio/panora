@@ -175,7 +175,21 @@
                     @if($quote->services_ht_total > 0)
                         <tr><td style="padding:4px 0;color:var(--text2)">Services HT</td><td style="text-align:right">{{ number_format($quote->services_ht_total, 0, ',', ' ') }}</td></tr>
                     @endif
-                    <tr><td style="padding:4px 0;color:var(--text2)">TVA ({{ (int) $quote->tva }}%)</td><td style="text-align:right">{{ number_format($quote->tva_amount + (int) round($quote->services_ht_total * ((float) $quote->tva / 100)), 0, ',', ' ') }}</td></tr>
+                    @php
+                        // TVA des services (2026-11-16) : on ne taxe que les
+                        // services qui le sont. Avant, l'écran appliquait la
+                        // TVA à services_ht_total en bloc, en ignorant
+                        // l'interrupteur `tva_applicable` posé le 30/10 — un
+                        // service refacturé HT était donc taxé ici, et pas
+                        // dans le PDF ni dans la facture. Le montant de
+                        // chaque service tient compte de sa quantité.
+                        $tauxQuote  = (float) $quote->tva;
+                        $servicesHtTaxes = (int) $quote->services
+                            ->filter(fn ($s) => (bool) $s->tva_applicable)
+                            ->sum(fn ($s) => $s->montantHt());
+                        $tvaServices = (int) round($servicesHtTaxes * $tauxQuote / 100);
+                    @endphp
+                    <tr><td style="padding:4px 0;color:var(--text2)">TVA ({{ (int) $quote->tva }}%)</td><td style="text-align:right">{{ number_format($quote->tva_amount + $tvaServices, 0, ',', ' ') }}</td></tr>
                     <tr><td style="padding:4px 0;color:var(--text2)">TSP</td><td style="text-align:right">{{ number_format($quote->tsp_amount, 0, ',', ' ') }}</td></tr>
                     <tr><td style="padding:4px 0;color:var(--text2)">TM</td><td style="text-align:right">{{ number_format($quote->tm_total, 0, ',', ' ') }}</td></tr>
                     <tr><td style="padding:4px 0;color:var(--text2)">ODP</td><td style="text-align:right">{{ number_format($quote->odp_total, 0, ',', ' ') }}</td></tr>

@@ -423,8 +423,20 @@
                                        maxlength="200" required {{ $locked ? 'readonly' : '' }}
                                        class="svc-label">
                             </div>
+                            {{-- Quantité (2026-11-16) : le montant de la ligne
+                                 vaut prix unitaire × quantité. Laisser 1 revient
+                                 à la saisie d'avant, où le prix ÉTAIT le montant.
+                                 Même champ que sur le devis : une facture issue
+                                 d'un devis doit compter pareil. --}}
+                            <div class="svc-card-field svc-card-field-qte">
+                                <label>Qté</label>
+                                <input type="number" name="services[{{ $i }}][quantite]"
+                                       value="{{ max(1, (int) ($s['quantite'] ?? 1)) }}"
+                                       min="1" step="1" {{ $locked ? 'readonly' : '' }}
+                                       class="svc-qte">
+                            </div>
                             <div class="svc-card-field svc-card-field-prix">
-                                <label>Prix HT (FCFA)</label>
+                                <label>PU HT (FCFA)</label>
                                 <div class="svc-prix-wrap">
                                     {{-- step="1" — cf. ligne 192 (PU HT) pour la justification. --}}
                                     <input type="number" name="services[{{ $i }}][prix_ht]" value="{{ $s['prix_ht'] ?? 0 }}"
@@ -878,10 +890,12 @@
     .svc-card-fields {
         flex: 1;
         display: grid;
-        /* Grid simplifié maquette : 2fr / 1fr / 0.8fr / 1fr, sans minmax
-           (le min-width vient de min-width:0 sur les items pour laisser
-           les inputs se réduire proprement). */
-        grid-template-columns: 2fr 1fr 0.8fr 1fr;
+        /* Grid simplifié maquette, sans minmax (le min-width vient de
+           min-width:0 sur les items pour laisser les inputs se réduire
+           proprement).
+           2026-11-16 : une 5e colonne étroite pour la quantité, insérée
+           entre le libellé et le prix unitaire. */
+        grid-template-columns: 2fr 0.5fr 1fr 0.8fr 1fr;
         gap: 14px;
         align-items: end;
         min-width: 0;
@@ -1006,6 +1020,20 @@
         box-shadow: 0 0 0 3px rgba(232,160,32,.15);
         background: var(--surface);
     }
+    /* Quantité (2026-11-16) : même habillage que le prix, chiffres à
+       droite pour qu'on lise « 30 × 20 000 » d'un coup d'œil. */
+    .svc-card-field-qte .svc-qte {
+        width: 100%;
+        text-align: right;
+        padding: 8px 10px;
+        border: 1px solid var(--border2);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 600;
+    }
+
     .svc-card-field-prix .svc-prix-wrap { position: relative; }
     .svc-card-field-prix .svc-prix {
         text-align: right;
@@ -2041,19 +2069,27 @@
                 if (txt) txt.textContent = tvaAppl ? 'TVA' : 'HT';
             }
 
-            svcHt += prix;
-            const svcTtcLine = tvaAppl ? prix * (1 + TVA/100) : prix;
+            // Quantité (2026-11-16) : le montant de la ligne vaut prix
+            // unitaire × quantité. Vide ou absente = 1, donc une facture
+            // saisie avant ce champ garde exactement son total.
+            const qteSvc = Math.max(1, parseInt(row.querySelector('.svc-qte')?.value, 10) || 1);
+            const svcHtLine = prix * qteSvc;
+
+            svcHt += svcHtLine;
+            const svcTtcLine = tvaAppl ? svcHtLine * (1 + TVA/100) : svcHtLine;
             svcTtc += svcTtcLine;
             const ttcCell = row.querySelector('.svc-ttc');
             if (ttcCell) {
                 ttcCell.textContent = prix > 0 ? fmt(svcTtcLine) : '—';
-                ttcCell.title = tvaAppl
-                    ? 'HT ' + fmt(prix) + ' + TVA ' + TVA + '%'
-                    : 'HT strict (TVA non applicable)';
+                ttcCell.title = (qteSvc > 1 ? qteSvc + ' × ' + fmt(prix) + ' = ' + fmt(svcHtLine) + ' HT · ' : '')
+                    + (tvaAppl
+                        ? 'HT ' + fmt(svcHtLine) + ' + TVA ' + TVA + '%'
+                        : 'HT strict (TVA non applicable)');
             }
             if (prix > 0) {
                 svcDetailRows.push({
                     label: label || '(sans libellé)',
+                    qte:   qteSvc,
                     ttc:   svcTtcLine,
                     tvaAppl: tvaAppl,
                 });
@@ -2103,7 +2139,7 @@
                 svcDetailEl.innerHTML = svcDetailRows.map(s => `
                     <div class="fne-recap-row fne-recap-small" style="padding:1px 0">
                         <span class="lbl" style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%" title="${s.label.replace(/"/g, '&quot;')}">
-                            ${s.label}${s.tvaAppl ? '' : ' <span style="background:rgba(59,130,246,.12);color:#1d4ed8;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;margin-left:3px">HT</span>'}
+                            ${s.label}${s.qte > 1 ? ` <span style="color:var(--text3);font-size:10px">× ${s.qte}</span>` : ''}${s.tvaAppl ? '' : ' <span style="background:rgba(59,130,246,.12);color:#1d4ed8;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;margin-left:3px">HT</span>'}
                         </span>
                         <span class="val" style="font-size:11px;font-weight:600">${fmt(s.ttc)}</span>
                     </div>
@@ -2179,8 +2215,13 @@
                     <input type="text" name="services[${idx}][label]"${valeur} placeholder="Ex: Impression, photo…"
                            maxlength="200" required class="svc-label">
                 </div>
+                <div class="svc-card-field svc-card-field-qte">
+                    <label>Qté</label>
+                    <input type="number" name="services[${idx}][quantite]" value="1"
+                           min="1" step="1" class="svc-qte">
+                </div>
                 <div class="svc-card-field svc-card-field-prix">
-                    <label>Prix HT (FCFA)</label>
+                    <label>PU HT (FCFA)</label>
                     <div class="svc-prix-wrap">
                         <input type="number" name="services[${idx}][prix_ht]" value="0"
                                min="0" step="1" required class="svc-prix">
@@ -2218,6 +2259,7 @@
             card.querySelector('.svc-label')?.focus();
         }
         card.querySelector('.svc-prix')?.addEventListener('input', recompute);
+        card.querySelector('.svc-qte')?.addEventListener('input', recompute);
         card.querySelector('.svc-tva-applicable')?.addEventListener('change', recompute);
         reindexServices();
         recompute();
@@ -2239,6 +2281,10 @@
             row.dataset.idx = i;
             row.querySelector('.svc-label').name = `services[${i}][label]`;
             row.querySelector('.svc-prix').name  = `services[${i}][prix_ht]`;
+            // Quantité (2026-11-16) : sans ce renommage, PHP reçoit la
+            // quantité d'une autre ligne après réordonnancement.
+            const qte = row.querySelector('.svc-qte');
+            if (qte) qte.name = `services[${i}][quantite]`;
             // Renomme les 2 inputs tva_applicable (hidden 0 + checkbox 1) —
             // sinon PHP reçoit les mauvais index après réordonnancement.
             row.querySelectorAll('input[name*="[tva_applicable]"]').forEach(el => {
@@ -2391,6 +2437,11 @@
     // Services annexes existants : binding initial sur les .svc-prix
     // ET sur la checkbox .svc-tva-applicable (2026-08-03).
     document.querySelectorAll('#services-tbody .svc-prix').forEach(el => {
+        el.addEventListener('input', recompute);
+    });
+    // Quantité (2026-11-16) : sans ce binding, modifier la quantité d'un
+    // service déjà enregistré ne mettrait pas le récapitulatif à jour.
+    document.querySelectorAll('#services-tbody .svc-qte').forEach(el => {
         el.addEventListener('input', recompute);
     });
     document.querySelectorAll('#services-tbody .svc-tva-applicable').forEach(el => {

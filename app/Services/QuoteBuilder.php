@@ -64,6 +64,10 @@ class QuoteBuilder
         // sur la facture qui en découlait.
         $svcArr   = $quote->services->map(fn($s) => [
             'label'          => $s->label,
+            // Quantité (2026-11-16) : prix_ht est le prix UNITAIRE, le
+            // montant de la ligne vaut prix_ht × quantite. Une ligne
+            // antérieure à la migration vaut 1, donc son total ne bouge pas.
+            'quantite'       => max(1, (int) ($s->quantite ?: 1)),
             'prix_ht'        => (float) $s->prix_ht,
             'tva_applicable' => (bool) $s->tva_applicable,
         ])->all();
