@@ -2724,6 +2724,21 @@ ou renommé plus tard ne rend pas l'historique illisible.
       l'historique doit **continuer d'afficher sa référence**.
 - [ ] Importer une campagne → lignes « Panneau initial », origine import.
 
+### Le défaut du 16/11 (corrigé le jour même)
+
+Les tout premiers mouvements enregistrés sont sortis **sans identifiant de
+panneau** : l'opérateur `+` sur deux tableaux ne remplace pas une clé déjà
+présente à gauche, contrairement à `array_merge()`. La référence était bien
+enregistrée, mais ni le lien vers la fiche ni la distinction parc / régie.
+À l'écran, **tous** les mouvements portaient le badge « 🤝 régie ».
+
+- [ ] Après déploiement : `php artisan campagnes:reparer-mouvements`
+      (simulation), puis `--appliquer`. Elle retrouve le panneau par sa
+      référence et rattache les lignes. Une référence ambiguë ou
+      introuvable est signalée et laissée en l'état.
+- [ ] Vérifier ensuite qu'un panneau du parc affiche bien un **lien
+      cliquable** et **pas** le badge « régie ».
+
 ### Limite à connaître
 
 - [ ] **L'historique démarre le jour de la mise en production.** Les

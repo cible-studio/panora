@@ -177,10 +177,19 @@ class MouvementsPanneaux
 
             $lignes = [];
             foreach ($panelIds as $id) {
-                $lignes[] = $this->ligne($campaign, $sens, $motif, $source, $note) + [
-                    'panel_id'  => $id,
-                    'reference' => $references[$id] ?? null,
-                ];
+                // ⚠ array_merge, JAMAIS l'opérateur « + » (2026-11-16).
+                // `ligne()` pose déjà panel_id = null comme valeur par
+                // défaut, et « + » NE REMPLACE PAS une clé déjà présente à
+                // gauche : le panel_id était donc perdu, tous les
+                // mouvements sortaient sans identifiant, et l'écran les
+                // prenait tous pour des panneaux de régie partenaire.
+                $lignes[] = array_merge(
+                    $this->ligne($campaign, $sens, $motif, $source, $note),
+                    [
+                        'panel_id'  => $id,
+                        'reference' => $references[$id] ?? null,
+                    ]
+                );
             }
 
             CampaignPanelMouvement::insert($lignes);
@@ -209,10 +218,15 @@ class MouvementsPanneaux
 
             $lignes = [];
             foreach ($ids as $id) {
-                $lignes[] = $this->ligne($campaign, $sens, $motif, $source, $note) + [
-                    'external_panel_id' => $id,
-                    'reference'         => $references[$id] ?? null,
-                ];
+                // array_merge et non « + » : cf. la note dans
+                // ecrireInternes(). Le défaut était le même ici.
+                $lignes[] = array_merge(
+                    $this->ligne($campaign, $sens, $motif, $source, $note),
+                    [
+                        'external_panel_id' => $id,
+                        'reference'         => $references[$id] ?? null,
+                    ]
+                );
             }
 
             CampaignPanelMouvement::insert($lignes);
