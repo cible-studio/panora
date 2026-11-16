@@ -190,6 +190,25 @@
                             <option value="0">🌙 Non éclairé</option>
                         </select>
                     </div>
+
+                    {{-- Emplacements des clients annuels (2026-11-16).
+                         Un client annuel a un emplacement fixe : on ne le
+                         propose pas tant qu'il n'a pas dit qu'il arrêtait,
+                         même s'il n'a pas encore décidé de renouveler.
+                         Masqués par défaut ; un compteur dit combien, pour
+                         qu'on ne croie jamais le parc plus petit qu'il
+                         n'est. Cocher les réintègre. --}}
+                    <div class="filter-field">
+                        <label class="filter-label">🔒 Clients annuels</label>
+                        <label for="f-inclure_annuels"
+                               title="Les panneaux tenus par une campagne de 12 mois ou plus, en cours ou à venir, sont masqués par défaut : on ne peut pas les proposer tant que leur titulaire n'a pas tranché. Cochez pour les faire réapparaître."
+                               style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--surface)">
+                            <input type="checkbox" id="f-inclure_annuels"
+                                   style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex-shrink:0"
+                                   onchange="DISPO.set('inclure_annuels', this.checked)">
+                            <span style="font-size:12px;color:var(--text2);line-height:1.3">Inclure leurs emplacements</span>
+                        </label>
+                    </div>
                 </details>
             </div>
 
@@ -201,6 +220,12 @@
                     <span id="stat-occupes" class="stat-pill hidden">🔒 <strong>0</strong> occupés</span>
                     <span id="stat-options" class="stat-pill hidden">⏳ <strong>0</strong> options</span>
                     <span id="stat-ext" class="stat-pill hidden">🤝 <strong>0</strong> externes</span>
+                    {{-- Dit ce qu'on a retiré du résultat : masquer du stock
+                         sans l'annoncer ferait croire le parc plus petit. --}}
+                    <span id="stat-annuels" class="stat-pill hidden"
+                          style="background:rgba(99,102,241,.10);border-color:rgba(99,102,241,.35);color:#6366f1;cursor:pointer"
+                          title="Emplacements de clients annuels écartés du résultat. Cliquez pour les afficher."
+                          onclick="DISPO.set('inclure_annuels', true); const c = document.getElementById('f-inclure_annuels'); if (c) c.checked = true;">🔒 <strong>0</strong> annuels masqués</span>
                 </div>
                 <button id="btn-reset"
                     class="hidden px-3 py-1.5 text-xs text-[var(--text3)] border border-[var(--border2)] rounded-xl hover:border-red-500 hover:text-red-500 transition-all"
@@ -1393,7 +1418,10 @@
                         du: '',
                         au: '',
                         source: 'all',
-                        q: ''
+                        q: '',
+                        // Emplacements des clients annuels (2026-11-16) :
+                        // masqués tant que la case n'est pas cochée.
+                        inclure_annuels: false
                     },
                     sel: {
                         ids: [],
@@ -1642,13 +1670,17 @@
                             du: '',
                             au: '',
                             source: 'all',
-                            q: ''
+                            q: '',
+                            inclure_annuels: false
                         };
                         S.page = 1;
                         ['f-dimensions', 'f-is_lit'].forEach(id => {
                             const el = _el(id);
                             if (el) el.value = '';
                         });
+                        // Réinitialiser, c'est revenir au défaut : annuels masqués.
+                        const ia = _el('f-inclure_annuels');
+                        if (ia) ia.checked = false;
                         const s = _el('f-statut');
                         if (s) s.value = 'tous';
                         const r = _el('f-source');
@@ -2513,6 +2545,10 @@
                         if (S.f.au) p.set('dispo_au', S.f.au);
                         if (S.f.source !== 'all') p.set('source', S.f.source);
                         if (S.f.q) p.set('q', S.f.q);
+                        // Absent = masqués (le défaut). « Tout sélectionner »
+                        // et les exports passent par ici : ils visent donc
+                        // exactement le même résultat que la grille.
+                        if (S.f.inclure_annuels) p.set('inclure_annuels', 1);
                         return p;
                     },
 
@@ -2763,6 +2799,13 @@
                             hasPeriod && (stats.options || 0) > 0);
                         set('stat-ext', `🤝 <strong>${stats.externes}</strong> ${pl(stats.externes, 'externe', 'externes')}`,
                             stats.externes > 0);
+                        // Ne s'affiche que s'il y a effectivement quelque
+                        // chose de masqué — et disparaît dès que la case
+                        // « Inclure leurs emplacements » est cochée.
+                        const masques = stats.masques_annuels || 0;
+                        set('stat-annuels',
+                            `🔒 <strong>${masques}</strong> ${pl(masques, 'annuel masqué', 'annuels masqués')}`,
+                            masques > 0);
                     },
 
                     _renderPagination(stats) {
@@ -2867,7 +2910,7 @@
                         const active = f.commune_ids.length || f.zone_ids.length
                             || f.format_ids.length || f.category_ids.length || f.agency_ids.length
                             || f.dimensions || f.is_lit !== '' || f.statut !== 'tous' || f.du || f.au
-                            || f.source !== 'all' || f.q;
+                            || f.source !== 'all' || f.q || f.inclure_annuels;
                         _el('btn-reset').classList.toggle('hidden', !active);
                         this._renderTags();
                     },
@@ -2894,6 +2937,19 @@
                         addMS(f.format_ids, 'format_ids', D.formats);
                         addMS(f.category_ids, 'category_ids', D.categories);
                         addMS(f.agency_ids, 'agency_ids', D.agencies);
+                        // Afficher les emplacements annuels est un écart au
+                        // défaut : il doit se voir, et se retirer d'un clic.
+                        if (f.inclure_annuels) tags.push({
+                            l: '🔒 Clients annuels inclus',
+                            rm: () => {
+                                S.f.inclure_annuels = false;
+                                const c = _el('f-inclure_annuels');
+                                if (c) c.checked = false;
+                                S.page = 1;
+                                this._fetch();
+                                this._syncUI();
+                            }
+                        });
                         if (f.dimensions) tags.push({
                             l: f.dimensions,
                             rm: () => {

@@ -101,6 +101,15 @@ class DiffusionDisponibilitesService
             // reviennent au regroupement, juste avant le rendu.
             ->vendables()
             ->whereNotIn('panels.id', RenouvellementService::panneauxRetenus())
+            // Exclus (2026-11-16) : les emplacements des clients annuels.
+            // Ils ont un emplacement fixe — on ne propose pas leur panneau
+            // tant qu'ils n'ont pas dit qu'ils arrêtaient. Ce catalogue part
+            // à TOUS les clients : y laisser le panneau d'un fidèle, c'est
+            // l'offrir à la concurrence avant même de l'avoir appelé.
+            // Règle : RenouvellementService::emplacementsAnnuels().
+            // Contrairement à l'écran Disponibilités, il n'y a pas de case
+            // à cocher ici : l'envoi est automatique, personne n'arbitre.
+            ->whereNotIn('panels.id', RenouvellementService::panneauxClientsAnnuels())
             ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
             ->orderBy('communes.name')
             ->orderBy('panels.reference')

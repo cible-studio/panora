@@ -2471,3 +2471,66 @@ sur le devis **et** la facture FNE, depuis `config/billing.php`.
       silencieusement de l'écran de sa campagne, alors qu'il a pu être
       facturé. Les élargir changerait ce que voient les écrans de
       disponibilité et de facturation — à décider avant de le faire.
+
+---
+
+## § 30 — Emplacements des clients annuels hors des disponibilités *(2026-11-16)*
+
+### Ce qui a changé
+
+Une recherche de disponibilités sur 2027 faisait ressortir **tout le parc** :
+les campagnes 2026 se terminent avant, donc tous les panneaux semblaient
+libres. Les emplacements des clients fidèles partaient ainsi au catalogue,
+et à la concurrence, avant même qu'on les ait appelés.
+
+**La règle validée le 16/11 :** un panneau tenu par une campagne de 12 mois
+ou plus (`Campaign::estAnnuelle`), **en cours aujourd'hui ou se terminant
+plus tard**, n'est plus proposé. Dès que cette campagne se termine sans être
+renouvelée, le panneau revient aussitôt — on ne masque jamais du stock
+réellement libre.
+
+- **Écran Disponibilités** : masqués **par défaut**, avec une pastille
+  « 🔒 N annuels masqués » cliquable. La case « Inclure leurs emplacements »
+  les réintègre.
+- **Catalogue envoyé aux clients (Brevo)** : toujours écartés, sans case à
+  cocher — l'envoi est automatique, personne n'arbitre au départ.
+- **Rien n'est bloqué** : c'est une règle de ce qu'on *propose*. Un panneau
+  annuel reste réservable si on le choisit délibérément.
+- Cumulé avec la retenue des **renouvellements confirmés** (§ du 11/11),
+  qui, elle, bloque pendant 30 jours.
+
+### À vérifier sur la vraie base
+
+- [ ] Disponibilités sans période : le compteur « 🔒 N annuels masqués »
+      apparaît et N correspond au nombre de panneaux portés par une
+      campagne de 12 mois ou plus encore en cours.
+- [ ] Tirer une période sur **2027** : les panneaux des clients annuels
+      2026 n'apparaissent plus. C'était le défaut d'origine.
+- [ ] Cocher « Inclure leurs emplacements » → ils réapparaissent, une
+      étiquette « 🔒 Clients annuels inclus » s'affiche, le bouton
+      « Réinitialiser » devient visible.
+- [ ] Cliquer sur la pastille « N annuels masqués » → même effet que
+      cocher la case.
+- [ ] « Réinitialiser » → les annuels sont de nouveau masqués.
+- [ ] « Tout sélectionner » puis export PDF liste / PDF images / Excel :
+      **aucun panneau annuel ne doit figurer dans l'export** quand la case
+      est décochée, et tous doivent y figurer quand elle est cochée.
+- [ ] Pagination : le total annoncé correspond bien au nombre de panneaux
+      réellement parcourables (l'exclusion a lieu avant la pagination).
+- [ ] **Axes Lumipub** : si un axe entier est tenu par une campagne
+      annuelle, ses pieds doivent disparaître aussi — pas seulement la
+      ligne de l'axe.
+- [ ] Catalogue client : `php artisan dispos:diffuser --preparer` puis
+      ouvrir le PDF → aucun emplacement de client annuel.
+- [ ] Une campagne annuelle **terminée ou annulée** ne doit plus masquer
+      son panneau : il revient dans les disponibilités.
+
+### Points d'attention
+
+- [ ] **Volume masqué.** Si la pastille annonce un nombre très élevé
+      (la majorité du parc), c'est que beaucoup de campagnes dépassent
+      12 mois sans être de vrais contrats annuels. Dans ce cas, revoir
+      le seuil plutôt que de décocher la case en permanence.
+- [ ] Le sélecteur de panneaux du **devis** n'applique pas cette règle
+      (décision du 16/11) : le commercial y cherche volontairement un
+      panneau précis.

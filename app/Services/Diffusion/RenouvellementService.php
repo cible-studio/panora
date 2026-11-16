@@ -576,6 +576,135 @@ class RenouvellementService
     // ══════════════════════════════════════════════════════════════
 
     /**
+     * ═══ EMPLACEMENTS DES CLIENTS ANNUELS — SOURCE UNIQUE (2026-11-16) ═══
+     *
+     * Règle validée par l'utilisateur le 2026-11-16 :
+     *   « Les clients annuels ont un emplacement fixe. On ne peut pas
+     *     proposer leur panneau pour l'année suivante, même s'ils n'ont
+     *     pas encore décidé de renouveler. »
+     *
+     * Le problème concret : une recherche de disponibilités sur 2027
+     * faisait ressortir TOUT le parc, puisque les campagnes 2026 se
+     * terminent avant. Les emplacements des fidèles partaient donc au
+     * catalogue, et à la concurrence, avant même qu'on les ait appelés.
+     *
+     * ─── CE QUI COMPTE COMME « PRIS PAR UN CLIENT ANNUEL » ───
+     * Une campagne de 12 mois ou plus (Campaign::estAnnuelle) qui tourne
+     * aujourd'hui ou se termine plus tard. Dès qu'elle se termine sans
+     * être renouvelée, le panneau redevient proposable immédiatement :
+     * on ne masque jamais du stock réellement libre.
+     *
+     * ─── DISTINCTE DE retenues() ───
+     * retenues() écarte les panneaux d'un renouvellement CONFIRMÉ, pour
+     * 30 jours, et bloque la réservation. Ici, rien n'est bloqué : le
+     * panneau est seulement retiré de ce qu'on PROPOSE, tant que son
+     * titulaire annuel n'a pas tranché. Les deux se cumulent.
+     *
+     * ⚠ estAnnuelle() est du PHP (une boucle qui compte les mois), jamais
+     * traduit en SQL nulle part. Le filtre se fait donc en mémoire : une
+     * différence de dates calculée en SQL (« au moins 365 jours ») serait
+     * une copie divergente de la règle de durée, qui tolère un jour de
+     * grâce et compte en mois civils.
+     *
+     * Axes multi-pieds : un pied hérite de son axe, comme pour retenues().
+     *
+     * @return array<int, array{client_id: ?int, client: ?string, campaign_id: int, campagne: ?string, fin_campagne: string}>
+     *         panel_id => campagne annuelle qui le tient ; la plus longue gagne
+     */
+    public static function emplacementsAnnuels(): array
+    {
+        $aujourdhui = today()->toDateString();
+
+        $campagnes = Campaign::query()
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date')
+            // En cours ou à venir. Une campagne déjà terminée ne tient plus
+            // rien : son panneau est réellement libre.
+            ->whereDate('end_date', '>=', $aujourdhui)
+            // Annulée ou arrêtée avant terme : l'emplacement est rendu.
+            ->whereNotIn('status', [
+                CampaignStatus::ANNULE->value,
+                CampaignStatus::TERMINE->value,
+            ])
+            ->get(['id', 'name', 'client_id', 'start_date', 'end_date']);
+
+        $annuelles = $campagnes->filter(fn (Campaign $c) => $c->estAnnuelle());
+        if ($annuelles->isEmpty()) {
+            return [];
+        }
+
+        $noms = Client::withTrashed()
+            ->whereIn('id', $annuelles->pluck('client_id')->filter()->unique()->all())
+            ->pluck('name', 'id');
+
+        $lignes = DB::table('campaign_panels')
+            ->whereIn('campaign_id', $annuelles->pluck('id')->all())
+            ->get(['campaign_id', 'panel_id']);
+
+        $parCampagne = $annuelles->keyBy('id');
+        $emplacements = [];
+
+        foreach ($lignes as $l) {
+            $campagne = $parCampagne->get($l->campaign_id);
+            if (!$campagne) {
+                continue;
+            }
+
+            $clientId = $campagne->client_id !== null ? (int) $campagne->client_id : null;
+            $info = [
+                'client_id'    => $clientId,
+                'client'       => $clientId ? ($noms[$clientId] ?? null) : null,
+                'campaign_id'  => (int) $campagne->id,
+                'campagne'     => $campagne->name,
+                'fin_campagne' => Carbon::parse($campagne->end_date)->toDateString(),
+            ];
+
+            // Un panneau peut porter plusieurs campagnes annuelles qui se
+            // suivent : celle qui va le plus loin décide jusqu'à quand il
+            // est tenu.
+            $pid = (int) $l->panel_id;
+            if (!isset($emplacements[$pid])
+                || $info['fin_campagne'] > $emplacements[$pid]['fin_campagne']) {
+                $emplacements[$pid] = $info;
+            }
+        }
+
+        // Les contrats signés avant le découpage tiennent la LIGNE d'un axe.
+        // Ses pieds sont tenus avec elle — sans quoi on proposerait les
+        // pieds d'un emplacement annuel un par un.
+        $axes = app(\App\Services\Axes\AxeService::class);
+        if ($emplacements && $axes->colonnesPresentes()) {
+            $pieds = \App\Models\Panel::whereIn('axe_id', array_keys($emplacements))
+                ->pluck('axe_id', 'id');
+            foreach ($pieds as $piedId => $axeId) {
+                $emplacements[(int) $piedId] ??= $emplacements[(int) $axeId];
+            }
+        }
+
+        return $emplacements;
+    }
+
+    /**
+     * Identifiants seuls, pour les requêtes qui veulent juste exclure.
+     *
+     * Ne lève jamais : une erreur ici ne doit pas empêcher d'afficher les
+     * disponibilités ni d'envoyer le catalogue. Elle est tracée, et on
+     * retombe sur « on ne masque rien » — visible, plutôt que silencieux.
+     *
+     * @return int[]
+     */
+    public static function panneauxClientsAnnuels(): array
+    {
+        try {
+            return array_keys(self::emplacementsAnnuels());
+        } catch (\Throwable $e) {
+            Log::error('renouvellement.panneaux_clients_annuels', ['erreur' => $e->getMessage()]);
+
+            return [];
+        }
+    }
+
+    /**
      * Panneaux des renouvellements confirmés par le MP : ils ne sont plus
      * proposés dans le catalogue envoyé aux clients. La retenue court
      * jusqu'à N jours après la fin de la campagne (config
