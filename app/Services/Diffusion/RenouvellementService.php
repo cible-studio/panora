@@ -282,6 +282,53 @@ class RenouvellementService
      * Seul « renouveler » déclenche l'option : « ajuster » veut dire que
      * le réseau change, bloquer les anciens panneaux serait faux.
      */
+    /**
+     * L'option ouverte automatiquement pour le renouvellement de cette
+     * campagne, si elle existe encore.
+     *
+     * Point de vérité unique (2026-11-16) : la création de l'option s'en
+     * sert pour ne pas ouvrir deux dossiers, et la génération d'un devis
+     * depuis la fiche de renouvellement s'en sert pour reprendre les
+     * panneaux, les dates, et savoir quelle option le devis remplacera.
+     *
+     * Le repère reste la mention portée dans les notes à la création —
+     * c'est le seul lien entre la campagne source et son option.
+     */
+    public static function optionAutomatique(Campaign $campagne): ?\App\Models\Reservation
+    {
+        return \App\Models\Reservation::query()
+            ->whereNull('deleted_at')
+            ->where('client_id', $campagne->client_id)
+            ->where('status', 'en_attente')
+            ->whereNotNull('bc_attendu_jusqu_au')
+            ->whereNull('bc_recu_at')
+            ->whereNull('remplacee_par_quote_id')
+            ->where('notes', 'like', '%Renouvellement ' . $campagne->name . '%')
+            ->first();
+    }
+
+    /**
+     * Période du renouvellement : la DURÉE de la campagne source, à partir
+     * du lendemain de sa fin.
+     *
+     * ⚠ HYPOTHÈSE À CONFIRMER (docs/A_TESTER.md § 24). Centralisée ici
+     * (2026-11-16) pour que l'option automatique et le devis généré depuis
+     * la fiche proposent exactement les mêmes dates — c'était la formule
+     * en double la plus risquée de ce flux.
+     *
+     * @return array{0:Carbon,1:Carbon}
+     */
+    public static function periodeSuivante(Campaign $campagne): array
+    {
+        $fin   = Carbon::parse($campagne->end_date);
+        $debut = Carbon::parse($campagne->start_date);
+        $duree = max(1, (int) $debut->diffInDays($fin));
+
+        $nDebut = $fin->copy()->addDay();
+
+        return [$nDebut, $nDebut->copy()->addDays($duree)];
+    }
+
     private function ouvrirOptionRenouvellement(Campaign $campagne, Renouvellement $dossier): void
     {
         $panelIds = $campagne->panels()->pluck('panels.id')->all();
@@ -293,21 +340,9 @@ class RenouvellementService
         // Déjà ouverte ? On ne crée pas un second dossier (le client peut
         // recliquer son lien, et enregistrerReponse n'accepte qu'une
         // réponse mais la sécurité ne coûte rien).
-        $dejaOuverte = \App\Models\Reservation::query()
-            ->whereNull('deleted_at')
-            ->where('client_id', $campagne->client_id)
-            ->where('status', 'en_attente')
-            ->whereNotNull('bc_attendu_jusqu_au')
-            ->whereNull('bc_recu_at')
-            ->where('notes', 'like', '%Renouvellement ' . $campagne->name . '%')
-            ->exists();
-        if ($dejaOuverte) return;
+        if (self::optionAutomatique($campagne)) return;
 
-        $fin    = Carbon::parse($campagne->end_date);
-        $debut  = Carbon::parse($campagne->start_date);
-        $duree  = max(1, (int) $debut->diffInDays($fin));
-        $nDebut = $fin->copy()->addDay();
-        $nFin   = $nDebut->copy()->addDays($duree);
+        [$nDebut, $nFin] = self::periodeSuivante($campagne);
 
         try {
             DB::transaction(function () use ($campagne, $dossier, $panelIds, $nDebut, $nFin) {

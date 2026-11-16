@@ -170,6 +170,58 @@ class RenouvellementController extends Controller
         return back()->with('success', 'Renouvellement confirmé : les panneaux ne sont plus proposés dans le catalogue des disponibilités.');
     }
 
+    /**
+     * ═══ Générer le devis du renouvellement (2026-11-16) ═══
+     *
+     * Ouvre le formulaire de devis déjà rempli avec ce qu'on sait déjà :
+     * le client et son interlocuteur, la campagne, la période suivante et
+     * les panneaux. Tout reste modifiable — c'est un formulaire, pas un
+     * enregistrement.
+     *
+     * Les panneaux et les dates viennent de l'OPTION ouverte
+     * automatiquement à la réponse du client quand elle existe (c'est elle
+     * qui fait foi : le MP a pu l'ajuster). Sinon on retombe sur la
+     * campagne source et la période suivante calculée par le service.
+     *
+     * L'identifiant de cette option est transmis au formulaire : à
+     * l'acceptation du devis, elle sera annulée pour qu'il ne reste qu'UN
+     * dossier vivant sur ces panneaux. Elle n'est pas annulée maintenant —
+     * un devis ne bloque aucun panneau, les libérer pendant que le client
+     * décide ouvrirait le réseau à un autre client.
+     */
+    public function devis(Request $request, Campaign $campaign): RedirectResponse
+    {
+        $this->dossierAutorise($request, $campaign);
+
+        $option = RenouvellementService::optionAutomatique($campaign);
+
+        if ($option) {
+            $panelIds = $option->panels()->pluck('panels.id')->all();
+            $debut    = $option->start_date?->toDateString();
+            $fin      = $option->end_date?->toDateString();
+        } else {
+            $panelIds          = $campaign->panels()->pluck('panels.id')->all();
+            [$pDebut, $pFin]   = RenouvellementService::periodeSuivante($campaign);
+            $debut             = $pDebut->toDateString();
+            $fin               = $pFin->toDateString();
+        }
+
+        if (empty($panelIds)) {
+            return back()->with('error',
+                "Cette campagne n'a aucun panneau : il n'y a rien à reporter dans un devis.");
+        }
+
+        return redirect()->route('admin.quotes.create', array_filter([
+            'client_id'              => $campaign->client_id,
+            'client_contact_id'      => $campaign->client_contact_id,
+            'campaign_id'            => $campaign->id,
+            'period_start'           => $debut,
+            'period_end'             => $fin,
+            'panel_ids'              => $panelIds,
+            'remplace_reservation_id'=> $option?->id,
+        ]));
+    }
+
     // ══════════════════════════════════════════════════════════════
     // TEXTES DES MAILS (admin)
     // ══════════════════════════════════════════════════════════════

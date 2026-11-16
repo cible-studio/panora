@@ -71,6 +71,25 @@ return [
         . 'À l\'acceptation, une réservation ferme sera créée sous réserve de disponibilité.'
     ),
 
+    // ─── Services annexes proposés en un clic (2026-11-16) ───────
+    // Les prestations qui reviennent sur presque tous les dossiers.
+    // PROPOSÉES, jamais imposées : un dossier sans pose ni impression ne
+    // doit pas les porter. Le prix reste à saisir — il dépend du format,
+    // du nombre de faces et du prestataire.
+    //
+    // Point de vérité unique : le formulaire de DEVIS et celui de la
+    // FACTURE FNE lisent tous les deux cette liste. Ajouter une
+    // prestation ici la fait apparaître des deux côtés, sans toucher au
+    // code ni aux vues.
+    //
+    // 'tva_applicable' reprend le comportement actuel d'un service ajouté
+    // à la main (TVA active, désactivable au cas par cas quand le
+    // fournisseur a déjà taxé la prestation qu'on refacture).
+    'services_preselection' => [
+        ['label' => 'FRAIS DE POSE', 'tva_applicable' => true],
+        ['label' => 'IMPRESSION',    'tva_applicable' => true],
+    ],
+
     // ─── Coordonnées bancaires (optionnel — affichées en bas) ────
     'bank' => [
         'name'   => env('BILLING_BANK_NAME', ''),

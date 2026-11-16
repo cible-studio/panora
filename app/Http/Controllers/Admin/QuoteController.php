@@ -129,13 +129,39 @@ class QuoteController extends Controller
     {
         $this->authorize('create', Quote::class);
 
-        // Préselection depuis querystring (ex: bouton "Devis" sur fiche client)
+        // Préselection depuis querystring (ex: bouton "Devis" sur fiche client,
+        // « Générer le devis » sur un dossier de renouvellement).
         $preselect = [
             'client_id'   => $request->query('client_id'),
             'campaign_id' => $request->query('campaign_id'),
             'period_start'=> $request->query('period_start'),
             'period_end'  => $request->query('period_end'),
+            // Interlocuteur (2026-11-16) : un devis de renouvellement repart
+            // du contact de la campagne source, sans ressaisie.
+            'client_contact_id' => $request->query('client_contact_id'),
+            // Option de renouvellement que ce devis remplacera à son
+            // acceptation (2026-11-16). Cf. RenouvellementController::devis().
+            'remplace_reservation_id' => $request->query('remplace_reservation_id'),
         ];
+
+        // Durée des lignes pré-remplies (2026-11-16).
+        // Avant, toute ligne pré-remplie partait à 1 mois, même quand la
+        // période faisait un an : le total du devis était faux dès
+        // l'ouverture du formulaire. La règle de durée facturée vit dans
+        // Campaign::computeBillableMonths() — jamais recopiée ici.
+        $dureeMoisPreselect = 1.0;
+        if (!empty($preselect['period_start']) && !empty($preselect['period_end'])) {
+            try {
+                $dureeMoisPreselect = max(1.0, \App\Models\Campaign::computeBillableMonths(
+                    \Carbon\Carbon::parse($preselect['period_start']),
+                    \Carbon\Carbon::parse($preselect['period_end']),
+                ));
+            } catch (\Throwable $e) {
+                // Dates illisibles dans l'URL : on retombe sur 1 mois, et le
+                // commercial ajuste. Jamais de 500 pour une querystring.
+                $dureeMoisPreselect = 1.0;
+            }
+        }
 
         // Préselection de panneaux depuis la vue Disponibilités.
         // On charge les Panels + leur commune pour pré-remplir les lignes du form.
@@ -149,7 +175,9 @@ class QuoteController extends Controller
             foreach ($panels->whereNotNull('axe_id')->groupBy('axe_id') as $axeId => $pieds) {
                 $axe = \App\Models\Panel::find($axeId);
                 if ($axe) {
-                    $prefilledLines[] = $axes->ligneDevis($axe, $pieds->sortBy('pied_numero')->values());
+                    $ligne = $axes->ligneDevis($axe, $pieds->sortBy('pied_numero')->values());
+                    $ligne['duree_mois'] = $dureeMoisPreselect;
+                    $prefilledLines[] = $ligne;
                 }
             }
             foreach ($panels->whereNull('axe_id') as $p) {
@@ -161,7 +189,7 @@ class QuoteController extends Controller
                     'dimension_m2'     => $surface,
                     'pu_ht_mensuel'    => (int) ($p->monthly_rate ?? 0),
                     'quantite'         => 1,
-                    'duree_mois'       => 1,
+                    'duree_mois'       => $dureeMoisPreselect,
                     'commune_id'       => $p->commune_id,
                     'commune_name'     => $p->commune?->name,
                 ];
@@ -216,6 +244,14 @@ class QuoteController extends Controller
 
             $quote = $builder->recalculateAndPersist($quote);
 
+            // ═══ Devis de renouvellement (2026-11-16) ═══
+            // On note sur l'option qu'un devis la remplacera. Elle N'EST PAS
+            // annulée ici : un devis ne bloque aucun panneau, la fermer
+            // maintenant rouvrirait le réseau à un autre client pendant que
+            // celui-ci décide. L'annulation a lieu à l'acceptation du devis
+            // (QuoteConverter), au seul moment où un second dossier naîtrait.
+            $this->rattacherOptionRemplacee($quote, $data['remplace_reservation_id'] ?? null);
+
             AlertService::create(
                 'devis', 'info',
                 '📝 Nouveau devis — ' . $quote->reference,
@@ -226,6 +262,52 @@ class QuoteController extends Controller
             return redirect()->route('admin.quotes.show', $quote)
                 ->with('success', "Devis {$quote->reference} créé en brouillon. Ajuste-le et envoie-le au client quand il est prêt.");
         });
+    }
+
+    /**
+     * Rattache à un devis l'option de renouvellement qu'il remplacera
+     * (2026-11-16).
+     *
+     * Le lien est posé ici, l'annulation de l'option a lieu à
+     * l'ACCEPTATION du devis (QuoteConverter). Entre les deux, l'option
+     * continue de tenir les panneaux — c'est tout l'intérêt : un devis,
+     * lui, ne bloque rien (cf. billing.quote_legal_mention).
+     *
+     * On refuse de rattacher autre chose qu'une option de ce client
+     * encore en attente de BC : un identifiant trafiqué dans le
+     * formulaire ne doit pas pouvoir condamner la réservation d'un tiers.
+     */
+    private function rattacherOptionRemplacee(Quote $quote, $reservationId): void
+    {
+        if (!$reservationId) {
+            return;
+        }
+
+        $option = \App\Models\Reservation::find((int) $reservationId);
+
+        $recevable = $option
+            && (int) $option->client_id === (int) $quote->client_id
+            && $option->bc_attendu_jusqu_au !== null
+            && $option->bc_recu_at === null
+            && $option->remplacee_par_quote_id === null;
+
+        if (!$recevable) {
+            Log::warning('devis.option_remplacee.refusee', [
+                'quote_id'       => $quote->id,
+                'reservation_id' => $reservationId,
+                'motif'          => $option ? 'option non éligible' : 'réservation introuvable',
+            ]);
+            return;
+        }
+
+        $option->forceFill(['remplacee_par_quote_id' => $quote->id])->save();
+
+        Log::info('devis.option_remplacee.rattachee', [
+            'quote_id'       => $quote->id,
+            'quote_ref'      => $quote->reference,
+            'reservation_id' => $option->id,
+            'reservation_ref'=> $option->reference,
+        ]);
     }
 
     // ─── ÉDITION ───────────────────────────────────────────────────
@@ -735,6 +817,10 @@ class QuoteController extends Controller
             'remise_pct'                   => 'nullable|numeric|min:0|max:100',
             'notes_client'                 => 'nullable|string|max:2000',
             'notes_internes'               => 'nullable|string|max:2000',
+            // Option de renouvellement que ce devis remplacera à son
+            // acceptation (2026-11-16). Champ caché posé par
+            // RenouvellementController::devis().
+            'remplace_reservation_id'      => 'nullable|exists:reservations,id',
 
             'lines'                        => 'required|array|min:1',
             'lines.*.designation'          => 'required|string|max:200',

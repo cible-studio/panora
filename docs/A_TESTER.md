@@ -2386,3 +2386,88 @@ menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
       Lumipub (≈ 43 M d'ODP, § 25) — contre ≈ 36 M réclamés en 2025. Si un tarif est faux, il se corrige dans la
       commune avec une date d'effet (`/admin/settings/communes/tariffs`) et
       tout se recalcule.
+
+---
+
+## § 29 — Panneau sorti du parc, devis de renouvellement, services en un clic *(2026-11-16)*
+
+### Ce qui a changé
+
+**1. Un panneau démantelé ne casse plus les pages qui le citent.**
+`/admin/piges` renvoyait une 500 (`Missing required parameter for
+[Route: admin.panels.show]`). `Panel` est en suppression douce : démanteler
+un panneau laissait la pige intacte mais rendait `$pige->panel` nul.
+Les relations d'historique (pige, pose, ligne de facture, ligne de devis,
+photo) récupèrent désormais le panneau même supprimé, comme `Maintenance`
+le faisait déjà. La fiche du panneau reste consultable, avec un bandeau
+« Panneau sorti du parc » et sans les actions PDF / Modifier / Disponibilités.
+
+**2. Devis généré depuis un dossier de renouvellement.**
+Bouton « 🧾 Générer le devis » sur la fiche, dès que le dossier est
+« Renouveler », « Ajuster » ou « Confirmé ». Le formulaire s'ouvre
+pré-rempli : client, interlocuteur, campagne, période suivante, panneaux.
+L'option ouverte automatiquement pour ce renouvellement **reste vivante**
+tant que le client n'a pas accepté (un devis ne bloque aucun panneau) ;
+elle est **annulée à l'acceptation** du devis.
+
+**3. Services annexes proposés en un clic** — FRAIS DE POSE, IMPRESSION —
+sur le devis **et** la facture FNE, depuis `config/billing.php`.
+
+### À vérifier sur la vraie base
+
+#### Le panneau démantelé
+- [ ] `/admin/piges` s'ouvre sans erreur (c'était la 500 d'origine).
+- [ ] La carte d'une pige dont le panneau est sorti du parc affiche bien
+      sa référence, et le lien ouvre la fiche avec le bandeau gris daté.
+- [ ] Sur cette fiche : pas de bouton Export PDF / Modifier / Disponibilités.
+- [ ] `/admin/poses/{id}` et `/admin/sla` pour un panneau démantelé.
+- [ ] Export PDF des piges (`rapport-piges`) avec un panneau démantelé dans
+      la sélection.
+- [ ] Une facture et un devis qui citent un panneau démantelé restent
+      lisibles, référence comprise.
+
+#### Le devis de renouvellement
+- [ ] Ouvrir un dossier « Renouveler » ou « Confirmé » → le bouton
+      « 🧾 Générer le devis » est présent.
+- [ ] Le formulaire s'ouvre avec : le bon client, son interlocuteur, la
+      campagne, les dates de la période suivante, et **toutes** les lignes
+      de panneaux (les pieds d'un axe regroupés en une seule ligne).
+- [ ] **La durée des lignes correspond à la période** : une période d'un an
+      doit donner 12 mois, pas 1. C'était faux avant pour toute
+      pré-sélection de panneaux, y compris depuis Disponibilités.
+- [ ] Le bandeau bleu « Devis de renouvellement » annonce la référence de
+      l'option et la date limite du BC.
+- [ ] Enregistrer le devis → l'option est toujours **en attente de BC**,
+      les panneaux toujours tenus (c'est voulu).
+- [ ] Faire accepter le devis → une réservation ferme est créée **et**
+      l'option passe en « Annulé » avec la mention du devis dans ses notes.
+      Il ne reste qu'un dossier vivant sur ces panneaux.
+- [ ] Les statuts des panneaux sont recalculés après cette bascule.
+
+#### Les services en un clic
+- [ ] Devis : les boutons « + FRAIS DE POSE » et « + IMPRESSION » ajoutent
+      une ligne avec le libellé rempli, le curseur sur le prix.
+- [ ] Un second clic sur le même bouton **n'ajoute pas** de doublon : il
+      surligne la ligne existante.
+- [ ] Même chose sur la facture FNE.
+- [ ] Le PDF du devis et celui de la facture reprennent ces lignes.
+
+### À trancher — reste ouvert
+
+- [ ] **BC et devis accepté.** La règle validée le 13/11 dit que le flux
+      « sans BC, pas de campagne » s'applique aussi aux devis acceptés.
+      Ce n'est pas le cas : `QuoteConverter` crée une réservation
+      **confirmée** sans ouvrir de fenêtre BC, donc la campagne peut être
+      créée tout de suite. Lui ouvrir une fenêtre BC ne suffit pas : les
+      relances J-15/J-7/J-2 et l'expiration ne visent que les réservations
+      `en_attente`. Il faut décider si la réservation issue d'un devis
+      accepté reste **en option** jusqu'au BC (cohérent avec le reste, mais
+      elle ne bloque alors plus fermement les panneaux) ou si elle reste
+      **ferme** avec un simple verrou sur la création de campagne.
+
+- [ ] **Campagnes et réservations sur un panneau démantelé.**
+      `CampaignPanel::panel()` et `ReservationPanel::panel()` n'ont
+      volontairement pas été élargis : un panneau démantelé disparaît donc
+      silencieusement de l'écran de sa campagne, alors qu'il a pu être
+      facturé. Les élargir changerait ce que voient les écrans de
+      disponibilité et de facturation — à décider avant de le faire.

@@ -677,6 +677,11 @@ Route::prefix('admin')
                     ->where('cle', 'j60|j45|j30|j15|j7|accuse|fin')->name('apercu-mail');
                 Route::post('/campagne/{campaign}/confirmer', 'confirmer')
                     ->middleware('role:admin,mediaplanner')->name('confirmer');
+                // Devis du renouvellement (2026-11-16) : ouvre le formulaire
+                // pré-rempli (client, interlocuteur, campagne, période,
+                // panneaux). Le commercial en a besoin autant que le MP —
+                // la policy de création du devis tranche ensuite.
+                Route::get('/campagne/{campaign}/devis', 'devis')->name('devis');
                 Route::middleware('role:admin')->group(function () {
                     Route::get('/textes', 'modeles')->name('modeles');
                     Route::post('/textes/apercu', 'apercu')->middleware('throttle:120,1')->name('apercu');

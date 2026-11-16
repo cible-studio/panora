@@ -206,9 +206,22 @@ class QuoteConverter
                 }
             }
 
+            // ═══ L'option de renouvellement laisse la place (2026-11-16) ═══
+            // Ce devis a été généré depuis un dossier de renouvellement dont
+            // l'option tenait déjà ces panneaux en attente de BC. La
+            // réservation issue du devis vient d'être créée : garder les deux
+            // laisserait deux dossiers vivants sur le même emplacement pour
+            // un seul engagement du client.
+            //
+            // C'est ici, et pas à la création du devis, que l'option tombe :
+            // tant que le client n'a pas accepté, un devis ne bloque rien, et
+            // la fermer plus tôt aurait rouvert le réseau à un autre client.
+            $panelIdsOption = $this->libererOptionRemplacee($quote, $reservation);
+
             // Sync statuts panneaux (bloqués maintenant)
-            if (!empty($panelIds))    $this->availability->syncPanelStatuses($panelIds);
-            if (!empty($extPanelIds)) $this->availability->syncExternalPanelStatuses($extPanelIds);
+            $aResynchroniser = array_values(array_unique(array_merge($panelIds, $panelIdsOption)));
+            if (!empty($aResynchroniser)) $this->availability->syncPanelStatuses($aResynchroniser);
+            if (!empty($extPanelIds))     $this->availability->syncExternalPanelStatuses($extPanelIds);
 
             // Marquer le devis converti
             $quote->update([
@@ -237,5 +250,55 @@ class QuoteConverter
 
             return ['status' => 'converted', 'reservation' => $reservation];
         });
+    }
+
+    /**
+     * Annule l'option de renouvellement que ce devis remplace (2026-11-16).
+     *
+     * Rien à faire dans l'immense majorité des cas : seuls les devis
+     * générés depuis un dossier de renouvellement portent ce lien, posé
+     * par QuoteController::rattacherOptionRemplacee().
+     *
+     * L'option est annulée, jamais supprimée : elle reste lisible dans
+     * l'historique du client, avec la raison et la référence du devis.
+     *
+     * @return array<int> identifiants des panneaux à resynchroniser
+     */
+    private function libererOptionRemplacee(Quote $quote, Reservation $remplacante): array
+    {
+        $option = Reservation::query()
+            ->where('remplacee_par_quote_id', $quote->id)
+            ->whereNull('deleted_at')
+            ->whereNotIn('status', [
+                ReservationStatus::ANNULE->value,
+                ReservationStatus::REFUSE->value,
+                ReservationStatus::TERMINE->value,
+            ])
+            ->first();
+
+        if (!$option) {
+            return [];
+        }
+
+        $panelIds = $option->panels()->pluck('panels.id')->all();
+
+        $motif = 'Remplacée par le devis ' . $quote->reference
+            . ' accepté par le client — réservation ' . $remplacante->reference . '.';
+
+        $option->forceFill([
+            'status' => ReservationStatus::ANNULE->value,
+            'notes'  => trim((string) $option->notes . "\n" . $motif),
+        ])->save();
+
+        Log::info('quote.convert.option_renouvellement_liberee', [
+            'quote_id'            => $quote->id,
+            'quote_ref'           => $quote->reference,
+            'option_id'           => $option->id,
+            'option_ref'          => $option->reference,
+            'reservation_id'      => $remplacante->id,
+            'panneaux_resynchro'  => count($panelIds),
+        ]);
+
+        return $panelIds;
     }
 }

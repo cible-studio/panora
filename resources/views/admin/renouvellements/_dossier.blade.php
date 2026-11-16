@@ -124,6 +124,17 @@
                         <button class="rn-btn vert">✓ Confirmer le renouvellement</button>
                     </form>
                 @endif
+                {{-- Devis du renouvellement (2026-11-16).
+                     Proposé dès que le renouvellement est engagé — le client
+                     a dit oui, veut ajuster, ou le dossier est confirmé. Pas
+                     en « En attente » (rien n'est décidé) ni en « Refus ».
+                     Le formulaire s'ouvre pré-rempli : client, interlocuteur,
+                     campagne, période suivante, panneaux déjà sélectionnés.
+                     Tout reste modifiable avant enregistrement. --}}
+                @if(in_array($l['statut'], ['renouveler', 'ajuster', 'confirme'], true))
+                    <a href="{{ route('admin.renouvellements.devis', $c) }}" class="rn-btn"
+                       data-tip="Ouvre un devis pré-rempli : mêmes panneaux, période suivante, client et interlocuteur. À l'acceptation du devis, l'option ouverte pour ce renouvellement est annulée — un seul dossier reste vivant.">🧾 Générer le devis</a>
+                @endif
                 <a href="{{ route('admin.campaigns.show', $c) }}#renouveler" class="rn-btn" data-tip="Ouvre la fiche campagne : crée la campagne suivante avec les mêmes panneaux. Le dossier passe alors en « Renouvellement confirmé ».">🔁 Renouveler la campagne</a>
                 @if($estAdmin && $l['statut'] === 'en_attente')
                     <a href="{{ route('admin.renouvellements.modeles', ['cle' => $prochaineEtape, 'campagne' => $c->id]) }}" class="rn-btn" data-tip="Ouvre l'éditeur avec cette campagne pour l'aperçu et l'envoi de test.">✉️ Tester un mail</a>
