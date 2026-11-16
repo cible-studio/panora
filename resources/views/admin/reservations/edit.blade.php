@@ -54,7 +54,9 @@
                     @endif
 
                     <div class="form-group">
-                        <label class="form-label">Client</label>
+                        <label class="form-label">Client
+                            @if($reservation->campaign)<x-aide titre="Changer le client">Le nouveau client vaut pour toute l'affaire : la campagne, le devis, les factures en brouillon, les relances et l'enquête pas encore parties, les panneaux externes. Impossible si une facture a déjà été émise.</x-aide>@endif
+                        </label>
                         <select name="client_id" required class="form-select">
                             @foreach($clients as $client)
                             <option value="{{ $client->id }}" {{ old('client_id', $reservation->client_id) == $client->id ? 'selected' : '' }}>

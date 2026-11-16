@@ -125,7 +125,9 @@
 
                     {{-- Client --}}
                     <div class="form-group">
-                        <label class="form-label">CLIENT *</label>
+                        <label class="form-label">CLIENT *
+                            @if($campaign->reservation_id)<x-aide titre="Changer le client">Le nouveau client vaut pour toute l'affaire : la réservation liée, le devis, les factures en brouillon, les relances et l'enquête pas encore parties, les panneaux externes. Impossible si une facture a déjà été émise.</x-aide>@endif
+                        </label>
                         <select name="client_id"
                                 class="form-select @error('client_id') is-invalid @enderror"
                                 {{ in_array($campaign->status->value, ['termine', 'annule']) ? 'disabled' : '' }}>
