@@ -54,7 +54,7 @@ class QuoteLine extends Model implements Auditable
     }
 
     public function quote(): BelongsTo         { return $this->belongsTo(Quote::class); }
-    public function panel(): BelongsTo         { return $this->belongsTo(Panel::class); }
+    public function panel(): BelongsTo         { return $this->belongsTo(Panel::class)->withTrashed(); } // panneau démantelé : la ligne de devis reste lisible
     public function externalPanel(): BelongsTo { return $this->belongsTo(ExternalPanel::class); }
     public function commune(): BelongsTo       { return $this->belongsTo(Commune::class); }
 }
