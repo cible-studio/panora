@@ -105,6 +105,23 @@ class ConflictsController extends Controller
                             ->where('campaign_id', $camp->id)
                             ->where('panel_id', $data['panel_id'])
                             ->delete();
+
+                        // Historique (2026-11-16) : cette page retirait le
+                        // panneau en touchant la table directement, sans
+                        // passer par CampaignService. Le panneau
+                        // disparaissait donc de la campagne sans la
+                        // moindre explication — précisément le cas où l'on
+                        // se demande plus tard ce qui s'est passé.
+                        app(\App\Services\Campagnes\MouvementsPanneaux::class)
+                            ->retraitInternes(
+                                $camp,
+                                [(int) $data['panel_id']],
+                                \App\Models\CampaignPanelMouvement::MOTIF_CONFLIT,
+                                \App\Models\CampaignPanelMouvement::SOURCE_CONFLIT,
+                                'Conflit de réservation arbitré : l\'engagement conservé est '
+                                    . $data['keep_type'] . ' #' . $data['keep_id'] . '.',
+                            );
+
                         $summary['removed'][] = "Campagne {$camp->name} : panneau retiré";
                     }
                 } catch (\Throwable $e) {

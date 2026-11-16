@@ -249,10 +249,18 @@ class CampaignController extends Controller
         $resumeVagues    = $vagueService->resume($campaign);
         $nomVaguePropose = $vagueService->nomPropose($campaign->id);
 
+        // Historique des panneaux (2026-11-16) : chaque entrée et chaque
+        // sortie, datée, signée et motivée. Vide pour les campagnes
+        // antérieures à la mise en production — les mouvements d'avant
+        // n'ont jamais été enregistrés ailleurs que dans les fichiers de
+        // log, qui tournent.
+        $mouvementsPanneaux = app(\App\Services\Campagnes\MouvementsPanneaux::class)
+            ->pourCampagne($campaign);
+
         return view('admin.campaigns.show', compact(
             'campaign', 'can', 'allowed', 'commerciaux',
             'amountConsistency', 'eligibleRechangeSources', 'technicians', 'poseTeams', 'membersByTeam',
-            'resumeVagues', 'nomVaguePropose'
+            'resumeVagues', 'nomVaguePropose', 'mouvementsPanneaux'
         ));
     }
 
@@ -1146,6 +1154,21 @@ class CampaignController extends Controller
                         ], $externalIds);
                         DB::table('campaign_panels')->insert($rows);
                     }
+
+                    // Historique (2026-11-16) : la composition de départ.
+                    // Sans elle, impossible de dire « la campagne a démarré
+                    // avec 10 panneaux » — on ne verrait que les sorties.
+                    $mouvements = app(\App\Services\Campagnes\MouvementsPanneaux::class);
+                    $mouvements->ajoutInternes(
+                        $campaign, $internalIds,
+                        \App\Models\CampaignPanelMouvement::MOTIF_CREATION,
+                        \App\Models\CampaignPanelMouvement::SOURCE_CREATION,
+                    );
+                    $mouvements->ajoutExternes(
+                        $campaign, $externalIds,
+                        \App\Models\CampaignPanelMouvement::MOTIF_CREATION,
+                        \App\Models\CampaignPanelMouvement::SOURCE_CREATION,
+                    );
                 }
 
                 // Lot 9.1 — Auto-création tâches de pose après sync panneaux
@@ -1839,25 +1862,47 @@ class CampaignController extends Controller
     // ══════════════════════════════════════════════════════════════
     // REMOVE PANEL
     // ══════════════════════════════════════════════════════════════
-    public function removePanel(Campaign $campaign, Panel $panel)
+    public function removePanel(Request $request, Campaign $campaign, Panel $panel)
     {
         $this->authorize('managePanel', $campaign);
 
-        $result = $this->campaignService->removePanel($campaign, $panel);
+        // Motif obligatoire (2026-11-16) : on ne retire pas un panneau
+        // sans dire pourquoi. C'est la condition pour que l'historique
+        // serve encore dans six mois.
+        $data = $request->validate([
+            'motif' => ['required', \Illuminate\Validation\Rule::in(
+                \App\Models\CampaignPanelMouvement::MOTIFS_RETRAIT_MANUEL
+            )],
+            'note'  => 'nullable|string|max:1000',
+        ], [
+            'motif.required' => 'Indiquez pourquoi ce panneau est retiré de la campagne.',
+            'motif.in'       => 'Ce motif de retrait n\'existe pas.',
+        ]);
+
+        $result = $this->campaignService->removePanel(
+            $campaign,
+            $panel,
+            $data['motif'],
+            \App\Models\CampaignPanelMouvement::SOURCE_MANUEL,
+            $data['note'] ?? null,
+        );
 
         if (!$result['ok']) {
             return back()->with('error', $result['error']);
         }
 
+        $motifLibelle = \App\Models\CampaignPanelMouvement::MOTIFS[$data['motif']] ?? $data['motif'];
+
         AlertService::create(
             'campagne',
             'warning',
             '➖ Panneau retiré — ' . $campaign->name,
-            auth()->user()?->name . " a retiré le panneau {$panel->reference} de la campagne \"{$campaign->name}\"",
+            auth()->user()?->name . " a retiré le panneau {$panel->reference} de la campagne \"{$campaign->name}\""
+                . ' — motif : ' . $motifLibelle,
             $campaign
         );
 
-        $msg = "Panneau {$panel->reference} retiré.";
+        $msg = "Panneau {$panel->reference} retiré ({$motifLibelle}).";
 
         // Informe le MP que les poses ouvertes ont suivi — sinon il peut
         // croire qu'elles traînent encore côté technicien (feedback 2026-09-21).
@@ -1961,25 +2006,46 @@ class CampaignController extends Controller
     // ══════════════════════════════════════════════════════════════
     // REMOVE EXTERNAL PANEL — détache un panneau régie partenaire
     // ══════════════════════════════════════════════════════════════
-    public function removeExternalPanel(Campaign $campaign, ExternalPanel $externalPanel)
+    public function removeExternalPanel(Request $request, Campaign $campaign, ExternalPanel $externalPanel)
     {
         $this->authorize('managePanel', $campaign);
 
-        $result = $this->campaignService->removeExternalPanel($campaign, $externalPanel);
+        // Même exigence que pour un panneau du parc : le motif est
+        // obligatoire, l'historique doit rester exploitable.
+        $data = $request->validate([
+            'motif' => ['required', \Illuminate\Validation\Rule::in(
+                \App\Models\CampaignPanelMouvement::MOTIFS_RETRAIT_MANUEL
+            )],
+            'note'  => 'nullable|string|max:1000',
+        ], [
+            'motif.required' => 'Indiquez pourquoi ce panneau est retiré de la campagne.',
+            'motif.in'       => 'Ce motif de retrait n\'existe pas.',
+        ]);
+
+        $result = $this->campaignService->removeExternalPanel(
+            $campaign,
+            $externalPanel,
+            $data['motif'],
+            \App\Models\CampaignPanelMouvement::SOURCE_MANUEL,
+            $data['note'] ?? null,
+        );
 
         if (!$result['ok']) {
             return back()->with('error', $result['error']);
         }
 
+        $motifLibelle = \App\Models\CampaignPanelMouvement::MOTIFS[$data['motif']] ?? $data['motif'];
+
         AlertService::create(
             'campagne',
             'warning',
             '➖ Panneau externe retiré — ' . $campaign->name,
-            auth()->user()?->name . " a retiré le panneau externe {$externalPanel->code_panneau} de la campagne \"{$campaign->name}\"",
+            auth()->user()?->name . " a retiré le panneau externe {$externalPanel->code_panneau} de la campagne \"{$campaign->name}\""
+                . ' — motif : ' . $motifLibelle,
             $campaign
         );
 
-        return back()->with('success', "Panneau externe {$externalPanel->code_panneau} retiré. Montant recalculé.");
+        return back()->with('success', "Panneau externe {$externalPanel->code_panneau} retiré ({$motifLibelle}). Montant recalculé.");
     }
 
     // ══════════════════════════════════════════════════════════════

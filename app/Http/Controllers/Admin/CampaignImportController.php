@@ -219,6 +219,15 @@ class CampaignImportController extends Controller
                 }
                 $campaign->panels()->attach($pivotData);
 
+                // Historique (2026-11-16) : la composition de départ d'une
+                // campagne importée, pour qu'elle soit aussi traçable
+                // qu'une campagne saisie dans Panora.
+                app(\App\Services\Campagnes\MouvementsPanneaux::class)->ajoutInternes(
+                    $campaign, $panelIds,
+                    \App\Models\CampaignPanelMouvement::MOTIF_CREATION,
+                    \App\Models\CampaignPanelMouvement::SOURCE_IMPORT,
+                );
+
                 // 4. Calcul du total_amount au tarif catalogue (proratisé sur la durée).
                 // Heuristique simple : monthly_rate × nb_mois entamés. La patronne
                 // pourra ajuster manuellement après si nécessaire.

@@ -1678,6 +1678,90 @@
         </div>
     </div>
 
+    {{-- ── HISTORIQUE DES PANNEAUX (2026-11-16) ──
+         Répond à : « la campagne a démarré avec 10 panneaux et finit avec
+         6 — lesquels sont partis, quand, par qui et pourquoi ? »
+         Un mouvement par entrée et par sortie, y compris les retraits
+         automatiques (conflit arbitré, campagne annulée).
+         Le bloc ne s'affiche que s'il y a quelque chose à montrer : les
+         campagnes antérieures à la mise en production n'ont pas
+         d'historique, leurs mouvements n'ont jamais été enregistrés. --}}
+    @if(isset($mouvementsPanneaux) && $mouvementsPanneaux->isNotEmpty())
+    @php
+        $nbRetraits = $mouvementsPanneaux->where('sens', \App\Models\CampaignPanelMouvement::RETRAIT)->count();
+        $nbAjouts   = $mouvementsPanneaux->where('sens', \App\Models\CampaignPanelMouvement::AJOUT)->count();
+    @endphp
+    <div class="rounded-2xl border overflow-hidden mb-6"
+         style="background:var(--surface);border-color:var(--border)">
+        <div class="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3"
+             style="border-color:var(--border);background:var(--surface2)">
+            <h2 class="font-bold text-lg flex items-center gap-2" style="color:var(--text)">
+                <span class="text-2xl">🧾</span> Historique des panneaux
+            </h2>
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs px-3 py-1 rounded-full" style="background:#dcfce7;color:#166534;font-weight:700">
+                    {{ $nbAjouts }} {{ $nbAjouts > 1 ? 'entrées' : 'entrée' }}
+                </span>
+                <span class="text-xs px-3 py-1 rounded-full" style="background:#fee2e2;color:#991b1b;font-weight:700">
+                    {{ $nbRetraits }} {{ $nbRetraits > 1 ? 'sorties' : 'sortie' }}
+                </span>
+            </div>
+        </div>
+
+        <div style="overflow-x:auto">
+            <table class="w-full" style="border-collapse:collapse;min-width:720px">
+                <thead>
+                    <tr style="background:var(--surface2)">
+                        <th class="text-left px-4 py-2 text-xs font-bold" style="color:var(--text3)">Date et heure</th>
+                        <th class="text-left px-4 py-2 text-xs font-bold" style="color:var(--text3)">Panneau</th>
+                        <th class="text-left px-4 py-2 text-xs font-bold" style="color:var(--text3)">Mouvement</th>
+                        <th class="text-left px-4 py-2 text-xs font-bold" style="color:var(--text3)">Motif</th>
+                        <th class="text-left px-4 py-2 text-xs font-bold" style="color:var(--text3)">Par</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($mouvementsPanneaux as $mvt)
+                        @php [$libSens, $bgSens, $fgSens] = $mvt->sensAffiche(); @endphp
+                        <tr style="border-top:1px solid var(--border)">
+                            <td class="px-4 py-2 text-sm" style="color:var(--text2);white-space:nowrap">
+                                {{ $mvt->created_at?->format('d/m/Y') }}
+                                <span style="color:var(--text3)">à {{ $mvt->created_at?->format('H:i') }}</span>
+                            </td>
+                            <td class="px-4 py-2 text-sm">
+                                {{-- La référence est l'instantané du moment : elle reste
+                                     lisible même si le panneau a été démantelé depuis. --}}
+                                @if($mvt->panel_id)
+                                    <a href="{{ route('admin.panels.show', $mvt->panel_id) }}"
+                                       style="font-family:monospace;font-weight:700;color:var(--accent);text-decoration:none">{{ $mvt->referenceAffichee() }}</a>
+                                @else
+                                    <span style="font-family:monospace;font-weight:700;color:var(--text)">{{ $mvt->referenceAffichee() }}</span>
+                                    <span class="text-xs" style="color:#60a5fa">🤝 régie</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-2">
+                                <span class="text-xs px-2 py-1 rounded-full"
+                                      style="background:{{ $bgSens }};color:{{ $fgSens }};font-weight:700">{{ $libSens }}</span>
+                            </td>
+                            <td class="px-4 py-2 text-sm" style="color:var(--text2)">
+                                {{ $mvt->motifLibelle() }}
+                                @if($mvt->note)
+                                    <div class="text-xs mt-1" style="color:var(--text3);font-style:italic">{{ $mvt->note }}</div>
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 text-sm" style="color:var(--text2)">{{ $mvt->auteurAffiche() }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-6 py-3 text-xs border-t" style="color:var(--text3);border-color:var(--border)">
+            L'historique démarre au 16/11/2026. Les mouvements antérieurs à cette date
+            n'ont pas été conservés.
+        </div>
+    </div>
+    @endif
+
     {{-- ── MODAL SUPPRESSION ── --}}
     <div id="modal-delete" class="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 hidden"
          style="background:rgba(0,0,0,0.7)" onclick="if(event.target===this) closeModal()">
@@ -1791,23 +1875,55 @@
                 <h3 class="font-bold text-xl" style="color:#f97316">✕ Retirer le panneau</h3>
                 <button onclick="closeRetireModal()" class="text-2xl" style="color:var(--text3)">&times;</button>
             </div>
-            <div class="p-6 text-center">
-                <div class="text-6xl mb-4">🪧</div>
-                <div class="font-bold text-lg mb-2" style="color:var(--text)">
-                    Retirer <span id="retire-ref" style="color:var(--accent)"></span> ?
+            {{-- Motif obligatoire (2026-11-16).
+                 Sans lui, l'historique des panneaux ne répond pas à la
+                 question qui l'a fait naître : « la campagne a démarré
+                 avec 10 panneaux et finit avec 6, lesquels sont partis et
+                 pourquoi ? ». La liste est fermée pour qu'on puisse un
+                 jour compter les retraits par raison — un motif tapé au
+                 clavier s'écrit de dix façons et ne se compte jamais. --}}
+            <form id="retire-form" method="POST">
+                @csrf @method('DELETE')
+                <div class="p-6">
+                    <div class="text-center mb-5">
+                        <div class="text-5xl mb-3">🪧</div>
+                        <div class="font-bold text-lg mb-1" style="color:var(--text)">
+                            Retirer <span id="retire-ref" style="color:var(--accent)"></span> ?
+                        </div>
+                        <div class="text-sm" style="color:var(--text2)">
+                            Le panneau sera détaché et son statut recalculé.
+                        </div>
+                    </div>
+
+                    <label class="block text-sm font-semibold mb-1" style="color:var(--text)">
+                        Motif du retrait <span style="color:#ef4444">*</span>
+                    </label>
+                    <select name="motif" id="retire-motif" required
+                            class="w-full px-3 py-2 rounded-xl border mb-1"
+                            style="background:var(--surface2);border-color:var(--border);color:var(--text)">
+                        <option value="">— Choisir un motif —</option>
+                        @foreach(\App\Models\CampaignPanelMouvement::MOTIFS_RETRAIT_MANUEL as $code)
+                            <option value="{{ $code }}">{{ \App\Models\CampaignPanelMouvement::MOTIFS[$code] }}</option>
+                        @endforeach
+                    </select>
+                    <div class="text-xs mb-4" style="color:var(--text3)">
+                        Conservé dans l'historique de la campagne, avec la date et votre nom.
+                    </div>
+
+                    <label class="block text-sm font-semibold mb-1" style="color:var(--text)">
+                        Précision <span style="font-weight:400;color:var(--text3)">(facultatif)</span>
+                    </label>
+                    <textarea name="note" id="retire-note" rows="2" maxlength="1000"
+                              placeholder="ex. visuel non livré à temps, panneau accidenté le 14/11…"
+                              class="w-full px-3 py-2 rounded-xl border"
+                              style="background:var(--surface2);border-color:var(--border);color:var(--text)"></textarea>
                 </div>
-                <div class="text-sm" style="color:var(--text2)">
-                    Le panneau sera détaché et son statut recalculé.
-                </div>
-            </div>
-            <div class="px-6 py-5 border-t flex justify-end gap-3" style="border-color:var(--border)">
-                <button onclick="closeRetireModal()" class="px-5 py-2 rounded-xl border"
-                        style="border-color:var(--border);color:var(--text2)">Annuler</button>
-                <form id="retire-form" method="POST">
-                    @csrf @method('DELETE')
+                <div class="px-6 py-5 border-t flex justify-end gap-3" style="border-color:var(--border)">
+                    <button type="button" onclick="closeRetireModal()" class="px-5 py-2 rounded-xl border"
+                            style="border-color:var(--border);color:var(--text2)">Annuler</button>
                     <button type="submit" class="px-5 py-2 rounded-xl text-white font-semibold" style="background:#ef4444">✕ Retirer</button>
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -2166,14 +2282,25 @@
     }
     function closeModal() { document.getElementById('modal-delete').classList.add('hidden'); }
 
+    // Le motif et la note sont remis à zéro à chaque ouverture : sans
+    // cela, le motif du retrait précédent resterait sélectionné et serait
+    // enregistré par mégarde sur un autre panneau.
+    function _resetRetireModal() {
+        const motif = document.getElementById('retire-motif');
+        const note  = document.getElementById('retire-note');
+        if (motif) motif.value = '';
+        if (note)  note.value  = '';
+    }
     function openRetirePanel(id, ref) {
         document.getElementById('retire-ref').textContent = ref;
         document.getElementById('retire-form').action = `/admin/campaigns/{{ $campaign->id }}/panels/${id}`;
+        _resetRetireModal();
         document.getElementById('modal-retire').classList.remove('hidden');
     }
     function openRetireExtPanel(id, ref) {
         document.getElementById('retire-ref').textContent = ref + ' (régie partenaire)';
         document.getElementById('retire-form').action = `/admin/campaigns/{{ $campaign->id }}/external-panels/${id}`;
+        _resetRetireModal();
         document.getElementById('modal-retire').classList.remove('hidden');
     }
     function closeRetireModal() { document.getElementById('modal-retire').classList.add('hidden'); }
