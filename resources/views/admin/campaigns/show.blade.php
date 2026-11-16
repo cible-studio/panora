@@ -1729,13 +1729,24 @@
                             </td>
                             <td class="px-4 py-2 text-sm">
                                 {{-- La référence est l'instantané du moment : elle reste
-                                     lisible même si le panneau a été démantelé depuis. --}}
+                                     lisible même si le panneau a été démantelé depuis.
+
+                                     Le badge « régie » ne s'affiche QUE sur un
+                                     external_panel_id réel (2026-11-16). Avant, il
+                                     tombait sur « panel_id absent », et les
+                                     mouvements écrits sans identifiant — défaut
+                                     corrigé le même jour — passaient tous pour des
+                                     panneaux de régie partenaire. --}}
                                 @if($mvt->panel_id)
                                     <a href="{{ route('admin.panels.show', $mvt->panel_id) }}"
                                        style="font-family:monospace;font-weight:700;color:var(--accent);text-decoration:none">{{ $mvt->referenceAffichee() }}</a>
-                                @else
+                                @elseif($mvt->external_panel_id)
                                     <span style="font-family:monospace;font-weight:700;color:var(--text)">{{ $mvt->referenceAffichee() }}</span>
-                                    <span class="text-xs" style="color:#60a5fa">🤝 régie</span>
+                                    <span class="text-xs" style="color:#60a5fa" title="Panneau d'une régie partenaire, hors parc CIBLE">🤝 régie</span>
+                                @else
+                                    {{-- Ni l'un ni l'autre : ligne écrite pendant le
+                                         défaut du 16/11. La référence reste juste. --}}
+                                    <span style="font-family:monospace;font-weight:700;color:var(--text)">{{ $mvt->referenceAffichee() }}</span>
                                 @endif
                             </td>
                             <td class="px-4 py-2">

@@ -259,6 +259,56 @@ class HistoriquePanneauxCampagneTest extends TestCase
     }
 
     /**
+     * ═══ LE DÉFAUT DU 16/11, corrigé le jour même ═══
+     *
+     * La ligne était construite ainsi :
+     *     $this->ligne(...) + ['panel_id' => $id, …]
+     *
+     * `ligne()` pose déjà `panel_id => null` comme valeur par défaut, et
+     * l'opérateur « + » NE REMPLACE PAS une clé déjà présente à gauche —
+     * contrairement à array_merge(). Les deux identifiants restaient donc
+     * nuls : aucun lien vers la fiche du panneau, et le badge « 🤝 régie »
+     * s'affichait sur TOUS les mouvements, panneaux du parc compris.
+     */
+    public function test_l_identifiant_du_panneau_est_bien_ecrit(): void
+    {
+        $src = $this->src('app/Services/Campagnes/MouvementsPanneaux.php');
+
+        // Les deux écritures doivent passer par array_merge.
+        $this->assertSame(
+            2,
+            substr_count($src, 'array_merge('),
+            "Les lignes d'historique (interne et externe) doivent être "
+            . "assemblées avec array_merge()."
+        );
+
+        // Et surtout, plus aucun « + [ » après un appel à ligne().
+        $this->assertDoesNotMatchRegularExpression(
+            '/\$this->ligne\([^)]*\)\s*\+\s*\[/',
+            $src,
+            "L'opérateur « + » ne remplace pas une clé déjà présente à "
+            . "gauche : panel_id resterait à null et tous les mouvements "
+            . "passeraient pour des panneaux de régie."
+        );
+    }
+
+    /**
+     * Le badge ne doit s'afficher que sur un vrai panneau de régie, pas
+     * sur « panel_id absent » — c'est ce raccourci qui rendait le défaut
+     * invisible côté code et très visible à l'écran.
+     */
+    public function test_le_badge_regie_suit_l_identifiant_externe(): void
+    {
+        $vue = $this->src('resources/views/admin/campaigns/show.blade.php');
+
+        $this->assertStringContainsString(
+            '@elseif($mvt->external_panel_id)',
+            $vue,
+            "Le badge « régie » doit dépendre d'un external_panel_id réel."
+        );
+    }
+
+    /**
      * Supprimer une ligne d'historique viderait la trace de son sens.
      */
     public function test_l_historique_ne_se_modifie_ni_ne_se_supprime(): void
