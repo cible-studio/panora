@@ -2626,3 +2626,39 @@ accord »).
 - [ ] **Cachet et signature scannés** de la Directrice Commerciale : absents
       (décision du 16/11). Fournir l'image pour les intégrer — en sachant
       que tout devis sortirait alors déjà signé, brouillon compris.
+
+---
+
+## § 32 — Changer le client d'une affaire (campagne + réservation) *(2026-11-16)*
+
+Constat : la campagne 122 était au nom de 2A CONSULTING au lieu de 2A
+ÉDITIONS, et rien ne permettait de corriger. La campagne refusait un client
+différent de sa réservation, et la réservation refusait de changer dès
+qu'elle avait sa campagne (deux verrous du 29/10). Correction urgente de la
+campagne 122 faite par commande en production le 16/11.
+
+Désormais, changer le client sur la fiche **campagne** OU sur la fiche
+**réservation** (« Modifier ») change celui de toute l'affaire
+(`ChangementClientAffaire`). Règles validées par écrit le 16/11 :
+- une facture validée ou envoyée empêche le changement (il faut un avoir) ;
+  les factures en brouillon suivent ;
+- les relances de fin de campagne, le renouvellement sans réponse et
+  l'enquête pas encore envoyée suivent ; ce qui est déjà parti reste ;
+- le devis converti en cette réservation et la proposition suivent ;
+- les panneaux des régies externes de la campagne suivent ;
+- admin et Media Planner.
+
+Le nom « Campagne <ancien client> » devient « Campagne <nouveau client> »
+(sauf s'il est déjà pris chez le nouveau client). Aucun mail ne part.
+
+### À vérifier
+- [ ] Campagne 122 : client 2A ÉDITIONS, réservation RES-ISKWZZ1R aussi ;
+      choisir un interlocuteur de 2A ÉDITIONS (Modifier la campagne).
+- [ ] Sur une affaire de test : changer le client depuis la campagne →
+      la réservation suit ; puis depuis la réservation (si elle est encore
+      modifiable) → la campagne suit.
+- [ ] Une affaire avec une facture validée : le changement est refusé,
+      avec la référence de la facture dans le message.
+- [ ] Espace client : la campagne apparaît chez le nouveau client et
+      disparaît chez l'ancien.
+- [ ] L'icône ⓘ à côté du champ Client explique ce qui suit.

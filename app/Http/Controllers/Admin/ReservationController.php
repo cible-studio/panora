@@ -2555,14 +2555,28 @@ class ReservationController extends Controller
         if ((int) $request->last_updated_at !== $reservation->updated_at->timestamp) {
             return back()->with('error', 'Cette réservation a été modifiée par un autre utilisateur. Rechargez la page.');
         }
-        // Réservation déjà liée à une campagne : même client que la campagne,
-        // sinon la même affaire se retrouve sur deux fiches (2026-10-29).
-        if ((int) $request->input('client_id') !== (int) $reservation->client_id && $reservation->campaign()->exists()) {
-            return back()->withInput()->withErrors(['client_id' => 'Cette réservation a déjà sa campagne : son client ne peut plus changer.']);
+        // Réservation liée à une campagne (2026-11-16) : changer son client
+        // change celui de TOUTE l'affaire — la campagne et ce qui suit le
+        // client (ChangementClientAffaire), sauf facture déjà émise. Avant,
+        // le client était bloqué (29/10) et la campagne refusait un client
+        // différent : un mauvais client ne se corrigeait plus.
+        $changementClient = app(\App\Services\Affaires\ChangementClientAffaire::class);
+        $clientChange = (int) $request->input('client_id') !== (int) $reservation->client_id;
+        if ($clientChange && ($erreur = $changementClient->empechement(null, $reservation))) {
+            return back()->withInput()->withErrors(['client_id' => $erreur]);
         }
         $oldPanels = $reservation->panels->pluck('id')->toArray();
         try {
-            $this->reservationService->updateReservation($reservation, $request->validated(), $oldPanels);
+            DB::transaction(function () use ($reservation, $request, $oldPanels, $clientChange, $changementClient) {
+                $campagne = $reservation->campaign; // lue AVANT : elle porte encore l'ancien client
+                $this->reservationService->updateReservation($reservation, $request->validated(), $oldPanels);
+                if ($clientChange && $campagne) {
+                    $reservation->refresh();
+                    $changementClient->propager(
+                        $campagne, $reservation, (int) $reservation->client_id, $reservation->client_contact_id
+                    );
+                }
+            });
         } catch (\RuntimeException $e) {
             if (str_starts_with($e->getMessage(), 'CONFLICT:'))
                 return back()->withInput()->withErrors(['panel_ids' => 'Conflit : ' . substr($e->getMessage(), 9)]);

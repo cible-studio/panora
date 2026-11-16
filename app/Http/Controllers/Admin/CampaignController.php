@@ -1361,11 +1361,24 @@ class CampaignController extends Controller
 
         $data = $request->validate($rules, InterlocuteurDuClient::MESSAGES);
 
-        // Changement de client d'une campagne liée à une réservation : il doit
-        // rester celui de la réservation (2026-10-29).
-        if ($campaign->reservation_id && (int) $data['client_id'] !== (int) $campaign->client_id
-            && ($erreur = $this->clientDifferentDeLaReservation((int) $campaign->reservation_id, (int) $data['client_id']))) {
-            return back()->withInput()->withErrors(['client_id' => $erreur]);
+        // Changement de client (2026-11-16) : il vaut pour TOUTE l'affaire.
+        // Avant, une campagne liée à une réservation devait garder le client
+        // de la réservation (29/10), et la réservation refusait de changer
+        // dès qu'elle avait sa campagne : un mauvais client ne se corrigeait
+        // plus. La réservation et ce qui suit le client changent désormais
+        // avec la campagne (ChangementClientAffaire), sauf facture émise.
+        $changementClient = app(\App\Services\Affaires\ChangementClientAffaire::class);
+        $clientChange = (int) $data['client_id'] !== (int) $campaign->client_id;
+        if ($clientChange) {
+            if ($erreur = $changementClient->empechement($campaign)) {
+                return back()->withInput()->withErrors(['client_id' => $erreur]);
+            }
+            // « Campagne 2A CONSULTING » laissé tel quel → « Campagne <nouveau client> ».
+            $data['name'] = $changementClient->nomParDefaut(
+                $data['name'],
+                $campaign->client?->name,
+                Client::withTrashed()->whereKey($data['client_id'])->value('name')
+            );
         }
 
         $today    = now()->startOfDay();
@@ -1423,8 +1436,16 @@ class CampaignController extends Controller
 
         $data['updated_by'] = auth()->id();
 
-        DB::transaction(function () use ($campaign, $data, $oldStatus) {
+        DB::transaction(function () use ($campaign, $data, $oldStatus, $clientChange, $changementClient) {
             $campaign->update($data);
+
+            // La réservation, le devis, les factures en brouillon, les relances
+            // et l'enquête à venir, les panneaux externes suivent (2026-11-16).
+            if ($clientChange) {
+                $changementClient->propager(
+                    $campaign, $campaign->reservation, (int) $campaign->client_id, $campaign->client_contact_id
+                );
+            }
 
             // Si dates changées et qu'il y a une réservation liée, on doit
             // au minimum aligner end_date pour la cohérence facturation
