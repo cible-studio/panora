@@ -127,6 +127,19 @@ class ReservationController extends Controller
         $agencyIds = array_map('intval', array_filter((array) $request->get('agency_ids', [])));
         $isLit = $request->input('is_lit', '');
 
+        // ═══ Emplacements des clients annuels (2026-11-16) ═══
+        // Règle validée : un client annuel a un emplacement fixe, on ne
+        // propose pas son panneau tant qu'il n'a pas dit qu'il arrêtait —
+        // même s'il n'a pas encore décidé de renouveler. Sans cela, une
+        // recherche sur 2027 sortait TOUT le parc, les campagnes 2026 se
+        // terminant avant.
+        //
+        // Masqués PAR DÉFAUT, d'où le compteur renvoyé plus bas : on ne
+        // cache jamais du stock en silence. La case les réintègre.
+        // Règle : RenouvellementService::emplacementsAnnuels().
+        $inclureAnnuels = $request->boolean('inclure_annuels');
+        $masquesAnnuels = 0;
+
         $dateError = null;
         if ($startDate && $endDate && $endDate <= $startDate) {
             $dateError = 'La date de fin doit être après la date de début.';
@@ -226,6 +239,18 @@ class ReservationController extends Controller
                 $dateError = $dateError ?: 'Saisissez une période pour filtrer par '
                     . ($statut === 'option' ? 'Option' : 'Occupé') . '.';
             } else {
+                // Les emplacements annuels sortent AVANT la pagination et
+                // avant les compteurs : sinon une page afficherait moins de
+                // panneaux que prévu sans qu'on sache pourquoi. On compte
+                // d'abord ce qu'on retire, sur les mêmes filtres.
+                if (!$inclureAnnuels) {
+                    $annuels = \App\Services\Diffusion\RenouvellementService::panneauxClientsAnnuels();
+                    if (!empty($annuels)) {
+                        $masquesAnnuels = (clone $query)->whereIn('id', $annuels)->count();
+                        $query->whereNotIn('id', $annuels);
+                    }
+                }
+
                 $panels = $query->orderBy('reference')->get();
 
                 if ($startDate && $endDate && !$dateError && $panels->isNotEmpty()) {
@@ -512,6 +537,10 @@ class ReservationController extends Controller
             'internes'     => $internalResult->count(),
             'pages'        => (int) ceil($total / $perPage),
             'current_page' => $page,
+            // Emplacements de clients annuels retirés du résultat
+            // (2026-11-16). L'écran l'annonce : masquer du stock sans le
+            // dire ferait croire que le parc est plus petit qu'il n'est.
+            'masques_annuels' => $masquesAnnuels,
         ],
             'date_error' => $dateError,
             'has_period' => (bool) ($startDate && $endDate && !$dateError),
