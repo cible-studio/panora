@@ -2375,12 +2375,14 @@ menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
       — donc l'arriéré 2027 — sera faux.
 
 ### À confirmer
-- [ ] **Pieds Lumipub** : le suivi les compte (« on s'en tient aux panneaux
-      qui existent sur Panora »), la page Taxes les laisse décochés par défaut
-      (§ 23). Les colonnes ODP / TM des deux écrans ne se raccordent que case
-      cochée.
-- [ ] **Ordre de grandeur** : avec les tarifs actuels, 2027 sera calculé
-      autour de 160 M (ODP ≈ 140 M dont Cocody 60 M et Plateau 32 M) contre
-      ≈ 36 M réclamés en 2025. Si un tarif est faux, il se corrige dans la
+- [x] **Pieds Lumipub** — tranché le 16/11 : « décoché » sur tous les écrans.
+      Le suivi, le rapport Taxes et la synthèse mensuelle les laissent hors du
+      dû, comme la page Taxes par défaut ; leur ODP / TM se gère à part
+      (réglage unique `taxes.inclure_lumipub`, config/taxes.php). À contrôler :
+      page Taxes en annuel, case décochée = mêmes ODP / TM que le suivi 2027.
+- [x] **Ordre de grandeur** — accepté le 16/11 : avec les tarifs actuels, 2027 sera calculé
+      autour de 160 M Lumipub compris (relevé du 13/11 : ODP ≈ 140 M dont
+      Cocody 60 M et Plateau 32 M), soit de l'ordre de 115 M sans les pieds
+      Lumipub (≈ 43 M d'ODP, § 25) — contre ≈ 36 M réclamés en 2025. Si un tarif est faux, il se corrige dans la
       commune avec une date d'effet (`/admin/settings/communes/tariffs`) et
       tout se recalcule.

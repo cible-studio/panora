@@ -365,7 +365,7 @@
 <div style="font-size:11px;color:var(--text3);margin-top:14px;line-height:1.6;padding:10px 14px;background:var(--surface2);border-radius:8px">
     <strong>📐 Méthode de calcul (matrice) :</strong> le calcul de la page Taxes, mois par mois — ODP = tarif × m² × mois où le
     panneau est debout ; TM = tarif × m² × mois de campagne (campagnes actives et terminées), chaque mois rangé dans le mois où il
-    commence. Tout le parc, pieds Lumipub compris ; panneaux des régies externes exclus.
+    commence. Le parc, hors pieds Lumipub (gérés à part) et hors panneaux des régies externes.
     <br><strong>🏛️ Dû aux mairies :</strong> total dû de l'exercice dans le Suivi des mairies, arriérés compris
     @if($year === $exerciceReprise) (pour {{ $year }}, exercice de reprise : ce que chaque mairie a réclamé, saisi par la comptabilité ; il peut différer de la matrice)@endif.
     <br><strong>💰 Reversé :</strong> règlements de l'exercice saisis dans le Suivi des mairies, hors annulés.

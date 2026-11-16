@@ -532,10 +532,10 @@ Livré : `TaxeExerciceService` (source unique de l'exercice), tables
   et le groupe `calculTMCommune()` / `totalDuCommune()` / `soldeRestant()`…
   (cf. « cluster de code mort » plus haut ; `calculTMCommune` garde
   l'ancienne règle d'occupation).
-- **Case « Lumipub » de la page Taxes** : décochée par défaut (règle du
-  13/11), alors que le Suivi des mairies compte tout le parc Panora, pieds
-  Lumipub compris. Les colonnes ODP / TM de la page Taxes ne se raccordent au
-  suivi que case cochée ; payé et solde, eux, sont toujours ceux du suivi.
+- **Pieds Lumipub** : hors du dû partout (décision du 16/11, réglage unique
+  `taxes.inclure_lumipub`). Leur ODP / TM « se gère à part » : aucun écran ne
+  les suit encore. La case « Lumipub » de la page Taxes reste le seul moyen
+  de les chiffrer.
 - **Cache du calcul** (10 min) : la clé porte une empreinte des panneaux,
   campagnes, `campaign_panels`, communes et tarifs. Une écriture SQL brute qui
   ne change ni `updated_at` ni le nombre de lignes reste invisible au plus

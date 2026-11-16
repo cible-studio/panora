@@ -34,7 +34,7 @@ class SendMonthlySynthesis extends Command
         //   · payées du mois : les règlements versés dans le mois ;
         //   · reste à payer : somme des soldes positifs de l'exercice.
         $taxesDueMonth = (int) round(app(\App\Services\TaxCalculationService::class)
-            ->generateLines(\App\Services\TaxCalculationService::PERIOD_MONTHLY, (int) $startMonth->month, (int) $startMonth->year, ['inclure_lumipub' => true])
+            ->generateLines(\App\Services\TaxCalculationService::PERIOD_MONTHLY, (int) $startMonth->month, (int) $startMonth->year, ['inclure_lumipub' => \App\Services\Taxes\TaxeExerciceService::inclureLumipub()])
             ->sum('amount'));
         $taxesPaidMonth = (int) \App\Models\TaxeReglement::valides()
             ->whereBetween('paid_at', [$startMonth->toDateString(), $endMonth->toDateString()])

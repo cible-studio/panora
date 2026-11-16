@@ -72,7 +72,7 @@
             Arriérés = solde de l'exercice {{ $exercice - 1 }}. ODP = tarif × m² × mois où le panneau
             est debout. TM = tarif × m² × mois de campagne, rangés dans le trimestre où ils
             commencent. Tarifs : ceux de Panora, en vigueur le mois concerné. Tout le parc
-            Panora, pieds Lumipub compris.
+            Panora, hors pieds Lumipub (gérés à part, comme sur la page Taxes).
         </x-aide>
     @endif
 </div>

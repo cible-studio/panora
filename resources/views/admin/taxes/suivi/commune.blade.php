@@ -188,7 +188,7 @@
     {{-- ═══ BASE : dimensions, panneaux, faces ═══ --}}
     <div class="card">
         <div class="card-header"><div class="card-title">📐 Base {{ $exercice }}</div>
-            <a href="{{ route('admin.taxes.details', ['commune_id' => $commune->id, 'year' => $exercice, 'period_type' => 'annuel', 'period_value' => 0, 'inclure_lumipub' => 1]) }}"
+            <a href="{{ route('admin.taxes.details', ['commune_id' => $commune->id, 'year' => $exercice, 'period_type' => 'annuel', 'period_value' => 0, 'inclure_lumipub' => \App\Services\Taxes\TaxeExerciceService::inclureLumipub() ? 1 : 0]) }}"
                class="btn btn-ghost btn-sm">Détail par panneau →</a></div>
         <div class="table-wrap">
             <table class="sf-table">
@@ -205,7 +205,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="card-body sf-note">Un panneau = un mât planté (les deux faces d'un double-face comptent pour un panneau ; un pied Lumipub porte ses faces).</div>
+        <div class="card-body sf-note">Un panneau = un mât planté (les deux faces d'un double-face comptent pour un panneau). Pieds Lumipub non comptés : leur ODP / TM se gère à part.</div>
     </div>
 </div>
 
