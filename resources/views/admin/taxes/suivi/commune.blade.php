@@ -15,13 +15,12 @@
 
 @php
     $fmt = fn ($n) => number_format((int) $n, 0, ',', ' ');
-    $statuts = [
-        'solde'    => ['badge-green',  '✓ Soldé'],
-        'credit'   => ['badge-blue',   '↺ Trop-perçu'],
-        'partiel'  => ['badge-orange', '◐ Partiel'],
-        'non_paye' => ['badge-red',    '⏳ Non payé'],
-        'rien_du'  => ['badge-gray',   '— Rien dû'],
-    ];
+    // Libellés des statuts : source unique dans TaxeExerciceService.
+    $statuts = \App\Services\Taxes\TaxeExerciceService::LIBELLES_STATUT;
+    $badge = function (array $l) use ($statuts) {
+        [$classe, $libelle, $aide] = $statuts[\App\Services\Taxes\TaxeExerciceService::statutAffiche($l)];
+        return '<span class="badge ' . $classe . '" title="' . e($aide) . '">' . e($libelle) . '</span>';
+    };
     $saisie = $ligne['saisie'];
     $anneeCourante = (int) now()->year;
     $exerciceDefaut = in_array($anneeCourante, $disponibles, true) ? $anneeCourante : $exercice;
@@ -84,10 +83,10 @@
     <div class="sf-kpi">
         <div class="sf-kpi-l">Solde</div>
         <div class="sf-kpi-v" style="color:{{ $ligne['solde'] > 0 ? '#b91c1c' : ($ligne['solde'] < 0 ? '#2563eb' : '#15803d') }}">{{ $fmt($ligne['solde']) }}</div>
-        <span class="badge {{ $statuts[$ligne['statut']][0] }}" style="margin-top:4px">{{ $statuts[$ligne['statut']][1] }}</span>
+        <div style="margin-top:4px">{!! $badge($ligne) !!}</div>
     </div>
     <div class="sf-kpi">
-        <div class="sf-kpi-l">Exigible à ce jour
+        <div class="sf-kpi-l">Dû à ce jour
             <x-aide>Arriérés, plus l'ODP et la TM des trimestres déjà commencés, moins ce qui est payé.</x-aide>
         </div>
         <div class="sf-kpi-v" style="color:#b45309">{{ $fmt($ligne['exigible']) }}</div>
@@ -99,7 +98,7 @@
 <div class="card">
     <div class="card-header">
         <div class="card-title">✍️ Ce que la mairie a réclamé pour {{ $exercice }}
-            <x-aide titre="Exercice de reprise">
+            <x-aide titre="Année de reprise">
                 Pour {{ $exercice }}, c'est ce montant qui fait foi : saisis-le depuis l'avis ou la
                 réclamation de la mairie, arriérés des années passées compris. Le calcul de Panora,
                 à droite, sert de contrôle. Le solde au 31/12/{{ $exercice }} deviendra l'arriéré de {{ $exercice + 1 }}.
@@ -160,7 +159,7 @@
         <div class="table-wrap">
             <table class="sf-table">
                 <thead><tr><th></th><th class="num">ODP</th><th class="num">TM</th><th class="num">Total</th>
-                    @unless($reprise)<th class="num">Prévu
+                    @unless($reprise)<th class="num">À venir
                         <x-aide>TM des campagnes planifiées, pas encore démarrées. Hors solde.</x-aide></th>@endunless
                 </tr></thead>
                 <tbody>

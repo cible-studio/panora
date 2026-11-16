@@ -17,7 +17,7 @@
 
 @include('pdf.partials.tax-doc-header', [
     'docTitle'  => 'Gestion des taxes (ODP et TM) de la régie',
-    'docPeriod' => 'Exercice ' . $exercice . ($reprise ? ' — exercice de reprise (montants réclamés par les mairies)' : ''),
+    'docPeriod' => 'Exercice ' . $exercice . ($reprise ? ' — année de reprise (montants réclamés par les mairies)' : ''),
 ])
 
 @include('pdf.partials.tax-doc-meta', ['metaCols' => [
@@ -80,7 +80,7 @@
 
 <div class="tdoc-note">
     @if($reprise)
-        ■ Exercice de reprise : le dû de chaque mairie est ce qu'elle a réclamé, arriérés compris. Le solde au
+        ■ Année de reprise : le dû de chaque mairie est ce qu'elle a réclamé, arriérés compris. Le solde au
         31/12/{{ $exercice }} devient l'arriéré de {{ $exercice + 1 }}.
     @else
         ■ Arriérés = solde {{ $exercice - 1 }} · ODP = tarif × m² × mois d'occupation · TM = tarif × m² × mois de

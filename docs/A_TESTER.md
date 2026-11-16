@@ -2330,8 +2330,9 @@ menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
       (Abengourou 296 000 · Odienné 288 000 + 51 000 · Bingerville 100 000 ·
       Bassam 70 000). Aucune ligne payée dans l'ancienne table `taxes`.
       Rejouable sans doublon.
-- [ ] Vérifier que `storage/app/private` est sur le volume persistant
-      (les quittances y sont rangées, `taxes/quittances/<exercice>/<mairie>/`).
+- [x] `storage/app/private` est sur le volume persistant (vérifié le 16/11 :
+      volume `…-diffusion-dispo` monté sur `/app/storage/app/private`). Les
+      quittances y sont rangées, `taxes/quittances/<exercice>/<mairie>/`.
 
 ### Écrans à contrôler
 - [ ] Menu « Suivi des mairies » visible pour admin, MP et comptable ;
@@ -2346,12 +2347,16 @@ menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
 - [ ] Annuler un règlement : le motif est obligatoire ; la ligne reste,
       barrée, et sort du total payé et du solde.
 - [ ] **2027** : arriérés = solde 2026 de la mairie ; ODP et TM par
-      trimestre calculées ; colonne « Prévu » = campagnes planifiées.
+      trimestre calculées ; colonne « À venir » = campagnes planifiées.
 - [ ] Relevé PDF d'une mairie, PDF de l'exercice, Excel (feuilles ABIDJAN,
       INTERIEUR, REGLEMENTS — même présentation que le fichier de la DG).
 - [ ] Page **Taxes** : « Déjà payé » et « Solde restant » = ceux du suivi
       pour la même année ; le bouton « 💰 Règlements » ouvre la fiche du
       suivi ; la fenêtre « Enregistrer paiement » n'existe plus.
+- [ ] **Libellés** (16/11) : « À jour », « Payé en partie », « Rien payé »,
+      « Payé en trop », « Rien à payer », « Réclamé à saisir » (2026, rien de
+      réclamé saisi), « Dû à ce jour », « À venir ». Survoler un statut affiche
+      son explication.
 - [ ] Ancienne adresse `/admin/taxes/commune/<id>` → redirige vers la fiche du suivi.
 - [ ] Page Taxes, colonne TM : elle peut **augmenter** pour un panneau loué
       à plusieurs clients dans l'année (avant, seule la dernière campagne
@@ -2361,7 +2366,7 @@ menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
       nombre de panneaux) — chiffres différents d'avant, attendus ; bloc
       « Dû aux mairies vs reversé » = chiffres du suivi.
 - [ ] Alerte de trimestre : `php artisan taxes:notify-due-soon --forcer`
-      → mail aux comptables et admins, mairies avec un exigible. Sans
+      → mail aux comptables et admins, mairies avec un montant « dû à ce jour ». Sans
       `--forcer`, elle ne part que le premier jour ouvré (lundi-vendredi) du
       trimestre — prochain envoi : vendredi 1er janvier 2027, férié, mais le
       mail part quand même.
