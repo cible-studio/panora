@@ -53,6 +53,16 @@ class TaxeExerciceService
         return (int) config('taxes.exercice_reprise', 2026);
     }
 
+    /**
+     * Les pieds Lumipub entrent-ils dans le dû ? Non, décision du
+     * 2026-11-16 (config/taxes.php). Lu aussi par le rapport Taxes et la
+     * synthèse mensuelle : un seul réglage pour tous les totaux.
+     */
+    public static function inclureLumipub(): bool
+    {
+        return (bool) config('taxes.inclure_lumipub', false);
+    }
+
     /** Un exercice antérieur à la reprise n'est pas suivi (aucune donnée sûre). */
     public function estSuivi(int $annee): bool
     {
@@ -80,9 +90,10 @@ class TaxeExerciceService
      * vigueur ce mois-là ; l'ODP compte les mois calendaires, la TM les mois
      * de campagne qui commencent dans le mois — 12 mois = l'année, exactement.
      *
-     * Tout le parc Panora, pieds Lumipub compris (« on s'en tient aux
-     * panneaux qui existent sur Panora, ce sont les vrais », 2026-11-16) ;
-     * la ligne d'axe, elle, n'est jamais taxée.
+     * Le parc Panora (« on s'en tient aux panneaux qui existent sur Panora,
+     * ce sont les vrais », 2026-11-16), HORS pieds Lumipub : « décoché »,
+     * décision du même jour, comme la page Taxes (cf. inclureLumipub()).
+     * La ligne d'axe, elle, n'est jamais taxée.
      *
      * @return array<int, array{odp: array<int,int>, tm: array<int,int>, base: array<string, array{panneaux:int, faces:int}>}>
      */
@@ -109,7 +120,7 @@ class TaxeExerciceService
         $physiques = [];   // commune_id → référence physique → [surface_face, faces]
         for ($mois = 1; $mois <= 12; $mois++) {
             $lignes = $this->calc->generateLines(
-                TaxCalculationService::PERIOD_MONTHLY, $mois, $annee, ['inclure_lumipub' => true]
+                TaxCalculationService::PERIOD_MONTHLY, $mois, $annee, ['inclure_lumipub' => self::inclureLumipub()]
             );
             foreach ($lignes as $l) {
                 $cid  = (int) $l['commune_id'];
@@ -177,7 +188,7 @@ class TaxeExerciceService
         for ($t = 1; $t <= 4; $t++) {
             $lignes = $this->calc->generateLines(TaxCalculationService::PERIOD_QUARTERLY, $t, $annee, [
                 'type'            => TaxCalculationService::TYPE_TM,
-                'inclure_lumipub' => true,
+                'inclure_lumipub' => self::inclureLumipub(),
                 'statuts_tm'      => [\App\Enums\CampaignStatus::PLANIFIE->value],
             ]);
             foreach ($lignes as $l) {

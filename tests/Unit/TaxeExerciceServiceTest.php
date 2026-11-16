@@ -258,6 +258,27 @@ class TaxeExerciceServiceTest extends TestCase
             'juin : le 1er mois de la campagne de juin');
     }
 
+    /**
+     * Décision écrite du 2026-11-16 : pieds Lumipub « décochés » partout —
+     * hors du dû du suivi, comme sur la page Taxes par défaut. La ligne
+     * d'axe n'est jamais taxée ; le réglage config/taxes.php les réintègre.
+     */
+    public function test_les_pieds_lumipub_sont_hors_du_du(): void
+    {
+        DB::table('panels')->insert([
+            ['id' => 90, 'reference' => 'CDYLUP-009',     'name' => 'Axe (1P x 1F)', 'commune_id' => 1, 'format_id' => 1, 'est_axe' => true,  'axe_id' => null],
+            ['id' => 91, 'reference' => 'CDYLUP-009-P01', 'name' => 'Pied 1/1',      'commune_id' => 1, 'format_id' => 1, 'est_axe' => false, 'axe_id' => 90],
+        ]);
+        $neuf = fn () => new TaxeExerciceService(app(TaxCalculationService::class));
+
+        $this->assertFalse(TaxeExerciceService::inclureLumipub());
+        $this->assertSame(720000, $neuf()->exercice(Commune::find(1), 2027)['odp'], 'ni le pied ni la ligne d\'axe');
+
+        config(['taxes.inclure_lumipub' => true]);
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->assertSame(720000 * 2, $neuf()->exercice(Commune::find(1), 2027)['odp'], 'le pied, jamais la ligne d\'axe');
+    }
+
     public function test_l_alerte_part_le_premier_jour_ouvre_du_trimestre(): void
     {
         $premier = fn (string $d) => \App\Console\Commands\NotifyTaxDueSoon::premierJourOuvreDuTrimestre(Carbon::parse($d))->toDateString();

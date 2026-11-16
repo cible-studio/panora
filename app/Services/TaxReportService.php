@@ -63,8 +63,9 @@ class TaxReportService
      * Il lit désormais le moteur unique, mois par mois :
      * TaxCalculationService::generateLines() — ODP = tarif × m² × mois où le
      * panneau est debout, TM = tarif × m² × mois de campagne (toutes les
-     * campagnes, chaque mois dans le mois où il commence). Tout le parc
-     * Panora, pieds Lumipub compris, comme le Suivi des mairies. Les panneaux
+     * campagnes, chaque mois dans le mois où il commence). Le parc Panora
+     * hors pieds Lumipub, comme le Suivi des mairies (réglage unique :
+     * TaxeExerciceService::inclureLumipub()). Les panneaux
      * de régies externes n'y sont plus : leurs taxes ne sont pas dues par la
      * régie.
      *
@@ -84,7 +85,7 @@ class TaxReportService
             'client_id'   => $filters['client_id']   ?? null,
             'campaign_id' => $filters['campaign_id'] ?? null,
             'commune_id'  => $filters['commune_id']  ?? null,
-        ]) + ['inclure_lumipub' => true];
+        ]) + ['inclure_lumipub' => \App\Services\Taxes\TaxeExerciceService::inclureLumipub()];
 
         $lignes = collect();
         for ($mois = 1; $mois <= 12; $mois++) {
@@ -125,7 +126,7 @@ class TaxReportService
             'client_id'   => $filters['client_id']   ?? null,
             'campaign_id' => $filters['campaign_id'] ?? null,
             'commune_id'  => $filters['commune_id']  ?? null,
-        ]) + ['inclure_lumipub' => true];
+        ]) + ['inclure_lumipub' => \App\Services\Taxes\TaxeExerciceService::inclureLumipub()];
 
         $lignes = app(TaxCalculationService::class)
             ->generateLines(TaxCalculationService::PERIOD_ANNUAL, 0, $year, $filtres);
