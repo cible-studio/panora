@@ -96,6 +96,36 @@
         </div>
     @endif
 
+    {{-- ── Devis de renouvellement (2026-11-16) ──
+         Ouvert depuis « Générer le devis » d'un dossier de renouvellement.
+         L'option déjà ouverte sur ces panneaux reste vivante tant que le
+         client n'a pas accepté : un devis ne bloque rien, la libérer
+         maintenant rouvrirait le réseau à un autre client. Elle est
+         annulée à l'acceptation, pour qu'il ne reste qu'un dossier. --}}
+    @php $optionRemplacee = $isEdit ? null : ($preselect['remplace_reservation_id'] ?? null); @endphp
+    @if($optionRemplacee)
+        @php $resaRemplacee = \App\Models\Reservation::find($optionRemplacee); @endphp
+        @if($resaRemplacee)
+            <input type="hidden" name="remplace_reservation_id" value="{{ $resaRemplacee->id }}">
+            <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.35);border-left:4px solid #3b82f6;border-radius:10px;padding:14px 18px;display:flex;align-items:flex-start;gap:12px">
+                <div style="font-size:20px">🔁</div>
+                <div style="font-size:12.5px;color:var(--text2);line-height:1.6">
+                    <strong style="color:var(--text)">Devis de renouvellement</strong><br>
+                    Les panneaux restent tenus par l'option
+                    <strong style="font-family:monospace">{{ $resaRemplacee->reference }}</strong>
+                    @if($resaRemplacee->bc_attendu_jusqu_au)
+                        (bon de commande attendu jusqu'au
+                        <strong>{{ \Carbon\Carbon::parse($resaRemplacee->bc_attendu_jusqu_au)->format('d/m/Y') }}</strong>)
+                    @endif
+                    pendant que le client décide.
+                    <strong>À l'acceptation de ce devis, cette option sera annulée</strong>
+                    et remplacée par la réservation issue du devis : un seul
+                    dossier reste vivant sur ces panneaux.
+                </div>
+            </div>
+        @endif
+    @endif
+
     {{-- ── Bloc 1 : identité du devis ── --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px">
         <h3 style="font-size:14px;font-weight:800;margin-bottom:14px">📋 Identité du devis</h3>
@@ -137,7 +167,7 @@
         <div style="margin-top:12px">
             @include('admin.partials.interlocuteur-select', [
                 'clientId' => old('client_id', $isEdit ? $quote->client_id : ($preselect['client_id'] ?? null)),
-                'selection' => $isEdit ? $quote->client_contact_id : null,
+                'selection' => $isEdit ? $quote->client_contact_id : ($preselect['client_contact_id'] ?? null),
                 'classeLabel' => 'qf-label', 'classeSelect' => 'qf-input',
             ])
         </div>
@@ -301,9 +331,25 @@
 
     {{-- ── Bloc 3 : services annexes (optionnel) ── --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap">
             <h3 style="font-size:14px;font-weight:800">🔧 Services annexes (optionnel)</h3>
-            <button type="button" onclick="QuoteForm.addService()" style="background:var(--accent);color:#fff;padding:8px 14px;border:none;border-radius:8px;font-weight:700;cursor:pointer">+ Ajouter un service</button>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                {{-- Prestations récurrentes, proposées en un clic (2026-11-16).
+                     La liste vient de config/billing.php : le même jeu de
+                     boutons existe sur la facture FNE, à partir de la même
+                     source. Ajouter une prestation là-bas suffit.
+                     Elles ne sont PAS pré-ajoutées : un devis sans pose ni
+                     impression ne doit pas les porter. --}}
+                @foreach(config('billing.services_preselection', []) as $preset)
+                    <button type="button"
+                            onclick="QuoteForm.addService(@js($preset['label']), {{ ($preset['tva_applicable'] ?? true) ? 'true' : 'false' }})"
+                            title="Ajouter « {{ $preset['label'] }} » — le prix reste à saisir"
+                            style="background:rgba(232,160,32,.10);color:var(--accent);padding:8px 12px;border:1px solid rgba(232,160,32,.35);border-radius:8px;font-weight:700;cursor:pointer;font-size:12px">
+                        + {{ $preset['label'] }}
+                    </button>
+                @endforeach
+                <button type="button" onclick="QuoteForm.addService()" style="background:var(--accent);color:#fff;padding:8px 14px;border:none;border-radius:8px;font-weight:700;cursor:pointer">+ Ajouter un service</button>
+            </div>
         </div>
         <div class="ql-defilement">
             <table id="quote-services-table" class="qs-table" style="border-collapse:collapse">
@@ -1313,26 +1359,66 @@ window.QuoteForm = (function() {
     }
 
     // ── Ajout service annexe ──
-    function addService() {
+    //
+    // `libelle` et `tva` (2026-11-16) servent aux prestations proposées en
+    // un clic — FRAIS DE POSE, IMPRESSION — définies dans
+    // config/billing.php. Sans argument, le comportement d'origine ne
+    // change pas : une ligne vide à remplir.
+    function addService(libelle = '', tva = true) {
         const tbody = document.getElementById('quote-services-tbody');
+
+        // Une prestation déjà présente n'est pas ajoutée une seconde fois :
+        // deux lignes « FRAIS DE POSE » se retrouveraient sur le PDF et
+        // seraient facturées deux fois. On emmène l'utilisateur sur la
+        // ligne existante plutôt que d'en créer une jumelle.
+        if (libelle) {
+            const existante = Array.from(tbody.querySelectorAll('.qs-row')).find(r => {
+                const champ = r.querySelector('input[name$="[label]"]');
+                return champ && champ.value.trim().toLowerCase() === libelle.trim().toLowerCase();
+            });
+            if (existante) {
+                const prix = existante.querySelector('.qs-prix');
+                if (prix) { prix.focus(); prix.select(); }
+                existante.style.transition = 'background .25s';
+                existante.style.background = 'rgba(232,160,32,.18)';
+                setTimeout(() => { existante.style.background = ''; }, 900);
+                return;
+            }
+        }
+
         const i = serviceIdx++;
         const row = document.createElement('tr');
         row.className = 'qs-row';
+        const coche = tva ? 'checked' : '';
+        const etat  = tva ? 'is-on'   : 'is-off';
+        const texte = tva ? 'TVA'     : 'HT';
+        // Le libellé passe par un attribut HTML : on échappe les guillemets
+        // pour qu'une prestation nommée avec une apostrophe ou un guillemet
+        // ne casse pas le gabarit.
+        const valeur = libelle ? ` value="${libelle.replace(/"/g, '&quot;')}"` : '';
         row.innerHTML = `
-            <td style="padding:6px" data-label="Libellé"><input type="text" name="services[${i}][label]" maxlength="200" placeholder="ex. Impression affiches dos bleu" class="ql-input"></td>
+            <td style="padding:6px" data-label="Libellé"><input type="text" name="services[${i}][label]" maxlength="200"${valeur} placeholder="ex. Impression affiches dos bleu" class="ql-input"></td>
             <td style="padding:6px" data-label="Prix HT"><input type="number" name="services[${i}][prix_ht]" min="0" step="1" value="0" class="ql-input ql-num qs-prix"></td>
             <td style="padding:6px;text-align:center" data-label="TVA">
-                <label class="qs-tva-toggle is-on">
+                <label class="qs-tva-toggle ${etat}">
                     <input type="hidden" name="services[${i}][tva_applicable]" value="0">
-                    <input type="checkbox" name="services[${i}][tva_applicable]" value="1" class="qs-tva" checked>
+                    <input type="checkbox" name="services[${i}][tva_applicable]" value="1" class="qs-tva" ${coche}>
                     <span class="qs-tva-switch"></span>
-                    <span class="qs-tva-text">TVA</span>
+                    <span class="qs-tva-text">${texte}</span>
                 </label>
             </td>
             <td style="padding:6px;text-align:right" data-label="TTC"><span class="qs-ttc" style="font-weight:700">—</span></td>
             <td style="padding:6px;text-align:center"><button type="button" onclick="this.closest('tr').remove();recalcServices()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
         `;
         tbody.appendChild(row);
+
+        // Prestation proposée : le libellé est déjà connu, c'est le prix
+        // qu'on attend. On place le curseur dessus directement.
+        if (libelle) {
+            const prix = row.querySelector('.qs-prix');
+            if (prix) { prix.focus(); prix.select(); }
+        }
+
         recalcServices();
     }
 

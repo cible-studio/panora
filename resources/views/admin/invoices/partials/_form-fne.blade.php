@@ -476,7 +476,18 @@
 
             {{-- ═══ Bouton "Ajouter un service" — sous la liste (maquette 2026-08-03ter) ═══ --}}
             @unless($locked)
-                <div style="margin-top:14px">
+                <div style="margin-top:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    {{-- Prestations récurrentes, proposées en un clic (2026-11-16).
+                         Même liste que sur le devis : config/billing.php.
+                         Proposées, pas imposées — une facture sans pose ni
+                         impression ne doit pas les porter. --}}
+                    @foreach(config('billing.services_preselection', []) as $preset)
+                        <button type="button" class="fne-btn-add-svc"
+                                onclick="addService(@js($preset['label']), {{ ($preset['tva_applicable'] ?? true) ? 'true' : 'false' }})"
+                                title="Ajouter « {{ $preset['label'] }} » — le prix reste à saisir">
+                            ＋ {{ $preset['label'] }}
+                        </button>
+                    @endforeach
                     <button type="button" class="fne-btn-add-svc" onclick="addService()">
                         ＋ Ajouter un service
                     </button>
@@ -2121,15 +2132,42 @@
         const rows = document.querySelectorAll('#services-tbody .service-row');
         return rows.length;
     }
-    window.addService = function() {
+    // `libelle` et `tva` (2026-11-16) servent aux prestations proposées en
+    // un clic — FRAIS DE POSE, IMPRESSION — définies dans
+    // config/billing.php, partagées avec le formulaire de devis. Sans
+    // argument, le comportement d'origine ne change pas.
+    window.addService = function(libelle = '', tva = true) {
         const tbody = document.getElementById('services-tbody');
         const empty = document.getElementById('services-empty');
         const table = document.getElementById('services-table');
+
+        // Une prestation déjà présente n'est pas ajoutée une seconde fois :
+        // deux lignes « FRAIS DE POSE » seraient facturées deux fois au
+        // client. On emmène l'utilisateur sur la ligne existante.
+        if (libelle) {
+            const existante = Array.from(tbody.querySelectorAll('.service-row')).find(r => {
+                const champ = r.querySelector('.svc-label');
+                return champ && champ.value.trim().toLowerCase() === libelle.trim().toLowerCase();
+            });
+            if (existante) {
+                const prix = existante.querySelector('.svc-prix');
+                if (prix) { prix.focus(); prix.select(); }
+                existante.style.transition = 'background .25s';
+                existante.style.background = 'rgba(232,160,32,.18)';
+                setTimeout(() => { existante.style.background = ''; }, 900);
+                return;
+            }
+        }
+
         const idx = nextServiceIdx();
         const card = document.createElement('div');
         card.className = 'service-row svc-card';
         card.dataset.idx = idx;
-        card.dataset.tvaApplicable = '1';
+        card.dataset.tvaApplicable = tva ? '1' : '0';
+        const coche  = tva ? 'checked' : '';
+        const etat   = tva ? 'is-on'   : 'is-off';
+        const texte  = tva ? 'TVA'     : 'HT';
+        const valeur = libelle ? ` value="${libelle.replace(/"/g, '&quot;')}"` : '';
         // Le hidden "0" garantit que si l'utilisateur décoche la checkbox,
         // PHP reçoit bien "0" (services[idx][tva_applicable] = "0") plutôt
         // que rien du tout (qui serait interprété comme "défaut = true").
@@ -2138,7 +2176,7 @@
             <div class="svc-card-fields">
                 <div class="svc-card-field svc-card-field-label">
                     <label>Libellé</label>
-                    <input type="text" name="services[${idx}][label]" placeholder="Ex: Impression, photo…"
+                    <input type="text" name="services[${idx}][label]"${valeur} placeholder="Ex: Impression, photo…"
                            maxlength="200" required class="svc-label">
                 </div>
                 <div class="svc-card-field svc-card-field-prix">
@@ -2151,12 +2189,12 @@
                 </div>
                 <div class="svc-card-field svc-card-field-tva">
                     <label>TVA <span style="font-weight:400;color:var(--text3);font-size:9px">{{ rtrim(rtrim(number_format($invTva, 2, ',', ''), '0'), ',') }}%</span></label>
-                    <label class="svc-tva-toggle is-on">
+                    <label class="svc-tva-toggle ${etat}">
                         <input type="hidden" name="services[${idx}][tva_applicable]" value="0">
                         <input type="checkbox" name="services[${idx}][tva_applicable]" value="1"
-                               class="svc-tva-applicable" checked>
+                               class="svc-tva-applicable" ${coche}>
                         <span class="svc-tva-switch"></span>
-                        <span class="svc-tva-text">TVA</span>
+                        <span class="svc-tva-text">${texte}</span>
                     </label>
                 </div>
                 <div class="svc-card-field svc-card-field-ttc">
@@ -2171,7 +2209,14 @@
         tbody.appendChild(card);
         empty.style.display = 'none';
         table.style.display = 'block';
-        card.querySelector('.svc-label')?.focus();
+        // Prestation proposée : le libellé est déjà connu, c'est le prix
+        // qu'on attend. Sinon, on reste sur le libellé comme avant.
+        if (libelle) {
+            const prix = card.querySelector('.svc-prix');
+            if (prix) { prix.focus(); prix.select(); }
+        } else {
+            card.querySelector('.svc-label')?.focus();
+        }
         card.querySelector('.svc-prix')?.addEventListener('input', recompute);
         card.querySelector('.svc-tva-applicable')?.addEventListener('change', recompute);
         reindexServices();
