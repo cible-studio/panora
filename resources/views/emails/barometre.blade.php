@@ -23,7 +23,7 @@
     $salut    = \App\Support\Salutation::nom($client, $contact);
     // Toujours en français, quelle que soit la langue du serveur.
     $limite   = $echeance->copy()->locale('fr')->translatedFormat('j F Y');
-    $sig      = config('barometre.signature');
+    $sig      = $signature;
 @endphp
 <x-mail.layout
     :title="$relance ? 'Rappel | Votre avis compte pour ' . $regie : 'Votre avis compte pour ' . $regie"

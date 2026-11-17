@@ -26,6 +26,53 @@ final class Salutation
         return $societe !== '' ? "{$personne} ({$societe})" : $personne;
     }
 
+    /** Mots qui désignent un service, pas une personne (personneNommable). */
+    public const MOTS_DE_SERVICE = [
+        'contact', 'contacts', 'info', 'infos', 'information', 'informations', 'direction', 'directeur', 'directrice',
+        'comptabilite', 'compta', 'accueil', 'admin', 'administration', 'administratif', 'commercial', 'commerciale',
+        'commerciaux', 'marketing', 'communication', 'comm', 'service', 'services', 'secretariat', 'rh', 'support',
+        'hello', 'team', 'equipe', 'sales', 'finance', 'finances', 'achat', 'achats', 'dg', 'general', 'generale',
+        'siege', 'bureau', 'office', 'mail', 'email', 'courrier', 'reception', 'factures', 'facturation',
+        'de', 'du', 'des', 'la', 'le', 'les', 'l', 'et', 'd',
+    ];
+
+    /**
+     * Le nom d'un interlocuteur est-il celui d'une personne ? (2026-11-17,
+     * baromètre — « oui, préférable » de l'utilisateur). null quand ce n'en
+     * est pas un, et le mail salue alors l'entreprise seule :
+     *   · vide, ou une adresse e-mail ;
+     *   · tout en minuscules ET identique au début de son adresse
+     *     (« audreyasseke », « esta.fatokun ») — « Koffi » pour
+     *     koffi@… reste un prénom ;
+     *   · contient le nom de l'entreprise (« Ledcom Côte d'Ivoire »,
+     *     « Prodigecom » pour PRODIGE COM) ;
+     *   · que des mots de service et le nom de l'entreprise (« contact »,
+     *     « Comptabilité RCG », « Direction LIGHT MEDIA »).
+     */
+    public static function personneNommable(?string $personne, ?string $email = null, ?string $societe = null): ?string
+    {
+        $personne = trim((string) $personne);
+        if ($personne === '' || str_contains($personne, '@')) {
+            return null;
+        }
+
+        $lettres = fn (?string $t) => (string) preg_replace('/[^a-z0-9]/', '', mb_strtolower(\Illuminate\Support\Str::ascii((string) $t)));
+        $mots    = fn (?string $t) => preg_split('/[^a-z0-9]+/', mb_strtolower(\Illuminate\Support\Str::ascii((string) $t)), -1, PREG_SPLIT_NO_EMPTY);
+
+        $nom = $lettres($personne);
+        $debutAdresse = $lettres(strstr((string) $email, '@', true) ?: '');
+        $soc = $lettres($societe);
+
+        if ($nom === ''
+            || ($debutAdresse !== '' && $nom === $debutAdresse && mb_strtolower($personne) === $personne)
+            || (strlen($soc) >= 3 && str_contains($nom, $soc))
+            || array_diff($mots($personne), self::MOTS_DE_SERVICE, $mots($societe)) === []) {
+            return null;
+        }
+
+        return $personne;
+    }
+
     /**
      * Mail de suivi d'un dossier : adressé à son interlocuteur s'il est
      * retenu (même règle que Client::destinatairesSuivi), sinon au client.

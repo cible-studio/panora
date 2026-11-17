@@ -2842,55 +2842,68 @@ défaut ; nombre affiché = nombre envoyé (sinon refus) ; jamais deux
 invitations à une même entreprise ni à une même adresse ; formulaire
 Google fermé tout seul à la date limite.
 
-### Réglages (Coolify, prod seulement pour le mode)
+### Réglages
+
+**Sur le serveur (Coolify)**, trois seulement :
 
 ```
-BAROMETRE_MODE=test                 # production le jour de l'envoi
-BAROMETRE_DATE_LIMITE=2026-11-30
-BAROMETRE_FORMULAIRE=https://docs.google.com/forms/d/e/1FAIpQLSdUAw1G4RLx87xDdCjyjBA3jZtWQ1U-3aIldaRX62siEqRXjQ/viewform?usp=pp_url
-BAROMETRE_CHAMP_STRUCTURE=entry.288269504
+BAROMETRE_MODE=test                 # production le jour de l'envoi (prod seulement)
 BAROMETRE_JETON_GOOGLE=<php -r "echo bin2hex(random_bytes(32));">
-BAROMETRE_ACCES=<adresse du compte Panora de Josias>
-BAROMETRE_SIGNATURE_NOM=Josiane SAY            # nom à confirmer
-BAROMETRE_SIGNATURE_FONCTION=Commerciale 360° & Customer Experience Officer
-BAROMETRE_SIGNATURE_SOCIETE=CIBLE CI
+BAROMETRE_ACCES=<adresse du compte Panora de Josiane>
 ```
+
+**À l'écran** (⚙ Réglages, refonte du 17/11 après le premier essai) :
+le lien prérempli du questionnaire, la date limite, la signature et
+l'adresse qui reçoit les réponses. Lien prérempli : Google Forms → ⋮ →
+« Obtenir le lien prérempli », taper un nom dans « Votre structure »,
+« Obtenir le lien », le coller. Panora n'accepte qu'un lien
+docs.google.com/forms. Valeurs décidées le 17/11 : signature
+**Josiane SAY**, Commerciale 360° & Customer Experience Officer, CIBLE CI ;
+réponses à l'adresse de Josiane ; le mail part de l'adresse Brevo
+(commercial@) sous le nom « Josiane SAY – CIBLE CI ».
 
 ### À faire, dans l'ordre
 
-- [ ] Mise en ligne (la migration `barometre_*` part au démarrage du conteneur)
-- [ ] Réglages ci-dessus sur **dev**, `BAROMETRE_MODE=test`
-- [ ] Dev : l'écran s'ouvre pour un admin et pour Josias, pas pour un autre commercial
+- [ ] Mise en ligne (les migrations `barometre_*` partent au démarrage du conteneur)
+- [ ] Dev : `BAROMETRE_ACCES` = adresse de Josiane ; l'écran s'ouvre pour
+      un admin et pour Josiane, pas pour un autre commercial
+- [ ] Dev : ⚙ Réglages → coller le lien prérempli, signature, adresse de
+      réponse → la case « Questionnaire » passe au vert
 - [ ] Dev : « Envoyer un test » (ADDOHA) → mail reçu, objet et texte de la
-      direction, bouton → questionnaire au nom « TEST — ADDOHA ».
+      direction, signé Josiane, « Répondre » vise l'adresse de Josiane,
+      bouton → questionnaire au nom « TEST — ADDOHA ».
       **Ne pas valider le questionnaire** depuis un test (sinon : réponse
       de test, non comptée, mais visible dans la feuille Google)
+- [ ] Prod : mêmes réglages à l'écran (l'écran de dev ne règle pas la prod)
 - [ ] Prod : exclusions (les 9 régies, G2I et les 4 nouveaux clients) :
       ```
-      php artisan barometre:exclure "UNFOLD" "CORAL MEDIA AFRICA" "JCDECAUX" "JOSHO GROUP" "LEDCOM" "LIGHT MEDIA" "PUB RÉGIE" "RÉGIE MEDIA CENTER" "SN PUBLISTAR" --motif="Régie"
+      php artisan barometre:exclure "UNFOLD" "CORAL MEDIA AFRICA" "JCDECAUX" "JOSHO GROUP" "LEDCOM" "LIGHT MEDIA" "PUB RÉGIE" "RÉGIE MEDIA CENTER" "SN PUBLISTAR" --motif="Régie concurrente"
       php artisan barometre:exclure "G2I" "BLUE LIONS" "PRODIGE COM" "SDTM" "HAVAS AFRICA" --motif="Nouveau client"
       ```
       Lire la sortie : un nom « introuvable » ou « ambigu » se retire à
-      l'écran (bouton « Retirer »).
-- [ ] Prod : lire la liste « À envoyer » (≈ 130 attendus) et l'onglet
-      « Sans destinataire »
+      l'écran (« Retirer » au bout de la ligne).
+- [ ] Prod : carte « À envoyer » (≈ 126 attendus après exclusions) et
+      carte « Sans destinataire »
 - [ ] Google : coller `docs/outils/barometre-panora.gs` dans le projet
       Apps Script du questionnaire, propriétés `PANORA_URL` et
-      `PANORA_JETON`, puis `bpInstaller` (le journal donne la date limite)
-- [ ] Google : changer « Durée estimée : 7 à 9 minutes » du formulaire si
-      le mail annonce 5 minutes
-- [ ] Jour J : `BAROMETRE_MODE=production`, puis « Envoyer à N client(s) »
-- [ ] 1 h après : statuts « Invité », Brevo → Transactionnel → tag
+      `PANORA_JETON`, puis `bpInstaller` : le journal donne la date limite,
+      et la description du formulaire passe à « Durée estimée : 5 minutes. »
+      (alignée sur le mail, décision du 17/11). La case « Réponses Google »
+      de l'écran passe au vert à la première réponse.
+- [ ] Jour J : `BAROMETRE_MODE=production`, puis « Envoyer à N clients »
+- [ ] 1 h après : carte « Invités », Brevo → Transactionnel → tag
       `barometre-2026`, aucune ligne « Échec »
-- [ ] Une réponse réelle arrive → le client passe en « A répondu »
+- [ ] Une réponse réelle arrive → le client passe dans « Ont répondu »
 - [ ] 23/11 : « Relancer » (seuls les invités sans réponse)
 - [ ] 1/12 : un lien ouvert affiche « questionnaire clos », le formulaire
       Google est fermé
-
 ### Limites à connaître
 
 - « A ouvert le lien » : certaines messageries d'entreprise testent les
   liens avant le client. Indicatif seulement ; la relance se fonde sur
   « A répondu », pas sur « ouvert ».
 - Le client est reconnu à son nom (pré-rempli). S'il le modifie, sa
-  réponse arrive dans « Réponses non reconnues » : la rattacher à la main.
+  réponse arrive dans « Réponses à rattacher » : la rattacher à la main.
+- Salutation : un nom d'interlocuteur qui n'est pas une personne
+  (« contact », « audreyasseke », « Comptabilité RCG ») n'est pas salué :
+  « Bonjour MANOOVA, » (Salutation::personneNommable, décision du 17/11).

@@ -100,4 +100,27 @@ class BarometreDestinataireTest extends TestCase
 
         $this->assertSame('aucun', $this->client([])->destinataireBarometre()['source']);
     }
+
+    public function test_un_nom_d_interlocuteur_qui_n_est_pas_une_personne(): void
+    {
+        $n = fn (?string $nom, ?string $email = null, ?string $societe = null) => \App\Support\Salutation::personneNommable($nom, $email, $societe);
+
+        // Pas des personnes : l'entreprise est saluée seule.
+        $this->assertNull($n('contact', 'contact@manoova.io', 'MANOOVA'));
+        $this->assertNull($n('audreyasseke', 'audreyasseke@assekeoro.com', 'ASSEKE ORO'));
+        $this->assertNull($n('esta.fatokun', 'esta.fatokun@lecabinetwm.com', 'LE CABINET WM'));
+        $this->assertNull($n('Comptabilité RCG', 'comptabilite@agencercg.com', 'RCG'));
+        $this->assertNull($n('Direction LIGHT MEDIA', 'direction@lightmedia.ci', 'LIGHT MEDIA'));
+        $this->assertNull($n("Ledcom Côte d'Ivoire", 'infos@ledcom.ci', 'LEDCOM'));
+        $this->assertNull($n('Prodigecom', 'infos@prodigecom.com', 'PRODIGE COM'));
+        $this->assertNull($n('jean@addoha.ci'));
+        $this->assertNull($n('  '));
+
+        // Des personnes : gardées telles quelles.
+        $this->assertSame('Koffi Franck-Innocent KOUADJO', $n('Koffi Franck-Innocent KOUADJO', 'k.kouadjo@addohaafrique.com', 'ADDOHA'));
+        $this->assertSame('Koffi', $n('Koffi', 'koffi@addoha.ci', 'ADDOHA'), 'un prénom avec majuscule reste un prénom');
+        $this->assertSame('Lynda KONAN', $n('Lynda KONAN', 'l.konan@ah-africa.com', 'AH'), 'société de 2 lettres ignorée');
+        $this->assertSame('Camille Marie-Yolande KAPO [Assistante Commerciale]',
+            $n('Camille Marie-Yolande KAPO [Assistante Commerciale]', 'camille.kapo@aos.africa', 'AOS AFRICA'));
+    }
 }

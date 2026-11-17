@@ -714,7 +714,7 @@ Route::prefix('admin')
                 Route::post('/tester', 'tester')->middleware('throttle:10,1')->name('tester');
                 Route::post('/envoyer', 'envoyer')->middleware('throttle:6,1')->name('envoyer');
                 Route::post('/relancer', 'relancer')->middleware('throttle:6,1')->name('relancer');
-                Route::post('/date-limite', 'dateLimite')->name('date-limite');
+                Route::post('/reglages', 'reglages')->name('reglages');
                 Route::post('/clients/{client}/exclure', 'exclure')->name('exclure');
                 Route::post('/clients/{client}/reintegrer', 'reintegrer')->name('reintegrer');
                 Route::post('/reponses/{reponse}/rattacher', 'rattacher')->name('rattacher');

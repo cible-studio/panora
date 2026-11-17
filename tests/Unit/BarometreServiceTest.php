@@ -69,6 +69,7 @@ class BarometreServiceTest extends TestCase
             $t->text('erreur')->nullable(); $t->unsignedBigInteger('user_id')->nullable(); $t->timestamps();
         });
         (require base_path('database/migrations/2026_11_17_100000_create_barometre_tables.php'))->up();
+        (require base_path('database/migrations/2026_11_17_160000_add_reglages_to_barometre_editions.php'))->up();
 
         config([
             'barometre.edition'         => '2026',
@@ -380,12 +381,12 @@ class BarometreServiceTest extends TestCase
             ->assertOk()->assertJson(['edition' => '2026', 'date_limite' => '2026-11-30', 'clos' => false]);
     }
 
-    public function test_l_ecran_s_affiche_avec_les_bons_chiffres(): void
+    private function ecran(array $params = []): string|array
     {
         // Habillage de l'admin remplacé par le strict nécessaire (menu, compteurs…).
         $dossier = sys_get_temp_dir() . '/barometre-vues-' . getmypid();
         @mkdir($dossier . '/components', 0777, true);
-        file_put_contents($dossier . '/components/admin-layout.blade.php', '<main>{{ $slot }}</main>@stack(\'scripts\')');
+        file_put_contents($dossier . '/components/admin-layout.blade.php', "<main>{{ \$topbarActions ?? '' }}{{ \$slot }}</main>@stack('scripts')");
         app('view')->getFinder()->prependLocation($dossier);
         view()->share('errors', new \Illuminate\Support\ViewErrorBag());
 
@@ -395,22 +396,117 @@ class BarometreServiceTest extends TestCase
         $admin->email = 'chef@regie.test';
         $this->actingAs($admin);
 
-        $this->service()->enregistrerReponse('ref-x', 'Nom inconnu SARL');
-        $ctrl = app(\App\Http\Controllers\Admin\BarometreController::class);
-        $html = $ctrl->index(\Illuminate\Http\Request::create('/admin/barometre'))->render();
+        $reponse = app(\App\Http\Controllers\Admin\BarometreController::class)
+            ->index(\Illuminate\Http\Request::create('/admin/barometre', 'GET', $params));
 
-        $this->assertStringContainsString('Envoyer à 3 client(s)', $html);
-        $this->assertStringContainsString('Production', $html, 'mode affiché');
-        $this->assertStringContainsString('Réponses non reconnues (1)', $html);
+        return $reponse instanceof \Illuminate\Http\JsonResponse ? $reponse->getData(true) : $reponse->render();
+    }
+
+    public function test_l_ecran_cartes_qui_filtrent_et_actions_en_fenetres(): void
+    {
+        $this->service()->enregistrerReponse('ref-x', 'Nom inconnu SARL');
+        $html = $this->ecran();
+
+        $this->assertStringContainsString('Envoyer à 3 clients', $html, 'bouton principal de la barre du haut');
+        $this->assertStringContainsString('data-filtre="a_envoyer"', $html, 'les cartes filtrent');
+        $this->assertMatchesRegularExpression('/data-filtre="sans_destinataire".*?kpi-card__value[^>]*>2</s', $html, 'BANK + GUYS MEDIA');
+        $this->assertStringContainsString('Réponses à rattacher', $html);
         $this->assertStringContainsString('Nom inconnu SARL', $html);
         $this->assertStringContainsString('Même adresse que AXA', $html);
         $this->assertStringContainsString('30 novembre 2026', $html);
+        $this->assertStringContainsString('id="bm-modal-test"', $html);
+        $this->assertStringContainsString('Envoyer à chef@regie.test', $html, 'le test part à la personne connectée');
 
-        $exclus = $ctrl->index(\Illuminate\Http\Request::create('/admin/barometre', 'GET', ['filtre' => 'exclus']))->render();
-        $this->assertStringContainsString('JCDECAUX', $exclus);
-        $this->assertStringContainsString('Remettre', $exclus);
-        $this->assertStringNotContainsString('ADDOHA</strong></a>', $exclus, 'filtre appliqué');
+        // Réglage manquant : la fenêtre de test le dit, au lieu d'un bouton grisé muet.
+        config(['barometre.formulaire' => null]);
+        $html = $this->ecran();
+        $this->assertStringContainsString('est pas relié : collez son lien prérempli', $html);
+    }
 
-        array_map('unlink', glob($dossier . '/components/*'));
+    public function test_la_liste_se_recharge_sans_quitter_la_page(): void
+    {
+        $d = $this->ecran(['ajax' => 1, 'filtre' => 'exclus']);
+        $this->assertSame(1, $d['total']);
+        $this->assertStringContainsString('JCDECAUX', $d['lignes']);
+        $this->assertStringContainsString('Remettre', $d['lignes']);
+        $this->assertStringNotContainsString('ADDOHA', $d['lignes']);
+
+        $d = $this->ecran(['ajax' => 1, 'q' => 'kouadjo']);
+        $this->assertSame(1, $d['total'], 'recherche sur l\'interlocuteur');
+        $this->assertStringContainsString('ADDOHA', $d['lignes']);
+        $this->assertSame('', $d['pagination'], 'une seule page');
+
+        $d = $this->ecran(['ajax' => 1, 'q' => 'Societe gen']);
+        $this->assertStringContainsString('Société Générale', $d['lignes'], 'accents et majuscules ignorés');
+    }
+
+    public function test_le_lien_prerempli_colle_a_l_ecran_relie_le_questionnaire(): void
+    {
+        [$base, $champ] = BarometreService::lirePrerempli('https://docs.google.com/forms/d/e/XYZ/viewform?usp=pp_url&entry.288269504=ADDOHA');
+        $this->assertSame('https://docs.google.com/forms/d/e/XYZ/viewform?usp=pp_url', $base);
+        $this->assertSame('entry.288269504', $champ);
+
+        foreach ([
+            'https://evil.example/forms/d/e/XYZ/viewform?entry.1=A'                => 'Google Forms',
+            'https://docs.google.com/forms/d/e/XYZ/viewform'                       => 'pas prérempli',
+            'https://docs.google.com/forms/d/e/XYZ/viewform?entry.1=A&entry.2=B'   => 'plusieurs questions',
+        ] as $lien => $attendu) {
+            try {
+                BarometreService::lirePrerempli($lien);
+                $this->fail("refusé : {$lien}");
+            } catch (\DomainException $e) {
+                $this->assertStringContainsString($attendu, $e->getMessage());
+            }
+        }
+
+        config(['barometre.formulaire' => null, 'barometre.champ_structure' => null]);
+        $this->assertNotNull($this->service()->reglageManquant());
+        $this->service()->enregistrerReglages(['lien' => 'https://docs.google.com/forms/d/e/XYZ/viewform?usp=pp_url&entry.5=TEST']);
+        $s = $this->service();
+        $this->assertNull($s->reglageManquant());
+        $this->assertSame('https://docs.google.com/forms/d/e/XYZ/viewform?usp=pp_url&entry.5=ADDOHA', $s->lienFormulaire('ADDOHA'));
+    }
+
+    public function test_jamais_de_redirection_hors_de_google_forms(): void
+    {
+        $this->service()->demanderInvitations(3);
+        $this->service()->traiterDemandes();
+        $lien = PublicLink::find(BarometreEnvoi::where('client_id', 1)->value('public_link_id'));
+
+        config(['barometre.formulaire' => 'https://evil.example/forms/x?usp=pp_url']);
+        $this->assertNull($this->service()->ouvrir($lien));
+    }
+
+    public function test_josiane_signe_et_recoit_les_reponses(): void
+    {
+        $this->service()->enregistrerReglages([
+            'signature_nom' => 'Josiane SAY', 'signature_fonction' => 'Commerciale 360° & Customer Experience Officer',
+            'signature_societe' => 'CIBLE CI', 'repondre_a' => 'josiane@regie.test',
+        ]);
+        $s = $this->service();
+        $this->assertSame('Josiane SAY – CIBLE CI', $s->expediteur());
+
+        $s->demanderInvitations(3);
+        $s->traiterDemandes();
+        $p = $this->brevo->envoyes[0];
+        $this->assertSame(['email' => 'commercial@regie.test', 'name' => 'Josiane SAY – CIBLE CI'], $p['sender'],
+            'l\'adresse reste celle validée chez Brevo');
+        $this->assertSame(['email' => 'josiane@regie.test'], $p['replyTo']);
+        $this->assertStringContainsString('Customer Experience Officer', $p['htmlContent']);
+
+        $this->expectException(\DomainException::class);
+        $s->enregistrerReglages(['repondre_a' => 'pas une adresse']);
+    }
+
+    public function test_un_nom_qui_n_est_pas_une_personne_salue_l_entreprise(): void
+    {
+        DB::table('client_contacts')->where('client_id', 1)->update(['name' => 'contact', 'email' => 'contact@addoha.ci']);
+        $this->service()->demanderInvitations(3);
+        $this->service()->traiterDemandes();
+
+        $p = collect($this->brevo->envoyes)->first(fn ($p) => $p['to'][0]['email'] === 'contact@addoha.ci');
+        $this->assertStringContainsString('Bonjour ADDOHA,', $p['htmlContent']);
+        $this->assertStringNotContainsString('Bonjour contact', $p['htmlContent']);
+        $this->assertSame([['email' => 'contact@addoha.ci']], $p['to'], 'pas de faux nom dans « À »');
     }
 }

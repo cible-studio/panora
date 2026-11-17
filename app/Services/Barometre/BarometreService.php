@@ -93,17 +93,129 @@ class BarometreService
     /** Réglage qui empêche tout envoi, même de test ; null si tout est prêt. */
     public function reglageManquant(): ?string
     {
-        if (!config('barometre.formulaire') || !config('barometre.champ_structure')) {
-            return 'Le lien du questionnaire n\'est pas réglé (BAROMETRE_FORMULAIRE et BAROMETRE_CHAMP_STRUCTURE).';
+        if (!$this->formulaire() || !$this->champStructure()) {
+            return 'Le questionnaire n\'est pas relié : collez son lien prérempli dans ⚙ Réglages.';
         }
-        if (!str_starts_with((string) config('barometre.formulaire'), 'https://')) {
-            return 'Le lien du questionnaire doit commencer par https:// (BAROMETRE_FORMULAIRE).';
+        if (!self::lienGoogleForms($this->formulaire())) {
+            return 'Le lien du questionnaire doit être un lien Google Forms (https://docs.google.com/forms/…).';
         }
         if (!$this->brevo->estConfigure()) {
-            return 'Brevo n\'est pas configuré (BREVO_API_KEY, BREVO_SENDER_EMAIL).';
+            return 'Brevo n\'est pas configuré sur le serveur (BREVO_API_KEY, BREVO_SENDER_EMAIL).';
         }
 
         return null;
+    }
+
+    // Réglages de l'édition (écran ⚙ Réglages), sinon ceux du .env.
+
+    public function formulaire(): ?string
+    {
+        return $this->edition()->formulaire ?: (config('barometre.formulaire') ?: null);
+    }
+
+    public function champStructure(): ?string
+    {
+        return $this->edition()->champ_structure ?: (config('barometre.champ_structure') ?: null);
+    }
+
+    /** @return array{nom: ?string, fonction: ?string, societe: ?string} */
+    public function signature(): array
+    {
+        $e = $this->edition();
+        $c = (array) config('barometre.signature');
+
+        return [
+            'nom'      => $e->signature_nom ?: ($c['nom'] ?? null),
+            'fonction' => $e->signature_fonction ?: ($c['fonction'] ?? null),
+            'societe'  => $e->signature_societe ?: ($c['societe'] ?? null),
+        ];
+    }
+
+    /** Adresse qui reçoit les réponses des clients ; null = l'expéditeur Brevo. */
+    public function repondreA(): ?string
+    {
+        return $this->edition()->repondre_a ?: (config('barometre.repondre_a') ?: null);
+    }
+
+    /** Nom affiché de l'expéditeur : la personne qui signe, sinon l'équipe. */
+    public function expediteur(): string
+    {
+        if ($nom = config('barometre.expediteur')) {
+            return (string) $nom;
+        }
+        $s = $this->signature();
+
+        return $s['nom']
+            ? $s['nom'] . ' – ' . ($s['societe'] ?: config('charte.nom'))
+            : 'L\'équipe commerciale ' . config('charte.nom');
+    }
+
+    /**
+     * ⚙ Réglages. Le lien du questionnaire est le LIEN PRÉREMPLI de Google
+     * (⋮ → « Obtenir le lien prérempli », un nom tapé dans « Votre
+     * structure ») : Panora en tire l'adresse et le champ du nom.
+     *
+     * @param array{lien?: ?string, signature_nom?: ?string, signature_fonction?: ?string,
+     *              signature_societe?: ?string, repondre_a?: ?string} $r
+     */
+    public function enregistrerReglages(array $r): void
+    {
+        $valeurs = [];
+        if (array_key_exists('lien', $r)) {
+            $lien = trim((string) $r['lien']);
+            [$valeurs['formulaire'], $valeurs['champ_structure']] = $lien === '' ? [null, null] : self::lirePrerempli($lien);
+        }
+        foreach (['signature_nom', 'signature_fonction', 'signature_societe', 'repondre_a'] as $champ) {
+            if (array_key_exists($champ, $r)) {
+                $valeurs[$champ] = trim((string) $r[$champ]) !== '' ? trim((string) $r[$champ]) : null;
+            }
+        }
+        if (isset($valeurs['repondre_a']) && !filter_var($valeurs['repondre_a'], FILTER_VALIDATE_EMAIL)) {
+            throw new \DomainException('L\'adresse de réponse n\'est pas une adresse e-mail valide.');
+        }
+
+        $this->edition()->update($valeurs);
+        $this->edition = null;
+    }
+
+    /**
+     * Lien prérempli → [adresse sans le nom, champ du nom].
+     * « …/viewform?usp=pp_url&entry.288269504=ADDOHA » → [« …/viewform?usp=pp_url », « entry.288269504 »].
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function lirePrerempli(string $lien): array
+    {
+        if (!self::lienGoogleForms($lien)) {
+            throw new \DomainException('Collez un lien Google Forms (il commence par https://docs.google.com/forms/).');
+        }
+        $morceaux = parse_url($lien);
+        // Pas de parse_str : il change « entry.123 » en « entry_123 ».
+        $champs = [];
+        $garde  = [];
+        foreach (array_filter(explode('&', $morceaux['query'] ?? '')) as $paire) {
+            $cle = urldecode(strtok($paire, '='));
+            preg_match('/^entry\.\d+$/', $cle) ? $champs[] = $cle : $garde[] = $paire;
+        }
+        if (count($champs) !== 1) {
+            throw new \DomainException($champs === []
+                ? 'Ce lien n\'est pas prérempli : dans Google Forms, ⋮ → « Obtenir le lien prérempli », tapez un nom dans « Votre structure », puis « Obtenir le lien ».'
+                : 'Ce lien préremplit plusieurs questions : ne remplissez que « Votre structure ».');
+        }
+
+        $base = 'https://' . $morceaux['host'] . $morceaux['path'] . ($garde ? '?' . implode('&', $garde) : '');
+
+        return [$base, $champs[0]];
+    }
+
+    /** Seule destination autorisée pour la redirection du lien personnel. */
+    public static function lienGoogleForms(?string $lien): bool
+    {
+        $m = parse_url((string) $lien);
+
+        return ($m['scheme'] ?? null) === 'https'
+            && ($m['host'] ?? null) === 'docs.google.com'
+            && str_starts_with($m['path'] ?? '', '/forms/');
     }
 
     /**
@@ -481,11 +593,18 @@ class BarometreService
         JournalMails::brevo($mail->tagBrevo() . '-test', $mail->sujet(), $adresse, [], null, null, null, $client);
     }
 
+    /**
+     * Le mail d'un client. Un « nom » d'interlocuteur qui n'en est pas un
+     * (« contact », « audreyasseke », « Comptabilité RCG ») n'est pas salué :
+     * « Bonjour MANOOVA, » plutôt que « Bonjour contact (MANOOVA), »
+     * (décision du 17/11, Salutation::personneNommable).
+     */
     public function mail(Client $client, ?string $contact, string $lien, bool $relance, ?string $email, ?string $noteTest = null): BarometreMail
     {
         return new BarometreMail(
-            $client, $contact, $lien, $this->edition()->date_limite, $relance,
-            $email ? DiffusionDesinscription::lien($email) : null, $noteTest,
+            $client, \App\Support\Salutation::personneNommable($contact, $email, $client->name), $lien,
+            $this->edition()->date_limite, $relance,
+            $email ? DiffusionDesinscription::lien($email) : null, $noteTest, $this->signature(),
         );
     }
 
@@ -495,7 +614,7 @@ class BarometreService
         $payload = [
             'sender'      => array_filter([
                 'email' => config('brevo.sender.email'),
-                'name'  => config('barometre.expediteur') ?: 'L\'équipe commerciale ' . config('charte.nom'),
+                'name'  => $this->expediteur(),
             ]),
             'to'          => [array_filter(['email' => $to, 'name' => $mail->contact])],
             'subject'     => $mail->sujet(),
@@ -503,6 +622,9 @@ class BarometreService
             'textContent' => $mail->texte(),
             'tags'        => [$mail->tagBrevo()],
         ];
+        if ($repondreA = $this->repondreA()) {
+            $payload['replyTo'] = ['email' => $repondreA];
+        }
         if ($entetes = MailClientCampagne::entetesDesinscription($mail->lienDesinscription)) {
             $payload['headers'] = $entetes;
         }
@@ -540,6 +662,10 @@ class BarometreService
      */
     public function ouvrir(PublicLink $lien): ?string
     {
+        // Jamais de redirection ailleurs que sur Google Forms.
+        if (!self::lienGoogleForms($this->formulaire()) || !$this->champStructure()) {
+            return null;
+        }
         $cible = $lien->target;
 
         if ($cible instanceof BarometreEnvoi && !($lien->metadata['test'] ?? false)) {
@@ -560,10 +686,10 @@ class BarometreService
 
     public function lienFormulaire(string $structure): string
     {
-        $base = (string) config('barometre.formulaire');
+        $base = (string) $this->formulaire();
 
         return $base . (str_contains($base, '?') ? '&' : '?')
-            . config('barometre.champ_structure') . '=' . rawurlencode($structure);
+            . $this->champStructure() . '=' . rawurlencode($structure);
     }
 
     // ══════════════════════════════════════════════════════════════

@@ -15,8 +15,9 @@ use Illuminate\Support\Carbon;
  *   POST /api/barometre/reponse : une réponse vient d'arriver (nom de la
  *        structure, heure, référence). Panora ne reçoit RIEN d'autre : les
  *        réponses restent dans la feuille Google.
- *   GET  /api/barometre/etat    : date limite et clôture — le script ferme
- *        le formulaire tout seul quand elle est passée.
+ *   GET  /api/barometre/etat    : date limite, clôture et durée annoncée — le
+ *        script ferme le formulaire tout seul quand elle est passée, et
+ *        aligne la « Durée estimée » du formulaire sur celle du mail.
  *
  * Sécurité : jeton secret dans l'en-tête Authorization (BAROMETRE_JETON_GOOGLE),
  * jamais dans l'adresse ; absent ou faux → 404, pour ne pas révéler la
@@ -58,6 +59,9 @@ class BarometreGoogleController extends Controller
             'date_limite' => $edition->date_limite->toDateString(),
             'fin'         => $edition->finDuDelai()->toIso8601String(),
             'clos'        => $edition->estClose(),
+            // Le script recopie la durée dans la description du formulaire :
+            // le mail et le questionnaire annoncent la même (décision du 17/11).
+            'duree'       => (string) config('barometre.duree'),
         ]);
     }
 
