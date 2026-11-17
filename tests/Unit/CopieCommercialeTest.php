@@ -57,6 +57,10 @@ class CopieCommercialeTest extends TestCase
         // Suivi d'exécution
         'PigeValidatedMail', 'CampaignDecappedMail', 'CampaignEndedMail',
         'ClientPanelMaintenanceMail', 'SatisfactionSurveyMail', 'MaintenanceMail',
+        // Enquêtes — le baromètre n'est pas un mail commercial, son propre
+        // docblock le dit : « pas de copie à l'équipe ». Classé ici le
+        // 2026-11-17, le mailable étant arrivé sans l'être.
+        'BarometreMail',
         // Techniques
         'ClientAccountMail', 'ClientUserInvitationMail', 'ClientContactReplyMail',
     ];
