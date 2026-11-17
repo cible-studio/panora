@@ -44,7 +44,7 @@ class ClasserPanneauxParSurface extends Command
                             {--surface=6 : Surface en m² (largeur × hauteur)}
                             {--categorie=Petit format : Nom exact de la catégorie cible}
                             {--tolerance=0.05 : Écart toléré sur la surface, en m²}
-                            {--inclure-lumipub : Reclasser aussi les Lumipub, axes et pieds (déconseillé)}
+                            {--forcer : Reclasser aussi les catégories sensibles — Lumipub, Chevalet, Murale, axes et pieds (déconseillé)}
                             {--appliquer : Écrire les changements (sinon simulation)}';
 
     protected $description = "Classe les panneaux d'une surface donnée dans une catégorie (simulation par défaut)";
@@ -54,7 +54,7 @@ class ClasserPanneauxParSurface extends Command
         $surface   = (float) $this->option('surface');
         $nomCat    = trim((string) $this->option('categorie'));
         $tolerance = max(0.0, (float) $this->option('tolerance'));
-        $avecRisque = (bool) $this->option('inclure-lumipub');
+        $avecRisque = (bool) $this->option('forcer');
         $appliquer  = (bool) $this->option('appliquer');
 
         if ($surface <= 0) {
@@ -179,7 +179,7 @@ class ClasserPanneauxParSurface extends Command
                     $motif
                 ));
             }
-            $this->line('  → --inclure-lumipub pour les traiter quand même.');
+            $this->line('  → --forcer pour les traiter quand même.');
             $this->line('');
         }
 
@@ -238,6 +238,19 @@ class ClasserPanneauxParSurface extends Command
     }
 
     /**
+     * Catégories dont le NOM pilote une règle ailleurs dans Panora.
+     * Les sortir de leur catégorie change silencieusement un calcul ou
+     * un rapport — c'est pour ça qu'on les écarte par défaut.
+     *
+     * nom (en minuscules) => ce qui casserait
+     */
+    private const CATEGORIES_SENSIBLES = [
+        'lumipub' => "le nom déclenche la synchro des faces → calcul ODP/TM (PanelController)",
+        'chevalet'=> "exclu de la classification par occupation (règle validée 09/2026)",
+        'murale'  => "exclue de la classification par occupation (règle validée 09/2026)",
+    ];
+
+    /**
      * Pourquoi ce panneau ne doit pas changer de catégorie à la légère.
      * null = aucun risque connu.
      */
@@ -249,8 +262,12 @@ class ClasserPanneauxParSurface extends Command
         if ($panneau->axe_id) {
             return "pied d'axe — faces_par_pied alimente le calcul ODP/TM";
         }
-        if (Str::contains(Str::lower((string) $panneau->category?->name), 'lumipub')) {
-            return "Lumipub — le nom de catégorie déclenche la synchro des faces (taxes)";
+
+        $nom = Str::lower((string) $panneau->category?->name);
+        foreach (self::CATEGORIES_SENSIBLES as $cle => $consequence) {
+            if (Str::contains($nom, $cle)) {
+                return ucfirst($cle) . ' — ' . $consequence;
+            }
         }
 
         return null;

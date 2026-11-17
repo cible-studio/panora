@@ -109,19 +109,52 @@ class ClasserPanneauxParSurfaceTest extends TestCase
             'La commande doit savoir dire pourquoi elle écarte un panneau.'
         );
 
-        foreach (['est_axe', 'axe_id', "'lumipub'"] as $cas) {
+        $this->assertStringContainsString('est_axe', $src, "Un axe doit être écarté.");
+        $this->assertStringContainsString('axe_id', $src, "Un pied d'axe doit être écarté.");
+
+        // Les trois catégories dont le NOM pilote une règle ailleurs :
+        //   · Lumipub  → synchro des faces, donc calcul ODP/TM ;
+        //   · Chevalet et Murale → exclues de la classification par
+        //     occupation (règle validée par l'utilisateur en 09/2026).
+        // Les reclasser les ferait rentrer en douce dans un calcul ou un
+        // rapport dont on les avait sorties exprès.
+        foreach (['lumipub', 'chevalet', 'murale'] as $cat) {
             $this->assertStringContainsString(
-                $cas,
+                "'{$cat}'",
                 $src,
-                "Le cas {$cas} doit être écarté : sa catégorie pilote un calcul."
+                "La catégorie « {$cat} » pilote une règle par son nom : "
+                . 'elle doit être écartée par défaut.'
             );
         }
 
         $this->assertStringContainsString(
-            '--inclure-lumipub',
+            '--forcer',
             $src,
             'Il faut une option explicite pour passer outre.'
         );
+    }
+
+    /**
+     * Chaque mise à l'écart doit dire CE QUI casserait — sinon personne
+     * ne peut décider de forcer en connaissance de cause.
+     */
+    public function test_chaque_mise_a_l_ecart_explique_sa_consequence(): void
+    {
+        $src = $this->commande();
+
+        $this->assertStringContainsString(
+            'CATEGORIES_SENSIBLES',
+            $src,
+            'Les catégories sensibles doivent être listées à un seul endroit.'
+        );
+
+        foreach (['calcul ODP/TM', 'classification par occupation'] as $consequence) {
+            $this->assertStringContainsString(
+                $consequence,
+                $src,
+                "Le motif « {$consequence} » doit être affiché à l'utilisateur."
+            );
+        }
     }
 
     /**
