@@ -32,11 +32,15 @@
     // Les POLICES, elles, restent celles de la charte ($charte['ff_titres']) :
     // seules les couleurs changent.
     $dv = [
-        'bleu'       => '#1C2E3D', // bandeaux de section, en-têtes, texte fort
-        'bleu_moyen' => '#327DAF', // sous-titres des conditions générales
+        // Rôle de chaque couleur, repris du modèle (2026-11-17) : la
+        // palette était juste, mais posée aux mauvais endroits.
+        'bleu'       => '#1C2E3D', // barres de titre des sections, total net
+        'bleu_moyen' => '#327DAF', // barres Émetteur/Client, titres des CG
+        'bleu_table' => '#4D8EB9', // en-tête du tableau des emplacements
         'bleu_pale'  => '#EEF5FB', // fonds de sous-section
-        'or'         => '#FAAF00', // valeurs mises en avant (n°, date, totaux)
-        'or_vif'     => '#FFC000', // liséré haut
+        'or'         => '#FAAF00', // valeurs mises en avant (n°, date)
+        'or_vif'     => '#FFC000', // bandeaux haut et bas, montant net
+        'or_doux'    => '#FFE082', // fond de la ligne MONTANT TOTAL TTC
         'or_pale'    => '#FFF4CC', // bandes de sous-total
         'ardoise'    => '#445566', // texte secondaire
         'gris'       => '#D7DEE5', // filets de tableau
@@ -165,45 +169,56 @@
         .page-break { page-break-after: always; }
         .no-break { page-break-inside: avoid; }
 
-        /* ═══ HEADER (2026-11-16) ═══
-           Logo à gauche, puis « DEVIS » et le couple N° / Date à droite,
-           comme le modèle officiel. Le gros titre espacé sur fond gris
-           avec son liséré a disparu : le modèle n'en a pas. */
-        .header-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        /* ═══ BANDEAU D'EN-TÊTE (2026-11-17) ═══
+           Fond jaune #FFC000 sur toute la largeur, logo à gauche, puis
+           « DEVIS » et le couple N° / Date à droite. C'est la signature
+           visuelle du modèle — le simple liséré posé la veille ne lui
+           ressemblait pas. */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+            background: {{ $dv['or_vif'] }};
+        }
         .header-left  {
-            width: 38%;
-            padding: 4px 0 8px 0;
+            width: 42%;
+            padding: 10px 14px;
             vertical-align: middle;
             text-align: left;
         }
-        .header-left img { max-height: 54px; max-width: 170px; }
+        .header-left img { max-height: 50px; max-width: 160px; }
         .header-left .company-name { font-family: {!! $charte['ff_titres'] !!}; font-size: 22px; font-weight: 900; color: {{ $dv['bleu'] }}; }
         .header-right {
-            width: 62%;
-            padding: 4px 0 8px 0;
+            width: 58%;
+            padding: 10px 14px;
             vertical-align: middle;
         }
         .header-right .title {
             font-family: {!! $charte['ff_titres'] !!};
-            font-size: 13px;
+            font-size: 15px;
             font-weight: 800;
             color: {{ $dv['bleu'] }};
-            letter-spacing: 0.5px;
+            letter-spacing: 1px;
             line-height: 1.4;
         }
         .header-right .meta {
-            font-size: 11px;
+            font-size: 10.5px;
             color: {{ $dv['bleu'] }};
             margin-top: 2px;
             line-height: 1.5;
         }
         .header-right .meta .lbl { font-weight: 700; display: inline-block; width: 52px; }
-        .header-right .meta .val { color: {{ $dv['or'] }}; font-weight: 700; }
+        /* Sur fond jaune, l'or ne se verrait pas : le bleu nuit tranche. */
+        .header-right .meta .val { color: {{ $dv['bleu'] }}; font-weight: 800; }
 
-        /* Liséré or en tête de page, comme le modèle. */
-        .liseré-or { height: 4px; background: {{ $dv['or_vif'] }}; margin-bottom: 8px; }
+        /* Bandeau jaune de pied de page 1, en écho à l'en-tête. */
+        .bandeau-bas { height: 10px; background: {{ $dv['or_vif'] }}; margin-top: 8px; }
 
-        /* ═══ SECTION HEADER (bleu nuit) — utilisé partout ═══ */
+        /* ═══ BARRES DE TITRE ═══
+           Deux bleus distincts dans le modèle, et pas au hasard :
+             · bleu nuit  → Taxes, Services, Modalités, total net ;
+             · bleu moyen → Émetteur / Client, titres des articles des CG.
+           Les confondre aplatissait toute la page sur un seul ton. */
         .section-header {
             background: {{ $dv['bleu'] }};
             color: {{ $dv['blanc'] }};
@@ -214,12 +229,13 @@
             letter-spacing: 1px;
             text-transform: uppercase;
         }
+        .section-header.moyen { background: {{ $dv['bleu_moyen'] }}; }
 
         /* ═══ BLOC ÉMETTEUR / CLIENT ═══ */
         .party-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
         .party-table td { vertical-align: top; width: 50%; border: 1px solid {{ $dv['gris'] }}; padding: 0; }
         .party-body {
-            padding: 5px 9px;
+            padding: 4px 8px;
             font-size: 9px;
             line-height: 1.3;
         }
@@ -229,8 +245,11 @@
 
         /* ═══ TABLEAU DES LIGNES PANNEAUX ═══ */
         .panneaux-table { width: 100%; border-collapse: collapse; margin-bottom: 0; font-size: 9px; }
+        /* En-tête du tableau des emplacements : bleu intermédiaire du
+           modèle (#4D8EB9), ni le bleu nuit des barres de section ni le
+           bleu moyen des blocs Émetteur/Client. */
         .panneaux-table th {
-            background: {{ $dv['bleu'] }};
+            background: {{ $dv['bleu_table'] }};
             color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
             padding: 6px 4px;
@@ -263,22 +282,25 @@
         /* ═══ SOUS-TOTAUX (colonne 55% droite) ═══ */
         .subtotals { width: 55%; margin-left: 45%; border-collapse: collapse; margin-top: 0; }
         .subtotals td {
-            padding: 4px 10px;
+            padding: 3px 10px;
             font-size: 10px;
             border: 1px solid {{ $dv['gris'] }};
         }
         .subtotals .lbl { text-align: right; background: {{ $dv['gris_clair'] }}; font-weight: 700; }
         .subtotals .val { text-align: right; font-weight: 700; width: 40%; }
+        /* MONTANT TOTAL TTC : fond ambre clair du modèle, texte bleu nuit.
+           Le fond bleu plein posé la veille écrasait le total net, qui est
+           censé être la ligne la plus forte de la page. */
         .subtotals tr.ttc td {
-            background: {{ $dv['bleu'] }};
-            color: {{ $dv['blanc'] }};
+            background: {{ $dv['or_doux'] }};
+            color: {{ $dv['bleu'] }};
             font-family: {!! $charte['ff_titres'] !!};
             font-size: 12px;
             font-weight: 800;
-            padding: 9px 10px;
-            border-color: {{ $dv['bleu'] }};
+            padding: 8px 10px;
+            border-color: {{ $dv['gris'] }};
         }
-        .subtotals tr.ttc td.val { font-size: 13px; color: {{ $dv['or'] }}; }
+        .subtotals tr.ttc td.val { font-size: 13px; color: {{ $dv['bleu'] }}; }
 
         /* ═══ SECTIONS TAXES / SERVICES ═══ */
         .section-tbl { width: 100%; border-collapse: collapse; margin-top: 8px; border: 1px solid {{ $dv['gris'] }}; }
@@ -308,18 +330,19 @@
            client ne comprend pas pourquoi elle échappe au calcul. */
         .svc-ht-flag { color: {{ $dv['ardoise'] }}; font-size: 8.5px; font-style: italic; }
 
-        /* ═══ BANDE DE SOUS-TOTAL BRUT (modèle officiel) ═══
-           Le cumul des lignes avant taxes, détaché du bloc de totaux. */
+        /* ═══ BARRE DE SOUS-TOTAL SOUS LE TABLEAU (2026-11-17) ═══
+           Barre BLEUE dans le modèle, pas ambre : l'ambre y est réservé
+           aux lignes de total. Le cumul des lignes avant taxes. */
         .bande-soustotal { width: 100%; border-collapse: collapse; margin: 0; }
         .bande-soustotal td {
-            background: {{ $dv['or_pale'] }};
-            color: {{ $dv['bleu'] }};
+            background: {{ $dv['bleu_table'] }};
+            color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
             font-size: 11px;
             font-weight: 800;
             text-align: right;
             padding: 6px 10px;
-            border: 1px solid {{ $dv['gris'] }};
+            border: 1px solid {{ $dv['bleu_table'] }};
             border-top: none;
         }
         /* Sous-total de section sur bande or, comme les cumuls du modèle.
@@ -350,7 +373,7 @@
         }
         .montant-net td {
             background: {{ $dv['bleu'] }};
-            padding: 10px 14px;
+            padding: 7px 14px;
             vertical-align: middle;
         }
         .montant-net .lbl-net {
@@ -366,7 +389,9 @@
             text-align: right;
             font-size: 18px;
             font-weight: 800;
-            color: {{ $dv['or'] }};
+            /* Jaune vif du modèle sur la barre bleu nuit : c'est le
+               chiffre que le client cherche en premier. */
+            color: {{ $dv['or_vif'] }};
         }
         .montant-lettres {
             padding: 4px 14px;
@@ -418,9 +443,9 @@
             width: 50%;
             border: 1px solid {{ $dv['gris'] }};
             border-top: none;
-            padding: 8px 14px 10px 14px;
+            padding: 5px 12px 6px 12px;
             vertical-align: top;
-            height: 70px;
+            height: 44px;
             background: {{ $dv['blanc'] }};
         }
         .sig-table .sig-label {
@@ -500,7 +525,6 @@
          numéro et la date en or — disposition du modèle officiel. Le
          liséré 5 couleurs de la charte a été retiré de ce document : il
          n'existe pas sur le modèle envoyé aux clients. --}}
-    <div class="liseré-or"></div>
     <table class="header-table">
         <tr>
             <td class="header-left">
@@ -524,25 +548,37 @@
     <table class="party-table">
         <tr>
             <td>
-                <div class="section-header">ÉMETTEUR</div>
+                <div class="section-header moyen">ÉMETTEUR</div>
                 <div class="party-body">
                     <div class="row"><strong>{{ $company['name'] ?? 'CIBLE SARL' }}</strong></div>
                     @if(!empty($company['address']))
                         <div class="row">{{ $company['address'] }}</div>
                     @endif
-                    @if(!empty($company['phone']))
-                        <div class="row">Tél. : {{ $company['phone'] }}</div>
+                    {{-- Fixe et mobile sur une seule ligne, puis les deux
+                         adresses e-mail : disposition du modèle (2026-11-17).
+                         Chaque élément reste optionnel — un .env incomplet
+                         ne doit pas laisser « Tél. : » ou « | » orphelins. --}}
+                    @if(!empty($company['phone']) || !empty($company['mobile']))
+                        <div class="row">
+                            @if(!empty($company['phone']))Tél. : {{ $company['phone'] }}@endif
+                            @if(!empty($company['phone']) && !empty($company['mobile'])) &nbsp;|&nbsp; @endif
+                            @if(!empty($company['mobile']))Mob. : {{ $company['mobile'] }}@endif
+                        </div>
                     @endif
                     @if(!empty($company['ncc']))
                         <div class="row">CC : N°{{ $company['ncc'] }}</div>
                     @endif
-                    @if(!empty($company['email']))
-                        <div class="row">{{ $company['email'] }}</div>
+                    @if(!empty($company['email_finance']) || !empty($company['email']))
+                        <div class="row">
+                            @if(!empty($company['email_finance'])){{ $company['email_finance'] }}@endif
+                            @if(!empty($company['email_finance']) && !empty($company['email'])) &nbsp;|&nbsp; @endif
+                            @if(!empty($company['email'])){{ $company['email'] }}@endif
+                        </div>
                     @endif
                 </div>
             </td>
             <td>
-                <div class="section-header">CLIENT / MANDATAIRE</div>
+                <div class="section-header moyen">CLIENT / MANDATAIRE</div>
                 <div class="party-body">
                     <div class="row"><span class="lbl">Nom :</span>{{ $quote->client?->contact_name ?? $quote->client?->name ?? '—' }}</div>
                     <div class="row"><span class="lbl">Entreprise :</span>{{ $quote->client?->company ?? $quote->client?->name ?? '—' }}</div>
@@ -665,11 +701,15 @@
            · la TVA des services est affichée, comme sur le modèle ;
            · le total passe en TTC. Il était en HT alors que le MONTANT NET
              plus bas additionne les services TTC : les chiffres du PDF ne
-             se recoupaient pas. --}}
+             se recoupaient pas.
+         2026-11-17 — La section disparaît quand il n'y a aucun service :
+         un encadré vide annonçant qu'il n'y en a aucun attire l'œil sur
+         ce qui n'est pas vendu. --}}
+    @if($quote->services->isNotEmpty())
     <div class="section-header" style="margin-top:12px">Services additionnels</div>
     <table class="section-tbl no-thead-color no-break" style="margin-top:0;border-top:none">
         <tbody>
-            @forelse($quote->services as $svc)
+            @foreach($quote->services as $svc)
                 @php
                     $svcQte = max(1, (int) ($svc->quantite ?: 1));
                     $svcHt  = $svc->montantHt();
@@ -680,9 +720,7 @@
                     <td class="num" style="width:21%">{{ $svc->prix_ht > 0 ? $fmt($svc->prix_ht) . ' FCFA' : 'OFFERT' }}</td>
                     <td class="num" style="width:22%">{{ $svcHt > 0 ? $fmt($svcHt) . ' FCFA' : 'OFFERT' }}</td>
                 </tr>
-            @empty
-                <tr><td colspan="4" class="empty">Aucun service additionnel</td></tr>
-            @endforelse
+            @endforeach
 
             {{-- TVA des services : seuls ceux qui y sont soumis comptent
                  (interrupteur `tva_applicable`, 2026-10-30). --}}
@@ -701,6 +739,7 @@
             </tr>
         </tfoot>
     </table>
+    @endif
 
     {{-- MONTANT NET TOTAL À PAYER --}}
     <table class="montant-net no-break">
@@ -765,10 +804,21 @@
     </table>
     </div>{{-- /no-break : modalités + accord + signatures restent groupés --}}
 
+    {{-- ⚠ PAS de saut de page forcé ici (2026-11-17).
+         Le modèle tient en 2 pages parce que son tableau ne compte que
+         deux lignes, à la hauteur de ligne d'un tableur. Un devis Panora
+         de dix ou trente panneaux déborde forcément : forcer la coupure
+         ici produisait une page quasi vide avec les seules modalités, et
+         repoussait tout le reste d'une page.
+         Le document coule donc naturellement ; seul le bandeau jaune de
+         fin, en écho à l'en-tête, ferme la dernière page. --}}
+
     {{-- ═══════════════════════════════════════════════════════════════
-         CONDITIONS GÉNÉRALES — enchaînées sans saut de page forcé,
-         comme le modèle : elles commencent sous les signatures et se
-         terminent sur la page suivante.
+         PAGE 2 — CONDITIONS GÉNÉRALES
+         Saut de page forcé (2026-11-17) : le devis chiffré tient sur une
+         page, les conditions sur la suivante. Les laisser s'enchaîner
+         coupait les articles au milieu, et la page 1 ne se lisait plus
+         comme le document de référence.
     ═══════════════════════════════════════════════════════════════ --}}
     <div class="cgv-header">
         {{ $company['name'] ?? 'CIBLE SARL' }} — Conditions générales
@@ -864,20 +914,23 @@
 
     <div class="bon-accord" style="margin-top:14px">BON POUR ACCORD — Lu et approuvé, bon pour accord</div>
 
-    <table class="sig-table" style="margin-top:10px">
+    <table class="sig-table no-break" style="margin-top:10px">
         <tr>
-            <td style="height:110px">
+            <td style="height:80px">
                 <div class="sig-label">Pour {{ $company['name'] ?? 'CIBLE SARL' }}</div>
                 <div class="sig-role">Directrice Commerciale</div>
-                <div class="sig-line" style="margin-top:60px"></div>
+                <div class="sig-line" style="margin-top:42px"></div>
             </td>
-            <td style="height:110px">
+            <td style="height:80px">
                 <div class="sig-label">Pour l'Annonceur / Mandataire</div>
                 <div class="sig-role">Nom &amp; Fonction :</div>
-                <div class="sig-line" style="margin-top:60px"></div>
+                <div class="sig-line" style="margin-top:42px"></div>
             </td>
         </tr>
     </table>
+
+    {{-- Bandeau jaune de clôture, en écho à l'en-tête du modèle. --}}
+    <div class="bandeau-bas"></div>
 
     {{-- ═══════════════════════════════════════════════════════════════
          FOOTER LÉGAL (fixed, apparaît sur toutes les pages)

@@ -19,14 +19,24 @@ return [
     // officiel Côte d'Ivoire fourni par la patronne (bloc identité
     // haut-gauche encadré + bandeau vendeur/PDV/date/paiement).
     'company' => [
-        'name'              => env('BILLING_COMPANY_NAME', 'CIBLE'),
+        // ⚠ Valeurs par défaut alignées sur le modèle de devis officiel
+        // (2026-11-17). Elles alimentent AUSSI l'entête de la facture FNE :
+        // c'est voulu, l'identité de l'émetteur est la même partout. Le
+        // `.env` de production reste prioritaire sur chacune d'elles.
+        'name'              => env('BILLING_COMPANY_NAME', 'CIBLE SARL'),
         'legal'             => env('BILLING_COMPANY_LEGAL', 'Société à responsabilité limitée'),
-        'address'           => env('BILLING_COMPANY_ADDRESS', '08 BP 687 ABIDJAN (VILLE)'),
-        'phone'             => env('BILLING_COMPANY_PHONE', '27 22 20 80 08'),
+        'address'           => env('BILLING_COMPANY_ADDRESS', 'Rue des Majorettes, Biétry — Abidjan'),
+        'phone'             => env('BILLING_COMPANY_PHONE', '+225 27 22 20 80 08'),
+        // Mobile (2026-11-17) : figure sur le modèle de devis, à côté du
+        // fixe. Absent du bloc jusqu'ici.
+        'mobile'            => env('BILLING_COMPANY_MOBILE', '07 98 49 66 74'),
         'email'             => env('BILLING_COMPANY_EMAIL', 'commercial@cible-ci.com'),
+        // Second e-mail affiché sur le devis, à côté du commercial.
+        'email_finance'     => env('BILLING_COMPANY_EMAIL_FINANCE', 'finance@cible-ci.com'),
         'rccm'              => env('BILLING_COMPANY_RCCM', '262441 du 27-03-2001'),
         'ifu'               => env('BILLING_COMPANY_IFU', ''),
-        'ncc'               => env('BILLING_COMPANY_NCC', '0184670J'),
+        // Espacé comme sur le modèle : « N°018 46 70 J ».
+        'ncc'               => env('BILLING_COMPANY_NCC', '018 46 70 J'),
         // FNE (nouveaux champs 2026-07-20) — apparaissent dans l'entête
         // encadrée en haut-gauche du PDF conformément au modèle DGI.
         'regime_imposition' => env('BILLING_COMPANY_REGIME',  'RNI'),

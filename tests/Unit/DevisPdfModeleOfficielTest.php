@@ -278,6 +278,93 @@ class DevisPdfModeleOfficielTest extends TestCase
     }
 
     /**
+     * ═══ L'AFFECTATION DES COULEURS (2026-11-17) ═══
+     *
+     * Le premier passage avait extrait la bonne palette du PDF de
+     * référence, mais l'avait posée aux mauvais endroits : pas de bandeau
+     * jaune, en-tête de tableau en bleu nuit, ligne TTC sans son fond
+     * ambre. Le document ressemblait de loin, pas de près.
+     *
+     * Chaque couleur a un rôle précis — ce garde-fou les tient.
+     */
+    public function test_chaque_couleur_garde_son_role(): void
+    {
+        $src = $this->src('resources/views/pdf/quote.blade.php');
+
+        // Le bandeau d'en-tête est jaune : c'est la signature du modèle.
+        $this->assertMatchesRegularExpression(
+            '/\.header-table \{[^}]*background: \{\{ \$dv\[\x27or_vif\x27\] \}\}/s',
+            $src,
+            "L'en-tête doit porter le bandeau jaune du modèle."
+        );
+
+        // Trois bleus distincts, et pas interchangeables.
+        $this->assertStringContainsString(
+            "'bleu_table' => '#4D8EB9'",
+            $src,
+            "L'en-tête du tableau des emplacements a son propre bleu."
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.panneaux-table th \{[^}]*background: \{\{ \$dv\[\x27bleu_table\x27\] \}\}/s',
+            $src,
+            "L'en-tête du tableau doit utiliser ce bleu-là, pas le bleu nuit "
+            . "des barres de section."
+        );
+        $this->assertStringContainsString(
+            '.section-header.moyen',
+            $src,
+            "Les barres Émetteur / Client sont en bleu moyen, pas en bleu nuit."
+        );
+
+        // La ligne MONTANT TOTAL TTC est sur fond ambre clair.
+        $this->assertMatchesRegularExpression(
+            '/\.subtotals tr\.ttc td \{[^}]*background: \{\{ \$dv\[\x27or_doux\x27\] \}\}/s',
+            $src,
+            "La ligne TTC doit être sur fond ambre : un fond bleu plein y "
+            . "écrasait le total net, qui est la ligne la plus forte."
+        );
+    }
+
+    /**
+     * Un bloc vide intitulé « Aucun service additionnel » attire l'œil
+     * sur ce qui n'est pas vendu.
+     */
+    public function test_la_section_services_disparait_si_elle_est_vide(): void
+    {
+        $src = $this->src('resources/views/pdf/quote.blade.php');
+
+        $this->assertStringContainsString(
+            '@if($quote->services->isNotEmpty())',
+            $src,
+            "La section Services doit être masquée quand le devis n'en "
+            . "porte aucun."
+        );
+
+        $this->assertStringNotContainsString(
+            'Aucun service additionnel',
+            $src,
+            "Le message de section vide n'a plus lieu d'être."
+        );
+    }
+
+    /**
+     * Le modèle tient en 2 pages parce que son tableau fait deux lignes à
+     * la hauteur d'un tableur. Un devis de dix panneaux déborde : forcer
+     * la coupure produisait une page presque vide.
+     */
+    public function test_aucune_coupure_de_page_forcee(): void
+    {
+        $src = $this->src('resources/views/pdf/quote.blade.php');
+
+        $this->assertStringNotContainsString(
+            '<div class="page-break"></div>',
+            $src,
+            "Pas de saut de page forcé : le document doit couler selon le "
+            . "nombre de panneaux."
+        );
+    }
+
+    /**
      * La ligne « Total HT » répétait « Montant Total HT » à l'identique,
      * juste en dessous.
      */
