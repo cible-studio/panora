@@ -183,6 +183,90 @@ class PigeService
 
         Log::info('pige.rejected', ['pige_id' => $pige->id, 'reason' => $reason, 'by' => $supervisor->id]);
 
+        $this->rouvrirPoseApresRefus($pige, $reason);
+
+        return ['ok' => true];
+    }
+
+    /**
+     * ═══ ANNULER UNE VALIDATION (2026-11-17) ═══
+     *
+     * Une pige validée par erreur était un cul-de-sac : ni reject(), ni
+     * delete(), ni le formulaire de modification n'acceptaient d'y
+     * revenir, pour personne. La tâche de pose restait terminée, et le
+     * technicien ne la voyait plus dans sa liste.
+     *
+     * Règle validée le 2026-11-17 : la pige repasse en REJETÉE avec un
+     * motif obligatoire, la pose se rouvre et le technicien est prévenu —
+     * exactement comme un rejet ordinaire. Admin et Media Planner.
+     *
+     * ⚠ Ce qui ne se rattrape PAS : la validation a envoyé un e-mail au
+     * client (AvisPigeValidee). Annuler ici ne le reprend pas. Le motif
+     * sert donc aussi de trace pour expliquer l'écart au client.
+     *
+     * Le GPS du panneau est recalculé : il avait été établi à partir des
+     * piges validées, dont celle qu'on retire.
+     */
+    public function annulerValidation(Pige $pige, User $auteur, string $motif): array
+    {
+        if (!$pige->isVerifiee()) {
+            return $this->error("Cette pige n'est pas validée : utilisez le rejet ordinaire.");
+        }
+        if (trim($motif) === '') {
+            return $this->error("Le motif d'annulation est obligatoire.");
+        }
+
+        $updated = Pige::where('id', $pige->id)
+            ->where('status', 'verifie')
+            ->update([
+                'status'           => 'rejete',
+                'rejection_reason' => $motif,
+                'verified_by'      => $auteur->id,
+                'verified_at'      => now(),
+            ]);
+
+        if (!$updated) {
+            return $this->error('Cette pige a changé d\'état entre-temps. Rechargez la page.');
+        }
+
+        $pige->refresh();
+
+        Log::warning('pige.validation_annulee', [
+            'pige_id'  => $pige->id,
+            'panel_id' => $pige->panel_id,
+            'motif'    => $motif,
+            'by'       => $auteur->id,
+        ]);
+
+        $this->rouvrirPoseApresRefus($pige, $motif);
+
+        // Le panneau avait pu être géolocalisé à partir de cette pige :
+        // on refait le calcul sans elle. Best-effort.
+        try {
+            if ($panel = $pige->panel) {
+                app(PanelGeoLocator::class)->recomputeFromPiges($panel);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('pige.annulation.geo_recompute_failed', [
+                'pige_id' => $pige->id,
+                'error'   => $e->getMessage(),
+            ]);
+        }
+
+        return ['ok' => true];
+    }
+
+    /**
+     * Remet la pose dans la file du technicien après un refus.
+     *
+     * Partagé par reject() et annulerValidation() (2026-11-17) : les deux
+     * aboutissent au même état, et deux copies de cette logique auraient
+     * fini par diverger — l'une rouvrant la pose, l'autre non.
+     *
+     * Best-effort : un échec ici ne doit jamais annuler le refus lui-même.
+     */
+    private function rouvrirPoseApresRefus(Pige $pige, string $reason): void
+    {
         // ─── Re-pige auto : réactiver la pose + notifier le tech ───
         try {
             $pige->loadMissing(['poseTask.technicien', 'poseTask.panel']);
@@ -233,8 +317,6 @@ class PigeService
                 'error'   => $e->getMessage(),
             ]);
         }
-
-        return ['ok' => true];
     }
 
     // ══════════════════════════════════════════════════════════════

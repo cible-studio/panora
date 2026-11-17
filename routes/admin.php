@@ -782,6 +782,12 @@ Route::prefix('admin')
             // ── Actions sur une pige ───────────────────────────────────
             Route::post('{pige}/verify', [PigeController::class, 'verify']) ->name('verify');
             Route::post('{pige}/reject', [PigeController::class, 'reject']) ->name('reject');
+            // Annuler une validation faite par erreur (2026-11-17).
+            // La pige repasse en rejetée, la pose se rouvre, le technicien
+            // est prévenu. Admin ET Media Planner : c'est le MP qui valide
+            // au quotidien, donc lui qui s'aperçoit de l'erreur le premier.
+            Route::post('{pige}/annuler-validation', [PigeController::class, 'annulerValidation'])
+                ->name('annuler-validation');
             // SM2b Phase 5 — Détail JSON pour modale validation A4.
             Route::get('{pige}/detail-json', [PigeController::class, 'detailJson'])->name('detail-json');
         

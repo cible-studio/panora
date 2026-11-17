@@ -428,6 +428,20 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
             </button>
         </div>
+        @else
+        {{-- Pige validée (2026-11-17) : seule sortie possible.
+             Avant, une validation faite par erreur était définitive — ni
+             rejet, ni suppression, ni changement de statut. La tâche
+             restait terminée et quittait la liste du technicien. --}}
+        <div style="display:flex;gap:6px">
+            <button type="button"
+                    onclick="PigeActions.showAnnulerModal({{ $pige->id }}, '{{ $pige->panel?->reference }}')"
+                    title="Remet la pige en « rejetée », rouvre la pose et prévient le technicien"
+                    style="flex:1;padding:7px 0;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.28);color:#d97706;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                Annuler la validation
+            </button>
+        </div>
         @endif
     </div>
 </div>
@@ -450,6 +464,48 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
 @endif
 
 {{-- ════ MODAL REJET ════ --}}
+{{-- Annuler une validation (2026-11-17) : la pige repasse en rejetée,
+     la pose se rouvre, le technicien est prévenu. --}}
+<div id="modal-annuler" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:460px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.4)">
+        <div style="padding:18px 20px;background:rgba(245,158,11,.07);border-bottom:1px solid rgba(245,158,11,.22);display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;background:rgba(245,158,11,.14);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+            </div>
+            <div>
+                <div style="font-size:14px;font-weight:700;color:#d97706">Annuler la validation</div>
+                <div id="modal-annuler-panel" style="font-size:11px;color:rgba(217,119,6,.75)"></div>
+            </div>
+        </div>
+        <div style="padding:18px 20px">
+            <div style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:11.5px;color:var(--text2);line-height:1.5;margin-bottom:14px">
+                La pige repassera en <strong>rejetée</strong>, la tâche de pose reviendra dans la liste du technicien et il recevra le motif.
+                <br><span style="color:var(--text3)">⚠️ L'e-mail envoyé au client à la validation ne peut pas être repris.</span>
+            </div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:block;margin-bottom:6px">Motif de l'annulation *</label>
+            <textarea id="annuler-motif-input" rows="3"
+                      placeholder="Ex: validée par erreur, photo du mauvais panneau…"
+                      style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);resize:none;outline:none;box-sizing:border-box;transition:border-color .2s"
+                      onfocus="this.style.borderColor='#d97706'"
+                      onblur="this.style.borderColor='var(--border)'"></textarea>
+            <div id="annuler-error" style="font-size:11px;color:#ef4444;margin-top:4px;display:none">Le motif est obligatoire.</div>
+
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px">
+                @foreach(['Validée par erreur','Mauvais panneau','Photo non conforme','Mauvaise campagne'] as $m)
+                <button type="button" onclick="document.getElementById('annuler-motif-input').value='{{ $m }}'"
+                        style="font-size:10px;padding:3px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text3)">
+                    {{ $m }}
+                </button>
+                @endforeach
+            </div>
+        </div>
+        <div style="padding:12px 20px 18px;display:flex;gap:8px;justify-content:flex-end">
+            <button onclick="PigeActions.closeAnnulerModal()" style="padding:8px 18px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text2);cursor:pointer;font-weight:500">Retour</button>
+            <button onclick="PigeActions.submitAnnuler()" style="padding:8px 20px;background:#d97706;border:none;border-radius:10px;font-size:13px;font-weight:700;color:#fff;cursor:pointer">Annuler la validation</button>
+        </div>
+    </div>
+</div>
+
 <div id="modal-reject" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:440px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.4)">
         <div style="padding:18px 20px;background:rgba(239,68,68,.06);border-bottom:1px solid rgba(239,68,68,.2);display:flex;align-items:center;gap:10px">
@@ -648,6 +704,59 @@ window.PigeActions = {
                 } catch { this._showToast('Erreur de connexion.', 'error'); }
             }
         );
+    },
+
+    // ── Modal « annuler la validation » (2026-11-17) ──────
+    // Même mécanique que le rejet : une validation faite par erreur
+    // n'avait aucune sortie, la tâche restait terminée et quittait la
+    // liste du technicien.
+    showAnnulerModal(pigeId, ref) {
+        this._annulerId = pigeId;
+        document.getElementById('annuler-motif-input').value = '';
+        document.getElementById('annuler-error').style.display = 'none';
+        document.getElementById('modal-annuler-panel').textContent = `Panneau ${ref}`;
+        document.getElementById('modal-annuler').style.display = 'flex';
+        setTimeout(() => document.getElementById('annuler-motif-input').focus(), 50);
+    },
+
+    closeAnnulerModal() {
+        document.getElementById('modal-annuler').style.display = 'none';
+        this._annulerId = null;
+    },
+
+    async submitAnnuler() {
+        const motif = document.getElementById('annuler-motif-input').value.trim();
+        if (!motif) {
+            document.getElementById('annuler-error').style.display = 'block';
+            return;
+        }
+        document.getElementById('annuler-error').style.display = 'none';
+
+        try {
+            const freshToken = document.querySelector('meta[name=csrf-token]')?.content || CSRF;
+            const res = await fetch(`/admin/piges/${this._annulerId}/annuler-validation`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': freshToken, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ motif }),
+            });
+            if (res.status === 419) {
+                this._showToast('Session expirée. La page va se recharger…', 'error');
+                setTimeout(() => location.reload(), 1500);
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
+            if (data.success) {
+                this._updateCard(this._annulerId, 'rejete', { rejection_reason: motif });
+                this.closeAnnulerModal();
+                this._showToast(data.message || 'Validation annulée.', 'warning');
+                this._updateStats();
+                // La carte passe de « validée » à « rejetée » : ses boutons
+                // changent de jeu. On recharge pour que l'écran soit juste.
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                this._showToast(data.message || 'Erreur.', 'error');
+            }
+        } catch { this._showToast('Erreur de connexion.', 'error'); }
     },
 
     // ── Modal rejet ───────────────────────────────────────
