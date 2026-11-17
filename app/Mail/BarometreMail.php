@@ -35,6 +35,8 @@ class BarometreMail extends Mailable
         public readonly bool $relance = false,
         public readonly ?string $lienDesinscription = null,
         public readonly ?string $noteTest = null,
+        /** @var array{nom: ?string, fonction: ?string, societe: ?string} vide = config barometre.signature */
+        public readonly array $signature = [],
     ) {}
 
     /** Objets de la direction (17/11). Relance : 1re des deux formules proposées. */
@@ -89,6 +91,7 @@ class BarometreMail extends Mailable
             'lienDesinscription' => $this->lienDesinscription,
             'noteTest'           => $this->noteTest,
             'duree'              => (string) config('barometre.duree'),
+            'signature'          => $this->signature ?: (array) config('barometre.signature'),
         ];
     }
 

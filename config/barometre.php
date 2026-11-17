@@ -53,7 +53,11 @@ return [
     // comptes Panora, séparées par des virgules) — lu par config/acces.php.
 
     // Expéditeur affiché (l'adresse reste celle de Brevo, BREVO_SENDER_EMAIL).
+    // Vide : « <nom de la signature> – <société> », sinon l'équipe commerciale.
     'expediteur' => env('BAROMETRE_EXPEDITEUR'),
+
+    // Adresse qui reçoit les réponses des clients (aussi réglable à l'écran).
+    'repondre_a' => env('BAROMETRE_REPONDRE_A'),
 
     // Durée annoncée dans le mail (objet et texte de la direction, 17/11).
     'duree' => env('BAROMETRE_DUREE', '5 minutes'),

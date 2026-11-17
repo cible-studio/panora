@@ -9,7 +9,9 @@
  *     FORMULAIRE tout seul quand elle est passée (et le rouvre si la date
  *     a été prolongée dans Panora, seulement s'il l'avait fermé lui-même) ;
  *   · une réponse que Panora n'a pas reçue (serveur injoignable) est
- *     renvoyée à l'heure suivante.
+ *     renvoyée à l'heure suivante ;
+ *   · la « Durée estimée » de la description du formulaire est alignée
+ *     sur celle annoncée dans le mail (Panora, BAROMETRE_DUREE).
  *
  * INSTALLATION (une fois, avec le compte Google qui possède le formulaire)
  *   1. Ouvrir le projet Apps Script qui a créé le questionnaire
@@ -88,6 +90,7 @@ function bpChaqueHeure() {
   if (!fin) return;
 
   var form = FormApp.openByUrl(SpreadsheetApp.openById(BP.ID_FEUILLE).getFormUrl());
+  if (etat.json && etat.json.duree) bpAlignerDuree_(form, etat.json.duree);
   var clos = new Date() > new Date(fin);
 
   if (clos && form.isAcceptingResponses()) {
@@ -129,6 +132,16 @@ function bpRattraper() {
 }
 
 // ── Outils ──────────────────────────────────────────────────────────
+
+/** « Durée estimée : 7 à 9 minutes. » → « Durée estimée : 5 minutes. » (mail et formulaire disent la même chose). */
+function bpAlignerDuree_(form, duree) {
+  var description = form.getDescription();
+  var nouvelle = description.replace(/Durée estimée : [^.\n]*\./, 'Durée estimée : ' + duree + '.');
+  if (nouvelle !== description) {
+    form.setDescription(nouvelle);
+    console.log('Description du formulaire : durée estimée = ' + duree + '.');
+  }
+}
 
 /** Référence stable : la même réponse donne toujours la même (renvoi sans doublon). */
 function bpReponse_(structure, quand) {

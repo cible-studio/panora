@@ -3,7 +3,7 @@
     $regie   = config('charte.nom', 'CIBLE');
     $edition = config('barometre.edition');
     $limite  = $echeance->copy()->locale('fr')->translatedFormat('j F Y');
-    $sig     = config('barometre.signature');
+    $sig     = $signature;
 @endphp
 @if($noteTest)
 [TEST] {{ $noteTest }}

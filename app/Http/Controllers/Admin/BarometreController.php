@@ -8,53 +8,96 @@ use App\Models\Client;
 use App\Services\Barometre\BarometreService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Écran « Baromètre clients » (2026-11-17) : la liste, l'envoi de test,
- * l'envoi à tous, la relance, les exclusions, la date limite, les réponses
- * non reconnues. Accès : module « barometre » (admins + BAROMETRE_ACCES).
- * Tout passe par BarometreService.
+ * Écran « Baromètre clients » (2026-11-17). Accès : module « barometre »
+ * (admins + BAROMETRE_ACCES). Tout passe par BarometreService.
+ *
+ * Refonte du 17/11 après le premier essai : comme les autres listes de
+ * Panora, les cartes du haut filtrent la liste (un clic l'active, un
+ * second clic l'enlève), la recherche et la pagination se rechargent sans
+ * quitter la page (?ajax=1 → JSON), et les actions s'ouvrent dans des
+ * fenêtres. Les réglages (questionnaire, date, signature, réponses) se
+ * font à l'écran.
  */
 class BarometreController extends Controller
 {
+    public const PAR_PAGE = 20;
+
+    /** Filtre → statuts de la liste. Les cartes comptent avec la même règle. */
     public const FILTRES = [
-        'tous'       => 'Tous',
-        'a_envoyer'  => 'À envoyer',
-        'invites'    => 'Invités',
-        'repondus'   => 'Ont répondu',
-        'a_traiter'  => 'Sans destinataire',
-        'exclus'     => 'Exclus',
+        'tous'              => null,
+        'a_envoyer'         => BarometreService::A_ENVOYER,
+        'invites'           => ['invite', 'ouvert', 'en_cours'],
+        'repondus'          => ['repondu'],
+        'sans_destinataire' => ['sans_email', 'a_choisir', 'doublon'],
+        'exclus'            => ['exclu'],
     ];
+
+    public const MOTIFS = ['Régie concurrente', 'Nouveau client', 'Autre'];
 
     public function __construct(private BarometreService $service) {}
 
     public function index(Request $request)
     {
-        $filtre = array_key_exists($request->query('filtre'), self::FILTRES) ? $request->query('filtre') : 'tous';
+        $filtre = array_key_exists((string) $request->query('filtre'), self::FILTRES) ? (string) $request->query('filtre') : 'tous';
+        $q      = trim((string) $request->query('q', ''));
         $liste  = $this->service->liste();
+        $lignes = self::filtrer($liste, $filtre, $q);
 
-        $lignes = match ($filtre) {
-            'a_envoyer' => $liste->whereIn('statut', BarometreService::A_ENVOYER),
-            'invites'   => $liste->whereIn('statut', ['invite', 'ouvert', 'en_cours']),
-            'repondus'  => $liste->where('statut', 'repondu'),
-            'a_traiter' => $liste->whereIn('statut', ['sans_email', 'a_choisir', 'doublon']),
-            'exclus'    => $liste->where('statut', 'exclu'),
-            default     => $liste,
-        };
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $paginee = new LengthAwarePaginator(
+            $lignes->forPage($page, self::PAR_PAGE)->values(), $lignes->count(), self::PAR_PAGE, $page,
+            ['path' => route('admin.barometre.index'), 'query' => array_filter(['filtre' => $filtre !== 'tous' ? $filtre : null, 'q' => $q ?: null])],
+        );
+
+        if ($request->boolean('ajax')) {
+            return response()->json([
+                'lignes'     => view('admin.barometre.partials.lignes', ['lignes' => $paginee])->render(),
+                'pagination' => $paginee->hasPages() ? $paginee->links()->toHtml() : '',
+                'total'      => $paginee->total(),
+            ]);
+        }
 
         return view('admin.barometre.index', [
             'edition'      => $this->service->edition(),
             'production'   => $this->service->enProduction(),
             'reglage'      => $this->service->reglageManquant(),
+            'signature'    => $this->service->signature(),
+            'expediteur'   => $this->service->expediteur(),
+            'repondreA'    => $this->service->repondreA(),
+            'formulaire'   => $this->service->formulaire(),
+            'jetonGoogle'  => (string) config('barometre.jeton_google') !== '',
             'compteurs'    => $this->service->compteurs(),
+            'nombres'      => collect(self::FILTRES)->map(fn ($s, $f) => self::filtrer($liste, $f, '')->count())->all(),
             'reponses'     => $this->service->nombreReponses(),
+            'derniere'     => BarometreReponse::where('edition', $this->service->code())->max('created_at'),
             'nonReconnues' => $this->service->reponsesNonReconnues(),
-            'lignes'       => $lignes->values(),
+            'lignes'       => $paginee,
             'liste'        => $liste,
             'filtre'       => $filtre,
+            'q'            => $q,
         ]);
+    }
+
+    /** Filtre d'une carte + recherche (client, interlocuteur, adresse). */
+    public static function filtrer(Collection $liste, string $filtre, string $q): Collection
+    {
+        $statuts = self::FILTRES[$filtre] ?? null;
+        $lignes  = $statuts === null ? $liste : $liste->whereIn('statut', $statuts);
+
+        if ($q !== '') {
+            $cle = BarometreService::normaliser($q);
+            $lignes = $lignes->filter(fn ($l) => str_contains(BarometreService::normaliser($l['client']->name), $cle)
+                || str_contains(BarometreService::normaliser((string) $l['destinataire']['contact']), $cle)
+                || str_contains((string) $l['destinataire']['email'], mb_strtolower($q)));
+        }
+
+        return $lignes->values();
     }
 
     /** Le mail exact d'un client, à l'adresse de la personne connectée. */
@@ -65,10 +108,11 @@ class BarometreController extends Controller
             'relance'   => ['nullable', 'boolean'],
         ]);
         $client  = Client::clients()->findOrFail($data['client_id']);
+        $relance = (bool) ($data['relance'] ?? false);
         $adresse = (string) $request->user()->email;
 
         try {
-            $this->service->envoyerTest($client, $adresse, (bool) ($data['relance'] ?? false));
+            $this->service->envoyerTest($client, $adresse, $relance);
         } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage());
         } catch (\Throwable $e) {
@@ -77,7 +121,7 @@ class BarometreController extends Controller
             return back()->with('error', 'Brevo a refusé le mail de test : ' . $e->getMessage());
         }
 
-        return back()->with('success', 'Mail de test (' . ($data['relance'] ?? false ? 'relance' : 'invitation') . ", {$client->name}) envoyé à {$adresse}.");
+        return back()->with('success', 'Mail de test (' . ($relance ? 'relance' : 'invitation') . ", {$client->name}) envoyé à {$adresse}.");
     }
 
     public function envoyer(Request $request): RedirectResponse
@@ -108,7 +152,15 @@ class BarometreController extends Controller
 
     public function exclure(Request $request, Client $client): RedirectResponse
     {
-        $motif = $request->validate(['motif' => ['required', 'string', 'max:255']])['motif'];
+        $data = $request->validate([
+            'motif'     => ['required', 'string', 'in:' . implode(',', self::MOTIFS)],
+            'precision' => ['nullable', 'string', 'max:200'],
+        ]);
+        $precision = trim((string) ($data['precision'] ?? ''));
+        if ($data['motif'] === 'Autre' && $precision === '') {
+            return back()->with('error', 'Précisez pourquoi ' . $client->name . ' est retiré.');
+        }
+        $motif = $data['motif'] === 'Autre' ? $precision : $data['motif'] . ($precision !== '' ? ' — ' . $precision : '');
         $this->service->exclure($client, $motif, $request->user());
 
         return back()->with('success', "{$client->name} est retiré du baromètre ({$motif}).");
@@ -121,13 +173,39 @@ class BarometreController extends Controller
         return back()->with('success', "{$client->name} est remis dans le baromètre.");
     }
 
-    public function dateLimite(Request $request): RedirectResponse
+    /** ⚙ Réglages : questionnaire, date limite, signature, adresse de réponse. */
+    public function reglages(Request $request): RedirectResponse
     {
-        $date = $request->validate(['date_limite' => ['required', 'date', 'after_or_equal:today']])['date_limite'];
-        $this->service->changerDateLimite(Carbon::parse($date));
+        $data = $request->validate([
+            'lien'               => ['nullable', 'string', 'max:1000'],
+            'date_limite'        => ['required', 'date'],
+            'signature_nom'      => ['nullable', 'string', 'max:120'],
+            'signature_fonction' => ['nullable', 'string', 'max:160'],
+            'signature_societe'  => ['nullable', 'string', 'max:120'],
+            'repondre_a'         => ['nullable', 'string', 'max:191'],
+        ]);
 
-        return back()->with('success', 'Date limite : ' . Carbon::parse($date)->locale('fr')->translatedFormat('j F Y')
-            . '. Les liens déjà envoyés expirent désormais ce jour-là à minuit.');
+        $date = Carbon::parse($data['date_limite']);
+        $dateChangee = !$date->isSameDay($this->service->edition()->date_limite);
+        if ($dateChangee && $date->lt(today())) {
+            return back()->with('error', 'La date limite ne peut pas être dans le passé.');
+        }
+
+        try {
+            // Lien vide : on garde celui déjà enregistré (le champ montre l'actuel).
+            $this->service->enregistrerReglages(array_filter(
+                $data, fn ($v, $k) => $k !== 'date_limite' && ($k !== 'lien' || trim((string) $v) !== ''), ARRAY_FILTER_USE_BOTH,
+            ) + array_fill_keys(['signature_nom', 'signature_fonction', 'signature_societe', 'repondre_a'], null));
+        } catch (\DomainException $e) {
+            return back()->with('error', $e->getMessage())->withInput();
+        }
+        if ($dateChangee) {
+            $this->service->changerDateLimite($date);
+        }
+
+        return back()->with('success', 'Réglages enregistrés.' . ($dateChangee
+            ? ' Date limite : ' . $date->locale('fr')->translatedFormat('j F Y') . ' — les liens déjà envoyés expirent désormais ce jour-là à minuit.'
+            : ''));
     }
 
     /** Une réponse dont le nom n'a pas été reconnu : on choisit le client. */

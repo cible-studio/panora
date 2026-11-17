@@ -6,14 +6,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
 /**
- * Une édition du baromètre clients (2026-11-17) : sa date limite.
- * Les liens personnels expirent à la fin de ce jour-là.
+ * Une édition du baromètre clients (2026-11-17) : sa date limite (les
+ * liens personnels expirent à la fin de ce jour-là) et ses réglages faits
+ * à l'écran — questionnaire, signature, adresse de réponse. Un réglage vide
+ * reprend la valeur du .env (BarometreService).
  */
 class BarometreEdition extends Model
 {
     protected $table = 'barometre_editions';
 
-    protected $fillable = ['edition', 'date_limite'];
+    protected $fillable = [
+        'edition', 'date_limite',
+        'formulaire', 'champ_structure',
+        'signature_nom', 'signature_fonction', 'signature_societe', 'repondre_a',
+    ];
 
     protected $casts = ['date_limite' => 'date'];
 
