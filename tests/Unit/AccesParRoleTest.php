@@ -22,7 +22,11 @@ class AccesParRoleTest extends TestCase
 {
     private const STAFF = ['admin', 'commercial', 'mediaplanner', 'comptable'];
 
-    /** Rôles du personnel qui passent tous les middlewares « role: » de la route. */
+    /**
+     * Rôles du personnel qui passent tous les middlewares « role: » de la
+     * route. « acces:<module> » (2026-11-17) laisse passer les rôles du
+     * module — plus des personnes nommées, vérifiées à part.
+     */
     private function rolesDeLaRoute(string $nom): array
     {
         $route = app('router')->getRoutes()->getByName($nom);
@@ -32,6 +36,9 @@ class AccesParRoleTest extends TestCase
         foreach ($route->gatherMiddleware() as $m) {
             if (is_string($m) && str_starts_with($m, 'role:')) {
                 $roles = array_values(array_intersect($roles, explode(',', substr($m, 5))));
+            }
+            if (is_string($m) && str_starts_with($m, 'acces:')) {
+                $roles = array_values(array_intersect($roles, Acces::roles(substr($m, 6))));
             }
         }
         sort($roles);

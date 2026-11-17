@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Log;
  *   pige          → view pige photo client
  *   reservation   → view réservation confirmée
  *   decap         → view récap décapage
+ *   barometre     → redirection vers le questionnaire du baromètre clients
  */
 class PublicLinkController extends Controller
 {
@@ -35,6 +36,12 @@ class PublicLinkController extends Controller
             return response()->view('public.link-invalid', [
                 'reason' => 'Lien introuvable.',
             ], 404);
+        }
+
+        // Baromètre clients (2026-11-17) : traité à part, avec un message
+        // neutre — la page ne dit jamais pourquoi un lien a été coupé.
+        if ($link->type === \App\Services\Barometre\BarometreService::TYPE_LIEN) {
+            return $this->barometre($link);
         }
 
         if (!$link->isUsable()) {
@@ -71,6 +78,31 @@ class PublicLinkController extends Controller
     }
 
     // ── Dispatchers par type ─────────────────────────────────────────
+
+    /**
+     * Baromètre clients : le clic est noté, puis le client part sur le
+     * questionnaire Google, déjà au nom de son entreprise. Pas de cache, pas
+     * d'indexation. Le jeton ne fuit pas vers Google : la politique globale
+     * strict-origin-when-cross-origin (SecurityHeaders) n'envoie que le domaine.
+     */
+    protected function barometre(\App\Models\PublicLink $link)
+    {
+        $entetes = [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            'X-Robots-Tag'  => 'noindex, nofollow',
+        ];
+        $indisponible = fn (string $raison) => response()->view('public.link-invalid', ['reason' => $raison], 410)->withHeaders($entetes);
+
+        if (!$link->isUsable()) {
+            return $link->isExpired()
+                ? $indisponible('Le questionnaire est clos depuis le ' . $link->expires_at->format('d/m/Y') . '. Merci de l\'intérêt que vous nous portez.')
+                : $indisponible('Ce questionnaire n\'est plus disponible.');
+        }
+
+        $url = app(\App\Services\Barometre\BarometreService::class)->ouvrir($link);
+
+        return $url ? redirect()->away($url)->withHeaders($entetes) : $indisponible('Ce questionnaire n\'est plus disponible.');
+    }
 
     protected function showInvoice($link)
     {

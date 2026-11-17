@@ -1,0 +1,719 @@
+<?php
+
+namespace App\Services\Barometre;
+
+use App\Mail\BarometreMail;
+use App\Mail\MailClientCampagne;
+use App\Models\BarometreEdition;
+use App\Models\BarometreEnvoi;
+use App\Models\BarometreReponse;
+use App\Models\Campaign;
+use App\Models\Client;
+use App\Models\DiffusionDesinscription;
+use App\Models\PublicLink;
+use App\Models\Quote;
+use App\Models\Reservation;
+use App\Models\User;
+use App\Services\Brevo\BrevoClient;
+use App\Services\JournalMails;
+use App\Services\PublicLinkService;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+
+/**
+ * Baromètre clients (2026-11-17) — source unique de l'envoi du
+ * questionnaire : qui le reçoit, l'envoi et la relance par Brevo, le lien
+ * personnel, les réponses signalées par Google.
+ *
+ * Décisions validées par écrit (16 et 17/11) :
+ *   · un mail par entreprise, à l'interlocuteur de Client::destinataireBarometre() ;
+ *   · exclus : ce que l'écran retire (régies, nouveaux clients…), les
+ *     adresses écartées des envois commerciaux, les clients sans e-mail ;
+ *   · le nombre affiché est celui envoyé : la demande est refusée s'il a
+ *     changé entre l'ouverture de la page et le clic ;
+ *   · lien personnel 256 bits qui expire seul à 23:59:59 le jour limite ;
+ *   · relance par un bouton, seulement à ceux qui n'ont pas répondu ;
+ *   · mode test (défaut) : rien ne part aux clients.
+ *
+ * L'envoi lui-même est fait par la tâche planifiée barometre:envoyer
+ * (chaque minute, en arrière-plan) : un clic ne fait que le demander.
+ */
+class BarometreService
+{
+    public const TYPE_LIEN = 'barometre';
+
+    /** Statut affiché → [classe du badge, libellé]. */
+    public const STATUTS = [
+        'repondu'    => ['badge-green',  'A répondu'],
+        'ouvert'     => ['badge-teal',   'A ouvert le lien'],
+        'invite'     => ['badge-blue',   'Invité'],
+        'en_cours'   => ['badge-purple', 'Envoi en cours'],
+        'echec'      => ['badge-red',    'Échec de l\'envoi'],
+        'pret'       => ['badge-orange', 'À envoyer'],
+        'exclu'      => ['badge-gray',   'Exclu'],
+        'doublon'    => ['badge-gray',   'Adresse déjà utilisée'],
+        'a_choisir'  => ['badge-orange', 'Interlocuteur à choisir'],
+        'sans_email' => ['badge-red',    'Aucun e-mail'],
+    ];
+
+    /** Statuts qui recevront l'invitation au prochain « Envoyer à tous ». */
+    public const A_ENVOYER = ['pret', 'echec'];
+
+    private ?BarometreEdition $edition = null;
+    private ?Collection $liste = null;
+
+    public function __construct(private BrevoClient $brevo) {}
+
+    // ══════════════════════════════════════════════════════════════
+    // ÉDITION ET RÉGLAGES
+    // ══════════════════════════════════════════════════════════════
+
+    public function code(): string
+    {
+        return (string) config('barometre.edition');
+    }
+
+    public function edition(): BarometreEdition
+    {
+        return $this->edition ??= BarometreEdition::firstOrCreate(
+            ['edition' => $this->code()],
+            ['date_limite' => Carbon::parse((string) config('barometre.date_limite'))->toDateString()],
+        );
+    }
+
+    public function enProduction(): bool
+    {
+        return config('barometre.mode') === 'production';
+    }
+
+    /** Réglage qui empêche tout envoi, même de test ; null si tout est prêt. */
+    public function reglageManquant(): ?string
+    {
+        if (!config('barometre.formulaire') || !config('barometre.champ_structure')) {
+            return 'Le lien du questionnaire n\'est pas réglé (BAROMETRE_FORMULAIRE et BAROMETRE_CHAMP_STRUCTURE).';
+        }
+        if (!str_starts_with((string) config('barometre.formulaire'), 'https://')) {
+            return 'Le lien du questionnaire doit commencer par https:// (BAROMETRE_FORMULAIRE).';
+        }
+        if (!$this->brevo->estConfigure()) {
+            return 'Brevo n\'est pas configuré (BREVO_API_KEY, BREVO_SENDER_EMAIL).';
+        }
+
+        return null;
+    }
+
+    /**
+     * Nouvelle date limite : tous les liens déjà envoyés expirent désormais
+     * ce jour-là, à 23:59:59 (un client relancé garde le même lien).
+     */
+    public function changerDateLimite(Carbon $date): void
+    {
+        $edition = $this->edition();
+        $edition->update(['date_limite' => $date->toDateString()]);
+        $fin = $edition->fresh()->finDuDelai();
+
+        $liens = BarometreEnvoi::where('edition', $this->code())->whereNotNull('public_link_id')->pluck('public_link_id');
+        PublicLink::whereIn('id', $liens)->whereNull('revoked_at')->update(['expires_at' => $fin]);
+
+        $this->edition = null;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // LA LISTE
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Chaque client avec son destinataire et son statut, dans l'ordre
+     * alphabétique.
+     *
+     * @return Collection<int, array{client: Client, envoi: ?BarometreEnvoi, reponse: ?BarometreReponse,
+     *         destinataire: array{email: ?string, contact: ?string, contact_id: ?int, source: string},
+     *         statut: string, detail: ?string}>
+     */
+    public function liste(): Collection
+    {
+        if ($this->liste !== null) {
+            return $this->liste;
+        }
+
+        $code     = $this->code();
+        $clients  = Client::clients()->with('contacts')->orderBy('name')->orderBy('id')->get();
+        $envois   = BarometreEnvoi::where('edition', $code)->get()->keyBy('client_id');
+        $reponses = BarometreReponse::where('edition', $code)->where('test', false)->whereNotNull('client_id')
+            ->orderBy('repondu_le')->orderBy('id')->get()->groupBy('client_id');
+        $dossiers = $this->interlocuteursDossiers($clients->pluck('id')->all());
+        $ecartees = $this->adressesEcartees();
+        $noms     = $clients->pluck('name', 'id');
+
+        // Une adresse ne reçoit qu'une invitation : d'abord celles déjà
+        // parties, puis dans l'ordre de la liste.
+        $prises = [];
+        foreach ($envois as $e) {
+            if ($e->estInvite() && !$e->estExclu() && $e->email) {
+                $prises[$e->email] ??= (int) $e->client_id;
+            }
+        }
+
+        return $this->liste = $clients->map(function (Client $client) use ($envois, $reponses, $dossiers, $ecartees, $noms, &$prises) {
+            $envoi   = $envois->get($client->id);
+            $reponse = $reponses->get($client->id)?->first();
+            $dest    = $envoi && $envoi->estInvite()
+                ? ['email' => $envoi->email, 'contact' => $envoi->contact_nom, 'contact_id' => $envoi->client_contact_id, 'source' => (string) $envoi->source]
+                : $client->destinataireBarometre($dossiers[$client->id] ?? null, $ecartees);
+
+            [$statut, $detail] = $this->statut($client, $envoi, $reponse, $dest, $prises, $noms);
+
+            return ['client' => $client, 'envoi' => $envoi, 'reponse' => $reponse, 'destinataire' => $dest, 'statut' => $statut, 'detail' => $detail];
+        })->values();
+    }
+
+    /** @return array{0: string, 1: ?string} */
+    private function statut(Client $client, ?BarometreEnvoi $envoi, ?BarometreReponse $reponse, array $dest, array &$prises, Collection $noms): array
+    {
+        if ($envoi?->estExclu()) {
+            return ['exclu', $envoi->exclu_motif];
+        }
+        if ($reponse) {
+            return ['repondu', null];
+        }
+        if ($envoi?->invite_statut === BarometreEnvoi::ENVOYE) {
+            return [$envoi->ouvert_le ? 'ouvert' : 'invite', $envoi->erreur];
+        }
+        if ($envoi?->invite_statut === BarometreEnvoi::DEMANDE) {
+            return ['en_cours', null];
+        }
+        if ($dest['source'] === 'aucun') {
+            return ['sans_email', 'Ajoutez l\'e-mail d\'un interlocuteur sur la fiche du client.'];
+        }
+        if ($dest['source'] === 'a_choisir') {
+            return ['a_choisir', 'Plusieurs interlocuteurs, aucun indice : cochez le principal sur la fiche du client.'];
+        }
+        $autre = $prises[$dest['email']] ?? null;
+        if ($autre !== null && $autre !== (int) $client->id) {
+            return ['doublon', 'Même adresse que ' . ($noms[$autre] ?? 'un autre client') . ' : un seul mail.'];
+        }
+        $prises[$dest['email']] = (int) $client->id;
+
+        return $envoi?->invite_statut === BarometreEnvoi::ECHEC ? ['echec', $envoi->erreur] : ['pret', null];
+    }
+
+    /**
+     * Interlocuteur du dernier dossier de chaque client : sa dernière
+     * campagne, sinon sa dernière réservation, sinon son dernier devis
+     * (mesure du 16/11). Trois requêtes pour toute la liste.
+     *
+     * @return array<int, int>  client_id → client_contact_id
+     */
+    private function interlocuteursDossiers(array $ids): array
+    {
+        $trouves = [];
+        // Du moins prioritaire au plus prioritaire, du plus ancien au plus
+        // récent : la dernière valeur écrite l'emporte.
+        foreach ([[Quote::class, 'created_at'], [Reservation::class, 'created_at'], [Campaign::class, 'start_date']] as [$modele, $date]) {
+            foreach (array_chunk($ids, 500) as $lot) {
+                $modele::query()->whereIn('client_id', $lot)->whereNotNull('client_contact_id')
+                    ->orderBy($date)->orderBy('id')->get(['id', 'client_id', 'client_contact_id'])
+                    ->each(function ($d) use (&$trouves, $modele) {
+                        $trouves[$modele][(int) $d->client_id] = (int) $d->client_contact_id;
+                    });
+            }
+        }
+
+        $resultat = [];
+        foreach ($ids as $id) {
+            $resultat[$id] = $trouves[Campaign::class][$id] ?? $trouves[Reservation::class][$id] ?? $trouves[Quote::class][$id] ?? null;
+        }
+
+        return array_filter($resultat);
+    }
+
+    /** @return array<string, true> adresses écartées des envois commerciaux */
+    private function adressesEcartees(): array
+    {
+        return DiffusionDesinscription::query()->pluck('email')
+            ->mapWithKeys(fn ($e) => [mb_strtolower(trim((string) $e)) => true])->all();
+    }
+
+    /** Chiffres du haut de l'écran. */
+    public function compteurs(): array
+    {
+        $l = $this->liste();
+        $par = $l->countBy('statut');
+        $envois = $l->pluck('envoi')->filter();
+
+        return [
+            'a_envoyer'   => $l->whereIn('statut', self::A_ENVOYER)->count(),
+            'en_cours'    => (int) ($par['en_cours'] ?? 0) + $envois->where('relance_statut', BarometreEnvoi::DEMANDE)->count(),
+            'invites'     => $envois->where('invite_statut', BarometreEnvoi::ENVOYE)->count(),
+            'ouverts'     => $envois->filter(fn ($e) => $e->ouvert_le)->count(),
+            'repondus'    => (int) ($par['repondu'] ?? 0),
+            'relances'    => $envois->where('relance_statut', BarometreEnvoi::ENVOYE)->count(),
+            'a_relancer'  => $this->aRelancer()->count(),
+            'exclus'      => (int) ($par['exclu'] ?? 0),
+            'sans_email'  => (int) ($par['sans_email'] ?? 0),
+            'a_choisir'   => (int) ($par['a_choisir'] ?? 0),
+            'doublons'    => (int) ($par['doublon'] ?? 0),
+            'echecs'      => (int) ($par['echec'] ?? 0),
+            'clients'     => $l->count(),
+        ];
+    }
+
+    /** Invités qui n'ont pas répondu et pas encore été relancés. */
+    public function aRelancer(): Collection
+    {
+        return $this->liste()->filter(fn ($l) => in_array($l['statut'], ['invite', 'ouvert'], true)
+            && in_array($l['envoi']->relance_statut, [null, BarometreEnvoi::ECHEC], true));
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // DEMANDES D'ENVOI (boutons de l'écran)
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * « Envoyer à tous » : chaque client « à envoyer » passe en demande, avec
+     * son adresse figée. Refusé si le nombre n'est plus celui affiché.
+     *
+     * @return int nombre de mails demandés
+     */
+    public function demanderInvitations(int $attendu, ?User $par = null): int
+    {
+        $this->verifierEnvoiOuvert();
+
+        return DB::transaction(function () use ($attendu, $par) {
+            $prets = $this->liste()->whereIn('statut', self::A_ENVOYER);
+            $this->verifierNombre($prets->count(), $attendu);
+
+            foreach ($prets as $l) {
+                BarometreEnvoi::updateOrCreate(
+                    ['edition' => $this->code(), 'client_id' => $l['client']->id],
+                    [
+                        'email'             => $l['destinataire']['email'],
+                        'contact_nom'       => $l['destinataire']['contact'],
+                        'client_contact_id' => $l['destinataire']['contact_id'],
+                        'source'            => $l['destinataire']['source'],
+                        'invite_statut'     => BarometreEnvoi::DEMANDE,
+                        'invite_par'        => $par?->id,
+                        'erreur'            => null,
+                    ]
+                );
+            }
+            $this->liste = null;
+
+            return $prets->count();
+        });
+    }
+
+    /** « Relancer » : les invités sans réponse, une seule fois. */
+    public function demanderRelances(int $attendu, ?User $par = null): int
+    {
+        $this->verifierEnvoiOuvert();
+
+        return DB::transaction(function () use ($attendu, $par) {
+            $cibles = $this->aRelancer();
+            $this->verifierNombre($cibles->count(), $attendu);
+
+            BarometreEnvoi::whereIn('id', $cibles->pluck('envoi.id'))->update([
+                'relance_statut' => BarometreEnvoi::DEMANDE,
+                'relance_par'    => $par?->id,
+                'erreur'         => null,
+            ]);
+            $this->liste = null;
+
+            return $cibles->count();
+        });
+    }
+
+    private function verifierEnvoiOuvert(): void
+    {
+        if (!$this->enProduction()) {
+            throw new \DomainException('Mode test : seul « Envoyer un test » fonctionne. Les clients ne recevront rien tant que BAROMETRE_MODE n\'est pas sur production.');
+        }
+        if ($m = $this->reglageManquant()) {
+            throw new \DomainException($m);
+        }
+        if ($this->edition()->estClose()) {
+            throw new \DomainException('La date limite est passée : le questionnaire est clos.');
+        }
+    }
+
+    private function verifierNombre(int $trouve, int $attendu): void
+    {
+        if ($trouve === 0) {
+            throw new \DomainException('Personne à qui envoyer.');
+        }
+        if ($trouve !== $attendu) {
+            throw new \DomainException("La liste a changé depuis l'ouverture de la page : {$trouve} destinataires au lieu de {$attendu}. Rechargez la page et vérifiez avant d'envoyer.");
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ENVOI (tâche planifiée barometre:envoyer)
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Envoie les demandes en attente, par lots. Une demande refusée (mode
+     * test, date passée, quota Brevo) passe en échec, avec la raison : elle
+     * repart au prochain clic, jamais toute seule.
+     *
+     * @return array{invitations: int, relances: int, echecs: int}
+     */
+    public function traiterDemandes(): array
+    {
+        $bilan = ['invitations' => 0, 'relances' => 0, 'echecs' => 0];
+        $demandes = BarometreEnvoi::where('edition', $this->code())->whereNull('exclu_motif')
+            ->where(fn ($q) => $q->where('invite_statut', BarometreEnvoi::DEMANDE)->orWhere('relance_statut', BarometreEnvoi::DEMANDE))
+            ->orderBy('id')->limit(max(1, (int) config('barometre.lot')))->get();
+
+        if ($demandes->isEmpty()) {
+            return $bilan;
+        }
+
+        $refus = !$this->enProduction()
+            ? 'Envoi refusé : le baromètre est en mode test (BAROMETRE_MODE).'
+            : ($this->reglageManquant()
+                ?? ($this->edition()->estClose() ? 'Envoi refusé : la date limite est passée.' : null)
+                ?? $this->quotaInsuffisant($demandes->count()));
+
+        foreach ($demandes as $envoi) {
+            $relance = $envoi->invite_statut !== BarometreEnvoi::DEMANDE;
+            $ok = $refus === null && $this->envoyer($envoi, $relance);
+            if ($refus !== null) {
+                $this->marquerEchec($envoi, $relance, $refus);
+            }
+            $bilan[$ok ? ($relance ? 'relances' : 'invitations') : 'echecs']++;
+        }
+
+        return $bilan;
+    }
+
+    private function quotaInsuffisant(int $n): ?string
+    {
+        try {
+            $restants = $this->brevo->envoisRestants();
+        } catch (\Throwable $e) {
+            Log::warning('barometre.quota_illisible', ['erreur' => $e->getMessage()]);
+
+            return null;
+        }
+
+        return $restants !== null && $restants < $n
+            ? "Envoi refusé : il reste {$restants} envois chez Brevo pour {$n} mails. Rien n'est parti."
+            : null;
+    }
+
+    private function marquerEchec(BarometreEnvoi $envoi, bool $relance, string $raison): void
+    {
+        $envoi->forceFill([$relance ? 'relance_statut' : 'invite_statut' => BarometreEnvoi::ECHEC, 'erreur' => $raison])->save();
+    }
+
+    /** Un mail. Brevo sans réponse = compté comme envoyé, jamais renvoyé (règle du 2026-11-03). */
+    private function envoyer(BarometreEnvoi $envoi, bool $relance): bool
+    {
+        [$statut, $le, $brevoId] = $relance
+            ? ['relance_statut', 'relance_le', 'relance_brevo_id']
+            : ['invite_statut', 'invite_le', 'invite_brevo_id'];
+
+        $client = $envoi->client;
+        if (!$client || !filter_var($envoi->email, FILTER_VALIDATE_EMAIL)) {
+            $this->marquerEchec($envoi, $relance, 'Client ou adresse introuvable.');
+
+            return false;
+        }
+
+        $mail = $this->mail($client, $envoi->contact_nom, $this->lienPersonnel($envoi)->publicUrl(), $relance, $envoi->email);
+
+        try {
+            $id = $this->brevo->envoyerEmail($this->payload($mail, $envoi->email));
+        } catch (\Throwable $e) {
+            if (BrevoClient::sansReponse($e)) {
+                $reserve = 'Brevo n\'a pas répondu : le mail est peut-être parti, il ne sera pas renvoyé. (' . $e->getMessage() . ')';
+                JournalMails::brevo($mail->tagBrevo(), $mail->sujet(), $envoi->email, [], null, null, $reserve, $client);
+                $envoi->forceFill([$statut => BarometreEnvoi::ENVOYE, $le => now(), 'erreur' => $reserve])->save();
+
+                return true;
+            }
+            JournalMails::brevo($mail->tagBrevo(), $mail->sujet(), $envoi->email, [], null, $e->getMessage(), null, $client);
+            Log::warning('barometre.envoi_refuse', ['envoi' => $envoi->id, 'erreur' => $e->getMessage()]);
+            $this->marquerEchec($envoi, $relance, mb_substr($e->getMessage(), 0, 2000));
+
+            return false;
+        }
+
+        JournalMails::brevo($mail->tagBrevo(), $mail->sujet(), $envoi->email, [], null, null, null, $client);
+        $envoi->forceFill([$statut => BarometreEnvoi::ENVOYE, $le => now(), $brevoId => $id, 'erreur' => null])->save();
+
+        return true;
+    }
+
+    /**
+     * « Envoyer un test » : le mail exact d'un client, à l'adresse de la
+     * personne connectée, avec un lien de test (il ouvre le questionnaire
+     * au nom « TEST — <client> » : la réponse ne compte pour personne).
+     */
+    public function envoyerTest(Client $client, string $adresse, bool $relance = false): void
+    {
+        if ($m = $this->reglageManquant()) {
+            throw new \DomainException($m);
+        }
+        if ($this->edition()->estClose()) {
+            throw new \DomainException('La date limite est passée : le lien de test serait déjà expiré.');
+        }
+        if (!filter_var($adresse, FILTER_VALIDATE_EMAIL)) {
+            throw new \DomainException('Votre compte n\'a pas d\'adresse e-mail valide.');
+        }
+
+        $ligne = $this->liste()->first(fn ($l) => (int) $l['client']->id === (int) $client->id);
+        $dest  = $ligne['destinataire'] ?? $client->destinataireBarometre();
+        $note  = $dest['email']
+            ? 'En production, il partirait à ' . $dest['email'] . ($dest['contact'] ? ' (' . $dest['contact'] . ')' : '') . '.'
+            : 'En production, ce client ne le recevrait pas : ' . mb_strtolower(self::STATUTS[$ligne['statut'] ?? 'sans_email'][1]) . '.';
+
+        $fin  = $this->edition()->finDuDelai();
+        $lien = PublicLinkService::create($client, self::TYPE_LIEN, $fin->lt(now()->addDays(7)) ? $fin : now()->addDays(7), $client->id, null,
+            ['edition' => $this->code(), 'test' => true]);
+
+        $mail = $this->mail($client, $dest['contact'], $lien->publicUrl(), $relance, $adresse, $note);
+        $this->brevo->envoyerEmail($this->payload($mail, $adresse));
+        JournalMails::brevo($mail->tagBrevo() . '-test', $mail->sujet(), $adresse, [], null, null, null, $client);
+    }
+
+    public function mail(Client $client, ?string $contact, string $lien, bool $relance, ?string $email, ?string $noteTest = null): BarometreMail
+    {
+        return new BarometreMail(
+            $client, $contact, $lien, $this->edition()->date_limite, $relance,
+            $email ? DiffusionDesinscription::lien($email) : null, $noteTest,
+        );
+    }
+
+    /** Requête de l'API transactionnelle Brevo (même forme que le mail J-7). */
+    public function payload(BarometreMail $mail, string $to): array
+    {
+        $payload = [
+            'sender'      => array_filter([
+                'email' => config('brevo.sender.email'),
+                'name'  => config('barometre.expediteur') ?: 'L\'équipe commerciale ' . config('charte.nom'),
+            ]),
+            'to'          => [array_filter(['email' => $to, 'name' => $mail->contact])],
+            'subject'     => $mail->sujet(),
+            'htmlContent' => $mail->htmlEnLigne(),
+            'textContent' => $mail->texte(),
+            'tags'        => [$mail->tagBrevo()],
+        ];
+        if ($entetes = MailClientCampagne::entetesDesinscription($mail->lienDesinscription)) {
+            $payload['headers'] = $entetes;
+        }
+
+        return $payload;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // LIEN PERSONNEL
+    // ══════════════════════════════════════════════════════════════
+
+    /** Le lien du client : créé au premier envoi, gardé pour la relance. */
+    public function lienPersonnel(BarometreEnvoi $envoi): PublicLink
+    {
+        $fin  = $this->edition()->finDuDelai();
+        $lien = $envoi->public_link_id ? PublicLink::find($envoi->public_link_id) : null;
+
+        if ($lien && !$lien->isRevoked()) {
+            if (!$lien->expires_at || !$lien->expires_at->equalTo($fin)) {
+                $lien->forceFill(['expires_at' => $fin])->save();
+            }
+
+            return $lien;
+        }
+
+        $lien = PublicLinkService::create($envoi, self::TYPE_LIEN, $fin, (int) $envoi->client_id, null, ['edition' => $this->code()]);
+        $envoi->forceFill(['public_link_id' => $lien->id])->save();
+
+        return $lien;
+    }
+
+    /**
+     * Clic sur un lien valide (PublicLinkController) : noté, puis adresse
+     * du questionnaire au nom du client. null si le lien ne mène à rien.
+     */
+    public function ouvrir(PublicLink $lien): ?string
+    {
+        $cible = $lien->target;
+
+        if ($cible instanceof BarometreEnvoi && !($lien->metadata['test'] ?? false)) {
+            BarometreEnvoi::whereKey($cible->id)->update([
+                'ouvertures' => DB::raw('ouvertures + 1'),
+                'ouvert_le'  => $cible->ouvert_le ?? now(),
+            ]);
+            $nom = $cible->client?->name;
+
+            return $nom ? $this->lienFormulaire($nom) : null;
+        }
+        if ($cible instanceof Client && ($lien->metadata['test'] ?? false)) {
+            return $this->lienFormulaire(config('barometre.prefixe_test') . $cible->name);
+        }
+
+        return null;
+    }
+
+    public function lienFormulaire(string $structure): string
+    {
+        $base = (string) config('barometre.formulaire');
+
+        return $base . (str_contains($base, '?') ? '&' : '?')
+            . config('barometre.champ_structure') . '=' . rawurlencode($structure);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // EXCLUSIONS
+    // ══════════════════════════════════════════════════════════════
+
+    /** Retire un client de l'envoi. Une demande pas encore partie est annulée, un lien envoyé coupé. */
+    public function exclure(Client $client, string $motif, ?User $par = null): BarometreEnvoi
+    {
+        $envoi = BarometreEnvoi::firstOrNew(['edition' => $this->code(), 'client_id' => $client->id]);
+        $envoi->forceFill([
+            'exclu_motif' => mb_substr(trim($motif) !== '' ? trim($motif) : 'Retiré à la main', 0, 255),
+            'exclu_le'    => now(),
+            'exclu_par'   => $par?->id,
+        ]);
+        foreach (['invite_statut', 'relance_statut'] as $col) {
+            if ($envoi->{$col} === BarometreEnvoi::DEMANDE) {
+                $envoi->{$col} = null;
+            }
+        }
+        $envoi->save();
+
+        if ($envoi->public_link_id && ($lien = PublicLink::find($envoi->public_link_id)) && !$lien->isRevoked()) {
+            // Raison interne : la page du client n'affiche jamais ce texte (PublicLinkController).
+            PublicLinkService::revoke($lien, 'Retiré du baromètre');
+        }
+        $this->liste = null;
+
+        return $envoi;
+    }
+
+    public function reintegrer(Client $client): void
+    {
+        $envoi = BarometreEnvoi::where('edition', $this->code())->where('client_id', $client->id)->first();
+        if (!$envoi) {
+            return;
+        }
+        $envoi->forceFill(['exclu_motif' => null, 'exclu_le' => null, 'exclu_par' => null])->save();
+
+        if ($envoi->public_link_id) {
+            PublicLink::whereKey($envoi->public_link_id)->where('revoked_reason', 'Retiré du baromètre')
+                ->update(['revoked_at' => null, 'revoked_by_user_id' => null, 'revoked_reason' => null]);
+        }
+        $this->liste = null;
+    }
+
+    /**
+     * Exclusion par nom (commande barometre:exclure) : nom exact, sans tenir
+     * compte des majuscules, accents et espaces.
+     *
+     * @return array{exclus: list<string>, introuvables: list<string>, ambigus: list<string>}
+     */
+    public function exclureParNoms(array $noms, string $motif, ?User $par = null): array
+    {
+        $tous = Client::clients()->get(['id', 'name']);
+        $r = ['exclus' => [], 'introuvables' => [], 'ambigus' => []];
+
+        foreach ($noms as $nom) {
+            $trouves = $tous->filter(fn ($c) => self::normaliser($c->name) === self::normaliser($nom));
+            if ($trouves->count() === 1) {
+                $this->exclure($trouves->first(), $motif, $par);
+                $r['exclus'][] = $trouves->first()->name;
+            } else {
+                $r[$trouves->isEmpty() ? 'introuvables' : 'ambigus'][] = $nom;
+            }
+        }
+
+        return $r;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // RÉPONSES (script Google)
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Une réponse signalée par Google. Rejouer la même référence ne crée
+     * rien. Le client est reconnu à son nom ; sinon la réponse attend un
+     * rattachement à la main. Les réponses « TEST — … » ne comptent pas.
+     */
+    public function enregistrerReponse(string $reference, string $structure, ?Carbon $quand = null): BarometreReponse
+    {
+        $structure = mb_substr(trim($structure), 0, 255);
+        $existante = BarometreReponse::where('edition', $this->code())->where('reference', $reference)->first();
+        if ($existante) {
+            return $existante;
+        }
+
+        $test = str_starts_with(self::normaliser($structure) . ' ', self::normaliser((string) config('barometre.prefixe_test')) . ' ');
+
+        try {
+            $reponse = BarometreReponse::create([
+                'edition'    => $this->code(),
+                'reference'  => $reference,
+                'structure'  => $structure !== '' ? $structure : '(vide)',
+                'repondu_le' => $quand ?? now(),
+                'client_id'  => $test ? null : $this->reconnaitre($structure),
+                'test'       => $test,
+            ]);
+        } catch (QueryException $e) {
+            // Deux envois simultanés de la même réponse : l'autre l'a créée.
+            $reponse = BarometreReponse::where('edition', $this->code())->where('reference', $reference)->first() ?? throw $e;
+        }
+        $this->liste = null;
+
+        return $reponse;
+    }
+
+    /** Client dont le nom correspond, s'il n'y en a qu'un. */
+    public function reconnaitre(string $structure): ?int
+    {
+        $cle = self::normaliser($structure);
+        if ($cle === '') {
+            return null;
+        }
+
+        foreach ([Client::clients(), Client::query()] as $requete) {
+            $ids = $requete->get(['id', 'name'])->filter(fn ($c) => self::normaliser($c->name) === $cle)->pluck('id');
+            if ($ids->isNotEmpty()) {
+                return $ids->count() === 1 ? (int) $ids->first() : null;
+            }
+        }
+
+        return null;
+    }
+
+    public function rattacher(BarometreReponse $reponse, ?Client $client, ?User $par = null): void
+    {
+        $reponse->update(['client_id' => $client?->id, 'test' => false, 'rattache_par' => $par?->id]);
+        $this->liste = null;
+    }
+
+    /** @return Collection<int, BarometreReponse> */
+    public function reponsesNonReconnues(): Collection
+    {
+        return BarometreReponse::where('edition', $this->code())->where('test', false)->whereNull('client_id')
+            ->orderByDesc('repondu_le')->get();
+    }
+
+    public function nombreReponses(): array
+    {
+        $q = BarometreReponse::where('edition', $this->code());
+
+        return ['total' => (clone $q)->where('test', false)->count(), 'tests' => (clone $q)->where('test', true)->count()];
+    }
+
+    /** « Société Générale  C.I » → « SOCIETE GENERALE C I ». */
+    public static function normaliser(string $nom): string
+    {
+        $nom = mb_strtoupper(Str::ascii($nom));
+
+        return trim((string) preg_replace('/[^A-Z0-9]+/', ' ', $nom));
+    }
+}

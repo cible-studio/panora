@@ -204,6 +204,14 @@ Schedule::command('dispos:purger-pdf-tests')
 Schedule::command('dispos:verifier-envois')
     ->everyFifteenMinutes()
     ->withoutOverlapping(10);
+//     Chaque minute (2026-11-17) : baromètre clients — envoie les
+//     invitations et relances DEMANDÉES depuis l'écran (un clic ne fait que
+//     les demander). Une requête quand rien n'attend. En arrière-plan :
+//     un lot de 60 mails peut prendre plus d'une minute.
+Schedule::command('barometre:envoyer')
+    ->everyMinute()
+    ->withoutOverlapping(30)
+    ->runInBackground();
 
 // 15. Sauvegarde nocturne de la base + des fichiers déposés (2026-10-02).
 //     spatie/laravel-backup, configuré dans config/backup.php ; guide :

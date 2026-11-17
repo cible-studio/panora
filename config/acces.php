@@ -48,6 +48,11 @@ return [
         'campagnes'       => ['roles' => $tous, 'route' => 'admin.campaigns.index'],
         'renouvellements' => ['roles' => ['admin', 'commercial', 'mediaplanner'], 'route' => 'admin.renouvellements.index'],
         'diffusion_dispos' => ['roles' => ['admin'], 'route' => 'admin.diffusion-dispos.index'],
+        // Baromètre clients (2026-11-17) : les admins, plus les personnes
+        // nommées par BAROMETRE_ACCES (adresses de leur compte Panora).
+        // « personnes » : la route passe par acces:barometre (Acces::middleware).
+        // env() et non config() : ce fichier est lu avant config/barometre.php.
+        'barometre'       => ['roles' => ['admin'], 'personnes' => explode(',', (string) env('BAROMETRE_ACCES', '')), 'route' => 'admin.barometre.index'],
 
         // ── Parc & terrain ────────────────────────────────────────
         'inventaire'      => ['roles' => $tous, 'route' => 'admin.panels.index'],
