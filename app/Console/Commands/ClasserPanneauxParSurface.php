@@ -44,7 +44,7 @@ class ClasserPanneauxParSurface extends Command
                             {--surface=6 : Surface en m² (largeur × hauteur)}
                             {--categorie=Petit format : Nom exact de la catégorie cible}
                             {--tolerance=0.05 : Écart toléré sur la surface, en m²}
-                            {--forcer : Reclasser aussi les catégories sensibles — Lumipub, Chevalet, Murale, axes et pieds (déconseillé)}
+                            {--forcer : Reclasser aussi les catégories sensibles — Lumipub, Chevalet, Murale (déconseillé)}
                             {--appliquer : Écrire les changements (sinon simulation)}';
 
     protected $description = "Classe les panneaux d'une surface donnée dans une catégorie (simulation par défaut)";
@@ -253,16 +253,26 @@ class ClasserPanneauxParSurface extends Command
     /**
      * Pourquoi ce panneau ne doit pas changer de catégorie à la légère.
      * null = aucun risque connu.
+     *
+     * ⚠ CORRECTION DU 2026-11-17 — les axes et leurs pieds ne sont PLUS
+     * écartés, et l'ancien motif était faux.
+     *
+     * Il annonçait « sa catégorie et ses faces pilotent le calcul
+     * ODP/TM ». Vérification faite : la synchro de `faces_par_pied` se
+     * déclenche sur `est_axe` / `axe_id` — jamais sur la catégorie
+     * (PanelController). Et le calcul des taxes lit `est_axe`, `axe_id`
+     * et `faces_par_pied`, pas la catégorie. Reclasser un axe ou un pied
+     * ne touche donc aucun montant.
+     *
+     * La garde écartait 13 panneaux sans raison réelle — dont BK-002 et
+     * ses 12 pieds, des bornes kilométriques de 6 m² qui ont toute leur
+     * place en « Petit format ».
+     *
+     * Seul le NOM de la catégorie reste un vrai danger : c'est lui, et
+     * lui seul, qui pilote une règle ailleurs.
      */
     private function motifEcart(Panel $panneau): ?string
     {
-        if ($panneau->est_axe) {
-            return "axe — sa catégorie et ses faces pilotent le calcul ODP/TM";
-        }
-        if ($panneau->axe_id) {
-            return "pied d'axe — faces_par_pied alimente le calcul ODP/TM";
-        }
-
         $nom = Str::lower((string) $panneau->category?->name);
         foreach (self::CATEGORIES_SENSIBLES as $cle => $consequence) {
             if (Str::contains($nom, $cle)) {
