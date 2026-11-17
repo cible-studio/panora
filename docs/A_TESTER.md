@@ -2754,3 +2754,72 @@ enregistrée, mais ni le lien vers la fiche ni la distinction parc / régie.
       mois de données accumulés. La table est indexée pour ça
       (`campaign_id + created_at`, et `panel_id` pour « dans quelles
       campagnes ce panneau est-il passé ? »).
+
+---
+
+## § 34 — Annuler la validation d'une pige *(2026-11-17)*
+
+### Le blocage
+
+Une pige validée par erreur était un cul-de-sac complet. Quatre portes,
+toutes fermées par la même règle, **pour tout le monde** — admin et Media
+Planner compris, qui avaient pourtant les routes :
+
+| Action tentée | Réponse de Panora |
+|---|---|
+| Supprimer | « Impossible de supprimer une pige déjà vérifiée. » |
+| Rejeter | « Impossible de rejeter une pige déjà vérifiée. » |
+| Changer le statut depuis « Modifier » | champ verrouillé dès que la pige est vérifiée |
+
+Conséquence terrain : la tâche de pose restait « terminée » et
+**disparaissait de la liste du technicien**. Personne ne pouvait la faire
+revenir. Cas constaté le 17/11 sur ADJ-005B (campagne BIDC, Adjamé).
+
+### Ce qui a changé
+
+Nouveau bouton **« Annuler la validation »** sur la carte d'une pige
+validée (`/admin/piges`). Il demande un **motif obligatoire**, puis :
+
+- la pige repasse en **rejetée** avec ce motif ;
+- la tâche de pose revient de « terminée » à « en cours » (progression
+  redescendue à 60 %, date de fin effacée) → **elle réapparaît dans la
+  liste du technicien** ;
+- le technicien est prévenu : WhatsApp s'il a un numéro, plus une
+  notification dans son espace ;
+- le **GPS du panneau est recalculé** sans cette pige — il avait pu être
+  établi à partir d'elle ;
+- une alerte prévient l'équipe, et le journal garde la trace en
+  *warning*.
+
+Ouvert à **l'admin et au Media Planner** : c'est le MP qui valide au
+quotidien, donc lui qui s'aperçoit de l'erreur le premier.
+
+La réouverture de la pose est désormais **centralisée** : le rejet
+ordinaire et l'annulation passent par la même méthode. Deux copies
+auraient fini par diverger — l'une rouvrant la pose, l'autre non.
+
+### À vérifier sur la vraie base
+
+- [ ] **ADJ-005B (BIDC)** : ouvrir `/admin/piges`, retrouver la pige
+      validée par ABDOUL AZIZ KOFFI le 17/11, cliquer « Annuler la
+      validation », saisir un motif.
+- [ ] La tâche réapparaît dans la liste de **Ignace** sur l'espace
+      technicien.
+- [ ] Ignace reçoit le motif (WhatsApp si numéro renseigné, et la
+      notification dans l'espace tech).
+- [ ] Le refus sans motif est bloqué.
+- [ ] Un Media Planner y a accès ; un commercial, non.
+- [ ] Sur une pige **en attente**, le bouton n'apparaît pas (c'est le
+      rejet ordinaire qui s'applique).
+- [ ] Le compteur « vérifiées » de l'écran baisse de 1, « rejetées »
+      monte de 1.
+- [ ] Vérifier que le GPS du panneau reste cohérent après l'annulation.
+
+### Limite à connaître
+
+- [ ] **L'e-mail envoyé au client à la validation ne se reprend pas.**
+      Valider une pige déclenche un avis au client (`AvisPigeValidee`) —
+      pour un axe, quand son dernier pied est validé. BIDC a donc
+      probablement déjà reçu la photo d'ADJ-005B. La fenêtre
+      d'annulation le dit avant de cliquer ; le motif saisi sert de trace
+      pour expliquer l'écart au client si la question revient.

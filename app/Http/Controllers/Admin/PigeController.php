@@ -736,6 +736,73 @@ class PigeController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // ANNULER UNE VALIDATION (2026-11-17)
+    //
+    // Une pige validée par erreur n'avait aucune sortie : ni rejet, ni
+    // suppression, ni changement de statut depuis le formulaire. La tâche
+    // de pose restait terminée et disparaissait de la liste du technicien.
+    //
+    // Règle validée le 2026-11-17 : la pige repasse en REJETÉE avec un
+    // motif obligatoire, la pose se rouvre, le technicien est prévenu.
+    // Admin et Media Planner (cf. routes/admin.php).
+    // ══════════════════════════════════════════════════════════════
+    public function annulerValidation(Request $request, Pige $pige)
+    {
+        $data = $request->validate([
+            'motif' => 'required|string|max:500',
+        ], [
+            'motif.required' => "Indiquez pourquoi cette validation est annulée.",
+            'motif.max'      => 'Le motif ne doit pas dépasser 500 caractères.',
+        ]);
+
+        $result = $this->pigeService->annulerValidation($pige, auth()->user(), $data['motif']);
+
+        if (!$result['ok']) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $result['error']], 422);
+            }
+            return back()->with('error', $result['error']);
+        }
+
+        $pige->refresh()->load('panel');
+        $ref = $pige->panel?->reference ?? '—';
+
+        // Alerte tracée : revenir sur une preuve déjà envoyée au client
+        // n'est pas un geste anodin, l'équipe doit le voir passer.
+        AlertService::create(
+            'pige',
+            'warning',
+            '↩️ Validation annulée — ' . $ref,
+            auth()->user()->name . " a annulé la validation de la pige du panneau {$ref}"
+                . " — motif : {$data['motif']}. La pose est rouverte, le technicien a été prévenu.",
+            null
+        );
+
+        // Notification dans l'espace technicien, comme pour un rejet.
+        if ($pige->user_id) {
+            \App\Models\TechNotification::notify(
+                userId:  $pige->user_id,
+                type:    'photo_rejected',
+                title:   '🚫 Photo à refaire : ' . $ref,
+                detail:  $data['motif'],
+                payload: ['pige_id' => $pige->id, 'task_id' => $pige->pose_task_id],
+            );
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Validation annulée — la pose est rouverte.',
+            ]);
+        }
+
+        return back()->with(
+            'success',
+            "Validation annulée pour {$ref}. La tâche est revenue dans la liste du technicien, qui a été prévenu."
+        );
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // VERIFY BATCH — vérifier plusieurs piges en 1 clic
     // POST /admin/piges/verify-batch
     // ══════════════════════════════════════════════════════════════
