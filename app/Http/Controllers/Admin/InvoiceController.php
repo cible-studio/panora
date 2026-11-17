@@ -1074,9 +1074,31 @@ class InvoiceController extends Controller
     {
         $this->authorize('markSent', $invoice);
 
-        if ($invoice->status !== 'brouillon') {
+        // 2026-11-17 — « Sortir du litige » (fiche facture) poste ici : on
+        // remet la facture en Envoyée, SANS renvoyer le mail au client (il a
+        // déjà la facture ; la confirmation à l'écran ne parle d'aucun envoi).
+        // Avant, le contrôle ci-dessous refusait tout sauf le brouillon : le
+        // bouton ne pouvait jamais aboutir.
+        if ($invoice->status === 'litige') {
+            try {
+                $invoice->transitionStatusTo('envoyee', reason: 'Sortie de litige', auto: false);
+            } catch (\DomainException $e) {
+                return $this->statusResponse($request, $invoice, false, '🚫 ' . $e->getMessage());
+            }
+            return $this->statusResponse($request, $invoice, true, 'Facture sortie du litige : de nouveau « Envoyée ».');
+        }
+
+        // 2026-11-17 — Envoi depuis le brouillon (envoi direct, comme avant)
+        // OU depuis « Validée » : c'est le parcours officiel
+        // (Invoice::MANUAL_TRANSITIONS : validee → envoyee) et la fiche
+        // affiche le bouton « Envoyer au client » sur une facture validée
+        // (« Prête à être envoyée au client »). Le contrôle n'acceptait que
+        // le brouillon : constaté en formation comptable, une facture
+        // validée ne partait pas.
+        if (!in_array($invoice->status, ['brouillon', 'validee'], true)) {
+            $conseil = $invoice->status === 'generee' ? ' Validez-la d\'abord.' : '';
             return $this->statusResponse($request, $invoice, false,
-                "Seules les factures en brouillon peuvent être envoyées (statut actuel : {$invoice->status}).");
+                "Seules les factures en brouillon ou validées peuvent être envoyées (statut actuel : {$invoice->status}).{$conseil}");
         }
 
         // ⚠ Même garde : pas d'envoi au client si la campagne est annulée
