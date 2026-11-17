@@ -117,8 +117,10 @@ class TaxController extends Controller
      * Filtres du détail des taxes — source unique pour l'écran, le PDF et
      * l'Excel (avant 2026-10-06 : trois copies identiques).
      *
-     * include_maintenance (TX-12) : ajouté APRÈS array_filter(), la valeur
-     * false serait sinon éliminée et la vue doit pouvoir la relire.
+     * Les drapeaux booléens sont posés APRÈS array_filter() : la valeur
+     * false y serait sinon éliminée, alors que la vue doit pouvoir la
+     * relire pour cocher ses cases.
+     *
      * exclure_categories (2026-10-06) : ids de catégories à retirer.
      */
     private function detailFilters(Request $request): array
@@ -129,10 +131,14 @@ class TaxController extends Controller
             'campaign_id' => $request->input('campaign_id') ?: null,
             'type'        => $request->input('type')        ?: null,
         ]);
-        $filters['include_maintenance'] = $request->boolean('include_maintenance');
         // 2026-11-13 — La maintenance n'écarte plus le panneau par défaut
-        // (l'ODP reste due, le mât occupe toujours le sol). Cette case
+        // (l'ODP reste due, le mât occupe toujours le sol). Ce drapeau
         // permet de retrouver l'ancienne vue.
+        //
+        // 2026-11-17 — `include_maintenance` retiré : il n'avait plus
+        // aucun effet depuis le 13/11 (le service ne lit que
+        // `exclure_maintenance`), et deux noms opposés pour une seule case
+        // étaient un piège pour la prochaine lecture.
         $filters['exclure_maintenance'] = $request->boolean('exclure_maintenance');
         // 2026-11-13 — Lumipub : une ligne par PIED, jamais la ligne d'axe.
         // Décochée par défaut (règle validée) pour ne rien changer aux
@@ -681,8 +687,9 @@ class TaxController extends Controller
         // filtre, sinon leurs totaux ne se raccordent pas.
         // 2026-11-13 — Le sens par défaut s'inverse : la maintenance est
         // INCLUSE (l'ODP court tant que le mât occupe le sol), et c'est
-        // 'exclure_maintenance' qui la retire. 'include_maintenance' reste
-        // accepté sans effet pour ne pas casser les URLs enregistrées.
+        // 'exclure_maintenance' qui la retire. (L'ancien
+        // 'include_maintenance', sans effet depuis, a été retiré le
+        // 2026-11-17.)
         $exclureMaintenance = $request->boolean('exclure_maintenance');
         $inclureLumipub     = $request->boolean('inclure_lumipub');
         $communes = Commune::query()

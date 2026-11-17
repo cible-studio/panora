@@ -55,9 +55,10 @@ class TaxCalculationService
      * @param  int    $periodValue   1-12 (mois) | 1-4 (trim) | 0 (annuel)
      * @param  int    $year
      * @param  array  $filters       ['commune_id'=>?, 'client_id'=>?, 'campaign_id'=>?,
-     *                               'type'=>?, 'include_maintenance'=>bool]
-     *                               include_maintenance : false (défaut) = les panneaux
-     *                               en maintenance sont exclus du calcul.
+     *                               'type'=>?, 'exclure_maintenance'=>bool]
+     *                               exclure_maintenance : false (défaut) = les panneaux
+     *                               en maintenance restent comptés — l'ODP court tant
+     *                               que le mât occupe le sol (règle du 2026-11-13).
      *                               exclure_categories : ids de PanelCategory à retirer
      *                               (ex. Chevalet). Vide = toutes les catégories. Les
      *                               panneaux sans catégorie sont toujours gardés.
@@ -116,9 +117,9 @@ class TaxCalculationService
         // La TM, elle, se régule seule : elle exige une campagne sur la
         // période (isEligible), donc un panneau en panne et vide donne 0.
         // 'exclure_maintenance' reste disponible pour retrouver l'ancienne
-        // vue ; l'ancien 'include_maintenance' n'a plus d'effet (c'est
-        // devenu le comportement par défaut) et reste accepté sans casser
-        // les URLs et exports enregistrés.
+        // vue. (L'ancien drapeau 'include_maintenance' a été retiré le
+        // 2026-11-17 : il n'avait plus d'effet depuis le 13/11, et deux
+        // noms opposés pour une seule case trompaient la lecture.)
         if (!empty($filters['exclure_maintenance'])) {
             $panelsQuery->whereNotIn('status', ['maintenance']);
         }
