@@ -244,6 +244,64 @@ class Client extends Authenticatable  // ← était "extends Model"
         return $liste ?: (self::echangeTropAncien($this->email_dernier_echange) ? [] : $this->adresseFiche());
     }
 
+    /**
+     * Baromètre clients (règle validée le 2026-11-17) : UN destinataire par
+     * entreprise, pris parmi les interlocuteurs dont l'adresse est valide,
+     * n'est pas une adresse de la régie (contacts.domaines_internes) et
+     * n'est pas écartée des envois commerciaux (désinscrit, rebond, spam) :
+     *   1. l'interlocuteur principal ;
+     *   2. sinon celui du dernier dossier (campagne, réservation, devis) ;
+     *   3. sinon celui avec l'échange par mail le plus récent ;
+     *   4. sinon le seul interlocuteur qui a une adresse ;
+     *   5. sans interlocuteur qui a une adresse : l'adresse de la fiche.
+     * Plusieurs interlocuteurs et aucun indice : « a_choisir » — cocher le
+     * principal sur la fiche. Source unique de cette règle.
+     *
+     * @param ?int                $interlocuteurDossier  interlocuteur du dernier dossier
+     *        (BarometreService le calcule pour tous les clients d'un coup)
+     * @param array<string, mixed> $ecartees  adresses écartées, en minuscules, en clés
+     * @return array{email: ?string, contact: ?string, contact_id: ?int, source: string}
+     *         source : principal | dossier | echange | seul | fiche | a_choisir | aucun
+     */
+    public function destinataireBarometre(?int $interlocuteurDossier = null, array $ecartees = []): array
+    {
+        $utilisable = function (?string $email) use ($ecartees): ?string {
+            $email = mb_strtolower(trim((string) $email));
+            $domaine = substr((string) strrchr($email, '@'), 1);
+
+            return filter_var($email, FILTER_VALIDATE_EMAIL)
+                && !in_array($domaine, config('contacts.domaines_internes', []), true)
+                && !isset($ecartees[$email]) ? $email : null;
+        };
+        $avecAdresse = $this->contacts->filter(fn ($ct) => $utilisable($ct->email) !== null)->values();
+        $retenu = fn (ClientContact $ct, string $source) => [
+            'email' => $utilisable($ct->email), 'contact' => $ct->name, 'contact_id' => (int) $ct->id, 'source' => $source,
+        ];
+
+        if ($ct = $avecAdresse->first(fn ($c) => $c->is_primary)) {
+            return $retenu($ct, 'principal');
+        }
+        if ($interlocuteurDossier && ($ct = $avecAdresse->first(fn ($c) => (int) $c->id === $interlocuteurDossier))) {
+            return $retenu($ct, 'dossier');
+        }
+        $dates = $avecAdresse->filter(fn ($c) => $c->dernier_echange)
+            ->sortBy(fn ($c) => [-$c->dernier_echange->getTimestamp(), (int) $c->id]);
+        if ($ct = $dates->first()) {
+            return $retenu($ct, 'echange');
+        }
+        if ($avecAdresse->count() === 1) {
+            return $retenu($avecAdresse->first(), 'seul');
+        }
+        if ($avecAdresse->count() > 1) {
+            return ['email' => null, 'contact' => null, 'contact_id' => null, 'source' => 'a_choisir'];
+        }
+        if ($email = $utilisable($this->email)) {
+            return ['email' => $email, 'contact' => $this->contact_name ?: null, 'contact_id' => null, 'source' => 'fiche'];
+        }
+
+        return ['email' => null, 'contact' => null, 'contact_id' => null, 'source' => 'aucun'];
+    }
+
     /** Dernier échange antérieur à la date limite de diffusion ? (vide = non) */
     public static function echangeTropAncien(mixed $date): bool
     {

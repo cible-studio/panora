@@ -1,0 +1,416 @@
+<?php
+
+namespace Tests\Unit;
+
+use App\Enums\UserRole;
+use App\Models\BarometreEnvoi;
+use App\Models\BarometreReponse;
+use App\Models\Client;
+use App\Models\PublicLink;
+use App\Models\User;
+use App\Services\Barometre\BarometreService;
+use App\Services\Brevo\BrevoClient;
+use App\Support\Acces;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+
+/**
+ * Baromètre clients (2026-11-17) — envoi, relance, lien, réponses.
+ *
+ * Décisions validées par écrit : un mail par entreprise ; exclusions
+ * (régies, nouveaux clients, adresses écartées) ; le nombre affiché est
+ * celui envoyé ; lien sécurisé qui expire seul à la date limite ; relance
+ * par bouton aux seuls non-répondants (Google prévient Panora) ; mode test
+ * par défaut ; accès admins + BAROMETRE_ACCES.
+ */
+class BarometreServiceTest extends TestCase
+{
+    private object $brevo;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Carbon::setTestNow('2026-11-18 09:00:00');
+
+        Schema::create('clients', function (Blueprint $t) {
+            $t->id(); $t->string('name'); $t->string('email')->nullable(); $t->string('contact_name')->nullable();
+            $t->string('statut_commercial')->default('client'); $t->softDeletes(); $t->timestamps();
+        });
+        Schema::create('client_contacts', function (Blueprint $t) {
+            $t->id(); $t->unsignedBigInteger('client_id'); $t->string('name'); $t->string('email')->nullable();
+            $t->boolean('is_primary')->default(false); $t->date('dernier_echange')->nullable(); $t->softDeletes(); $t->timestamps();
+        });
+        foreach (['campaigns' => 'start_date', 'reservations' => null, 'quotes' => null] as $table => $date) {
+            Schema::create($table, function (Blueprint $t) use ($date) {
+                $t->id(); $t->unsignedBigInteger('client_id'); $t->unsignedBigInteger('client_contact_id')->nullable();
+                if ($date) { $t->date($date)->nullable(); }
+                $t->softDeletes(); $t->timestamps();
+            });
+        }
+        Schema::create('diffusion_desinscriptions', function (Blueprint $t) {
+            $t->id(); $t->string('email'); $t->string('motif'); $t->string('source')->nullable(); $t->timestamp('survenu_at')->nullable(); $t->timestamps();
+        });
+        Schema::create('public_links', function (Blueprint $t) {
+            $t->id(); $t->string('token', 64)->unique(); $t->string('type', 40); $t->string('target_type'); $t->unsignedBigInteger('target_id');
+            $t->unsignedBigInteger('client_id')->nullable(); $t->timestamp('expires_at')->nullable(); $t->timestamp('revoked_at')->nullable();
+            $t->unsignedBigInteger('revoked_by_user_id')->nullable(); $t->string('revoked_reason')->nullable();
+            $t->unsignedInteger('max_uses')->nullable(); $t->unsignedInteger('use_count')->default(0); $t->timestamp('used_at')->nullable();
+            $t->unsignedInteger('access_count')->default(0); $t->timestamp('last_accessed_at')->nullable();
+            $t->string('last_accessed_ip', 45)->nullable(); $t->string('last_accessed_ua')->nullable();
+            $t->unsignedBigInteger('created_by_user_id')->nullable(); $t->json('metadata')->nullable(); $t->timestamps();
+        });
+        Schema::create('journal_mails', function (Blueprint $t) {
+            $t->id(); $t->timestamp('envoye_le'); $t->string('statut'); $t->string('canal'); $t->string('type'); $t->string('sujet')->nullable();
+            $t->text('destinataires'); $t->text('copie')->nullable(); $t->string('dossier_type')->nullable(); $t->unsignedBigInteger('dossier_id')->nullable();
+            $t->text('erreur')->nullable(); $t->unsignedBigInteger('user_id')->nullable(); $t->timestamps();
+        });
+        (require base_path('database/migrations/2026_11_17_100000_create_barometre_tables.php'))->up();
+
+        config([
+            'barometre.edition'         => '2026',
+            'barometre.mode'            => 'production',
+            'barometre.date_limite'     => '2026-11-30',
+            'barometre.formulaire'      => 'https://docs.google.com/forms/d/e/ABC/viewform?usp=pp_url',
+            'barometre.champ_structure' => 'entry.288269504',
+            'barometre.lot'             => 60,
+            'brevo.sender.email'        => 'commercial@regie.test',
+        ]);
+
+        $this->brevo = new class extends BrevoClient {
+            public array $envoyes = [];
+            public ?\Throwable $panne = null;
+            public ?int $restants = null;
+            public function estConfigure(): bool { return true; }
+            public function envoisRestants(): ?int { return $this->restants; }
+            public function envoyerEmail(array $payload): ?string
+            {
+                if ($this->panne) { throw $this->panne; }
+                $this->envoyes[] = $payload;
+
+                return 'msg-' . count($this->envoyes);
+            }
+        };
+        $this->app->instance(BrevoClient::class, $this->brevo);
+
+        DB::table('clients')->insert([
+            ['id' => 1, 'name' => 'ADDOHA', 'email' => null, 'statut_commercial' => 'client'],
+            ['id' => 2, 'name' => 'AXA', 'email' => null, 'statut_commercial' => 'client'],
+            ['id' => 3, 'name' => 'BANK', 'email' => null, 'statut_commercial' => 'client'],
+            ['id' => 4, 'name' => 'GUYS MEDIA', 'email' => null, 'statut_commercial' => 'client'],
+            ['id' => 5, 'name' => 'JCDECAUX', 'email' => null, 'statut_commercial' => 'client'],
+            ['id' => 6, 'name' => 'PROSPECT SA', 'email' => 'p@prospect.ci', 'statut_commercial' => 'prospect'],
+            ['id' => 7, 'name' => 'Société Générale', 'email' => 'contact@sgci.ci', 'statut_commercial' => 'client'],
+        ]);
+        DB::table('client_contacts')->insert([
+            ['client_id' => 1, 'name' => 'Koffi KOUADJO', 'email' => 'k.kouadjo@addoha.ci', 'is_primary' => true, 'dernier_echange' => null],
+            ['client_id' => 2, 'name' => 'Fabrice', 'email' => 'fabrice@axa.ci', 'is_primary' => false, 'dernier_echange' => '2026-10-01'],
+            // GUYS MEDIA partage l'adresse d'AXA : un seul mail.
+            ['client_id' => 4, 'name' => 'Fabrice', 'email' => 'Fabrice@AXA.ci', 'is_primary' => true, 'dernier_echange' => null],
+            ['client_id' => 5, 'name' => 'Loïc', 'email' => 'loic@jcdecaux.com', 'is_primary' => true, 'dernier_echange' => null],
+        ]);
+        // Comme en prod : la régie est retirée par barometre:exclure.
+        $r = app(BarometreService::class)->exclureParNoms(['jcdecaux', 'INCONNU SA'], 'Régie');
+        $this->assertSame(['exclus' => ['JCDECAUX'], 'introuvables' => ['INCONNU SA'], 'ambigus' => []], $r);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
+
+    private function service(): BarometreService
+    {
+        return app(BarometreService::class);
+    }
+
+    private function statuts(): array
+    {
+        return $this->service()->liste()->mapWithKeys(fn ($l) => [$l['client']->name => $l['statut']])->all();
+    }
+
+    public function test_la_liste_affiche_ce_qui_partira(): void
+    {
+        $this->assertSame([
+            'ADDOHA'           => 'pret',
+            'AXA'              => 'pret',
+            'BANK'             => 'sans_email',
+            'GUYS MEDIA'       => 'doublon',
+            'JCDECAUX'         => 'exclu',
+            'Société Générale' => 'pret',
+        ], $this->statuts(), 'prospect absent, adresse partagée envoyée une fois');
+
+        $c = $this->service()->compteurs();
+        $this->assertSame(3, $c['a_envoyer']);
+        $this->assertSame(1, $c['exclus']);
+    }
+
+    public function test_une_adresse_ecartee_des_envois_commerciaux_n_est_pas_utilisee(): void
+    {
+        DB::table('diffusion_desinscriptions')->insert(['email' => 'k.kouadjo@addoha.ci', 'motif' => 'rebond']);
+
+        $this->assertSame('sans_email', $this->statuts()['ADDOHA']);
+    }
+
+    public function test_l_envoi_est_refuse_en_mode_test_ou_si_le_nombre_a_change(): void
+    {
+        config(['barometre.mode' => 'test']);
+        try {
+            $this->service()->demanderInvitations(3);
+            $this->fail('mode test : refusé');
+        } catch (\DomainException $e) {
+            $this->assertStringContainsString('Mode test', $e->getMessage());
+        }
+
+        config(['barometre.mode' => 'production']);
+        try {
+            $this->service()->demanderInvitations(4);
+            $this->fail('nombre différent : refusé');
+        } catch (\DomainException $e) {
+            $this->assertStringContainsString('3 destinataires au lieu de 4', $e->getMessage());
+        }
+        $this->assertSame(0, BarometreEnvoi::whereNotNull('invite_statut')->count(), 'rien n\'est demandé');
+    }
+
+    public function test_envoi_complet_lien_personnel_qui_expire_a_la_date_limite(): void
+    {
+        $this->assertSame(3, $this->service()->demanderInvitations(3));
+        $this->assertSame(['invitations' => 3, 'relances' => 0, 'echecs' => 0], $this->service()->traiterDemandes());
+        $this->assertCount(3, $this->brevo->envoyes);
+
+        $addoha = BarometreEnvoi::where('client_id', 1)->first();
+        $this->assertSame(BarometreEnvoi::ENVOYE, $addoha->invite_statut);
+        $this->assertSame('principal', $addoha->source);
+
+        $lien = PublicLink::find($addoha->public_link_id);
+        $this->assertSame('barometre', $lien->type);
+        $this->assertSame(64, strlen($lien->token));
+        $this->assertSame('2026-11-30 23:59:59', $lien->expires_at->format('Y-m-d H:i:s'));
+
+        $p = $this->brevo->envoyes[0];
+        $this->assertSame([['email' => 'k.kouadjo@addoha.ci', 'name' => 'Koffi KOUADJO']], $p['to']);
+        $this->assertSame('Votre avis compte pour CIBLE | 5 minutes pour nous aider à progresser', $p['subject']);
+        $this->assertStringContainsString('Bonjour Koffi KOUADJO (ADDOHA)', $p['htmlContent']);
+        $this->assertStringContainsString('/p/' . $lien->token, $p['htmlContent']);
+        $this->assertStringContainsString('30 novembre 2026', $p['htmlContent']);
+        $this->assertStringContainsString('/p/' . $lien->token, $p['textContent']);
+        $this->assertArrayHasKey('List-Unsubscribe', $p['headers']);
+        $this->assertSame(['barometre-2026'], $p['tags']);
+        $this->assertMatchesRegularExpression('/<a[^>]*class="cta"[^>]*style="[^"]*background/', $p['htmlContent'],
+            'styles écrits en ligne : l\'API Brevo ne passe pas par l\'outil de Panora');
+
+        $this->assertSame('client', DB::table('journal_mails')->where('destinataires', 'k.kouadjo@addoha.ci')->value('dossier_type'));
+
+        // Jamais deux fois : plus personne à inviter.
+        $this->assertSame(0, $this->service()->compteurs()['a_envoyer']);
+        $this->assertSame(['invitations' => 0, 'relances' => 0, 'echecs' => 0], $this->service()->traiterDemandes());
+    }
+
+    public function test_une_demande_qui_ne_peut_pas_partir_passe_en_echec_et_repart_au_clic(): void
+    {
+        $this->service()->demanderInvitations(3);
+        config(['barometre.mode' => 'test']);
+        $this->assertSame(3, $this->service()->traiterDemandes()['echecs']);
+        $this->assertCount(0, $this->brevo->envoyes);
+        $this->assertStringContainsString('mode test', BarometreEnvoi::where('client_id', 1)->value('erreur'));
+
+        // Quota Brevo insuffisant : rien ne part.
+        config(['barometre.mode' => 'production']);
+        $this->brevo->restants = 2;
+        $this->assertSame(3, $this->service()->demanderInvitations(3), 'les échecs repartent au clic');
+        $this->assertSame(3, $this->service()->traiterDemandes()['echecs']);
+        $this->assertCount(0, $this->brevo->envoyes);
+    }
+
+    public function test_brevo_sans_reponse_compte_comme_envoye_un_refus_comme_echec(): void
+    {
+        $this->service()->demanderInvitations(3);
+        $this->brevo->panne = new ConnectionException('cURL error 28');
+        $this->assertSame(3, $this->service()->traiterDemandes()['invitations'], 'règle du 2026-11-03 : jamais renvoyé');
+        $this->assertStringContainsString('peut-être parti', BarometreEnvoi::where('client_id', 1)->value('erreur'));
+
+        BarometreEnvoi::whereNotNull('invite_statut')->delete();
+        $this->service()->demanderInvitations(3);
+        $this->brevo->panne = new \RuntimeException('Brevo : adresse refusée');
+        $this->assertSame(3, $this->service()->traiterDemandes()['echecs']);
+        $this->assertSame('echec', $this->statuts()['ADDOHA']);
+    }
+
+    public function test_les_reponses_google_sont_reconnues_sans_doublon(): void
+    {
+        $s = $this->service();
+        $r = $s->enregistrerReponse('ref-1', 'societe generale', Carbon::parse('2026-11-18T10:00:00Z'));
+        $this->assertSame(7, $r->client_id, 'majuscules, accents, espaces ignorés');
+        $s->enregistrerReponse('ref-1', 'societe generale');
+        $this->assertSame(1, BarometreReponse::count(), 'même référence : rien de nouveau');
+
+        $test = $s->enregistrerReponse('ref-2', 'TEST — ADDOHA');
+        $this->assertTrue($test->test);
+        $this->assertNull($test->client_id, 'une réponse de test ne compte pour personne');
+
+        $inconnu = $s->enregistrerReponse('ref-3', 'Addoha Afrique');
+        $this->assertNull($inconnu->client_id);
+        $this->assertCount(1, $s->reponsesNonReconnues());
+        $s->rattacher($inconnu, Client::find(1));
+
+        $statuts = $this->statuts();
+        $this->assertSame('repondu', $statuts['Société Générale']);
+        $this->assertSame('repondu', $statuts['ADDOHA'], 'rattachée à la main');
+        $this->assertSame(1, $this->service()->compteurs()['a_envoyer'], 'qui a déjà répondu ne reçoit pas l\'invitation');
+    }
+
+    public function test_la_relance_ne_vise_que_les_invites_sans_reponse_avec_le_meme_lien(): void
+    {
+        $s = $this->service();
+        $s->demanderInvitations(3);
+        $s->traiterDemandes();
+        $s->enregistrerReponse('ref-1', 'AXA');
+        $lienAddoha = BarometreEnvoi::where('client_id', 1)->value('public_link_id');
+
+        $s = $this->service();
+        $this->assertSame(['ADDOHA', 'Société Générale'], $s->aRelancer()->map(fn ($l) => $l['client']->name)->values()->all());
+        $this->assertSame(2, $s->demanderRelances(2));
+        $this->assertSame(['invitations' => 0, 'relances' => 2, 'echecs' => 0], $s->traiterDemandes());
+
+        $relance = $this->brevo->envoyes[3];
+        $this->assertSame('Rappel | Votre avis compte pour CIBLE', $relance['subject']);
+        $this->assertSame(['barometre-2026-relance'], $relance['tags']);
+        $this->assertSame($lienAddoha, BarometreEnvoi::where('client_id', 1)->value('public_link_id'), 'même lien');
+        $this->assertSame(0, $this->service()->aRelancer()->count(), 'une seule relance');
+    }
+
+    public function test_le_lien_ouvre_le_questionnaire_au_nom_du_client_et_se_coupe(): void
+    {
+        $s = $this->service();
+        $s->demanderInvitations(3);
+        $s->traiterDemandes();
+        $envoi = BarometreEnvoi::where('client_id', 7)->first();
+        $lien  = PublicLink::find($envoi->public_link_id);
+
+        $url = $s->ouvrir($lien);
+        $this->assertSame('https://docs.google.com/forms/d/e/ABC/viewform?usp=pp_url&entry.288269504=Soci%C3%A9t%C3%A9%20G%C3%A9n%C3%A9rale', $url);
+        $s->ouvrir($lien->fresh());
+        $this->assertSame(2, $envoi->fresh()->ouvertures);
+        $this->assertNotNull($envoi->fresh()->ouvert_le);
+
+        // Retiré après l'envoi : lien coupé ; remis : lien rétabli.
+        $s->exclure(Client::find(7), 'Erreur');
+        $this->assertTrue($lien->fresh()->isRevoked());
+        $s->reintegrer(Client::find(7));
+        $this->assertFalse($lien->fresh()->isRevoked());
+
+        // Date prolongée : tous les liens suivent.
+        $s->changerDateLimite(Carbon::parse('2026-12-05'));
+        $this->assertSame('2026-12-05 23:59:59', $lien->fresh()->expires_at->format('Y-m-d H:i:s'));
+    }
+
+    public function test_apres_la_date_limite_plus_rien_ne_part(): void
+    {
+        Carbon::setTestNow('2026-12-01 08:00:00');
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('date limite est passée');
+        $this->service()->demanderInvitations(3);
+    }
+
+    public function test_acces_admins_et_personnes_nommees(): void
+    {
+        config(['acces.modules.barometre.personnes' => ['josias@regie.test']]);
+        $u = function (UserRole $role, string $email) {
+            $user = new User();
+            $user->role = $role;
+            $user->email = $email;
+
+            return $user;
+        };
+
+        $this->assertTrue(Acces::peut('barometre', $u(UserRole::ADMIN, 'chef@regie.test')));
+        $this->assertTrue(Acces::peut('barometre', $u(UserRole::COMMERCIAL, ' Josias@Regie.test ')));
+        $this->assertFalse(Acces::peut('barometre', $u(UserRole::COMMERCIAL, 'autre@regie.test')));
+        $this->assertFalse(Acces::peut('barometre', $u(UserRole::TECHNIQUE, 'josias@regie.test')), 'jamais un technicien');
+        $this->assertSame('acces:barometre', Acces::middleware('barometre'));
+        $this->assertSame('role:admin,mediaplanner', Acces::middleware('poses'), 'les autres modules ne changent pas');
+    }
+
+    public function test_le_lien_public_redirige_sans_referer_puis_se_ferme(): void
+    {
+        $this->service()->demanderInvitations(3);
+        $this->service()->traiterDemandes();
+        $envoi = BarometreEnvoi::where('client_id', 1)->first();
+        $token = PublicLink::find($envoi->public_link_id)->token;
+
+        $r = $this->get('/p/' . $token);
+        $r->assertRedirect('https://docs.google.com/forms/d/e/ABC/viewform?usp=pp_url&entry.288269504=ADDOHA');
+        // Jamais le chemin (donc le jeton) vers Google : seulement le domaine.
+        $r->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+        $r->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+        $this->assertSame(1, $envoi->fresh()->ouvertures);
+
+        // Lien coupé : message neutre, jamais la raison interne.
+        $this->service()->exclure(Client::find(1), 'Régie concurrente');
+        $this->get('/p/' . $token)->assertStatus(410)->assertSee('plus disponible')->assertDontSee('Régie')->assertDontSee('Retiré');
+        $this->service()->reintegrer(Client::find(1));
+
+        // Après la date limite : fermé tout seul.
+        Carbon::setTestNow('2026-12-01 00:00:01');
+        $this->get('/p/' . $token)->assertStatus(410)->assertSee('clos depuis le 30/11/2026');
+        $this->assertSame(1, $envoi->fresh()->ouvertures, 'un lien expiré ne compte pas comme ouvert');
+    }
+
+    public function test_la_porte_d_entree_google_exige_le_jeton(): void
+    {
+        $corps = ['reference' => 'abc', 'structure' => 'AXA', 'repondu_le' => '2026-11-18T10:00:00Z'];
+
+        config(['barometre.jeton_google' => null]);
+        $this->postJson('/api/barometre/reponse', $corps, ['Authorization' => 'Bearer x'])->assertNotFound();
+
+        config(['barometre.jeton_google' => 'secret-de-test']);
+        $this->postJson('/api/barometre/reponse', $corps)->assertNotFound();
+        $this->postJson('/api/barometre/reponse', $corps, ['Authorization' => 'Bearer faux'])->assertNotFound();
+        $this->assertSame(0, BarometreReponse::count());
+
+        $this->postJson('/api/barometre/reponse', $corps, ['Authorization' => 'Bearer secret-de-test'])
+            ->assertOk()->assertJson(['ok' => true, 'reconnu' => true, 'test' => false]);
+        $this->assertSame(2, BarometreReponse::value('client_id'));
+
+        $this->getJson('/api/barometre/etat', ['Authorization' => 'Bearer secret-de-test'])
+            ->assertOk()->assertJson(['edition' => '2026', 'date_limite' => '2026-11-30', 'clos' => false]);
+    }
+
+    public function test_l_ecran_s_affiche_avec_les_bons_chiffres(): void
+    {
+        // Habillage de l'admin remplacé par le strict nécessaire (menu, compteurs…).
+        $dossier = sys_get_temp_dir() . '/barometre-vues-' . getmypid();
+        @mkdir($dossier . '/components', 0777, true);
+        file_put_contents($dossier . '/components/admin-layout.blade.php', '<main>{{ $slot }}</main>@stack(\'scripts\')');
+        app('view')->getFinder()->prependLocation($dossier);
+        view()->share('errors', new \Illuminate\Support\ViewErrorBag());
+
+        $admin = new User();
+        $admin->id = 1;
+        $admin->role = UserRole::ADMIN;
+        $admin->email = 'chef@regie.test';
+        $this->actingAs($admin);
+
+        $this->service()->enregistrerReponse('ref-x', 'Nom inconnu SARL');
+        $ctrl = app(\App\Http\Controllers\Admin\BarometreController::class);
+        $html = $ctrl->index(\Illuminate\Http\Request::create('/admin/barometre'))->render();
+
+        $this->assertStringContainsString('Envoyer à 3 client(s)', $html);
+        $this->assertStringContainsString('Production', $html, 'mode affiché');
+        $this->assertStringContainsString('Réponses non reconnues (1)', $html);
+        $this->assertStringContainsString('Nom inconnu SARL', $html);
+        $this->assertStringContainsString('Même adresse que AXA', $html);
+        $this->assertStringContainsString('30 novembre 2026', $html);
+
+        $exclus = $ctrl->index(\Illuminate\Http\Request::create('/admin/barometre', 'GET', ['filtre' => 'exclus']))->render();
+        $this->assertStringContainsString('JCDECAUX', $exclus);
+        $this->assertStringContainsString('Remettre', $exclus);
+        $this->assertStringNotContainsString('ADDOHA</strong></a>', $exclus, 'filtre appliqué');
+
+        array_map('unlink', glob($dossier . '/components/*'));
+    }
+}

@@ -358,6 +358,17 @@ Route::prefix('api/contacts-gmail')->name('api.contacts-gmail.')
         Route::post('/envoyer', 'envoyer')->name('envoyer');
     });
 
+// Script du questionnaire Google du baromètre (2026-11-17) : signale chaque
+// réponse et lit la date limite pour fermer le formulaire tout seul. Jeton
+// secret dans l'en-tête Authorization ; CSRF exempté dans bootstrap/app.php.
+Route::prefix('api/barometre')->name('api.barometre.')
+    ->controller(\App\Http\Controllers\Api\BarometreGoogleController::class)
+    ->middleware('throttle:60,1')
+    ->group(function () {
+        Route::get('/etat', 'etat')->name('etat');
+        Route::post('/reponse', 'reponse')->name('reponse');
+    });
+
 // Lien « Ne plus recevoir nos messages commerciaux » des mails envoyés
 // par Panora (fin de campagne, 2026-10-21). Signature HMAC dans le chemin ;
 // le POST (bouton, ou désinscription en un clic de Gmail) est exempté de
@@ -689,6 +700,24 @@ Route::prefix('admin')
                     Route::post('/textes/{cle}/tester', 'tester')->where('cle', 'j60|j45|j30|j15|j7|accuse|fin')
                         ->middleware('throttle:10,1')->name('tester');
                 });
+            });
+
+        // ── Baromètre clients (2026-11-17) ──────────────────────
+        // Admins + personnes de BAROMETRE_ACCES (module « barometre » de
+        // config/acces.php → middleware acces:barometre). Un clic ne fait
+        // que DEMANDER l'envoi : la tâche barometre:envoyer l'exécute.
+        Route::prefix('barometre')->name('barometre.')
+            ->middleware(\App\Support\Acces::middleware('barometre'))
+            ->controller(\App\Http\Controllers\Admin\BarometreController::class)
+            ->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::post('/tester', 'tester')->middleware('throttle:10,1')->name('tester');
+                Route::post('/envoyer', 'envoyer')->middleware('throttle:6,1')->name('envoyer');
+                Route::post('/relancer', 'relancer')->middleware('throttle:6,1')->name('relancer');
+                Route::post('/date-limite', 'dateLimite')->name('date-limite');
+                Route::post('/clients/{client}/exclure', 'exclure')->name('exclure');
+                Route::post('/clients/{client}/reintegrer', 'reintegrer')->name('reintegrer');
+                Route::post('/reponses/{reponse}/rattacher', 'rattacher')->name('rattacher');
             });
 
         // Utilisateurs (admin uniquement)

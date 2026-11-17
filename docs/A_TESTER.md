@@ -2823,3 +2823,74 @@ auraient fini par diverger — l'une rouvrant la pose, l'autre non.
       probablement déjà reçu la photo d'ADJ-005B. La fenêtre
       d'annulation le dit avant de cliquer ; le motif saisi sert de trace
       pour expliquer l'écart au client si la question revient.
+
+## § 35 — Baromètre clients : envoi du questionnaire par Panora *(2026-11-17)*
+
+### Ce qui a changé
+
+Menu Commercial → **Baromètre clients** (admins + `BAROMETRE_ACCES`).
+Panora calcule à qui envoyer (un mail par entreprise, règle validée le
+17/11), envoie l'invitation par Brevo avec un **lien personnel** qui
+expire seul à la date limite, apprend du formulaire Google qui a répondu,
+et ne relance que les autres. Un clic ne fait que **demander** l'envoi :
+la tâche `barometre:envoyer` (chaque minute) l'exécute.
+
+Sécurité : lien 256 bits, expiration à 23:59:59 le jour limite, coupé si
+le client est retiré, page neutre (« questionnaire clos », jamais la
+raison interne) ; jeton Google dans l'en-tête, 404 sinon ; mode test par
+défaut ; nombre affiché = nombre envoyé (sinon refus) ; jamais deux
+invitations à une même entreprise ni à une même adresse ; formulaire
+Google fermé tout seul à la date limite.
+
+### Réglages (Coolify, prod seulement pour le mode)
+
+```
+BAROMETRE_MODE=test                 # production le jour de l'envoi
+BAROMETRE_DATE_LIMITE=2026-11-30
+BAROMETRE_FORMULAIRE=https://docs.google.com/forms/d/e/1FAIpQLSdUAw1G4RLx87xDdCjyjBA3jZtWQ1U-3aIldaRX62siEqRXjQ/viewform?usp=pp_url
+BAROMETRE_CHAMP_STRUCTURE=entry.288269504
+BAROMETRE_JETON_GOOGLE=<php -r "echo bin2hex(random_bytes(32));">
+BAROMETRE_ACCES=<adresse du compte Panora de Josias>
+BAROMETRE_SIGNATURE_NOM=Josiane SAY            # nom à confirmer
+BAROMETRE_SIGNATURE_FONCTION=Commerciale 360° & Customer Experience Officer
+BAROMETRE_SIGNATURE_SOCIETE=CIBLE CI
+```
+
+### À faire, dans l'ordre
+
+- [ ] Mise en ligne (la migration `barometre_*` part au démarrage du conteneur)
+- [ ] Réglages ci-dessus sur **dev**, `BAROMETRE_MODE=test`
+- [ ] Dev : l'écran s'ouvre pour un admin et pour Josias, pas pour un autre commercial
+- [ ] Dev : « Envoyer un test » (ADDOHA) → mail reçu, objet et texte de la
+      direction, bouton → questionnaire au nom « TEST — ADDOHA ».
+      **Ne pas valider le questionnaire** depuis un test (sinon : réponse
+      de test, non comptée, mais visible dans la feuille Google)
+- [ ] Prod : exclusions (les 9 régies, G2I et les 4 nouveaux clients) :
+      ```
+      php artisan barometre:exclure "UNFOLD" "CORAL MEDIA AFRICA" "JCDECAUX" "JOSHO GROUP" "LEDCOM" "LIGHT MEDIA" "PUB RÉGIE" "RÉGIE MEDIA CENTER" "SN PUBLISTAR" --motif="Régie"
+      php artisan barometre:exclure "G2I" "BLUE LIONS" "PRODIGE COM" "SDTM" "HAVAS AFRICA" --motif="Nouveau client"
+      ```
+      Lire la sortie : un nom « introuvable » ou « ambigu » se retire à
+      l'écran (bouton « Retirer »).
+- [ ] Prod : lire la liste « À envoyer » (≈ 130 attendus) et l'onglet
+      « Sans destinataire »
+- [ ] Google : coller `docs/outils/barometre-panora.gs` dans le projet
+      Apps Script du questionnaire, propriétés `PANORA_URL` et
+      `PANORA_JETON`, puis `bpInstaller` (le journal donne la date limite)
+- [ ] Google : changer « Durée estimée : 7 à 9 minutes » du formulaire si
+      le mail annonce 5 minutes
+- [ ] Jour J : `BAROMETRE_MODE=production`, puis « Envoyer à N client(s) »
+- [ ] 1 h après : statuts « Invité », Brevo → Transactionnel → tag
+      `barometre-2026`, aucune ligne « Échec »
+- [ ] Une réponse réelle arrive → le client passe en « A répondu »
+- [ ] 23/11 : « Relancer » (seuls les invités sans réponse)
+- [ ] 1/12 : un lien ouvert affiche « questionnaire clos », le formulaire
+      Google est fermé
+
+### Limites à connaître
+
+- « A ouvert le lien » : certaines messageries d'entreprise testent les
+  liens avant le client. Indicatif seulement ; la relance se fonde sur
+  « A répondu », pas sur « ouvert ».
+- Le client est reconnu à son nom (pré-rempli). S'il le modifie, sa
+  réponse arrive dans « Réponses non reconnues » : la rattacher à la main.

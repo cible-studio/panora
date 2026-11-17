@@ -86,6 +86,7 @@ return [
         'admin.dashboard',
         'admin.alerts.index',
         'admin.audit.logs',
+        'admin.barometre.index',
         'admin.campaigns.index',
         'admin.clients.index',
         'admin.conflicts.index',

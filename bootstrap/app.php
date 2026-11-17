@@ -30,6 +30,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role'                  => \App\Http\Middleware\CheckRole::class,
+            // Module qui nomme des personnes en plus des rôles (2026-11-17).
+            'acces'                 => \App\Http\Middleware\VerifierAcces::class,
             'audit'                 => \App\Http\Middleware\AuditLogger::class,
             'client.auth'           => \App\Http\Middleware\EnsureClientIsAuthenticated::class,
             'client.must-change-pw' => \App\Http\Middleware\ForceClientPasswordChange::class,
@@ -53,6 +55,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // Bouton « Envoyer à Panora » du Google Sheets (2026-10-28) :
             // authentifié par le jeton secret de l'en-tête Authorization.
             'api/contacts-gmail/*',
+            // Script du questionnaire Google du baromètre (2026-11-17) :
+            // authentifié par le jeton secret de l'en-tête Authorization.
+            'api/barometre/*',
             // Désinscription (2026-10-21) : Gmail / Yahoo l'appellent en un
             // clic, sans jeton CSRF. Authentifiée par la signature du lien.
             'desinscription/*',

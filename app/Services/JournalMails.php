@@ -73,8 +73,9 @@ class JournalMails
      * @param ?string $reserve  envoyé sous réserve (2026-11-03) : Brevo n'a pas
      *        répondu, le mail compte comme parti ; la réserve est gardée dans
      *        la colonne « erreur » et s'affiche au survol du statut.
+     * @param ?Client $client  dossier du mail quand il n'a pas de campagne
      */
-    public static function brevo(string $etape, ?string $sujet, string $destinataire, array $copie, ?Campaign $campagne, ?string $erreur = null, ?string $reserve = null): void
+    public static function brevo(string $etape, ?string $sujet, string $destinataire, array $copie, ?Campaign $campagne, ?string $erreur = null, ?string $reserve = null, ?Client $client = null): void
     {
         $erreur = $erreur ?: null;
 
@@ -86,8 +87,9 @@ class JournalMails
                 'sujet'         => $sujet,
                 'destinataires' => $destinataire,
                 'copie'         => $copie ? implode(', ', $copie) : null,
-                'dossier_type'  => $campagne ? 'campagne' : null,
-                'dossier_id'    => $campagne?->id,
+                // Sans campagne, la fiche du client (baromètre, 2026-11-17).
+                'dossier_type'  => $campagne ? 'campagne' : ($client ? 'client' : null),
+                'dossier_id'    => $campagne?->id ?? $client?->id,
                 'erreur'        => ($erreur ?? $reserve) ? mb_substr($erreur ?? $reserve, 0, 2000) : null,
             ]);
         } catch (Throwable $e) {
