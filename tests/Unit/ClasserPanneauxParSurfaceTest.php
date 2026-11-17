@@ -109,8 +109,17 @@ class ClasserPanneauxParSurfaceTest extends TestCase
             'La commande doit savoir dire pourquoi elle écarte un panneau.'
         );
 
-        $this->assertStringContainsString('est_axe', $src, "Un axe doit être écarté.");
-        $this->assertStringContainsString('axe_id', $src, "Un pied d'axe doit être écarté.");
+        // Les axes et leurs pieds NE sont PAS écartés (correction du
+        // 2026-11-17) : leur catégorie ne pilote rien. C'est `est_axe` /
+        // `axe_id` qui déclenchent la synchro des faces, et le calcul des
+        // taxes ne lit jamais la catégorie. La garde écartait 13 panneaux
+        // sans raison, avec un motif faux.
+        $this->assertStringNotContainsString(
+            'if ($panneau->est_axe)',
+            $src,
+            "Un axe ne doit plus être écarté : sa catégorie ne pilote "
+            . 'aucun calcul.'
+        );
 
         // Les trois catégories dont le NOM pilote une règle ailleurs :
         //   · Lumipub  → synchro des faces, donc calcul ODP/TM ;
