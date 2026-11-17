@@ -147,16 +147,34 @@
                      jour — et faisait disparaître le panneau des mois passés
                      où il était pourtant debout et occupé.
                      La TM se régule seule : elle exige une campagne. --}}
+                {{-- 2026-11-17 — Case retournée dans le SENS DES AUTRES.
+                     Elle disait « Exclure » et partait décochée : c'était la
+                     seule de la barre où cocher RETIRAIT, alors que
+                     Catégories et Lumipub veulent dire « coché = je le
+                     prends ». Trois filtres côte à côte, deux sens opposés.
+
+                     Le serveur n'a pas changé : il lit toujours
+                     `exclure_maintenance`. Comme pour les catégories, la
+                     case ne porte pas de `name` — c'est un champ caché qui
+                     part quand elle est DÉCOCHÉE. L'URL par défaut reste
+                     donc vide, et les liens déjà enregistrés continuent de
+                     marcher. --}}
+                @php $maintenanceIncluse = empty($filters['exclure_maintenance']); @endphp
                 <div class="filter-group">
                     <label class="filter-label">Maintenance</label>
-                    <label style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:12px;cursor:pointer;white-space:nowrap;"
-                           title="L'ODP reste due pendant une panne : le mât occupe toujours le sol. Cochez pour retirer du calcul les panneaux aujourd'hui en maintenance (ancienne vue).">
-                        <input type="checkbox" name="exclure_maintenance" value="1"
-                               {{ !empty($filters['exclure_maintenance']) ? 'checked' : '' }}
-                               onchange="this.form.submit()"
+                    <label style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:10px;font-size:12px;cursor:pointer;white-space:nowrap;border:1px solid {{ $maintenanceIncluse ? 'var(--accent)' : 'var(--border)' }};background:{{ $maintenanceIncluse ? 'var(--surface2)' : 'var(--surface)' }};"
+                           title="L'ODP reste due pendant une panne : le mât occupe toujours le sol. Décochez pour retirer du calcul les panneaux aujourd'hui en maintenance (ancienne vue).">
+                        <input type="checkbox" id="tax-maintenance" data-maintenance
+                               {{ $maintenanceIncluse ? 'checked' : '' }}
+                               onchange="TAX_MAINTENANCE.changer(this)"
                                style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
-                        <span>Exclure</span>
+                        <span>Inclure</span>
                     </label>
+                    <div id="tax-maintenance-exclue">
+                        @unless($maintenanceIncluse)
+                            <input type="hidden" name="exclure_maintenance" value="1">
+                        @endunless
+                    </div>
                 </div>
                 {{-- 2026-11-13 — Lumipub : une ligne par PIED (jamais la ligne
                      d'axe, qui ne correspond à aucun mât planté — la taxer en
@@ -231,10 +249,10 @@
                         </button>
                     </div>
                 </div>
-                {{-- TX-12 — $filters porte désormais toujours la clé
-                     include_maintenance (false par défaut) : on teste les
-                     valeurs réellement renseignées, sinon le bouton
-                     « Réinitialiser » s'afficherait en permanence. --}}
+                {{-- $filters porte toujours ses clés booléennes, même à
+                     false : on teste donc les valeurs réellement
+                     renseignées, sinon le bouton « Réinitialiser »
+                     s'afficherait en permanence. --}}
                 @if(collect($filters)->filter()->isNotEmpty())
                 <div class="filter-group" style="display:flex;align-items:flex-end">
                     <a href="{{ route('admin.taxes.details') }}"
@@ -555,6 +573,25 @@
                 champ.value = c.dataset.categorie;
                 zone.appendChild(champ);
             });
+            caseCochee.form.submit();
+        },
+    };
+
+    // 2026-11-17 — Maintenance : même procédé que les catégories, pour
+    // que la case se lise dans le même sens (« coché = je le prends »).
+    // Le serveur attend toujours `exclure_maintenance` : on ne l'envoie
+    // que lorsque la case est DÉCOCHÉE.
+    window.TAX_MAINTENANCE = {
+        changer(caseCochee) {
+            const zone = document.getElementById('tax-maintenance-exclue');
+            zone.innerHTML = '';
+            if (!caseCochee.checked) {
+                const champ = document.createElement('input');
+                champ.type  = 'hidden';
+                champ.name  = 'exclure_maintenance';
+                champ.value = '1';
+                zone.appendChild(champ);
+            }
             caseCochee.form.submit();
         },
     };
