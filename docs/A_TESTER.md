@@ -2859,18 +2859,19 @@ l'adresse qui reçoit les réponses. Lien prérempli : Google Forms → ⋮ →
 « Obtenir le lien », le coller. Panora n'accepte qu'un lien
 docs.google.com/forms. Valeurs décidées le 17/11 : signature
 **Josiane SAY**, Commerciale 360° & Customer Experience Officer, CIBLE CI ;
-réponses à l'adresse de Josiane ; le mail part de l'adresse Brevo
-(commercial@) sous le nom « Josiane SAY – CIBLE CI ».
+le mail part de l'adresse Brevo (commercial@) sous le nom « Josiane SAY –
+CIBLE CI », et les réponses arrivent à commercial@, qui est l'adresse de
+Josiane (17/11) : le champ « réponses » de ⚙ Réglages reste vide.
 
 ### À faire, dans l'ordre
 
 - [ ] Mise en ligne (les migrations `barometre_*` partent au démarrage du conteneur)
-- [ ] Dev : `BAROMETRE_ACCES` = adresse de Josiane ; l'écran s'ouvre pour
+- [ ] Dev : `BAROMETRE_ACCES` = adresse du COMPTE PANORA de Josiane ; l'écran s'ouvre pour
       un admin et pour Josiane, pas pour un autre commercial
-- [ ] Dev : ⚙ Réglages → coller le lien prérempli, signature, adresse de
-      réponse → la case « Questionnaire » passe au vert
+- [ ] Dev : ⚙ Réglages → coller le lien prérempli et la signature (réponses : vide
+      = commercial@) → la case « Questionnaire » passe au vert
 - [ ] Dev : « Envoyer un test » (ADDOHA) → mail reçu, objet et texte de la
-      direction, signé Josiane, « Répondre » vise l'adresse de Josiane,
+      direction, signé Josiane, « Répondre » vise commercial@,
       bouton → questionnaire au nom « TEST — ADDOHA ».
       **Ne pas valider le questionnaire** depuis un test (sinon : réponse
       de test, non comptée, mais visible dans la feuille Google)
