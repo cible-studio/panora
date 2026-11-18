@@ -400,7 +400,7 @@ class TaxeExerciceServiceTest extends TestCase
             'ligne' => $s->exercice(Commune::find(1), 2026),
             'reglements' => TaxeReglement::where('commune_id', 1)->where('exercice', 2026)->get(),
         ])->render();
-        $this->assertStringContainsString('SOLDE RESTANT DÛ', $releve);
+        $this->assertStringContainsString('Solde restant dû', $releve, 'refonte du 18/11 : le solde est posé en opération');
         $this->assertStringContainsString('41 840 000', $releve);
         $this->assertStringNotContainsString('Saisi deux fois', $releve, 'le règlement annulé ne figure pas au relevé');
 
@@ -471,5 +471,119 @@ class TaxeExerciceServiceTest extends TestCase
         $this->assertSame('odp', $repris[0]->objet);
         $this->assertSame('Q-123', $repris[0]->reference);
         $this->assertSame(1, DB::table('commune_tax_payments')->count(), 'l\'ancienne table n\'est pas touchée');
+    }
+
+    private function tableUtilisateurs(): void
+    {
+        if (!Schema::hasTable('users')) {
+            Schema::create('users', function (Blueprint $t) {
+                $t->id(); $t->string('name'); $t->timestamps();
+            });
+        }
+    }
+
+    /** 2026-11-18 — Les cartes de la liste filtrent les mairies, sans recharger la page. */
+    public function test_les_cartes_filtrent_la_liste_des_mairies(): void
+    {
+        $ctrl = new \App\Http\Controllers\Admin\TaxeSuiviController($this->service());
+        $liste = fn (array $p) => $ctrl->index(\Illuminate\Http\Request::create('/', 'GET', $p + ['ajax' => 1, 'zone' => 'tout']))->getData(true);
+
+        // 2026 : Daloa a un versement mais rien de réclamé saisi ; Cocody est saisie.
+        $aSaisir = $liste(['exercice' => 2026, 'filtre' => 'a_saisir']);
+        $this->assertStringContainsString('DALOA', $aSaisir['tableau']);
+        $this->assertStringNotContainsString('COCODY', $aSaisir['tableau']);
+        $this->assertSame(['abidjan' => 0, 'interieur' => 1, 'tout' => 1], $aSaisir['onglets'], 'les onglets comptent la liste filtrée');
+        $this->assertSame('Mairies sans montant réclamé saisi', $aSaisir['titre']);
+        $this->assertStringContainsString('· 1 mairie</span>', $aSaisir['tableau'], 'le total du bas suit le filtre');
+
+        $payees = $liste(['exercice' => 2026, 'filtre' => 'paye']);
+        $this->assertStringContainsString('COCODY', $payees['tableau']);
+        $this->assertStringContainsString('DALOA', $payees['tableau']);
+
+        // 2027 : seule Daloa a une campagne planifiée (TM à venir).
+        $aVenir = $liste(['exercice' => 2027, 'filtre' => 'a_venir']);
+        $this->assertStringContainsString('DALOA', $aVenir['tableau']);
+        $this->assertStringNotContainsString('COCODY', $aVenir['tableau']);
+
+        $this->assertStringContainsString('COCODY', $liste(['exercice' => 2027, 'filtre' => 'reste'])['tableau'], 'solde 2027 positif');
+
+        // Filtre inconnu : toutes les mairies ; chaque ligne a sa case de sélection.
+        $toutes = $liste(['exercice' => 2027, 'filtre' => 'n-importe-quoi']);
+        $this->assertSame('Toutes les mairies', $toutes['titre']);
+        $this->assertSame(2, substr_count($toutes['tableau'], 'class="sm-sel"'));
+        $this->assertStringContainsString('data-id="1" data-nom="COCODY"', $toutes['tableau']);
+    }
+
+    /** 2026-11-18 — « Juste Cocody et Abobo » : les exports ne gardent que les mairies cochées. */
+    public function test_les_exports_ne_gardent_que_les_mairies_selectionnees(): void
+    {
+        $ctrl = new \App\Http\Controllers\Admin\TaxeSuiviController($this->service());
+        $m = new \ReflectionMethod($ctrl, 'appliquerSelection');
+        $m->setAccessible(true);
+        $s = $this->service();
+        $lignes = $s->exercices(2027);
+
+        [$gardees, $libelle] = $m->invoke($ctrl, \Illuminate\Http\Request::create('/', 'POST', ['communes' => ['1', 'abc', '999']]), $lignes);
+        $this->assertSame([1], $gardees->keys()->all(), 'Cocody seule ; une valeur invalide ou inconnue est ignorée');
+        $this->assertSame('1 mairie sur 2', $libelle);
+
+        [$tout, $sans] = $m->invoke($ctrl, \Illuminate\Http\Request::create('/', 'GET'), $lignes);
+        $this->assertCount(2, $tout, 'sans sélection : tout l\'exercice, comme avant');
+        $this->assertNull($sans);
+
+        foreach (['admin.taxes.suivi.pdf', 'admin.taxes.suivi.excel'] as $nom) {
+            $methodes = app('router')->getRoutes()->getByName($nom)->methods();
+            $this->assertContains('POST', $methodes, $nom);
+            $this->assertContains('GET', $methodes, $nom . ' : les boutons du haut marchent toujours');
+        }
+
+        // PDF : la sélection est écrite en tête, la zone sans mairie choisie n'est pas imprimée.
+        $zones = $s->parZone($gardees);
+        $pdf = view('pdf.taxes-suivi', [
+            'exercice' => 2027, 'reprise' => false, 'zones' => $zones, 'selection' => $libelle,
+            'totaux' => ['abidjan' => $s->totaux($zones['abidjan']), 'interieur' => $s->totaux($zones['interieur']), 'tout' => $s->totaux($gardees)],
+        ])->render();
+        $this->assertStringContainsString('Sélection : 1 mairie sur 2', $pdf);
+        $this->assertStringContainsString('COCODY', $pdf);
+        $this->assertStringNotContainsString('DALOA', $pdf);
+        $this->assertStringNotContainsString('INTÉRIEUR', $pdf);
+
+        // Excel : pas de feuille pour la zone vide ; la sélection est écrite sous la zone.
+        $feuilles = (new \App\Exports\TaxesSuiviExport(2027, $zones, false, $libelle))->sheets();
+        $this->assertCount(2, $feuilles, 'ABIDJAN + REGLEMENTS');
+        $this->assertSame('ABIDJAN', $feuilles[0]->title());
+        $this->assertStringContainsString('Sélection : 1 mairie sur 2', $feuilles[0]->array()[1][0]);
+        $this->assertCount(3, (new \App\Exports\TaxesSuiviExport(2027, $s->parZone($lignes), false))->sheets(), 'sans sélection : 3 feuilles');
+    }
+
+    /** 2026-11-18 — Relevé refait : sections titrées ; une version pour la mairie, une interne. */
+    public function test_les_deux_versions_du_releve(): void
+    {
+        $this->tableUtilisateurs();
+        $s = $this->service();
+        $rendre = fn (bool $interne) => view('pdf.taxes-releve-mairie', [
+            'commune' => Commune::find(1), 'exercice' => 2026, 'reprise' => true,
+            'ligne' => $s->exercice(Commune::find(1), 2026),
+            'reglements' => TaxeReglement::with(['saisiPar:id,name', 'annulePar:id,name'])
+                ->where('commune_id', 1)->where('exercice', 2026)->orderBy('paid_at')->get(),
+            'interne' => $interne,
+        ])->render();
+
+        $mairie = $rendre(false);
+        foreach (['Ce qui est dû', 'Versements reçus par la mairie', 'Solde de l\'exercice 2026', 'TOTAL VERSÉ', 'Arriérés des exercices antérieurs'] as $titre) {
+            $this->assertStringContainsString($titre, $mairie);
+        }
+        $this->assertStringContainsString('2 versements pour l\'exercice 2026', $mairie, 'le versement annulé ne compte pas');
+        $this->assertStringContainsString('41 840 000 FCFA', $mairie, 'solde posé en opération : 46 903 000 − 5 063 000');
+        $this->assertStringNotContainsString('Calcul Panora', $mairie, 'version mairie : pas de contrôle interne');
+        $this->assertStringNotContainsString('Saisi deux fois', $mairie, 'version mairie : pas de versement annulé');
+        $this->assertStringNotContainsString('Document interne', $mairie);
+
+        $interne = $rendre(true);
+        $this->assertStringContainsString('Document interne', $interne);
+        $this->assertStringContainsString('Contrôle : réclamé et calcul Panora', $interne);
+        $this->assertStringContainsString('Versements annulés', $interne);
+        $this->assertStringContainsString('Saisi deux fois', $interne, 'le motif de l\'annulation');
+        $this->assertStringContainsString('<th>Saisi par</th>', $interne);
     }
 }

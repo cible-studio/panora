@@ -32,6 +32,8 @@ class TaxesSuiviZoneSheet implements FromArray, WithTitle, WithEvents
         protected string $zone,
         protected Collection $lignes,
         protected bool $reprise,
+        // 2026-11-18 — Sélection de mairies (« 2 mairies sur 30 »), écrite sous la zone.
+        protected ?string $selection = null,
     ) {
         $max = (int) $lignes->max(fn ($l) => $l['nb_reglements']);
         $this->nbReglements = max(6, $max);
@@ -47,7 +49,7 @@ class TaxesSuiviZoneSheet implements FromArray, WithTitle, WithEvents
         $regie = mb_strtoupper((string) config('charte.nom', 'CIBLE'));
         $rows = [
             ["GESTION DES TAXES (ODP ET TM) DE LA RÉGIE {$regie} : EXERCICE {$this->exercice}"],
-            [$this->zone],
+            [$this->zone . ($this->selection ? ' — Sélection : ' . $this->selection : '')],
             [$this->reprise ? 'Exercice de reprise : montants réclamés par les mairies, saisis par la comptabilité.' : 'Calcul Panora : panneaux et tarifs de Panora, arriérés = solde ' . ($this->exercice - 1) . '.'],
             $this->entetes(),
         ];

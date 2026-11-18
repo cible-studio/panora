@@ -11,6 +11,7 @@ use App\Services\Taxes\TaxeExerciceService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -27,29 +28,79 @@ use Maatwebsite\Excel\Facades\Excel;
  */
 class TaxeSuiviController extends Controller
 {
+    /**
+     * Cartes filtres de la liste (2026-11-18, « les cartes doivent afficher
+     * les listes spécifiques ») : un clic sur une carte n'affiche que les
+     * mairies concernées. Second clic, ou « Total dû » : toutes.
+     */
+    public const FILTRES = [
+        'tous'     => 'Toutes les mairies',
+        'paye'     => 'Mairies qui ont reçu au moins un versement',
+        'reste'    => 'Mairies avec un reste à payer',
+        'exigible' => 'Mairies avec un montant dû à ce jour',
+        'a_venir'  => 'Mairies avec de la TM à venir',
+        'a_saisir' => 'Mairies sans montant réclamé saisi',
+    ];
+
     public function __construct(protected TaxeExerciceService $exercices) {}
 
     public function index(Request $request)
     {
         $exercice = $this->exerciceDemande($request);
         $lignes   = $this->exercices->exercices($exercice);
-        $zones    = $this->exercices->parZone($lignes);
         $onglet   = in_array($request->input('zone'), ['abidjan', 'interieur', 'tout'], true)
             ? $request->input('zone') : 'abidjan';
+        $filtre   = array_key_exists((string) $request->input('filtre'), self::FILTRES)
+            ? (string) $request->input('filtre') : 'tous';
 
-        return view('admin.taxes.suivi.index', [
-            'exercice'    => $exercice,
+        // La liste affichée : l'onglet de zone, puis le filtre de la carte.
+        // Les totaux du pied de tableau suivent (même service, moins de lignes).
+        $filtrees = self::filtrer($lignes, $filtre);
+        $zonesF   = $this->exercices->parZone($filtrees);
+        $liste    = $onglet === 'tout' ? $filtrees : $zonesF[$onglet];
+        $tableau  = [
+            'lignes'   => $liste,
+            't'        => $this->exercices->totaux($liste),
+            'exercice' => $exercice,
+            'reprise'  => $this->exercices->estReprise($exercice),
+        ];
+        $onglets = [
+            'abidjan'   => $zonesF['abidjan']->count(),
+            'interieur' => $zonesF['interieur']->count(),
+            'tout'      => $filtrees->count(),
+        ];
+
+        if ($request->boolean('ajax')) {
+            return response()->json([
+                'tableau' => view('admin.taxes.suivi.partials.tableau', $tableau)->render(),
+                'onglets' => $onglets,
+                'titre'   => self::FILTRES[$filtre],
+            ]);
+        }
+
+        return view('admin.taxes.suivi.index', $tableau + [
             'disponibles' => $this->exercices->exercicesDisponibles(),
-            'reprise'     => $this->exercices->estReprise($exercice),
             'onglet'      => $onglet,
-            'zones'       => $zones,
-            'totaux'      => [
-                'abidjan'   => $this->exercices->totaux($zones['abidjan']),
-                'interieur' => $this->exercices->totaux($zones['interieur']),
-                'tout'      => $this->exercices->totaux($lignes),
-            ],
+            'filtre'      => $filtre,
+            'onglets'     => $onglets,
+            // Nombre de mairies derrière chaque carte (tout l'exercice, toutes zones).
+            'nombres'     => collect(self::FILTRES)->map(fn ($l, $f) => self::filtrer($lignes, $f)->count())->all(),
+            'totaux'      => ['tout' => $this->exercices->totaux($lignes)],
             'aSaisir'     => $lignes->where('a_saisir', true)->count(),
         ]);
+    }
+
+    /** Les mairies d'une carte filtre (la liste seulement : aucun montant n'est recalculé). */
+    public static function filtrer(Collection $lignes, string $filtre): Collection
+    {
+        return match ($filtre) {
+            'paye'     => $lignes->filter(fn ($l) => $l['nb_reglements'] > 0),
+            'reste'    => $lignes->filter(fn ($l) => $l['solde'] > 0),
+            'exigible' => $lignes->filter(fn ($l) => $l['exigible'] > 0),
+            'a_venir'  => $lignes->filter(fn ($l) => $l['prevu_tm'] > 0),
+            'a_saisir' => $lignes->filter(fn ($l) => !empty($l['a_saisir'])),
+            default    => $lignes,
+        };
     }
 
     public function commune(Request $request, Commune $commune)
@@ -193,11 +244,19 @@ class TaxeSuiviController extends Controller
             ->with('success', 'Montants réclamés par la mairie enregistrés.');
     }
 
+    /**
+     * Relevé d'une mairie. Deux versions (2026-11-18) :
+     *   · mairie (défaut) : à lui remettre — ce qui est dû, les versements, le solde ;
+     *   · interne (?version=interne) : en plus, le calcul Panora de contrôle
+     *     (année de reprise), les versements annulés avec leur motif, qui a saisi.
+     */
     public function releve(Request $request, Commune $commune)
     {
         $exercice = $this->exerciceDemande($request);
+        $interne  = $request->input('version') === 'interne';
         $ligne    = $this->exercices->exercice($commune, $exercice);
-        $reglements = TaxeReglement::where('commune_id', $commune->id)
+        $reglements = TaxeReglement::with(['saisiPar:id,name', 'annulePar:id,name'])
+            ->where('commune_id', $commune->id)
             ->where('exercice', $exercice)
             ->orderBy('paid_at')->orderBy('id')
             ->get();
@@ -208,9 +267,10 @@ class TaxeSuiviController extends Controller
             'reprise'    => $this->exercices->estReprise($exercice),
             'ligne'      => $ligne,
             'reglements' => $reglements,
+            'interne'    => $interne,
         ])->setPaper('a4', 'portrait');
 
-        $nom = 'releve-taxes-' . Str::slug($commune->name) . '-' . $exercice;
+        $nom = 'releve-taxes-' . Str::slug($commune->name) . '-' . $exercice . ($interne ? '-interne' : '');
 
         return $pdf->download(\App\Support\DownloadFilename::sanitize($nom, $nom, 'pdf'));
     }
@@ -218,7 +278,7 @@ class TaxeSuiviController extends Controller
     public function pdf(Request $request)
     {
         $exercice = $this->exerciceDemande($request);
-        $lignes   = $this->exercices->exercices($exercice);
+        [$lignes, $selection] = $this->appliquerSelection($request, $this->exercices->exercices($exercice));
         $zones    = $this->exercices->parZone($lignes);
 
         $pdf = Pdf::loadView('pdf.taxes-suivi', [
@@ -230,20 +290,42 @@ class TaxeSuiviController extends Controller
                 'interieur' => $this->exercices->totaux($zones['interieur']),
                 'tout'      => $this->exercices->totaux($lignes),
             ],
+            'selection' => $selection,
         ])->setPaper('a4', 'landscape');
 
-        return $pdf->download('suivi-taxes-mairies-' . $exercice . '.pdf');
+        return $pdf->download('suivi-taxes-mairies-' . $exercice . ($selection ? '-selection' : '') . '.pdf');
     }
 
     public function excel(Request $request)
     {
         $exercice = $this->exerciceDemande($request);
-        $lignes   = $this->exercices->exercices($exercice);
+        [$lignes, $selection] = $this->appliquerSelection($request, $this->exercices->exercices($exercice));
 
         return Excel::download(
-            new TaxesSuiviExport($exercice, $this->exercices->parZone($lignes), $this->exercices->estReprise($exercice)),
-            'gestion-odp-tm-' . $exercice . '.xlsx'
+            new TaxesSuiviExport($exercice, $this->exercices->parZone($lignes), $this->exercices->estReprise($exercice), $selection),
+            'gestion-odp-tm-' . $exercice . ($selection ? '-selection' : '') . '.xlsx'
         );
+    }
+
+    /**
+     * Sélection de mairies (2026-11-18, « juste Cocody et Abobo ») : les
+     * exports ne gardent que les mairies cochées (communes[] = ids). Sans
+     * sélection : tout l'exercice, comme avant.
+     *
+     * @return array{0: Collection, 1: ?string} lignes gardées, libellé pour l'en-tête
+     */
+    private function appliquerSelection(Request $request, Collection $lignes): array
+    {
+        $ids = collect((array) $request->input('communes', []))
+            ->map(fn ($id) => (int) $id)->filter(fn ($id) => $id > 0)->unique()->values();
+        if ($ids->isEmpty()) {
+            return [$lignes, null];
+        }
+
+        $gardees = $lignes->only($ids->all());
+        $n = $gardees->count();
+
+        return [$gardees, $n . ' mairie' . ($n > 1 ? 's' : '') . ' sur ' . $lignes->count()];
     }
 
     /** Exercice demandé, ramené dans la plage suivie. */

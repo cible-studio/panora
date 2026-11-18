@@ -9,8 +9,12 @@
 </x-slot:topbarLeft>
 
 <x-slot name="topbarActions">
+    {{-- 2026-11-18 — Deux versions du relevé : celle à remettre à la mairie,
+         et la version interne (contrôle Panora, versements annulés, qui a saisi). --}}
+    <a href="{{ route('admin.taxes.suivi.releve', ['commune' => $commune, 'exercice' => $exercice, 'version' => 'interne']) }}" class="btn btn-ghost btn-sm"
+       title="Pour la régie : avec le contrôle Panora, les versements annulés et qui a saisi">📄 <span class="btn-label">Relevé interne</span></a>
     <a href="{{ route('admin.taxes.suivi.releve', ['commune' => $commune, 'exercice' => $exercice]) }}" class="btn btn-primary btn-sm"
-       title="À remettre à la mairie quand elle se présente">📄 Relevé PDF</a>
+       title="À remettre à la mairie quand elle se présente">📄 Relevé pour la mairie</a>
 </x-slot>
 
 @php

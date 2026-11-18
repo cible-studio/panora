@@ -32,7 +32,8 @@
 
 @include('pdf.partials.tax-doc-header', [
     'docTitle'  => 'Gestion des taxes (ODP et TM) de la régie',
-    'docPeriod' => 'Exercice ' . $exercice . ($reprise ? ' — année de reprise (montants réclamés par les mairies)' : ''),
+    'docPeriod' => 'Exercice ' . $exercice . ($reprise ? ' — année de reprise (montants réclamés par les mairies)' : '')
+        . (!empty($selection) ? ' — Sélection : ' . $selection : ''),
 ])
 
 @include('pdf.partials.tax-doc-meta', ['metaCols' => [
@@ -44,6 +45,8 @@
 ]])
 
 @foreach(['abidjan', 'interieur'] as $z)
+    {{-- 2026-11-18 — Avec une sélection, une zone sans mairie choisie n'est pas imprimée. --}}
+    @continue(!empty($selection) && $zones[$z]->isEmpty())
     @php $t = $totaux[$z]; @endphp
     <table class="tdoc-table tdoc-suivi">
         <thead>
