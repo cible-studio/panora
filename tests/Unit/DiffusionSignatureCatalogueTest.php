@@ -358,4 +358,23 @@ class DiffusionSignatureCatalogueTest extends TestCase
         $this->assertSame(DiffusionEnvoi::STATUT_ECHEC, $envoi->statut);
         $this->assertStringContainsString('il en faut ' . ($nbClients + 1), $envoi->erreur);
     }
+
+    public function test_un_faux_nom_part_chez_brevo_comme_le_nom_du_client(): void
+    {
+        // Règle du 18/11 : « Bonjour {{ contact.CONTACT }} » des modèles Brevo.
+        DB::table('client_contacts')->insert(['client_id' => 10, 'name' => 'commercial', 'email' => 'commercial@orange.ci', 'is_primary' => false]);
+
+        $inscrits = new \ArrayObject();
+        $this->mock(BrevoClient::class, function ($m) use ($inscrits) {
+            $m->shouldReceive('enregistrerContact')->andReturnUsing(
+                function ($email, $attributs, $listes) use ($inscrits) { $inscrits[$email] = $attributs; }
+            );
+            $m->shouldReceive('emailsDeLaListe')->andReturn([]);
+            $m->shouldReceive('retirerDeLaListe');
+        });
+        $this->prive(app(DiffusionDisponibilitesService::class), 'synchroniserDestinataires', self::CLIENTS, false);
+
+        $this->assertSame('ORANGE CI', $inscrits['commercial@orange.ci']['CONTACT'], 'pas « Bonjour commercial, »');
+        $this->assertSame('Awa Koné', $inscrits['awa@orange.ci']['CONTACT'], 'une vraie personne garde son nom');
+    }
 }

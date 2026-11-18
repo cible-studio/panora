@@ -1093,7 +1093,13 @@ class DiffusionDisponibilitesService
 
         foreach ($destinataires as $d) {
             $this->brevo->enregistrerContact($d['email'], [
-                'CONTACT'   => $d['contact'],
+                // « Bonjour {{ contact.CONTACT }} » des modèles Brevo (catalogue,
+                // promotions) : un nom qui n'est pas celui d'une personne
+                // (« contact », « audreyasseke ») devient le nom du client —
+                // « Bonjour ORANGE CI, » (règle validée le 18/11, cf.
+                // Salutation::personneNommable). Jamais vide : Brevo garderait
+                // l'ancienne valeur (enregistrerContact n'envoie pas les vides).
+                'CONTACT'   => \App\Support\Salutation::personneNommable($d['contact'], $d['email'], $d['societe']) ?? $d['societe'],
                 'SOCIETE'   => $d['societe'],
                 'PANORA_ID' => $d['client_id'],
             ], [$listeId]);
