@@ -86,4 +86,37 @@ class TaxeDetailSelectionTest extends TestCase
         @unlink($tmp);
         $this->assertSame(0, $code, implode("\n", $sortie));
     }
+
+    /** 2026-11-18 : PDF de l'ODP seule, sans Client / Campagne / Période. */
+    public function test_le_pdf_de_l_odp_seule_n_a_ni_client_ni_campagne_ni_periode(): void
+    {
+        $p = \Illuminate\Support\Carbon::create(2026, 11, 1);
+        $ligne = fn ($type, $montant) => [
+            'commune' => 'ADJAME', 'commune_id' => 1, 'panel_id' => 2, 'reference' => 'ADJ-002', 'name' => 'Route du Zoo',
+            'dimensions' => '12m²', 'surface' => 12, 'type' => $type, 'statut' => 'occupe', 'client_name' => 'ECKO',
+            'campaign_name' => 'BIDC', 'campaign_id' => 20, 'campaign_start' => $p, 'campaign_end' => $p->copy()->endOfMonth(),
+            'period_start' => $p, 'period_end' => $p->copy()->endOfMonth(), 'months' => 1, 'unit' => 'mois',
+            'rate' => 1000, 'rate_applied' => 1000, 'amount' => $montant,
+        ];
+        $rendre = function (array $lignes) {
+            $lines = collect($lignes);
+
+            return view('pdf.taxes-details', [
+                'lines' => $lines, 'totals' => app(TaxCalculationService::class)->summarize($lines),
+                'periodLabel' => 'Novembre 2026', 'filterSummary' => '', 'filterMeta' => [],
+            ])->render();
+        };
+
+        $odp = $rendre([$ligne('odp', 12000)]);
+        $this->assertStringNotContainsString('>Client<', $odp);
+        $this->assertStringNotContainsString('>Campagne<', $odp);
+        $this->assertStringNotContainsString('<th style="width:120px;">Période</th>', $odp, 'colonne Période retirée (la période du filtre reste dans l\x27en-tête)');
+        $this->assertStringNotContainsString('ECKO', $odp);
+        $this->assertStringContainsString('colspan="4" class="right">TOTAL GÉNÉRAL', $odp);
+
+        $mixte = $rendre([$ligne('odp', 12000), $ligne('tm', 12000)]);
+        $this->assertStringContainsString('>Client<', $mixte, 'PDF mixte : inchangé');
+        $this->assertStringContainsString('>Campagne<', $mixte);
+        $this->assertStringContainsString('colspan="7" class="right">TOTAL GÉNÉRAL', $mixte);
+    }
 }
