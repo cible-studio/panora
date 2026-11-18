@@ -124,6 +124,7 @@ class TaxeDetailSelectionTest extends TestCase
 
         // Mise en page pour la DG (18/11) : note gardée d'un bloc et juste.
         $this->assertStringContainsString('class="tdoc-note tdoc-details-fin"', $odp);
+        $this->assertStringContainsString('.tdoc-details tr.tdoc-total { page-break-before:avoid; }', $odp, 'TOTAL jamais seul en haut de page');
         $this->assertStringContainsString('en maintenance sont inclus', $odp, 'la note disait « exclus » : faux depuis le 13/11');
         $this->assertStringNotContainsString('TM = tarif', $odp, 'PDF ODP : la note ne parle que de l\'ODP');
     }

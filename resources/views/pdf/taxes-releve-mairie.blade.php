@@ -8,6 +8,13 @@
          avec sa date et sa référence, le solde. Chiffres : TaxeExerciceService. --}}
     <style>@page { size: A4 portrait; margin: 12mm 14mm 20mm 14mm !important; }</style>
     @include('pdf.partials.tax-doc-styles')
+    {{-- 2026-11-18 (présentation à la DG) — un relevé aux nombreux
+         règlements passe sur deux pages : une ligne de total n'y arrive
+         jamais seule en haut de page, et aucune ligne n'est coupée. --}}
+    <style>
+        .tdoc-table tr { page-break-inside:avoid; }
+        .tdoc-table tr.tdoc-total { page-break-before:avoid; }
+    </style>
 </head>
 <body>
 @php

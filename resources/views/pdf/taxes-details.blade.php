@@ -16,6 +16,7 @@
     <style>
         .tdoc-details tbody td { padding-top:5px; padding-bottom:5px; }
         .tdoc-details tr { page-break-inside:avoid; }
+        .tdoc-details tr.tdoc-total { page-break-before:avoid; } /* jamais seul en haut de page */
         .tdoc-details .tdoc-total td { padding-top:9px; padding-bottom:9px; }
         .tdoc-details .tdoc-total .tdoc-amount span { display:inline; font-size:11px; margin-left:4px; }
         .tdoc-note.tdoc-details-fin { page-break-inside:avoid; margin-top:10px; padding:5px 0 5px 3mm; font-size:8.5px; line-height:1.45; }
