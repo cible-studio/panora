@@ -2919,3 +2919,7 @@ Josiane (17/11) : le champ « réponses » de ⚙ Réglages reste vide.
 - Salutation : un nom d'interlocuteur qui n'est pas une personne
   (« contact », « audreyasseke », « Comptabilité RCG ») n'est pas salué :
   « Bonjour MANOOVA, » (Salutation::personneNommable, décision du 17/11).
+  Étendu le 18/11 à TOUS les mails de suivi (campagne démarrée, terminée,
+  décapage, maintenance, satisfaction, J-7, renouvellement, accusé) :
+  [ ] vérifier sur un vrai mail d'un client dont l'interlocuteur s'appelle
+  « contact » ou un mot en minuscules → « Bonjour CLIENT, ».

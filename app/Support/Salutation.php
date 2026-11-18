@@ -10,14 +10,24 @@ use App\Models\ClientContact;
  * l'interlocuteur quand le mail lui est adressé, et TOUJOURS le nom du
  * client à côté — « Bonjour Awa Koné (ORANGE CI), ». Sans interlocuteur :
  * « Bonjour ORANGE CI, ». Source unique pour tous les mails de suivi.
+ *
+ * 2026-11-18 (validé par l'utilisateur pour tous les mails) : un « nom »
+ * d'interlocuteur qui n'est pas celui d'une personne (« contact »,
+ * « audreyasseke », « Comptabilité RCG ») compte comme pas de nom :
+ * « Bonjour MANOOVA, » et non « Bonjour contact (MANOOVA), ».
  */
 final class Salutation
 {
-    /** « Awa Koné (ORANGE CI) », ou le client seul s'il n'y a personne à nommer. */
-    public static function nom(?Client $client, ?string $personne): string
+    /**
+     * « Awa Koné (ORANGE CI) », ou le client seul s'il n'y a personne à nommer.
+     *
+     * @param ?string $email  adresse de l'interlocuteur, si on l'a : aide à
+     *        repérer un nom fabriqué à partir d'elle (personneNommable)
+     */
+    public static function nom(?Client $client, ?string $personne, ?string $email = null): string
     {
         $societe  = trim((string) $client?->name);
-        $personne = trim((string) $personne);
+        $personne = (string) self::personneNommable($personne, $email, $societe !== '' ? $societe : null);
 
         if ($personne === '' || mb_strtolower($personne) === mb_strtolower($societe)) {
             return $societe !== '' ? $societe : 'Madame, Monsieur';
@@ -41,9 +51,10 @@ final class Salutation
      * baromètre — « oui, préférable » de l'utilisateur). null quand ce n'en
      * est pas un, et le mail salue alors l'entreprise seule :
      *   · vide, ou une adresse e-mail ;
-     *   · tout en minuscules ET identique au début de son adresse
-     *     (« audreyasseke », « esta.fatokun ») — « Koffi » pour
-     *     koffi@… reste un prénom ;
+     *   · un seul mot tout en minuscules (« audreyasseke », « esta.fatokun »,
+     *     « contact ») : c'est le début d'une adresse, recopié à l'import
+     *     des contacts Gmail — « Koffi » reste un prénom ;
+     *   · tout en minuscules ET identique au début de son adresse ;
      *   · contient le nom de l'entreprise (« Ledcom Côte d'Ivoire »,
      *     « Prodigecom » pour PRODIGE COM) ;
      *   · que des mots de service et le nom de l'entreprise (« contact »,
@@ -64,6 +75,7 @@ final class Salutation
         $soc = $lettres($societe);
 
         if ($nom === ''
+            || (mb_strtolower($personne) === $personne && !preg_match('/\s/u', $personne))
             || ($debutAdresse !== '' && $nom === $debutAdresse && mb_strtolower($personne) === $personne)
             || (strlen($soc) >= 3 && str_contains($nom, $soc))
             || array_diff($mots($personne), self::MOTS_DE_SERVICE, $mots($societe)) === []) {
@@ -79,6 +91,8 @@ final class Salutation
      */
     public static function suivi(?Client $client, ?ClientContact $interlocuteur): string
     {
-        return self::nom($client, $client?->interlocuteurRetenu($interlocuteur)?->name);
+        $retenu = $client?->interlocuteurRetenu($interlocuteur);
+
+        return self::nom($client, $retenu?->name, $retenu?->email);
     }
 }
