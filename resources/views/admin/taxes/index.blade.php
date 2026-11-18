@@ -666,7 +666,7 @@ window.TaxModule = (function () {
                     </td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;">${c.nb_panneaux}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">${surface}</td>
-                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">${fmt(c.odp_taux)}/m²</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">${fmt(c.odp_taux)}/m²${c.odp_taux_eclaire != null ? `<div style="font-size:10px;color:#b45309" title="Panneaux éclairés">💡 ${fmt(c.odp_taux_eclaire)}/m²</div>` : ''}${c.tm_taux_eclaire != null ? `<div style="font-size:10px;color:#b45309" title="TM des panneaux éclairés">💡 TM ${fmt(c.tm_taux_eclaire)}/m²</div>` : ''}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:#3b82f6;font-weight:600;">${fmt(c.odp_theorique)}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:#a855f7;font-weight:600;">${fmt(c.tm_theorique)}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:var(--accent);">${fmt(c.total_theorique)}</td>

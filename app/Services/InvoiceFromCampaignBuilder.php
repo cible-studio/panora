@@ -219,7 +219,9 @@ class InvoiceFromCampaignBuilder
         // Résolution tarif historisé (fin d'année concernée pour
         // capturer le tarif valide TOUTE l'année — ratesAt accepte
         // une date entre effective_from et effective_to).
-        $rates = $commune?->ratesAt("{$year}-12-31") ?? ['odp' => 0, 'tm' => 1000];
+        // Panneau éclairé (2026-11-18) : tarif « éclairé » de la commune s'il
+        // existe. Un panneau de régie externe n'est jamais compté éclairé.
+        $rates = $commune?->ratesAt("{$year}-12-31", !$isExternal && (bool) ($panel->is_lit ?? false)) ?? ['odp' => 0, 'tm' => 1000];
 
         // Désignation lisible : "ABG-001A — Abengourou rte gare UTI 4×3m"
         $ref  = $panel->reference ?? ($isExternal ? 'EXT-' . $panel->id : 'PAN-' . $panel->id);

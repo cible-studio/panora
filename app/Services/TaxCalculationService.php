@@ -85,8 +85,14 @@ class TaxCalculationService
         // Choix design : on utilise les tarifs du début de période. Si on
         // change de tarif au milieu d'un mois, le calcul reste sur l'ancien
         // — cohérent avec la pratique fiscale (date d'émission de la base).
+        // 2026-11-18 — Deux jeux par commune : panneaux non éclairés et
+        // éclairés (case « Éclairé » de la fiche). Sans tarif éclairé, les
+        // deux sont identiques (Commune::ratesAt, source unique).
         $ratesByCommune = $communes->mapWithKeys(
-            fn($c) => [$c->id => $c->ratesAt($periodStart)]
+            fn($c) => [$c->id => [
+                'normal'  => $c->ratesAt($periodStart),
+                'eclaire' => $c->ratesAt($periodStart, true),
+            ]]
         );
 
         // Charge panneaux avec leur commune, format, dimensions.
@@ -180,7 +186,7 @@ class TaxCalculationService
         foreach ($panels as $panel) {
             $commune = $communes[$panel->commune_id] ?? null;
             if (!$commune) continue;
-            $rates = $ratesByCommune[$commune->id];
+            $rates = $ratesByCommune[$commune->id][$panel->is_lit ? 'eclaire' : 'normal'];
 
             // Si filtre client/campagne actif → on ne garde le panneau que
             // s'il a une campagne assignée correspondante. Sinon (pas de
@@ -687,10 +693,10 @@ class TaxCalculationService
      */
     public function calculODPCommune(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
     {
-        $rate = (float) $commune->ratesAt($debut)['odp'] ?? 0;
-        if ($rate <= 0) return 0;
         $total = 0.0;
         foreach ($this->panneauxPourCalcul($commune) as $panel) {
+            $rate = (float) ($commune->ratesAt($debut, (bool) $panel->is_lit)['odp'] ?? 0); // éclairé : 2026-11-18
+            if ($rate <= 0) continue;
             // Surface taxable = une face × nombre de faces (2026-11-13).
             $surface = (float) ($panel->format?->surface ?? 0)
                 * app(\App\Services\Axes\AxeService::class)->facesParPied($panel);
@@ -710,10 +716,10 @@ class TaxCalculationService
      */
     public function calculTMCommune(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
     {
-        $rate = (float) ($commune->ratesAt($debut)['tm'] ?? 0);
-        if ($rate <= 0) return 0;
         $total = 0.0;
         foreach ($this->panneauxPourCalcul($commune) as $panel) {
+            $rate = (float) ($commune->ratesAt($debut, (bool) $panel->is_lit)['tm'] ?? 0); // éclairé : 2026-11-18
+            if ($rate <= 0) continue;
             // Surface taxable = une face × nombre de faces (2026-11-13).
             $surface = (float) ($panel->format?->surface ?? 0)
                 * app(\App\Services\Axes\AxeService::class)->facesParPied($panel);

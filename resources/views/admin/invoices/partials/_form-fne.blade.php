@@ -65,7 +65,12 @@
                          'odp_amount_override' => null, 'tm_amount_override' => null,
                          'panel_id' => null, 'external_panel_id' => null],
                     ]);
-    $communes  = \App\Models\Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate']);
+    $communes  = \App\Models\Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate', 'odp_rate_eclaire', 'tm_rate_eclaire']);
+    // Panneaux éclairés des lignes déjà là (2026-11-18) : aperçu au tarif « éclairé ».
+    // Le serveur refait le même choix à l'enregistrement (panel_id → is_lit).
+    $idsEclaires = \App\Models\Panel::withTrashed()
+        ->whereIn('id', collect($lines)->pluck('panel_id')->filter()->map(fn ($id) => (int) $id)->all())
+        ->where('is_lit', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
     // Défauts config — servent de "fallback si l'utilisateur laisse vide"
     // dans les champs Taxes globales de la facture (2026-08-03).
     $tvaRate   = (float) config('billing.tva_rate', 18);
@@ -215,6 +220,7 @@
                                      transmis au controller pour validation d'unicité
                                      (aucun panneau facturé 2× dans la même facture). --}}
                                 <input type="hidden" name="lines[{{ $i }}][panel_id]" class="line-panel-id" value="{{ $l['panel_id'] ?? '' }}">
+                                <input type="hidden" class="line-eclaire" value="{{ !empty($l['panel_id']) && in_array((int) $l['panel_id'], $idsEclaires, true) ? 1 : '' }}">
                                 <input type="hidden" name="lines[{{ $i }}][external_panel_id]" class="line-external-panel-id" value="{{ $l['external_panel_id'] ?? '' }}">
                                 {{-- Axe Lumipub (2026-11-12) : ODP et TM saisies par le
                                      comptable, jamais calculées. Visible sur les lignes
@@ -242,6 +248,8 @@
                                         <option value="{{ $c->id }}"
                                                 data-odp="{{ $c->ratesAt(($isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')))['odp'] }}"
                                                 data-tm="{{ $c->ratesAt(($isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')))['tm'] }}"
+                                                data-odp-eclaire="{{ $c->ratesAt(($isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')), true)['odp'] }}"
+                                                data-tm-eclaire="{{ $c->ratesAt(($isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')), true)['tm'] }}"
                                                 {{ (string) ($l['commune_id'] ?? '') === (string) $c->id ? 'selected' : '' }}>
                                             {{ $c->name }}
                                         </option>
@@ -1886,6 +1894,8 @@
                 const extPanelIdField = row.querySelector('.line-external-panel-id');
                 if (panelIdField) panelIdField.value = '';
                 if (extPanelIdField) extPanelIdField.value = '';
+                const eclaireField = row.querySelector('.line-eclaire');
+                if (eclaireField) eclaireField.value = item.is_lit ? '1' : '';
                 const idStr = String(item.id || '');
                 if (idStr.startsWith('int_') && panelIdField) {
                     panelIdField.value = idStr.slice(4);
@@ -1981,6 +1991,8 @@
                 const extPanelIdField = row.querySelector('.line-external-panel-id');
                 if (panelIdField) panelIdField.value = '';
                 if (extPanelIdField) extPanelIdField.value = '';
+                const eclaireVide = row.querySelector('.line-eclaire');
+                if (eclaireVide) eclaireVide.value = '';
                 setTaxesALaMain(row, false);
                 if (typeof refreshTakenPanelsCache === 'function') refreshTakenPanelsCache();
                 recompute();
@@ -2023,8 +2035,10 @@
             const m2  = parseFloat(row.querySelector('.line-m2')?.value)   || 0;
             const sel = row.querySelector('.line-commune');
             const opt = sel?.selectedOptions?.[0];
-            const odp = parseFloat(opt?.dataset.odp) || 0;
-            const tm  = parseFloat(opt?.dataset.tm)  || TM_DEFAULT;
+            // Panneau éclairé (2026-11-18) : même choix que le serveur.
+            const lit = row.querySelector('.line-eclaire')?.value === '1';
+            const odp = parseFloat(lit ? opt?.dataset.odpEclaire : opt?.dataset.odp) || 0;
+            const tm  = parseFloat(lit ? opt?.dataset.tmEclaire : opt?.dataset.tm)  || TM_DEFAULT;
             const lineHt = pu * qte * mois;
             htBrut    += lineHt;
 

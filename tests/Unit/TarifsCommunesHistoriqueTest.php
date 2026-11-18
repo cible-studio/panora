@@ -38,6 +38,7 @@ class TarifsCommunesHistoriqueTest extends TestCase
             $t->date('effective_from'); $t->date('effective_to')->nullable(); $t->string('notes', 500)->nullable();
             $t->unsignedBigInteger('created_by')->nullable(); $t->timestamps();
         });
+        (require base_path('database/migrations/2026_11_18_120000_add_tarif_eclaire_to_communes.php'))->up();
         if (!Schema::hasTable('users')) {
             Schema::create('users', function (Blueprint $t) {
                 $t->id(); $t->string('name'); $t->string('email')->nullable(); $t->string('password')->nullable();

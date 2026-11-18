@@ -76,6 +76,8 @@ class TaxeSuiviController extends Controller
             'chaine'      => $chaine,
             'reglements'  => $reglements,
             'rates'       => $commune->ratesAt(now()),
+            // Panneaux éclairés (2026-11-18) : affiché s'il diffère.
+            'ratesEclaire' => $commune->ratesAt(now(), true),
         ]);
     }
 

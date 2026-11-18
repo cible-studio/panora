@@ -61,7 +61,7 @@ class TaxController extends Controller
      */
     public function index(Request $request)
     {
-        $communes = Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate']);
+        $communes = Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate', 'odp_rate_eclaire', 'tm_rate_eclaire']);
 
         // Année par défaut : courante (utile pour pré-sélectionner le filtre)
         $year         = (int) ($request->input('year', date('Y')));
@@ -701,7 +701,7 @@ class TaxController extends Controller
                     ->with('format:id,name,width,height'),
             ])
             ->whereNotNull('odp_rate')
-            ->get(['id', 'name', 'odp_rate', 'tm_rate']);
+            ->get(['id', 'name', 'odp_rate', 'tm_rate', 'odp_rate_eclaire', 'tm_rate_eclaire']);
 
         // ── 2026-11-16 — TM : SOURCE UNIQUE (TaxCalculationService) ──────
         // Avant, ce tableau recalculait la TM avec sa propre formule : mois
@@ -767,6 +767,11 @@ class TaxController extends Controller
             // generateLines(), qui n'applique aucun tarif par défaut à une
             // commune sans tarif TM (afficher 1 000 aurait contredit la TM 0).
             $tmRate  = (float) ($rates['tm'] ?? 0);
+            // 2026-11-18 — Tarif des panneaux éclairés, affiché s'il diffère
+            // (le calcul, lui, vient de generateLines(), panneau par panneau).
+            $ratesEclaire   = $commune->ratesAt($rateDate, true);
+            $odpRateEclaire = (float) $ratesEclaire['odp'] !== $odpRate ? (float) $ratesEclaire['odp'] : null;
+            $tmRateEclaire  = (float) $ratesEclaire['tm'] !== $tmRate ? (float) $ratesEclaire['tm'] : null;
 
             // Lignes détaillées par format (pour affichage tableau)
             $lignes = $commune->panels
@@ -825,6 +830,8 @@ class TaxController extends Controller
                 'is_abidjan'     => $commune->isAbidjan(),
                 'odp_taux'       => $odpRate,
                 'tm_taux'        => $tmRate,
+                'odp_taux_eclaire' => $odpRateEclaire,
+                'tm_taux_eclaire'  => $tmRateEclaire,
                 'nb_panneaux'    => (int) $commune->panels->count(),
                 'surface_totale' => (float) $lignes->sum(fn($l) => $l['m2'] * $l['qty']),
                 'odp_theorique'  => $odpTheo,

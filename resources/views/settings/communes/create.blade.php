@@ -98,6 +98,18 @@
                     </div>
                 </div>
 
+                {{-- Panneaux éclairés (2026-11-18) : vide = même tarif. --}}
+                <div class="form-2col">
+                    <div class="mfg">
+                        <label>💡 Tarif ODP éclairé</label>
+                        <input type="number" name="odp_rate_eclaire" value="{{ old('odp_rate_eclaire') }}" step="0.01" min="0" placeholder="vide = même tarif">
+                    </div>
+                    <div class="mfg">
+                        <label>💡 Tarif TM éclairé</label>
+                        <input type="number" name="tm_rate_eclaire" value="{{ old('tm_rate_eclaire') }}" step="0.01" min="0" placeholder="vide = même tarif">
+                    </div>
+                </div>
+
                 <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;padding-top:18px;border-top:1px solid var(--border)">
                     <a href="{{ route('admin.settings.index') }}" class="btn btn-ghost">Annuler</a>
                     <button type="submit" class="btn btn-primary">
