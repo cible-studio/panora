@@ -25,6 +25,9 @@ use Illuminate\Support\Facades\Log;
  */
 class CommuneObserver
 {
+    /** Début de validité de l'ancien tarif d'une commune qui n'avait aucun historique. */
+    public const DEBUT_SANS_HISTORIQUE = '2000-01-01';
+
     public function updated(Commune $commune): void
     {
         $changed = $commune->getChanges();
@@ -32,6 +35,23 @@ class CommuneObserver
         if (empty($rateChanged)) return;
 
         $today = Carbon::today();
+
+        // 2026-11-18 — Commune encore sans aucune ligne d'historique (ex.
+        // ADIAKE-ASSINIE) : Commune::ratesAt() retombe alors sur le tarif
+        // COURANT pour toutes les dates, et la modification devenait
+        // rétroactive, contrairement au message affiché. On fige d'abord
+        // l'ancien tarif jusqu'à la veille.
+        if (!CommuneTaxRateHistory::where('commune_id', $commune->id)->exists()) {
+            CommuneTaxRateHistory::create([
+                'commune_id'     => $commune->id,
+                'odp_rate'       => (float) $commune->getOriginal('odp_rate'),
+                'tm_rate'        => (float) $commune->getOriginal('tm_rate'),
+                'effective_from' => self::DEBUT_SANS_HISTORIQUE,
+                'effective_to'   => $today->copy()->subDay()->toDateString(),
+                'created_by'     => auth()->id(),
+                'notes'          => '[Auto] Tarif d\'origine, conservé avant la première modification',
+            ]);
+        }
 
         // Ferme l'historique précédent encore ouvert.
         CommuneTaxRateHistory::where('commune_id', $commune->id)

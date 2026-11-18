@@ -2373,6 +2373,17 @@ menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
 - [ ] Synthèse mensuelle du 1er décembre : lignes « Taxes du mois (calcul
       Panora) », « Règlements versés », « Reste à payer aux mairies ».
 
+### Tarifs communaux — corrigé le 2026-11-18
+- [ ] Réglages → Tarifs ODP / TM : « Historique » s'ouvre (avant : « Erreur de
+      chargement », l'adresse oubliait « settings ») ; « Programmer » enregistre.
+- [ ] Une commune sans historique (« — » dans Dernier changement, ex.
+      ADIAKE-ASSINIE) modifiée au crayon : l'historique montre deux lignes,
+      l'ancien tarif jusqu'à hier, le nouveau dès aujourd'hui. Avant, la
+      modification s'appliquait aussi au passé.
+- Règle pour les ajustements : un tarif valable à partir de 2027 →
+  « Programmer » au 01/01/2027 ; une correction qui vaut dès maintenant →
+  crayon (Réglages → Communes). Les factures déjà émises ne bougent jamais.
+
 ### Pour les comptables — avant le 31/12/2026
 - [ ] Pour chaque mairie : ce qu'elle a réclamé pour 2026 (arriérés compris),
       depuis l'avis ou la fiche de la DG.
