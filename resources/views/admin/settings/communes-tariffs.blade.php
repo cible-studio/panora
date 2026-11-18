@@ -184,6 +184,15 @@ document.getElementById('filter-input')?.addEventListener('input', (e) => {
     });
 });
 
+// ─── Adresses (routes nommées, l'identifiant remplacé côté navigateur) ─
+const URLS_TARIF = {
+    history:  @json(route('admin.settings.communes.tariffs.history', ['commune' => '__ID__'])),
+    schedule: @json(route('admin.settings.communes.tariffs.schedule', ['commune' => '__ID__'])),
+};
+const urlTarif = (quoi, communeId) => URLS_TARIF[quoi].replace('__ID__', encodeURIComponent(communeId));
+// Les notes sont saisies à la main : jamais injectées telles quelles.
+const echapper = (t) => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 // ─── Modal historique ────────────────────────────────────────
 async function openHistory(communeId, name) {
     document.getElementById('hist-commune-name').textContent = name;
@@ -191,7 +200,9 @@ async function openHistory(communeId, name) {
     document.getElementById('modal-history').classList.add('show');
 
     try {
-        const r = await fetch(`/admin/communes/${communeId}/tariffs/history`, {
+        // 2026-11-18 : l'adresse oubliait le préfixe « settings » (404, « Erreur de
+        // chargement ») ; elle vient maintenant de la route elle-même.
+        const r = await fetch(urlTarif('history', communeId), {
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
         });
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -220,12 +231,12 @@ function renderHistory(history) {
                 <td style="padding:8px 12px">
                     <div style="font-weight:700">${h.effective_from_h} →  ${h.effective_to_h || '∞'}</div>
                     <div style="margin-top:3px">${badge}</div>
-                    ${h.notes ? '<div style="font-size:10.5px;color:var(--text3);margin-top:3px;font-style:italic">' + h.notes + '</div>' : ''}
+                    ${h.notes ? '<div style="font-size:10.5px;color:var(--text3);margin-top:3px;font-style:italic">' + echapper(h.notes) + '</div>' : ''}
                 </td>
                 <td style="padding:8px 12px;text-align:right;color:var(--accent);font-weight:700">${fmt(h.odp_rate)}</td>
                 <td style="padding:8px 12px;text-align:right;">${fmt(h.tm_rate)}</td>
                 <td style="padding:8px 12px;text-align:right;font-size:10.5px;color:var(--text3)">
-                    ${h.created_by || '—'}<br>${h.created_at || ''}
+                    ${echapper(h.created_by || '—')}<br>${echapper(h.created_at || '')}
                 </td>
             </tr>
         `;
@@ -253,7 +264,7 @@ function openSchedule(communeId, name, currentOdp, currentTm) {
     document.getElementById('sched-current-tm').textContent  = Number(currentTm).toLocaleString('fr-FR');
     document.getElementById('sched-odp').value = currentOdp;
     document.getElementById('sched-tm').value  = currentTm;
-    document.getElementById('schedule-form').action = `/admin/communes/${communeId}/tariffs/schedule`;
+    document.getElementById('schedule-form').action = urlTarif('schedule', communeId);
     document.getElementById('modal-schedule').classList.add('show');
 }
 
