@@ -544,4 +544,21 @@ class BarometreServiceTest extends TestCase
         // Le compteur du bouton de l'écran (nombres de la carte « Sans destinataire ») suit aussi.
         $this->assertStringContainsString('Contacts à compléter · 1', $this->ecran());
     }
+
+    public function test_une_adresse_ecartee_est_nommee_avec_sa_raison(): void
+    {
+        // 12ÈME LIEU, 18/11 : l'interlocuteur a une adresse, mais elle a rebondi.
+        DB::table('diffusion_desinscriptions')->insert(['email' => 'k.kouadjo@addoha.ci', 'motif' => 'rebond']);
+        $s = $this->service();
+
+        $ligne = collect($s->liste())->firstWhere('client.name', 'ADDOHA');
+        $this->assertSame('sans_email', $ligne['statut']);
+        $this->assertStringContainsString('Adresse écartée des envois : k.kouadjo@addoha.ci (Adresse invalide)', $ligne['detail']);
+
+        $excel = collect($s->aCompleter())->firstWhere('client', 'ADDOHA');
+        $this->assertStringContainsString('Adresse écartée des envois (Adresse invalide)', $excel['probleme']);
+        $this->assertStringContainsString('k.kouadjo@addoha.ci (écartée : Adresse invalide)', $excel['connus']);
+        $this->assertStringContainsString('Aucun e-mail', collect($s->aCompleter())->firstWhere('client', 'BANK')['probleme'],
+            'un vrai « sans e-mail » garde son message');
+    }
 }
