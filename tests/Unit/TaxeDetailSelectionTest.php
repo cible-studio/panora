@@ -110,7 +110,10 @@ class TaxeDetailSelectionTest extends TestCase
         $odp = $rendre([$ligne('odp', 12000)]);
         $this->assertStringNotContainsString('>Client<', $odp);
         $this->assertStringNotContainsString('>Campagne<', $odp);
-        $this->assertStringNotContainsString('<th style="width:120px;">Période</th>', $odp, 'colonne Période retirée (la période du filtre reste dans l\x27en-tête)');
+        // En-têtes du tableau des lignes seulement (le bloc du haut affiche aussi la période du filtre).
+        $entetes = fn (string $html) => substr($html, strpos($html, 'tdoc-details">'), strpos($html, '</thead>') - strpos($html, 'tdoc-details">'));
+        $this->assertStringNotContainsString('Période', $entetes($odp), 'colonne Période retirée');
+        $this->assertStringContainsString('Période', $entetes($rendre([$ligne('tm', 12000)])), 'PDF TM : colonne gardée');
         $this->assertStringNotContainsString('ECKO', $odp);
         $this->assertStringContainsString('colspan="4" class="right">TOTAL GÉNÉRAL', $odp);
 
@@ -118,5 +121,10 @@ class TaxeDetailSelectionTest extends TestCase
         $this->assertStringContainsString('>Client<', $mixte, 'PDF mixte : inchangé');
         $this->assertStringContainsString('>Campagne<', $mixte);
         $this->assertStringContainsString('colspan="7" class="right">TOTAL GÉNÉRAL', $mixte);
+
+        // Mise en page pour la DG (18/11) : note gardée d'un bloc et juste.
+        $this->assertStringContainsString('class="tdoc-note tdoc-details-fin"', $odp);
+        $this->assertStringContainsString('en maintenance sont inclus', $odp, 'la note disait « exclus » : faux depuis le 13/11');
+        $this->assertStringNotContainsString('TM = tarif', $odp, 'PDF ODP : la note ne parle que de l\'ODP');
     }
 }

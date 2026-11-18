@@ -9,6 +9,18 @@
          footer fixe en dépendent) ; seule l'orientation diffère. --}}
     <style>@page { size: A4 landscape; margin: 12mm 14mm 20mm 14mm !important; }</style>
     @include('pdf.partials.tax-doc-styles')
+    {{-- 2026-11-18 (présentation à la DG) — propre à ce document :
+         lignes plus serrées, total sur une ligne et jamais séparé du
+         tableau, note gardée d'un bloc. Les autres PDF de taxes gardent
+         le style partagé. --}}
+    <style>
+        .tdoc-details tbody td { padding-top:5px; padding-bottom:5px; }
+        .tdoc-details tr { page-break-inside:avoid; }
+        .tdoc-details .tdoc-total td { padding-top:9px; padding-bottom:9px; }
+        .tdoc-details .tdoc-total .tdoc-amount span { display:inline; font-size:11px; margin-left:4px; }
+        .tdoc-note.tdoc-details-fin { page-break-inside:avoid; margin-top:10px; padding:5px 0 5px 3mm; font-size:8.5px; line-height:1.45; }
+        .tdoc-details .tdoc-periode { white-space:nowrap; }
+    </style>
 </head>
 <body>
 
@@ -47,7 +59,7 @@
     $nbColonnes = $odpSeule ? 5 : 8;
 @endphp
 
-<table class="tdoc-table">
+<table class="tdoc-table tdoc-details">
     <thead>
         <tr>
             <th style="width:90px;">Panneau</th>
@@ -56,7 +68,7 @@
             @unless($odpSeule)
             <th>Client</th>
             <th>Campagne</th>
-            <th style="width:120px;">Période</th>
+            <th style="width:150px;">Période</th>
             @endunless
             <th style="width:130px;" class="right">Tarif / Formule</th>
             <th style="width:86px;" class="right">Montant</th>
@@ -77,20 +89,23 @@
         <tr>
             <td class="mono tdoc-ref">{{ $row['reference'] }}</td>
             <td>
+                @php $m2 = rtrim(rtrim(number_format($row['surface'], 2), '0'), '.'); @endphp
                 {{ $row['dimensions'] }}
-                <br><span class="tdoc-muted" style="font-size:9px;">{{ rtrim(rtrim(number_format($row['surface'], 2), '0'), '.') }} m²</span>
+                @if(str_replace([' ', '²', 'm'], '', (string) $row['dimensions']) !== $m2)
+                    <br><span class="tdoc-muted" style="font-size:9px;">{{ $m2 }} m²</span>
+                @endif
             </td>
             <td><span class="tdoc-badge tdoc-badge-{{ $row['type'] }}">{{ strtoupper($row['type']) }}</span></td>
             @unless($odpSeule)
             <td>{{ $row['client_name'] ?? '—' }}</td>
             <td>{{ $row['campaign_name'] ?? '—' }}</td>
-            <td style="font-size:9.5px;" class="tdoc-muted">
+            <td style="font-size:9px;" class="tdoc-muted tdoc-periode">
                 {{-- FIX 2026-06-26 — Vraies dates de la campagne (pas le filtre).
                      Lignes ODP sans campagne : on retombe sur la période du filtre. --}}
                 @if(!empty($row['campaign_start']) && !empty($row['campaign_end']))
-                    {{ $row['campaign_start']->format('d/m/Y') }} →<br>{{ $row['campaign_end']->format('d/m/Y') }}
+                    {{ $row['campaign_start']->format('d/m/Y') }} → {{ $row['campaign_end']->format('d/m/Y') }}
                 @else
-                    {{ $row['period_start']->format('d/m/Y') }} →<br>{{ $row['period_end']->format('d/m/Y') }}
+                    {{ $row['period_start']->format('d/m/Y') }} → {{ $row['period_end']->format('d/m/Y') }}
                 @endif
             </td>
             @endunless
@@ -117,11 +132,19 @@
     </tbody>
 </table>
 
-<div class="tdoc-note">
-    ■ Chaque montant est justifiable : <b>TM = tarif × surface (m²) × nombre de mois</b> de campagne ·
-    <b>ODP = tarif × surface (m²) × nombre de mois</b> d'occupation du domaine public
-    (comptée une seule fois par panneau physique — un mât double-face compte pour un).
-    Les panneaux en maintenance sont exclus sauf mention contraire dans les filtres ci-dessus.<br>
+<div class="tdoc-note tdoc-details-fin">
+    @if($odpSeule)
+        ■ Chaque montant est justifiable : <b>ODP = tarif × surface (m²) × nombre de mois</b> d'occupation du domaine public,
+        comptée une seule fois par panneau physique (un mât double-face compte pour un).
+    @else
+        ■ Chaque montant est justifiable : <b>TM = tarif × surface (m²) × nombre de mois</b> de campagne ·
+        <b>ODP = tarif × surface (m²) × nombre de mois</b> d'occupation du domaine public
+        (comptée une seule fois par panneau physique — un mât double-face compte pour un).
+    @endif
+    {{-- 2026-11-18 — Corrigé : depuis le 13/11 les panneaux en maintenance
+         sont INCLUS par défaut (l'ODP court tant que le mât est planté) ;
+         l'ancienne phrase disait l'inverse. --}}
+    Les panneaux en maintenance sont inclus, sauf mention contraire dans les filtres ci-dessus.<br>
     Les tarifs appliqués reflètent l'<b>historique tarifaire</b> de chaque commune à la date de la période —
     document fiable pour les contrôles administratifs.
 </div>
