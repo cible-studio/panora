@@ -68,6 +68,8 @@ class BarometreService
 
     private ?BarometreEdition $edition = null;
     private ?Collection $liste = null;
+    /** @var ?array<string, string> */
+    private ?array $ecartees = null;
 
     public function __construct(private BrevoClient $brevo) {}
 
@@ -302,7 +304,12 @@ class BarometreService
             return ['en_cours', null];
         }
         if ($dest['source'] === 'aucun') {
-            return ['sans_email', 'Ajoutez l\'e-mail d\'un interlocuteur sur la fiche du client.'];
+            $ecartees = $this->adressesEcarteesDe($client);
+
+            return ['sans_email', $ecartees
+                ? 'Adresse écartée des envois : ' . collect($ecartees)->map(fn ($m, $e) => "{$e} ({$m})")->implode(', ')
+                    . '. Corriger l\'adresse sur la fiche, ou donner un autre interlocuteur.'
+                : 'Ajoutez l\'e-mail d\'un interlocuteur sur la fiche du client.'];
         }
         if ($dest['source'] === 'a_choisir') {
             return ['a_choisir', 'Plusieurs interlocuteurs, aucun indice : cochez le principal sur la fiche du client.'];
@@ -347,10 +354,39 @@ class BarometreService
     }
 
     /** @return array<string, true> adresses écartées des envois commerciaux */
+    /**
+     * @return array<string, string> adresse écartée des envois commerciaux → motif
+     *         (« Adresse invalide », « Désinscrit », « Signalé comme spam », « Exclu manuellement »)
+     */
     private function adressesEcartees(): array
     {
-        return DiffusionDesinscription::query()->pluck('email')
-            ->mapWithKeys(fn ($e) => [mb_strtolower(trim((string) $e)) => true])->all();
+        if ($this->ecartees !== null) {
+            return $this->ecartees;
+        }
+
+        return $this->ecartees = DiffusionDesinscription::query()->get(['email', 'motif'])
+            ->mapWithKeys(fn ($d) => [mb_strtolower(trim((string) $d->email)) => $d->libelleMotif()])->all();
+    }
+
+    /**
+     * Adresses de ce client que la règle a mises de côté parce qu'elles sont
+     * écartées des envois commerciaux (18/11 : 12ÈME LIEU s'affichait
+     * « Aucun e-mail » alors que son interlocuteur en a une).
+     *
+     * @return array<string, string> adresse → motif
+     */
+    private function adressesEcarteesDe(Client $client): array
+    {
+        $ecartees = $this->adressesEcartees();
+        $trouvees = [];
+        foreach ([...$client->contacts->pluck('email')->all(), $client->email] as $email) {
+            $email = mb_strtolower(trim((string) $email));
+            if ($email !== '' && isset($ecartees[$email])) {
+                $trouvees[$email] = $ecartees[$email];
+            }
+        }
+
+        return $trouvees;
     }
 
     /** Chiffres du haut de l'écran. */
@@ -394,11 +430,22 @@ class BarometreService
         return $this->liste()
             ->filter(fn ($l) => in_array($l['statut'], self::SANS_DESTINATAIRE, true))
             ->map(function ($l) use ($problemes) {
-                $client = $l['client'];
-                $connus = $client->contacts->map(fn ($ct) => implode(' · ', array_filter([$ct->name, $ct->email, $ct->phone])))
+                $client   = $l['client'];
+                $ecartees = $this->adressesEcarteesDe($client);
+                $marque   = function (?string $email) use ($ecartees) {
+                    $cle = mb_strtolower(trim((string) $email));
+
+                    return $email && isset($ecartees[$cle]) ? "{$email} (écartée : {$ecartees[$cle]})" : $email;
+                };
+                $connus = $client->contacts->map(fn ($ct) => implode(' · ', array_filter([$ct->name, $marque($ct->email), $ct->phone])))
                     ->filter()->values()->all();
                 if ($client->email) {
-                    $connus[] = 'Fiche : ' . $client->email;
+                    $connus[] = 'Fiche : ' . $marque($client->email);
+                }
+                if ($l['statut'] === 'sans_email' && $ecartees) {
+                    $problemes['sans_email'] = 'Adresse écartée des envois ('
+                        . collect($ecartees)->unique()->implode(', ')
+                        . ') : vérifier et corriger l\'adresse, ou donner un autre interlocuteur';
                 }
 
                 return [
