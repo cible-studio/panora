@@ -357,6 +357,8 @@ class InvoiceController extends Controller
         $text        = trim("{$ref} · {$communeName}" . ($name ? " — {$name}" : ''));
 
         return [
+            // Panneau éclairé (2026-11-18) : l'aperçu du formulaire prend le tarif « éclairé ».
+            'is_lit'         => $source === 'int' && (bool) ($panel->is_lit ?? false),
             'id'             => $source . '_' . $panel->id,
             'text'           => $text,
             'designation'    => $designation,
@@ -576,7 +578,10 @@ class InvoiceController extends Controller
         $orderIdx = 0;
         foreach ($linesInput as $l) {
             $commune = \App\Models\Commune::find($l['commune_id']);
-            $rates = $commune?->ratesAt($issuedDate) ?? ['odp' => 0, 'tm' => 1000];
+            // Panneau éclairé (2026-11-18) : ligne liée à un panneau éclairé →
+            // tarif « éclairé ». Ligne sans panneau : non éclairé (validé le 18/11).
+            $eclaire = !empty($l['panel_id']) && (bool) \App\Models\Panel::whereKey((int) $l['panel_id'])->value('is_lit');
+            $rates = $commune?->ratesAt($issuedDate, $eclaire) ?? ['odp' => 0, 'tm' => 1000];
 
             // Overrides ODP/TM par ligne (2026-08-03) : montant FCFA final.
             // Chaîne vide OU absente = NULL (calcul auto), 0 explicite = 0.

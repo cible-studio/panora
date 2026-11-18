@@ -26,6 +26,8 @@ class CommuneTaxRateHistory extends Model
     protected $fillable = [
         'commune_id', 'odp_rate', 'tm_rate',
         'effective_from', 'effective_to', 'notes', 'created_by',
+        // Tarif des panneaux éclairés (2026-11-18) ; vide = tarif normal.
+        'odp_rate_eclaire', 'tm_rate_eclaire',
     ];
 
     protected $casts = [
@@ -33,6 +35,8 @@ class CommuneTaxRateHistory extends Model
         'effective_to'   => 'date',
         'odp_rate'       => 'integer',
         'tm_rate'        => 'integer',
+        'odp_rate_eclaire' => 'integer',
+        'tm_rate_eclaire'  => 'integer',
     ];
 
     public function commune()

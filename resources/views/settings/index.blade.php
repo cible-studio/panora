@@ -53,8 +53,10 @@
                         @if($highlightCommune == $commune->id) class="row-highlight" @endif>
                         <td><strong>{{ $commune->name }}</strong></td>
                         <td style="color:var(--text2);font-size:12px;">{{ $commune->city ?? '—' }}</td>
-                        <td style="font-size:12px;">{{ number_format($commune->odp_rate, 0, ',', ' ') }} FCFA</td>
-                        <td style="font-size:12px;">{{ number_format($commune->tm_rate, 0, ',', ' ') }} FCFA</td>
+                        <td style="font-size:12px;">{{ number_format($commune->odp_rate, 0, ',', ' ') }} FCFA
+                            @if(!is_null($commune->odp_rate_eclaire))<div style="font-size:10.5px;color:#b45309">💡 {{ number_format($commune->odp_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
+                        <td style="font-size:12px;">{{ number_format($commune->tm_rate, 0, ',', ' ') }} FCFA
+                            @if(!is_null($commune->tm_rate_eclaire))<div style="font-size:10.5px;color:#b45309">💡 {{ number_format($commune->tm_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
                         <td>
                             <div style="display:flex;gap:4px;">
                                 <button type="button" class="btn btn-ghost btn-sm"
@@ -65,6 +67,8 @@
                                         data-region="{{ $commune->region }}"
                                         data-odp_rate="{{ $commune->odp_rate }}"
                                         data-tm_rate="{{ $commune->tm_rate }}"
+                                        data-odp_rate_eclaire="{{ $commune->odp_rate_eclaire }}"
+                                        data-tm_rate_eclaire="{{ $commune->tm_rate_eclaire }}"
                                         title="Modifier">✏️</button>
                                 <form method="POST"
                                       action="{{ route('admin.settings.communes.destroy', $commune) }}"
@@ -316,8 +320,21 @@
                         <div class="field-error" data-error="tm_rate"></div>
                     </div>
                 </div>
+                {{-- Panneaux éclairés (2026-11-18) : vide = même tarif. --}}
+                <div class="form-3col">
+                    <div class="mfg">
+                        <label>💡 ODP éclairé (FCFA)</label>
+                        <input type="number" name="odp_rate_eclaire" min="0" step="0.01" placeholder="vide = même tarif">
+                        <div class="field-error" data-error="odp_rate_eclaire"></div>
+                    </div>
+                    <div class="mfg">
+                        <label>💡 TM éclairé (FCFA)</label>
+                        <input type="number" name="tm_rate_eclaire" min="0" step="0.01" placeholder="vide = même tarif">
+                        <div class="field-error" data-error="tm_rate_eclaire"></div>
+                    </div>
+                </div>
                 <div style="font-size:11px;color:var(--text3);margin-top:6px;">
-                    Les changements de tarif sont historisés (calculs rétroactifs conservés).
+                    Le nouveau tarif vaut à partir d'aujourd'hui, le passé garde l'ancien. Pour une autre date d'effet : Tarifs communes → Programmer.
                 </div>
             </div>
             <div class="modal-footer">

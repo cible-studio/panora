@@ -1026,7 +1026,9 @@ class QuoteController extends Controller
         $colonnesAxes = \Illuminate\Support\Facades\Schema::hasColumn('quote_lines', 'pieds');
         foreach ($lines as $l) {
             $commune = !empty($l['commune_id']) ? Commune::find($l['commune_id']) : null;
-            $rates   = $commune?->ratesAt(now()->toDateString()) ?? ['odp' => 0, 'tm' => (float) config('billing.tm_default', 1000)];
+            // Panneau éclairé (2026-11-18) : comme la facture.
+            $eclaire = !empty($l['panel_id']) && (bool) \App\Models\Panel::whereKey((int) $l['panel_id'])->value('is_lit');
+            $rates   = $commune?->ratesAt(now()->toDateString(), $eclaire) ?? ['odp' => 0, 'tm' => (float) config('billing.tm_default', 1000)];
             [$odpSaisie, $tmSaisie] = $this->taxesSaisies($l);
             $axes = $colonnesAxes ? [
                 'pieds'               => !empty($l['pieds']) ? array_values(array_unique(array_map('intval', $l['pieds']))) : null,
@@ -1088,7 +1090,8 @@ class QuoteController extends Controller
             }
 
             $commune = !empty($l['commune_id']) ? Commune::find($l['commune_id']) : null;
-            $taux    = $commune?->ratesAt(now()->toDateString())
+            $eclaire = !empty($l['panel_id']) && (bool) \App\Models\Panel::whereKey((int) $l['panel_id'])->value('is_lit');
+            $taux    = $commune?->ratesAt(now()->toDateString(), $eclaire)
                 ?? ['odp' => 0, 'tm' => (float) config('billing.tm_default', 1000)];
 
             $ligne = [

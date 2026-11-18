@@ -46,7 +46,8 @@ class TaxeExerciceServiceTest extends TestCase
         });
         Schema::create('commune_tax_rate_history', function (Blueprint $t) {
             $t->id(); $t->unsignedBigInteger('commune_id'); $t->decimal('odp_rate', 10, 2)->default(0);
-            $t->decimal('tm_rate', 10, 2)->default(0); $t->date('effective_from'); $t->date('effective_to')->nullable(); $t->timestamps();
+            $t->decimal('tm_rate', 10, 2)->default(0); $t->date('effective_from'); $t->date('effective_to')->nullable();
+            $t->string('notes', 500)->nullable(); $t->unsignedBigInteger('created_by')->nullable(); $t->timestamps();
         });
         Schema::create('panel_formats', function (Blueprint $t) {
             $t->id(); $t->string('name'); $t->decimal('width', 8, 2)->nullable(); $t->decimal('height', 8, 2)->nullable();
@@ -59,6 +60,7 @@ class TaxeExerciceServiceTest extends TestCase
             $t->date('odp_start_date')->nullable();
             $t->unsignedBigInteger('axe_id')->nullable(); $t->boolean('est_axe')->default(false);
             $t->unsignedSmallInteger('pied_numero')->nullable(); $t->unsignedSmallInteger('faces_par_pied')->nullable();
+            $t->boolean('is_lit')->default(false);
             $t->softDeletes(); $t->timestamps();
         });
         Schema::create('clients', function (Blueprint $t) {
@@ -74,6 +76,7 @@ class TaxeExerciceServiceTest extends TestCase
         });
         (require base_path('database/migrations/2026_11_16_100000_create_taxe_reglements_table.php'))->up();
         (require base_path('database/migrations/2026_11_16_100100_create_taxe_reprises_table.php'))->up();
+        (require base_path('database/migrations/2026_11_18_120000_add_tarif_eclaire_to_communes.php'))->up();
 
         DB::table('communes')->insert([
             ['id' => 1, 'name' => 'COCODY', 'odp_rate' => 5000, 'tm_rate' => 1000],
@@ -179,6 +182,28 @@ class TaxeExerciceServiceTest extends TestCase
         $this->assertSame(41840000 + 360000 + 48000 - 1000000, $cocody['exigible']);
 
         $this->assertSame(['12' => ['surface' => 12.0, 'panneaux' => 1, 'faces' => 1]], $cocody['base']);
+    }
+
+    /**
+     * Panneau éclairé (2026-11-18) : le moteur prend le tarif « éclairé » de
+     * sa commune, panneau par panneau ; les autres gardent le tarif normal.
+     */
+    public function test_un_panneau_eclaire_paie_le_tarif_eclaire_de_sa_commune(): void
+    {
+        app(\App\Services\Taxes\TarifsCommunes::class)->enregistrer(Commune::find(1), Carbon::create(2027, 1, 1),
+            ['odp' => 5000, 'tm' => 1000, 'odp_eclaire' => 7000, 'tm_eclaire' => 2000], 'Tarif de test');
+        \Illuminate\Support\Facades\Cache::flush();
+        $normal = $this->service()->exercice(Commune::find(1), 2027);
+        $this->assertSame([1 => 180000, 2 => 180000, 3 => 180000, 4 => 180000], $normal['odp_trim'], 'non éclairé : inchangé');
+
+        DB::table('panels')->where('id', 1)->update(['is_lit' => true]);
+        // Service à portée de requête (AppServiceProvider) : on en repart d'un neuf.
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->app->forgetScopedInstances();
+        $eclaire = app(TaxeExerciceService::class)->exercice(Commune::find(1), 2027);
+
+        $this->assertSame([1 => 252000, 2 => 252000, 3 => 252000, 4 => 252000], $eclaire['odp_trim'], '7 000 × 12 m² × 3 mois');
+        $this->assertSame([1 => 72000, 2 => 24000, 3 => 72000, 4 => 72000], $eclaire['tm_trim'], '2 000 × 12 m² × mois de campagne');
     }
 
     public function test_un_trop_percu_vient_en_deduction_de_l_exercice_suivant(): void

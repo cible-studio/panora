@@ -20,6 +20,9 @@ class CommuneController extends Controller
             'region'   => 'nullable|string|max:100',
             'odp_rate' => 'nullable|numeric|min:0',
             'tm_rate'  => 'nullable|numeric|min:0',
+            // Panneaux éclairés (2026-11-18) : vide = même tarif.
+            'odp_rate_eclaire' => 'nullable|numeric|min:0',
+            'tm_rate_eclaire'  => 'nullable|numeric|min:0',
         ]);
 
         $data['odp_rate'] = $data['odp_rate'] ?? 0;
@@ -39,6 +42,10 @@ class CommuneController extends Controller
             'region'   => 'nullable|string|max:100',
             'odp_rate' => 'nullable|numeric|min:0',
             'tm_rate'  => 'nullable|numeric|min:0',
+            // Panneaux éclairés (2026-11-18) : vide = même tarif. Le
+            // formulaire qui ne les envoie pas ne les efface pas.
+            'odp_rate_eclaire' => 'sometimes|nullable|numeric|min:0',
+            'tm_rate_eclaire'  => 'sometimes|nullable|numeric|min:0',
         ]);
 
         $data['odp_rate'] = $data['odp_rate'] ?? 0;
@@ -49,7 +56,7 @@ class CommuneController extends Controller
         // L'observer CommuneObserver historise automatiquement les
         // changements de tarif — on précise juste ça à l'admin si un
         // tarif a effectivement bougé.
-        $changed = array_intersect_key($commune->getChanges(), array_flip(['odp_rate', 'tm_rate']));
+        $changed = array_intersect_key($commune->getChanges(), array_flip(\App\Observers\CommuneObserver::COLONNES_TARIF));
         $msg = 'Commune modifiée avec succès !';
         if (!empty($changed)) {
             $msg .= ' Tarifs historisés (les calculs rétroactifs gardent les anciennes valeurs).';
@@ -87,7 +94,7 @@ class CommuneController extends Controller
         $communes = Commune::query()
             ->orderBy('name')
             ->withCount(['rateHistory'])
-            ->get(['id', 'name', 'odp_rate', 'tm_rate', 'updated_at']);
+            ->get(['id', 'name', 'odp_rate', 'tm_rate', 'odp_rate_eclaire', 'tm_rate_eclaire', 'updated_at']);
 
         $today = now()->toDateString();
 
@@ -107,6 +114,8 @@ class CommuneController extends Controller
                 'date'      => $future->effective_from->format('d/m/Y'),
                 'odp_rate'  => (float) $future->odp_rate,
                 'tm_rate'   => (float) $future->tm_rate,
+                'odp_rate_eclaire' => $future->odp_rate_eclaire,
+                'tm_rate_eclaire'  => $future->tm_rate_eclaire,
             ] : null;
         });
 
@@ -122,7 +131,7 @@ class CommuneController extends Controller
         $history = $commune->rateHistory()
             ->with('createdBy:id,name')
             ->orderByDesc('effective_from')
-            ->get(['id', 'commune_id', 'odp_rate', 'tm_rate',
+            ->get(['id', 'commune_id', 'odp_rate', 'tm_rate', 'odp_rate_eclaire', 'tm_rate_eclaire',
                    'effective_from', 'effective_to', 'notes', 'created_by', 'created_at']);
 
         return response()->json([
@@ -131,6 +140,8 @@ class CommuneController extends Controller
                 'id'              => $h->id,
                 'odp_rate'        => (float) $h->odp_rate,
                 'tm_rate'         => (float) $h->tm_rate,
+                'odp_rate_eclaire'=> $h->odp_rate_eclaire,
+                'tm_rate_eclaire' => $h->tm_rate_eclaire,
                 'effective_from'  => $h->effective_from?->format('Y-m-d'),
                 'effective_from_h'=> $h->effective_from?->format('d/m/Y'),
                 'effective_to'    => $h->effective_to?->format('Y-m-d'),
@@ -146,50 +157,42 @@ class CommuneController extends Controller
     }
 
     /**
-     * Programme un nouveau tarif pour une date d'effet future
-     * (ex: 1er janvier 2026 pour préparer l'année à l'avance).
+     * Enregistre un tarif à une date d'effet (écran « Tarifs communes »).
      *
-     * Crée une ligne dans commune_tax_rate_history sans toucher
-     * communes.odp_rate / tm_rate (qui restent le tarif COURANT).
-     * Quand effective_from sera atteint, Commune::ratesAt() prendra
-     * automatiquement le nouveau tarif.
+     * 2026-11-18 (demande de l'utilisateur) : la date peut être PASSÉE —
+     * les nouveaux tarifs d'Adjamé et de Port-Bouët valent au 01/01/2026 —
+     * avec un motif obligatoire. Les factures émises ne bougent jamais
+     * (taux figés sur leurs lignes). Toute la logique d'historique est
+     * dans App\Services\Taxes\TarifsCommunes.
      */
     public function scheduleTariff(Request $request, Commune $commune)
     {
         $data = $request->validate([
-            'effective_from' => 'required|date|after:today',
-            'odp_rate'       => 'required|numeric|min:0',
-            'tm_rate'        => 'required|numeric|min:0',
-            'notes'          => 'nullable|string|max:500',
-        ], [
-            'effective_from.after' => 'La date d\'effet doit être dans le futur. Pour modifier le tarif courant, édite directement la commune.',
+            'effective_from'   => 'required|date|after_or_equal:2000-01-01',
+            'odp_rate'         => 'required|numeric|min:0',
+            'tm_rate'          => 'required|numeric|min:0',
+            'odp_rate_eclaire' => 'nullable|numeric|min:0',
+            'tm_rate_eclaire'  => 'nullable|numeric|min:0',
+            'notes'            => 'nullable|string|max:500',
         ]);
 
-        // Idempotence : si une ligne existe déjà avec la même
-        // effective_from, on la met à jour au lieu de dupliquer.
-        $existing = \App\Models\CommuneTaxRateHistory::where('commune_id', $commune->id)
-            ->whereDate('effective_from', $data['effective_from'])
-            ->first();
-
-        $payload = [
-            'commune_id'     => $commune->id,
-            'odp_rate'       => $data['odp_rate'],
-            'tm_rate'        => $data['tm_rate'],
-            'effective_from' => $data['effective_from'],
-            'effective_to'   => null,
-            'created_by'     => auth()->id(),
-            'notes'          => $data['notes'] ?? '[Manuel] Tarif programmé par admin',
-        ];
-
-        if ($existing) {
-            $existing->update($payload);
-            $msg = "Tarif programmé mis à jour pour {$commune->name} (effectif {$data['effective_from']}).";
-        } else {
-            \App\Models\CommuneTaxRateHistory::create($payload);
-            $msg = "Tarif programmé pour {$commune->name} à partir du " . \Carbon\Carbon::parse($data['effective_from'])->format('d/m/Y') . '.';
+        $effet = \Carbon\Carbon::parse($data['effective_from']);
+        $passe = $effet->lt(today());
+        if ($passe && trim((string) ($data['notes'] ?? '')) === '') {
+            return back()->withInput()->with('error',
+                'Date d\'effet passée : indiquez le motif (ex. « tarif confirmé par la mairie le … »). '
+                . 'Les taxes seront recalculées depuis cette date ; les factures déjà émises ne changent pas.');
         }
 
-        return back()->with('success', '✅ ' . $msg);
+        app(\App\Services\Taxes\TarifsCommunes::class)->enregistrer($commune, $effet, [
+            'odp'         => (int) $data['odp_rate'],
+            'tm'          => (int) $data['tm_rate'],
+            'odp_eclaire' => $data['odp_rate_eclaire'] ?? null,
+            'tm_eclaire'  => $data['tm_rate_eclaire'] ?? null,
+        ], $data['notes'] ?? null, $request->user());
+
+        return back()->with('success', '✅ Tarif de ' . $commune->name . ' enregistré à partir du ' . $effet->format('d/m/Y') . '.'
+            . ($passe ? ' Les taxes sont recalculées depuis cette date ; les factures déjà émises ne changent pas.' : ''));
     }
 
     /**

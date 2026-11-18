@@ -33,10 +33,10 @@
             <div style="flex:1">
                 <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:3px">Tarifs ODP / TM par commune</div>
                 <div style="font-size:12.5px;color:var(--text3);line-height:1.55">
-                    Référentiel utilisé pour la facturation FNE. La <strong>TM est fixe</strong> (1 000 F/m²/mois nationale).
-                    L'<strong>ODP varie</strong> selon la commune (15 000 Plateau, 5 000 Cocody, etc.).
-                    Les tarifs sont <strong>historisés automatiquement</strong> à chaque modification — les factures passées gardent leurs valeurs d'origine.
-                    Tu peux aussi <strong>programmer un nouveau tarif à l'avance</strong> (ex: voté pour 2026), il s'appliquera automatiquement à la date d'effet.
+                    Tarifs en F/m²/mois, utilisés pour les taxes dues aux mairies et refacturées aux clients.
+                    Une commune peut avoir un <strong>tarif 💡 pour les panneaux éclairés</strong> (case « Éclairé » de la fiche panneau) ; vide, ils paient le tarif normal.
+                    <strong>« Programmer »</strong> enregistre un tarif à une date d'effet, future ou passée (ex. 01/01/2026, avec un motif) : les taxes sont recalculées depuis cette date.
+                    Les <strong>factures déjà émises ne changent jamais</strong>.
                 </div>
             </div>
         </div>
@@ -78,8 +78,8 @@
                                     <div style="font-size:10.5px;color:var(--text3);margin-top:1px">{{ $c->rate_history_count }} entrée(s) d'historique</div>
                                 @endif
                             </td>
-                            <td style="padding:10px 14px;text-align:right;font-weight:700;color:var(--accent)">{{ number_format($c->odp_rate, 0, ',', ' ') }}</td>
-                            <td style="padding:10px 14px;text-align:right;">{{ number_format($c->tm_rate, 0, ',', ' ') }}</td>
+                            <td style="padding:10px 14px;text-align:right;font-weight:700;color:var(--accent)">{{ number_format($c->odp_rate, 0, ',', ' ') }}@if(!is_null($c->odp_rate_eclaire))<div style="font-size:10.5px;font-weight:600;color:#b45309" title="Panneaux éclairés">💡 {{ number_format($c->odp_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
+                            <td style="padding:10px 14px;text-align:right;">{{ number_format($c->tm_rate, 0, ',', ' ') }}@if(!is_null($c->tm_rate_eclaire))<div style="font-size:10.5px;font-weight:600;color:#b45309" title="Panneaux éclairés">💡 {{ number_format($c->tm_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
                             <td style="padding:10px 14px;color:var(--text2)">
                                 @if($c->last_change_date)
                                     <div style="font-size:11.5px">{{ $c->last_change_date->format('d/m/Y') }}</div>
@@ -92,6 +92,9 @@
                                     <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:8px;padding:5px 9px;font-size:11px;color:#1d4ed8">
                                         <strong>📅 {{ $c->next_change['date'] }}</strong><br>
                                         ODP {{ number_format($c->next_change['odp_rate'], 0, ',', ' ') }} · TM {{ number_format($c->next_change['tm_rate'], 0, ',', ' ') }}
+                                        @if(!is_null($c->next_change['odp_rate_eclaire']) || !is_null($c->next_change['tm_rate_eclaire']))
+                                            <br>💡 ODP {{ number_format($c->next_change['odp_rate_eclaire'] ?? $c->next_change['odp_rate'], 0, ',', ' ') }} · TM {{ number_format($c->next_change['tm_rate_eclaire'] ?? $c->next_change['tm_rate'], 0, ',', ' ') }}
+                                        @endif
                                     </div>
                                 @else
                                     <span style="color:var(--text3);font-size:11px">Aucun</span>
@@ -100,7 +103,7 @@
                             <td style="padding:10px 14px;text-align:center;white-space:nowrap">
                                 <button type="button" class="btn btn-ghost btn-sm" onclick="openHistory({{ $c->id }}, '{{ addslashes($c->name) }}')"
                                         style="font-size:11px;padding:5px 9px">📜 Historique</button>
-                                <button type="button" class="btn btn-ghost btn-sm" onclick="openSchedule({{ $c->id }}, '{{ addslashes($c->name) }}', {{ $c->odp_rate }}, {{ $c->tm_rate }})"
+                                <button type="button" class="btn btn-ghost btn-sm" onclick="openSchedule({{ $c->id }}, '{{ addslashes($c->name) }}', {{ (int) $c->odp_rate }}, {{ (int) $c->tm_rate }}, {{ $c->odp_rate_eclaire ?? 'null' }}, {{ $c->tm_rate_eclaire ?? 'null' }})"
                                         style="font-size:11px;padding:5px 9px;color:var(--accent-dark)">📅 Programmer</button>
                             </td>
                         </tr>
@@ -144,10 +147,12 @@
                     <strong>Tarif courant :</strong> ODP <span id="sched-current-odp">—</span> · TM <span id="sched-current-tm">—</span>
                 </div>
                 <div class="mfg">
-                    <label>Date d'effet <span style="color:var(--red)">*</span> <span style="font-weight:400;color:var(--text3);font-size:11px">(doit être future)</span></label>
-                    <input type="date" name="effective_from" id="sched-date" required
-                           min="{{ now()->addDay()->format('Y-m-d') }}"
+                    <label>Date d'effet <span style="color:var(--red)">*</span></label>
+                    <input type="date" name="effective_from" id="sched-date" required min="2000-01-01"
                            value="{{ now()->addYear()->startOfYear()->format('Y-m-d') }}">
+                    <div id="sched-passe" style="display:none;margin-top:6px;font-size:11.5px;color:#b45309;line-height:1.45">
+                        ⚠ Date passée : les taxes de cette commune seront recalculées depuis cette date. Les factures déjà émises ne changent pas. Motif obligatoire.
+                    </div>
                 </div>
                 <div class="form-2col">
                     <div class="mfg">
@@ -161,9 +166,22 @@
                                style="text-align:right">
                     </div>
                 </div>
+                <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:4px 0 8px">
+                    💡 Panneaux éclairés <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">— vide = même tarif que ci-dessus</span>
+                </div>
+                <div class="form-2col">
+                    <div class="mfg">
+                        <label>ODP éclairé (F/m²/mois)</label>
+                        <input type="number" name="odp_rate_eclaire" id="sched-odp-eclaire" min="0" step="100" style="text-align:right">
+                    </div>
+                    <div class="mfg">
+                        <label>TM éclairé (F/m²/mois)</label>
+                        <input type="number" name="tm_rate_eclaire" id="sched-tm-eclaire" min="0" step="100" style="text-align:right">
+                    </div>
+                </div>
                 <div class="mfg">
-                    <label>Notes / motif <span style="color:var(--text3);font-weight:400">(facultatif)</span></label>
-                    <textarea name="notes" rows="2" maxlength="500" placeholder="Ex: voté en conseil municipal le 15/11/2025"></textarea>
+                    <label>Notes / motif <span id="sched-motif-aide" style="color:var(--text3);font-weight:400">(facultatif)</span></label>
+                    <textarea name="notes" id="sched-notes" rows="2" maxlength="500" placeholder="Ex : tarif confirmé par la mairie le 15/11/2026"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
@@ -233,8 +251,8 @@ function renderHistory(history) {
                     <div style="margin-top:3px">${badge}</div>
                     ${h.notes ? '<div style="font-size:10.5px;color:var(--text3);margin-top:3px;font-style:italic">' + echapper(h.notes) + '</div>' : ''}
                 </td>
-                <td style="padding:8px 12px;text-align:right;color:var(--accent);font-weight:700">${fmt(h.odp_rate)}</td>
-                <td style="padding:8px 12px;text-align:right;">${fmt(h.tm_rate)}</td>
+                <td style="padding:8px 12px;text-align:right;color:var(--accent);font-weight:700">${fmt(h.odp_rate)}${h.odp_rate_eclaire != null ? '<div style="font-size:10.5px;color:#b45309">💡 ' + fmt(h.odp_rate_eclaire) + '</div>' : ''}</td>
+                <td style="padding:8px 12px;text-align:right;">${fmt(h.tm_rate)}${h.tm_rate_eclaire != null ? '<div style="font-size:10.5px;color:#b45309">💡 ' + fmt(h.tm_rate_eclaire) + '</div>' : ''}</td>
                 <td style="padding:8px 12px;text-align:right;font-size:10.5px;color:var(--text3)">
                     ${echapper(h.created_by || '—')}<br>${echapper(h.created_at || '')}
                 </td>
@@ -258,15 +276,30 @@ function renderHistory(history) {
 }
 
 // ─── Modal programmer ────────────────────────────────────────
-function openSchedule(communeId, name, currentOdp, currentTm) {
+function openSchedule(communeId, name, currentOdp, currentTm, odpEclaire = null, tmEclaire = null) {
     document.getElementById('sched-commune-name').textContent = name;
-    document.getElementById('sched-current-odp').textContent = Number(currentOdp).toLocaleString('fr-FR');
-    document.getElementById('sched-current-tm').textContent  = Number(currentTm).toLocaleString('fr-FR');
+    document.getElementById('sched-current-odp').textContent = Number(currentOdp).toLocaleString('fr-FR')
+        + (odpEclaire !== null ? ' (💡 ' + Number(odpEclaire).toLocaleString('fr-FR') + ')' : '');
+    document.getElementById('sched-current-tm').textContent  = Number(currentTm).toLocaleString('fr-FR')
+        + (tmEclaire !== null ? ' (💡 ' + Number(tmEclaire).toLocaleString('fr-FR') + ')' : '');
     document.getElementById('sched-odp').value = currentOdp;
     document.getElementById('sched-tm').value  = currentTm;
+    document.getElementById('sched-odp-eclaire').value = odpEclaire ?? '';
+    document.getElementById('sched-tm-eclaire').value  = tmEclaire ?? '';
+    avertirDatePassee();
     document.getElementById('schedule-form').action = urlTarif('schedule', communeId);
     document.getElementById('modal-schedule').classList.add('show');
 }
+
+// Date d'effet passée (2026-11-18) : avertissement et motif obligatoire.
+function avertirDatePassee() {
+    const v = document.getElementById('sched-date').value;
+    const passe = v && v < new Date().toISOString().slice(0, 10);
+    document.getElementById('sched-passe').style.display = passe ? 'block' : 'none';
+    document.getElementById('sched-notes').required = !!passe;
+    document.getElementById('sched-motif-aide').textContent = passe ? '(obligatoire : date passée)' : '(facultatif)';
+}
+document.getElementById('sched-date')?.addEventListener('input', avertirDatePassee);
 
 // ESC ferme les modales
 document.addEventListener('keydown', (e) => {

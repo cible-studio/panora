@@ -2937,3 +2937,50 @@ Josiane (17/11) : le champ « réponses » de ⚙ Réglages reste vide.
   décapage, maintenance, satisfaction, J-7, renouvellement, accusé) :
   [ ] vérifier sur un vrai mail d'un client dont l'interlocuteur s'appelle
   « contact » ou un mot en minuscules → « Bonjour CLIENT, ».
+
+## § 36 — Tarif des panneaux éclairés, tarif à date passée *(2026-11-18)*
+
+### Ce qui a changé
+
+Règle validée par écrit le 18/11 : une commune peut avoir un **tarif ODP
+et/ou TM différent pour les panneaux éclairés** (case « Éclairé » de la
+fiche panneau). Vide = même tarif : toutes les autres communes gardent
+exactement leur calcul. Pas d'écran LED chez CIBLE.
+
+- Source unique : `Commune::ratesAt($date, $eclaire)`. S'applique aux taxes
+  dues aux mairies (page Taxes, Suivi des mairies, rapport, tableau de bord,
+  synthèse), aux factures depuis une campagne, aux factures et devis saisis
+  (ligne liée à un panneau éclairé), et à l'aperçu du formulaire facture.
+- Ligne saisie sans panneau : tarif non éclairé (le comptable corrige le
+  montant si besoin). Factures déjà émises : jamais modifiées.
+- **Tarifs communes → « Programmer »** accepte une **date passée** (ex.
+  01/01/2026), avec un **motif obligatoire** : les taxes sont recalculées
+  depuis cette date. L'historique se referme proprement autour.
+- Le MP gère les tarifs (cf. § 28, décision du 18/11).
+
+### Tarifs donnés le 18/11 — à saisir une fois confirmés
+
+| Commune | ODP | ODP 💡 | TM | TM 💡 | Effet |
+|---|---|---|---|---|---|
+| Port-Bouët | 3 000 | (vide) | 1 000 | 3 000 | 01/01/2026 |
+| Adjamé | 1 000 | 3 000 | 1 000 | 3 000 | 01/01/2026 |
+
+Parc au 18/11 (commande lancée en prod) : Adjamé 12 panneaux, 0 éclairé ;
+Port-Bouët 19 panneaux, 2 éclairés.
+
+### À vérifier
+
+- [ ] Migration jouée au déploiement (colonnes `odp_rate_eclaire`,
+      `tm_rate_eclaire` sur `communes` et `commune_tax_rate_history`)
+- [ ] Dev : Tarifs communes → Adjamé → Programmer, 01/01/2026, ODP 1 000 /
+      💡 3 000, TM 1 000 / 💡 3 000, motif → tarif enregistré ; l'Historique
+      montre l'ancien tarif jusqu'au 31/12/2025 puis le nouveau
+- [ ] Sans motif sur une date passée : refusé, rien n'est écrit
+- [ ] Page Taxes 2026 : Adjamé recalculé (ODP passe de 3 000 à 1 000 pour
+      les 12 panneaux non éclairés) ; le taux 💡 s'affiche sous le taux
+- [ ] Un panneau de Port-Bouët coché « Éclairé » : TM au tarif 💡 dans le
+      détail par panneau ; un non éclairé reste à 1 000
+- [ ] Facture depuis une campagne avec un panneau éclairé : ligne au tarif 💡 ;
+      une facture déjà émise ne change pas
+- [ ] Suivi des mairies 2026 : le dû (réclamé) ne bouge pas, seul le
+      « Calcul Panora » de contrôle change ; 2027 suit les nouveaux tarifs

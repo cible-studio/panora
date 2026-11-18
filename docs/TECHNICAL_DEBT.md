@@ -7,6 +7,16 @@ en crée ou clôt une.
 
 ## Ouvertes
 
+### `TaxAutoService` ignore les tarifs datés et le tarif éclairé (constaté 2026-11-18)
+
+L'ancienne génération automatique des taxes (`TaxController::previewAuto` /
+`generateAuto`, écran « historique » des taxes) lit `communes.odp_rate` /
+`tm_rate` actuels, sans date ni panneau éclairé. Elle écrit dans l'ancienne
+table `taxes`, qui ne fonde plus aucun montant (le Suivi des mairies et la
+page Taxes passent par `TaxCalculationService`). Non adaptée le 18/11 (règle
+n° 3). À retirer, ou à rebrancher sur `Commune::ratesAt($date, $eclaire)`,
+si l'écran sert encore.
+
 ### Périmètre « commercial » : deux définitions (constaté 2026-10-30)
 
 Une facture « appartient » à un commercial selon deux règles différentes :

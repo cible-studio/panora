@@ -28,10 +28,14 @@ class CommuneObserver
     /** Début de validité de l'ancien tarif d'une commune qui n'avait aucun historique. */
     public const DEBUT_SANS_HISTORIQUE = '2000-01-01';
 
+    /** Colonnes dont un changement crée une ligne d'historique. */
+    public const COLONNES_TARIF = ['odp_rate', 'tm_rate', 'odp_rate_eclaire', 'tm_rate_eclaire'];
+
     public function updated(Commune $commune): void
     {
         $changed = $commune->getChanges();
-        $rateChanged = array_intersect_key($changed, array_flip(['odp_rate', 'tm_rate']));
+        // 2026-11-18 : le tarif des panneaux éclairés est historisé comme les autres.
+        $rateChanged = array_intersect_key($changed, array_flip(self::COLONNES_TARIF));
         if (empty($rateChanged)) return;
 
         $today = Carbon::today();
@@ -46,6 +50,8 @@ class CommuneObserver
                 'commune_id'     => $commune->id,
                 'odp_rate'       => (float) $commune->getOriginal('odp_rate'),
                 'tm_rate'        => (float) $commune->getOriginal('tm_rate'),
+                'odp_rate_eclaire' => $commune->getOriginal('odp_rate_eclaire'),
+                'tm_rate_eclaire'  => $commune->getOriginal('tm_rate_eclaire'),
                 'effective_from' => self::DEBUT_SANS_HISTORIQUE,
                 'effective_to'   => $today->copy()->subDay()->toDateString(),
                 'created_by'     => auth()->id(),
@@ -69,6 +75,8 @@ class CommuneObserver
             'commune_id'     => $commune->id,
             'odp_rate'       => (float) $commune->odp_rate,
             'tm_rate'        => (float) $commune->tm_rate,
+            'odp_rate_eclaire' => $commune->odp_rate_eclaire,
+            'tm_rate_eclaire'  => $commune->tm_rate_eclaire,
             'effective_from' => $today,
             'effective_to'   => null,
             'created_by'     => auth()->id(),

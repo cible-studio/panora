@@ -11,11 +11,15 @@ class Commune extends Model
 
     protected $fillable = [
         'name', 'code', 'city', 'region', 'odp_rate', 'tm_rate',
+        // Tarif des panneaux éclairés (2026-11-18) ; vide = tarif normal.
+        'odp_rate_eclaire', 'tm_rate_eclaire',
     ];
 
     protected $casts = [
         'odp_rate' => 'integer',
         'tm_rate'  => 'integer',
+        'odp_rate_eclaire' => 'integer',
+        'tm_rate_eclaire'  => 'integer',
     ];
 
     /**
@@ -159,9 +163,15 @@ class Commune extends Model
      * Fallback : tarifs courants de la fiche commune (utiles tant que
      * l'historique n'a pas encore été initialisé pour cette date).
      *
+     * Panneau éclairé (2026-11-18, règle validée par écrit) : `$eclaire`
+     * = case « Éclairé » de la fiche panneau. Il prend le tarif « éclairé »
+     * de la commune s'il existe à cette date, sinon le tarif normal. Une
+     * ligne sans panneau (saisie à la main) est « non éclairée ».
+     * SOURCE UNIQUE : taxes dues aux mairies, factures, devis.
+     *
      * @return array{odp:float, tm:float}
      */
-    public function ratesAt(\DateTimeInterface|string $date): array
+    public function ratesAt(\DateTimeInterface|string $date, bool $eclaire = false): array
     {
         $d = $date instanceof \DateTimeInterface ? $date->format('Y-m-d') : $date;
 
@@ -173,16 +183,19 @@ class Commune extends Model
             ->orderByDesc('effective_from')
             ->first();
 
-        if ($row) {
-            return [
-                'odp' => (float) $row->odp_rate,
-                'tm'  => (float) $row->tm_rate,
-            ];
-        }
+        $source = $row ?? $this;
 
         return [
-            'odp' => (float) ($this->odp_rate ?? 0),
-            'tm'  => (float) ($this->tm_rate ?? 0),
+            'odp' => (float) (($eclaire ? $source->odp_rate_eclaire : null) ?? $source->odp_rate ?? 0),
+            'tm'  => (float) (($eclaire ? $source->tm_rate_eclaire : null) ?? $source->tm_rate ?? 0),
         ];
+    }
+
+    /** La commune a-t-elle (aujourd'hui) un tarif différent pour les panneaux éclairés ? */
+    public function aUnTarifEclaire(\DateTimeInterface|string|null $date = null): bool
+    {
+        $date ??= now();
+
+        return $this->ratesAt($date, true) !== $this->ratesAt($date, false);
     }
 }

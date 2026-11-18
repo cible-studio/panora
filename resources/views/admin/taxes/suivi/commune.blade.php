@@ -58,6 +58,9 @@
         <div class="sf-hero-s">
             {{ $ligne['is_abidjan'] ? 'Abidjan et banlieue' : 'Intérieur' }} ·
             Tarifs Panora aujourd'hui : ODP <strong>{{ $fmt($rates['odp'] ?? 0) }}</strong> · TM <strong>{{ $fmt($rates['tm'] ?? 0) }}</strong> FCFA/m²/mois
+            @if(isset($ratesEclaire) && $ratesEclaire !== $rates)
+                · 💡 panneaux éclairés : ODP <strong>{{ $fmt($ratesEclaire['odp']) }}</strong> · TM <strong>{{ $fmt($ratesEclaire['tm']) }}</strong>
+            @endif
             @if(\App\Support\Acces::peut('tarifs_communes'))
                 · <a href="{{ route('admin.settings.communes.tariffs') }}" style="color:var(--accent)">modifier les tarifs</a>
             @endif
