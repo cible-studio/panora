@@ -2341,6 +2341,10 @@ menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
       Cocody, saisir ce qu'elle a réclamé (fiche DG : arriérés 47 040 000,
       TM 1 342 000 / 1 233 000 / 2 488 000) → total dû 52 103 000.
       Le calcul Panora s'affiche à droite avec l'écart.
+- [ ] (18/11) Sous chaque champ de montant (réclamé et nouveau règlement), le
+      montant s'écrit en clair pendant la frappe : `1342000` → « 1 342 000 FCFA ».
+      À droite, la ligne « Réclamé 2026 : ODP + TM (sans les arriérés) » montre
+      son détail « ODP 0 + TM 5 063 000 ».
 - [ ] Saisir un règlement avec une quittance (PDF ou photo) → ligne ajoutée,
       lien « 📎 Voir » qui ouvre le fichier ; en saisir un second sur le même
       exercice → **deux lignes**, rien d'écrasé.

@@ -47,6 +47,8 @@
     .sf-form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0 12px; }
     .sf-errors { background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.3); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:12.5px; color:#b91c1c; }
     .sf-note { font-size:12px; color:var(--text3); line-height:1.5; }
+    /* 2026-11-18 — Montant en clair sous le champ (« 1 342 000 FCFA ») : un zéro oublié se voit. */
+    .sf-clair { display:block; min-height:15px; margin-top:3px; font-size:11.5px; font-weight:700; color:var(--text2); font-variant-numeric:tabular-nums; }
     details.sf-annuler summary { cursor:pointer; color:#b91c1c; font-size:11.5px; font-weight:700; list-style:none; }
     details.sf-annuler summary::-webkit-details-marker { display:none; }
 </style>
@@ -120,14 +122,14 @@
                 <input type="hidden" name="exercice" value="{{ $exercice }}">
                 <div class="sf-form-grid">
                     <div class="mfg"><label>Arriérés (années passées)</label>
-                        <input type="number" name="arrieres" min="0" step="1" required value="{{ old('arrieres', $saisie?->arrieres ?? 0) }}"></div>
+                        <input type="number" data-clair name="arrieres" min="0" step="1" required value="{{ old('arrieres', $saisie?->arrieres ?? 0) }}"></div>
                     <div class="mfg"><label>ODP {{ $exercice }}</label>
-                        <input type="number" name="odp" min="0" step="1" required value="{{ old('odp', $saisie?->odp ?? 0) }}"></div>
+                        <input type="number" data-clair name="odp" min="0" step="1" required value="{{ old('odp', $saisie?->odp ?? 0) }}"></div>
                 </div>
                 <div class="sf-form-grid">
                     @foreach([1, 2, 3, 4] as $q)
                         <div class="mfg"><label>TM {{ $q === 1 ? '1er' : $q . 'e' }} trim.</label>
-                            <input type="number" name="tm_t{{ $q }}" min="0" step="1" required value="{{ old('tm_t' . $q, $saisie?->{'tm_t' . $q} ?? 0) }}"></div>
+                            <input type="number" data-clair name="tm_t{{ $q }}" min="0" step="1" required value="{{ old('tm_t' . $q, $saisie?->{'tm_t' . $q} ?? 0) }}"></div>
                     @endforeach
                 </div>
                 <div class="mfg"><label>Commentaire (référence de l'avis, contact à la mairie…)</label>
@@ -143,7 +145,10 @@
                     <tr class="tot"><td>Total calculé</td><td class="num">{{ $fmt($ligne['controle_total']) }}</td></tr>
                     @if($saisie)
                         @php $reclame = $ligne['odp'] + $ligne['tm']; $ecart = $reclame - $ligne['controle_total']; @endphp
-                        <tr><td>Réclamé (hors arriérés)</td><td class="num">{{ $fmt($reclame) }}</td></tr>
+                        {{-- 18/11 — Libellé précisé : c'est la somme ODP + TM réclamées, détail affiché. --}}
+                        <tr><td>Réclamé {{ $exercice }} : ODP + TM <span class="sf-muted">(sans les arriérés)</span>
+                                <div class="sf-muted">ODP {{ $fmt($ligne['odp']) }} + TM {{ $fmt($ligne['tm']) }}</div></td>
+                            <td class="num">{{ $fmt($reclame) }}</td></tr>
                         <tr><td>Écart réclamé − calcul</td><td class="num" style="color:{{ $ecart > 0 ? '#b91c1c' : '#2563eb' }}">{{ $ecart > 0 ? '+' : '' }}{{ $fmt($ecart) }}</td></tr>
                     @endif
                 </table>
@@ -278,7 +283,7 @@
                 <div class="mfg"><label>Versé le</label>
                     <input type="date" name="paid_at" required max="{{ now()->toDateString() }}" value="{{ old('paid_at', now()->toDateString()) }}"></div>
                 <div class="mfg"><label>Montant (FCFA)</label>
-                    <input type="number" name="montant" required min="1" step="1" value="{{ old('montant') }}"></div>
+                    <input type="number" data-clair name="montant" required min="1" step="1" value="{{ old('montant') }}"></div>
                 <div class="mfg"><label>Objet</label>
                     <select name="objet" required>
                         @foreach(\App\Models\TaxeReglement::OBJETS as $k => $lib)
@@ -331,4 +336,28 @@
     </div>
 </div>
 @endif
+
+@push('scripts')
+<script>
+// 2026-11-18 — Montant en clair sous chaque champ de montant (« 1 342 000 FCFA ») :
+// les champs affichent « 1342000 », un zéro oublié passait inaperçu.
+// Affichage seul : rien n'est calculé ni envoyé.
+(function () {
+    var grouper = function (chiffres) { return chiffres.replace(/\B(?=(\d{3})+(?!\d))/g, ' '); };
+    document.querySelectorAll('input[data-clair]').forEach(function (champ) {
+        var clair = document.createElement('span');
+        clair.className = 'sf-clair';
+        clair.setAttribute('aria-live', 'polite');
+        champ.insertAdjacentElement('afterend', clair);
+        var maj = function () {
+            // Valeur lue comme un nombre (« 1e5 » = 100 000) ; vide ou invalide : rien.
+            var n = champ.value === '' ? NaN : Math.trunc(Number(champ.value));
+            clair.textContent = isFinite(n) ? (n < 0 ? '−' : '') + grouper(String(Math.abs(n))) + ' FCFA' : '';
+        };
+        champ.addEventListener('input', maj);
+        maj();
+    });
+})();
+</script>
+@endpush
 </x-admin-layout>
