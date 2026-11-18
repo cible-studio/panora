@@ -95,6 +95,7 @@
     .bm-alerte ul { margin:6px 0 0; padding-left:18px; }
     .bm-chargement { opacity:.45; pointer-events:none; transition:opacity .15s; }
     .bm-courant { font-size:11px; color:var(--text3); margin-top:4px; word-break:break-all; }
+    #bm-modal-reglages input::placeholder { font-style:italic; opacity:.55; }
     .bm-deux { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     @media (max-width:640px) { .bm-deux { grid-template-columns:1fr; } .bm-etape { border-right:0; border-bottom:1px solid var(--border); } }
 </style>
@@ -372,23 +373,24 @@
                 <div class="bm-deux">
                     <div class="mfg">
                         <label>Signature : nom</label>
-                        <input type="text" name="signature_nom" value="{{ old('signature_nom', $edition->signature_nom) }}" placeholder="{{ config('barometre.signature.nom') ?: 'Josiane SAY' }}">
+                        <input type="text" name="signature_nom" value="{{ old('signature_nom', $edition->signature_nom) }}" placeholder="ex. : Josiane SAY">
                     </div>
                     <div class="mfg">
                         <label>Société</label>
-                        <input type="text" name="signature_societe" value="{{ old('signature_societe', $edition->signature_societe) }}" placeholder="{{ config('barometre.signature.societe') ?: config('charte.nom') }}">
+                        <input type="text" name="signature_societe" value="{{ old('signature_societe', $edition->signature_societe) }}" placeholder="ex. : CIBLE CI">
                     </div>
                 </div>
                 <div class="mfg">
                     <label>Fonction</label>
-                    <input type="text" name="signature_fonction" value="{{ old('signature_fonction', $edition->signature_fonction) }}" placeholder="{{ config('barometre.signature.fonction') ?: 'Commerciale 360° & Customer Experience Officer' }}">
+                    <input type="text" name="signature_fonction" value="{{ old('signature_fonction', $edition->signature_fonction) }}" placeholder="ex. : Commerciale">
                 </div>
                 <div class="mfg">
                     <label>Les réponses des clients arrivent à</label>
-                    <input type="email" name="repondre_a" value="{{ old('repondre_a', $edition->repondre_a) }}" placeholder="adresse de Josiane">
+                    <input type="email" name="repondre_a" value="{{ old('repondre_a', $edition->repondre_a) }}" placeholder="vide = {{ config('brevo.sender.email') ?: 'l\'adresse d\'envoi' }}">
                     <div class="bm-courant">
                         Le mail part de {{ config('brevo.sender.email') ?: 'l\'adresse Brevo' }} sous le nom « {{ $expediteur }} ».
-                        Quand un client clique sur « Répondre », son message arrive à cette adresse.
+                        Quand un client clique sur « Répondre », son message arrive à l'adresse saisie ici ;
+                        laissez vide pour qu'il revienne à {{ config('brevo.sender.email') ?: 'l\'adresse d\'envoi' }}.
                     </div>
                 </div>
             </div>
