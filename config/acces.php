@@ -72,7 +72,9 @@ return [
         'factures'        => ['roles' => ['admin', 'commercial', 'comptable'], 'route' => 'admin.invoices.index'],
         'finance'         => ['roles' => ['admin', 'commercial', 'comptable'], 'route' => 'admin.finance.index'],
         'taxes'           => ['roles' => ['admin', 'mediaplanner', 'comptable'], 'route' => 'admin.taxes.index'],
-        'tarifs_communes' => ['roles' => ['admin', 'comptable'], 'route' => 'admin.settings.communes.tariffs'],
+        // 2026-11-18 : le MP aussi (demande de l'utilisateur) — il gère les
+        // tarifs comme le comptable : consulter, historique, programmer.
+        'tarifs_communes' => ['roles' => ['admin', 'mediaplanner', 'comptable'], 'route' => 'admin.settings.communes.tariffs'],
 
         // ── Analyse ───────────────────────────────────────────────
         'rapports'                => ['roles' => $tous, 'route' => 'admin.rapports.index'],

@@ -661,7 +661,9 @@ Route::prefix('admin')
         // date d'effet future via scheduleTariff, ou consulte l'historique.
         // Cf. Commune::ratesAt($date) qui garantit qu'aucune facture
         // déjà émise n'est impactée par un changement de tarif.
-        Route::middleware('role:admin,comptable')
+        // 2026-11-18 : ouvert aussi au MP ; les rôles viennent du module
+        // « tarifs_communes » de config/acces.php (source unique).
+        Route::middleware(\App\Support\Acces::middleware('tarifs_communes'))
             ->prefix('settings')
             ->name('settings.')
             ->group(function () {

@@ -2380,6 +2380,9 @@ menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
       ADIAKE-ASSINIE) modifiée au crayon : l'historique montre deux lignes,
       l'ancien tarif jusqu'à hier, le nouveau dès aujourd'hui. Avant, la
       modification s'appliquait aussi au passé.
+- [ ] **MP** (décision du 18/11) : menu « Tarifs communes » visible, Historique et
+      Programmer fonctionnent ; le crayon de Réglages → Communes (tarif courant)
+      reste réservé à l'admin. Commercial : toujours pas d'accès.
 - Règle pour les ajustements : un tarif valable à partir de 2027 →
   « Programmer » au 01/01/2027 ; une correction qui vaut dès maintenant →
   crayon (Réglages → Communes). Les factures déjà émises ne bougent jamais.
