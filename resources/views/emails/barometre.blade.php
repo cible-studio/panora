@@ -65,7 +65,10 @@
     @endif
 
     <div class="cta-wrap">
-        <a href="{{ $lien }}" class="cta">👉 {{ $relance ? 'DONNER MON AVIS' : 'PARTICIPER À L\'ENQUÊTE DE SATISFACTION' }}</a>
+        {{-- Pas d'emoji dans le bouton (18/11) : Gmail les change en images et
+             la mise en page des mails met toute image en bloc — le 👉 passait
+             seul sur sa ligne, au-dessus du texte. --}}
+        <a href="{{ $lien }}" class="cta">{{ $relance ? 'DONNER MON AVIS' : 'PARTICIPER À L\'ENQUÊTE DE SATISFACTION' }}</a>
         <div class="cta-fallback">
             Si le bouton ne fonctionne pas, copiez ce lien :<br>
             <a href="{{ $lien }}">{{ $lien }}</a>

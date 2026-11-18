@@ -509,4 +509,21 @@ class BarometreServiceTest extends TestCase
         $this->assertStringNotContainsString('Bonjour contact', $p['htmlContent']);
         $this->assertSame([['email' => 'contact@addoha.ci']], $p['to'], 'pas de faux nom dans « À »');
     }
+
+    public function test_contacts_a_completer_pour_les_commerciaux(): void
+    {
+        DB::table('client_contacts')->insert(['client_id' => 3, 'name' => 'Brice KRA', 'email' => null, 'is_primary' => false]);
+        $lignes = $this->service()->aCompleter();
+
+        $this->assertSame(['BANK', 'GUYS MEDIA'], array_column($lignes, 'client'), 'sans e-mail et adresse partagée ; ni prêts ni exclus');
+        $this->assertStringContainsString('Aucun e-mail', $lignes[0]['probleme']);
+        $this->assertSame('Brice KRA', $lignes[0]['connus'], 'ce que Panora connaît déjà');
+        $this->assertStringContainsString('Même adresse que AXA', $lignes[1]['probleme']);
+        $this->assertSame('Sans commercial attitré', $lignes[0]['commercial']);
+        $this->assertStringContainsString('/admin/clients/3', $lignes[0]['fiche']);
+
+        $export = new \App\Exports\BarometreACompleterExport($lignes);
+        $this->assertSame(['Sans commercial attitré', 'BANK'], array_slice($export->array()[0], 0, 2));
+        $this->assertCount(9, $export->headings());
+    }
 }

@@ -711,6 +711,7 @@ Route::prefix('admin')
             ->controller(\App\Http\Controllers\Admin\BarometreController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
+                Route::get('/contacts-a-completer', 'aCompleter')->name('a-completer');
                 Route::post('/tester', 'tester')->middleware('throttle:10,1')->name('tester');
                 Route::post('/envoyer', 'envoyer')->middleware('throttle:6,1')->name('envoyer');
                 Route::post('/relancer', 'relancer')->middleware('throttle:6,1')->name('relancer');
