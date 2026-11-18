@@ -367,6 +367,14 @@ class TaxeExerciceServiceTest extends TestCase
             $fiche = $ctrl->commune(\Illuminate\Http\Request::create('/', 'GET', ['exercice' => $exercice]), Commune::find(1))->render();
             $this->assertStringContainsString('COCODY', $fiche);
             $this->assertStringContainsString($exercice === 2026 ? 'Ce que la mairie a réclamé' : 'À venir', $fiche);
+            // Montant en clair sous chaque champ (18/11) : 6 champs du réclamé
+            // en 2026 + le montant du règlement ; seulement ce dernier en 2027.
+            $this->assertSame($exercice === 2026 ? 7 : 1, substr_count($fiche, 'data-clair'), "$exercice : champs de montant");
+            if ($exercice === 2026) {
+                // Le réclamé comparé au calcul est dit en clair : ODP + TM, détail affiché.
+                $this->assertStringContainsString('Réclamé 2026 : ODP + TM', $fiche);
+                $this->assertStringContainsString('ODP 0 + TM 5 063 000', $fiche);
+            }
         }
 
         // Libellés simples (2026-11-16). En 2026, Daloa a un versement mais
