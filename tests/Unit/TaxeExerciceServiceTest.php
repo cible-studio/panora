@@ -374,6 +374,11 @@ class TaxeExerciceServiceTest extends TestCase
                 // Le réclamé comparé au calcul est dit en clair : ODP + TM, détail affiché.
                 $this->assertStringContainsString('Réclamé 2026 : ODP + TM', $fiche);
                 $this->assertStringContainsString('ODP 0 + TM 5 063 000', $fiche);
+                // L'écart dit l'opération, son détail ODP / TM et son sens.
+                $this->assertStringContainsString('Écart : réclamé − calcul Panora', $fiche);
+                $this->assertStringContainsString('5 063 000 − ', $fiche);
+                $this->assertStringContainsString('dont ODP ', $fiche);
+                $this->assertMatchesRegularExpression('/La mairie réclame [\d ]+ de (plus|moins) que le calcul\./', $fiche);
             }
         }
 

@@ -149,7 +149,17 @@
                         <tr><td>Réclamé {{ $exercice }} : ODP + TM <span class="sf-muted">(sans les arriérés)</span>
                                 <div class="sf-muted">ODP {{ $fmt($ligne['odp']) }} + TM {{ $fmt($ligne['tm']) }}</div></td>
                             <td class="num">{{ $fmt($reclame) }}</td></tr>
-                        <tr><td>Écart réclamé − calcul</td><td class="num" style="color:{{ $ecart > 0 ? '#b91c1c' : '#2563eb' }}">{{ $ecart > 0 ? '+' : '' }}{{ $fmt($ecart) }}</td></tr>
+                        {{-- 18/11 — Écart précisé : l'opération faite, l'écart ODP et l'écart TM
+                             (un écart total peut cacher deux écarts de sens contraire), et son sens. --}}
+                        @php
+                            $signe    = fn ($n) => ($n > 0 ? '+' : '') . $fmt($n);
+                            $ecartOdp = $ligne['odp'] - $ligne['controle_odp'];
+                            $ecartTm  = $ligne['tm'] - $ligne['controle_tm'];
+                        @endphp
+                        <tr><td>Écart : réclamé − calcul Panora
+                                <div class="sf-muted">{{ $fmt($reclame) }} − {{ $fmt($ligne['controle_total']) }} · dont ODP {{ $signe($ecartOdp) }} · TM {{ $signe($ecartTm) }}</div>
+                                <div class="sf-muted">@if($ecart < 0)La mairie réclame {{ $fmt(-$ecart) }} de moins que le calcul.@elseif($ecart > 0)La mairie réclame {{ $fmt($ecart) }} de plus que le calcul.@else Réclamé et calcul identiques.@endif</div></td>
+                            <td class="num" style="color:{{ $ecart > 0 ? '#b91c1c' : '#2563eb' }}">{{ $signe($ecart) }}</td></tr>
                     @endif
                 </table>
                 <p class="sf-note" style="margin-top:8px">Un gros écart signale un panneau absent de Panora, un tarif à revoir, ou une réclamation à discuter avec la mairie.</p>
