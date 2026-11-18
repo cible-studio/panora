@@ -173,4 +173,17 @@ class AccesParRoleTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         Acces::peut('modules_qui_n_existe_pas', $this->utilisateur(UserRole::ADMIN));
     }
+
+    public function test_decision_du_2026_11_18_le_mp_gere_les_tarifs_des_communes(): void
+    {
+        $this->assertTrue(Acces::peut('tarifs_communes', $this->utilisateur(UserRole::MEDIAPLANNER)));
+        $this->assertFalse(Acces::peut('tarifs_communes', $this->utilisateur(UserRole::COMMERCIAL)));
+
+        foreach (['admin.settings.communes.tariffs', 'admin.settings.communes.tariffs.history',
+                  'admin.settings.communes.tariffs.schedule', 'admin.settings.communes.tariffs.delete'] as $r) {
+            $this->assertSame(['admin', 'comptable', 'mediaplanner'], $this->rolesDeLaRoute($r), $r);
+        }
+        // Le tarif COURANT (crayon de Réglages → Communes) reste à l'admin.
+        $this->assertSame(['admin'], $this->rolesDeLaRoute('admin.settings.communes.update'));
+    }
 }
