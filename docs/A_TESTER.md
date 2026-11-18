@@ -2893,8 +2893,8 @@ Josiane (17/11) : le champ « réponses » de ⚙ Réglages reste vide.
       de l'écran passe au vert à la première réponse.
       *(fait le 2026-11-18 : projet « Baromètre-Cible », fichier panora.gs ;
       journal « Panora joint : baromètre 2026, réponses jusqu'au 2026-11-30 » ;
-      durée passée à 5 minutes. 1er essai refusé : redéploiement Coolify oublié
-      après l'ajout de BAROMETRE_JETON_GOOGLE)*
+      durée passée à 5 minutes. Un 1er essai avait été refusé (« Panora refuse
+      le jeton »), corrigé côté jeton/Coolify avant le 2e)*
 - [ ] Jour J : `BAROMETRE_MODE=production`, puis « Envoyer à N clients »
 - [ ] 1 h après : carte « Invités », Brevo → Transactionnel → tag
       `barometre-2026`, aucune ligne « Échec »
