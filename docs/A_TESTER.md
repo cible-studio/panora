@@ -2984,3 +2984,20 @@ Port-Bouët 19 panneaux, 2 éclairés.
       une facture déjà émise ne change pas
 - [ ] Suivi des mairies 2026 : le dû (réclamé) ne bouge pas, seul le
       « Calcul Panora » de contrôle change ; 2027 suit les nouveaux tarifs
+
+## § 37 — Taxes, détail par panneau : sélection multiple *(2026-11-18)*
+
+Comme sur la page Poses : une case par ligne, une case pour toute la page,
+« Toutes les lignes du filtre — pas seulement cette page ». Dès qu'une
+ligne est cochée, une barre d'actions groupées affiche le nombre de lignes,
+les totaux ODP / TM / total de la sélection, et deux téléchargements :
+**Excel de la sélection** et **PDF de la sélection** (nom personnalisable ;
+l'en-tête du PDF indique « Sélection : N ligne(s) choisie(s) sur M »).
+La sélection tient d'une page à l'autre et se vide si on change de filtre.
+Les boutons Excel / PDF du haut exportent toujours tout le filtre.
+
+- [ ] Cocher 3 lignes sur 2 pages → la barre montre 3 lignes et leurs totaux
+- [ ] « Toutes les lignes du filtre » puis décocher 2 lignes → N − 2 lignes ;
+      le PDF de la sélection ne les contient pas, son total = barre
+- [ ] Excel de la sélection : seulement les lignes choisies
+- [ ] ✕ vide la sélection ; changer de filtre repart d'une sélection vide

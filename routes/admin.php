@@ -843,8 +843,9 @@ Route::prefix('admin')
             Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
             Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
             Route::get ('taxes/details',       [TaxController::class, 'details'])      ->name('taxes.details');
-            Route::get ('taxes/details/pdf',   [TaxController::class, 'detailsPdf'])   ->name('taxes.details.pdf');
-            Route::get ('taxes/details/excel', [TaxController::class, 'detailsExcel']) ->name('taxes.details.excel');
+            // 2026-11-18 — POST aussi : la sélection multiple (liste de lignes) peut être longue.
+            Route::match(['get', 'post'], 'taxes/details/pdf',   [TaxController::class, 'detailsPdf'])   ->name('taxes.details.pdf');
+            Route::match(['get', 'post'], 'taxes/details/excel', [TaxController::class, 'detailsExcel']) ->name('taxes.details.excel');
             Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
             Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
             // LOT 3 (cahier 2026-06-19) — Historique paiements détaillé d'une
