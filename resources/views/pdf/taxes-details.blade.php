@@ -38,6 +38,14 @@
     );
 @endphp
 @include('pdf.partials.tax-doc-meta', ['metaCols' => $metaCols])
+@php
+    // 2026-11-18 (demande de l'utilisateur) : PDF de l'ODP seule → sans les
+    // colonnes Client, Campagne et Période : l'ODP taxe le mât planté, pas
+    // une campagne. Vaut pour le filtre « ODP seul » comme pour une
+    // sélection qui ne contient que de l'ODP. TM et PDF mixte : inchangés.
+    $odpSeule = $lines->isNotEmpty() && $lines->every(fn ($l) => $l['type'] === 'odp');
+    $nbColonnes = $odpSeule ? 5 : 8;
+@endphp
 
 <table class="tdoc-table">
     <thead>
@@ -45,9 +53,11 @@
             <th style="width:90px;">Panneau</th>
             <th style="width:62px;">Dim.</th>
             <th style="width:44px;">Type</th>
+            @unless($odpSeule)
             <th>Client</th>
             <th>Campagne</th>
             <th style="width:120px;">Période</th>
+            @endunless
             <th style="width:130px;" class="right">Tarif / Formule</th>
             <th style="width:86px;" class="right">Montant</th>
         </tr>
@@ -62,7 +72,7 @@
              commune étant déjà portée par le bloc méta ci-dessus). --}}
         @if($currentCommune !== $row['commune'])
             @php $currentCommune = $row['commune']; @endphp
-            <tr class="tdoc-group"><td colspan="8">{{ mb_strtoupper($row['commune']) }}</td></tr>
+            <tr class="tdoc-group"><td colspan="{{ $nbColonnes }}">{{ mb_strtoupper($row['commune']) }}</td></tr>
         @endif
         <tr>
             <td class="mono tdoc-ref">{{ $row['reference'] }}</td>
@@ -71,6 +81,7 @@
                 <br><span class="tdoc-muted" style="font-size:9px;">{{ rtrim(rtrim(number_format($row['surface'], 2), '0'), '.') }} m²</span>
             </td>
             <td><span class="tdoc-badge tdoc-badge-{{ $row['type'] }}">{{ strtoupper($row['type']) }}</span></td>
+            @unless($odpSeule)
             <td>{{ $row['client_name'] ?? '—' }}</td>
             <td>{{ $row['campaign_name'] ?? '—' }}</td>
             <td style="font-size:9.5px;" class="tdoc-muted">
@@ -82,6 +93,7 @@
                     {{ $row['period_start']->format('d/m/Y') }} →<br>{{ $row['period_end']->format('d/m/Y') }}
                 @endif
             </td>
+            @endunless
             <td class="right mono tdoc-muted" style="font-size:9px;">
                 {{-- TX-14 (2026-09-24) — Les deux taxes se comptent en mois :
                      la TM en mois de campagne (date à date), l'ODP en mois
@@ -97,7 +109,7 @@
         </tr>
     @endforeach
         <tr class="tdoc-total">
-            <td colspan="7" class="right">TOTAL GÉNÉRAL</td>
+            <td colspan="{{ $nbColonnes - 1 }}" class="right">TOTAL GÉNÉRAL</td>
             <td class="tdoc-amount mono">
                 {{ number_format($totals['total'], 0, ',', ' ') }}<span>FCFA</span>
             </td>

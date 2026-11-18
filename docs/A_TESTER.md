@@ -3001,3 +3001,5 @@ Les boutons Excel / PDF du haut exportent toujours tout le filtre.
       le PDF de la sélection ne les contient pas, son total = barre
 - [ ] Excel de la sélection : seulement les lignes choisies
 - [ ] ✕ vide la sélection ; changer de filtre repart d'une sélection vide
+- [ ] PDF avec « ODP seul » (ou une sélection d'ODP uniquement) : pas de colonnes
+      Client, Campagne, Période (demande du 18/11) ; PDF TM ou mixte : inchangé
