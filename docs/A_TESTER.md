@@ -2344,7 +2344,10 @@ menu **Suivi des mairies**. Règles validées par écrit le 16/11 :
 - [ ] (18/11) Sous chaque champ de montant (réclamé et nouveau règlement), le
       montant s'écrit en clair pendant la frappe : `1342000` → « 1 342 000 FCFA ».
       À droite, la ligne « Réclamé 2026 : ODP + TM (sans les arriérés) » montre
-      son détail « ODP 0 + TM 5 063 000 ».
+      son détail « ODP 0 + TM 5 063 000 ». La ligne « Écart : réclamé − calcul
+      Panora » montre l'opération (5 063 000 − 18 254 000), l'écart ODP et l'écart
+      TM (ODP −18 180 000 · TM +4 989 000 sur Cocody en dev) et son sens
+      (« La mairie réclame 13 191 000 de moins que le calcul »).
 - [ ] Saisir un règlement avec une quittance (PDF ou photo) → ligne ajoutée,
       lien « 📎 Voir » qui ouvre le fichier ; en saisir un second sur le même
       exercice → **deux lignes**, rien d'écrasé.
