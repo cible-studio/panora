@@ -645,6 +645,18 @@ class TaxCalculationService
      * Les anciennes clés 'total', 'by_type', 'by_commune', 'panels_count',
      * 'lines_count' restent intactes (rétro-compat details.blade.php).
      */
+    /**
+     * Clé stable d'une ligne de generateLines() (2026-11-18) : sert à la
+     * sélection multiple du détail par panneau et aux exports de la
+     * sélection. ODP : une ligne par panneau. TM : une ligne par panneau
+     * ET par campagne (la campagne fait partie de la clé).
+     */
+    public static function cleLigne(array $ligne): string
+    {
+        return $ligne['panel_id'] . '-' . $ligne['type']
+            . ($ligne['type'] === self::TYPE_TM ? '-' . (int) ($ligne['campaign_id'] ?? 0) : '');
+    }
+
     public function summarize(Collection $lines): array
     {
         $byType = $lines->groupBy('type')->map->sum('amount');

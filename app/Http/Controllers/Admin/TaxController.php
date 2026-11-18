@@ -156,6 +156,40 @@ class TaxController extends Controller
         return $filters;
     }
 
+    /**
+     * Sélection multiple du détail par panneau (2026-11-18, « comme pour les
+     * poses ») : les exports ne prennent que les lignes voulues.
+     *   selection=cles  + cles[]  → seulement ces lignes ;
+     *   selection=sauf  + cles[]  → toutes les lignes du filtre SAUF celles-ci
+     *                               (« Toutes les lignes du filtre » puis
+     *                               quelques-unes décochées).
+     * Sans `selection` : toutes les lignes du filtre, comme avant.
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: ?string} lignes gardées, libellé pour l'en-tête
+     */
+    private function appliquerSelection(Request $request, \Illuminate\Support\Collection $lines): array
+    {
+        $mode = $request->input('selection');
+        if (!in_array($mode, ['cles', 'sauf'], true)) {
+            return [$lines, null];
+        }
+
+        $cles = collect((array) $request->input('cles', []))
+            ->map(fn ($c) => (string) $c)
+            ->filter(fn ($c) => preg_match('/^\d+-(odp|tm)(-\d+)?$/', $c))
+            ->take(20000)
+            ->flip();
+
+        $total  = $lines->count();
+        $gardes = $lines->filter(function ($l) use ($cles, $mode) {
+            $choisie = $cles->has(TaxCalculationService::cleLigne($l));
+
+            return $mode === 'cles' ? $choisie : !$choisie;
+        })->values();
+
+        return [$gardes, $gardes->count() . ' ligne(s) choisie(s) sur ' . $total];
+    }
+
     /** Noms des catégories exclues, pour l'en-tête des exports. */
     private function excludedCategoryNames(array $filters): string
     {
@@ -182,11 +216,12 @@ class TaxController extends Controller
         $totals = $calc->summarize($lines);
 
         // Tri stable pour la lecture : commune > panneau > type.
+        // 2026-11-18 — Clé de chaque ligne pour la sélection multiple.
         $lines = $lines->sortBy([
             ['commune', 'asc'],
             ['reference', 'asc'],
             ['type', 'asc'],
-        ])->values();
+        ])->values()->map(fn ($l) => $l + ['cle' => TaxCalculationService::cleLigne($l)]);
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
@@ -256,6 +291,7 @@ class TaxController extends Controller
         $filters = $this->detailFilters($request);
 
         $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue);
+        [$lines, $selection] = $this->appliquerSelection($request, $lines);
         $totals = $calc->summarize($lines);
         $lines  = $lines->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])->values();
 
@@ -308,6 +344,10 @@ class TaxController extends Controller
             $filterMeta[]  = ['label' => 'Nature',   'value' => $typeLabels[$filters['type']] ?? strtoupper($filters['type'])];
             $filterParts[] = "type=" . strtoupper($filters['type']);
         }
+        if ($selection) {
+            $filterMeta[]  = ['label' => 'Sélection', 'value' => $selection];
+            $filterParts[] = 'selection=' . $selection;
+        }
         $filterSummary = implode(' · ', $filterParts);
 
         $pdf = Pdf::loadView('pdf.taxes-details', compact(
@@ -343,9 +383,9 @@ class TaxController extends Controller
 
         $filters = $this->detailFilters($request);
 
-        $lines = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue)
-            ->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])
-            ->values();
+        [$lines, $selection] = $this->appliquerSelection($request,
+            $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue));
+        $lines = $lines->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])->values();
 
         $periodLabel = $this->periodLabel($periodType, $periodValue, $periodEndValue, $year);
 
@@ -358,6 +398,7 @@ class TaxController extends Controller
         if (!empty($filters['exclure_maintenance'])) $parts[] = 'maintenance=exclue';
         if (!empty($filters['inclure_lumipub']))     $parts[] = 'lumipub=inclus';
         if ($cats = $this->excludedCategoryNames($filters)) $parts[] = "categories_exclues={$cats}";
+        if ($selection) $parts[] = "selection={$selection}";
         $filterSummary = implode(' · ', $parts);
 
         // 2026-09-23 — Nom personnalisable, cf. detailsPdf().

@@ -339,10 +339,53 @@
                 @endif
             </div>
         </div>
+        {{-- ═══ Actions groupées (2026-11-18, « comme pour les poses ») ═══
+             Apparaît dès qu'une ligne est cochée. La sélection tient d'une
+             page à l'autre (mémoire de l'onglet, par jeu de filtres) ; les
+             téléchargements ne prennent que les lignes choisies. --}}
+        @php
+            $exportParamsSel = array_merge(
+                ['year' => $year, 'period_type' => $periodType, 'period_value' => $periodValue],
+                $periodType === 'personnalise' ? ['period_end_value' => $periodEndValue ?? $periodValue] : [],
+                $filters
+            );
+        @endphp
+        <div id="tx-bulk" class="tx-bulk"
+             data-signature="{{ md5(json_encode($exportParamsSel)) }}"
+             data-total="{{ $paginator->total() }}"
+             data-odp="{{ (int) round($totals['odp_total'] ?? 0) }}"
+             data-tm="{{ (int) round($totals['tm_total'] ?? 0) }}"
+             data-url-excel="{{ route('admin.taxes.details.excel', $exportParamsSel) }}"
+             data-url-pdf="{{ route('admin.taxes.details.pdf', $exportParamsSel) }}"
+             data-nom="{{ $defaultExportName }}">
+            <div class="tx-bulk-head">
+                <button type="button" id="tx-bulk-clear" class="tx-bulk-clear" title="Tout désélectionner">✕</button>
+                <span class="tx-bulk-count"><strong id="tx-bulk-n">0</strong> <span id="tx-bulk-nom">ligne sélectionnée</span></span>
+                <span class="tx-bulk-sub">— actions groupées</span>
+            </div>
+            <div class="tx-bulk-body">
+                <div class="tx-bulk-totaux">
+                    ODP <strong id="tx-sel-odp">0</strong>
+                    <span class="tx-bulk-sep">·</span> TM <strong id="tx-sel-tm">0</strong>
+                    <span class="tx-bulk-sep">·</span> Total <strong id="tx-sel-total" class="tx-bulk-total">0</strong> FCFA
+                </div>
+                <div class="tx-bulk-actions">
+                    <button type="button" id="tx-sel-excel" class="btn btn-ghost btn-sm">📊 Excel de la sélection</button>
+                    <button type="button" id="tx-sel-pdf" class="btn btn-primary btn-sm keep-label">📄 PDF de la sélection</button>
+                </div>
+                @if($paginator->hasPages())
+                    <label class="tx-bulk-tout">
+                        <input type="checkbox" id="tx-sel-tout">
+                        Toutes les lignes du filtre ({{ number_format($paginator->total(), 0, ',', ' ') }}) — pas seulement cette page
+                    </label>
+                @endif
+            </div>
+        </div>
         <div class="table-wrap">
             <table>
                 <thead>
                     <tr>
+                        <th class="tx-col-sel"><input type="checkbox" id="tx-sel-page" title="Sélectionner les lignes de cette page"></th>
                         <th>Commune</th>
                         <th>Panneau</th>
                         <th>Dimensions</th>
@@ -360,7 +403,8 @@
                     @php
                         $tc = $typeColors[$row['type']] ?? ['bg' => 'var(--surface2)', 'c' => 'var(--text2)'];
                     @endphp
-                    <tr>
+                    <tr data-cle="{{ $row['cle'] }}">
+                        <td class="tx-col-sel"><input type="checkbox" class="tx-sel" data-cle="{{ $row['cle'] }}" data-type="{{ $row['type'] }}" data-montant="{{ (int) round($row['amount']) }}" aria-label="Sélectionner {{ $row['reference'] }} ({{ strtoupper($row['type']) }})"></td>
                         <td style="font-weight:600;">{{ $row['commune'] }}</td>
                         <td>
                             <div style="font-family:monospace;font-weight:700;color:var(--accent);font-size:12px;">
@@ -446,7 +490,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" style="text-align:center;padding:40px;color:var(--text3);">
+                        <td colspan="11" style="text-align:center;padding:40px;color:var(--text3);">
                             Aucune ligne pour cette période et ces filtres.
                         </td>
                     </tr>
@@ -455,7 +499,7 @@
                 @if($lines->isNotEmpty())
                 <tfoot>
                     <tr style="background:var(--surface2);font-weight:800;">
-                        <td colspan="9" style="text-align:right;padding:14px 16px;">TOTAL <span style="font-weight:500;color:var(--text3);font-size:11px">({{ number_format($paginator->total(), 0, ',', ' ') }} ligne(s), toutes pages) :</span></td>
+                        <td colspan="10" style="text-align:right;padding:14px 16px;">TOTAL <span style="font-weight:500;color:var(--text3);font-size:11px">({{ number_format($paginator->total(), 0, ',', ' ') }} ligne(s), toutes pages) :</span></td>
                         <td style="text-align:right;color:var(--accent);font-size:15px;padding:14px 16px;">
                             {{ number_format($totals['total'], 0, ',', ' ') }} FCFA
                         </td>
@@ -551,6 +595,27 @@
         </div>
     </div>
 
+    <style>
+        .tx-col-sel { width:34px; text-align:center; padding-left:10px !important; padding-right:4px !important; }
+        .tx-col-sel input { width:16px; height:16px; cursor:pointer; accent-color:var(--accent); }
+        tr.tx-choisie td { background:var(--accent-dim); }
+        .tx-bulk { display:none; flex-direction:column; gap:10px; padding:12px 18px; background:var(--accent-dim); border-bottom:1px solid var(--accent); animation:txBulk .18s ease-out; }
+        .tx-bulk.visible { display:flex; }
+        @keyframes txBulk { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+        .tx-bulk-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+        .tx-bulk-clear { background:none; border:none; cursor:pointer; color:var(--text2); font-size:18px; padding:4px 10px; border-radius:6px; line-height:1; }
+        .tx-bulk-clear:hover { background:var(--surface); color:#ef4444; }
+        .tx-bulk-count { font-size:14px; font-weight:600; color:var(--text); display:inline-flex; align-items:baseline; gap:6px; }
+        .tx-bulk-count strong { color:var(--accent); font-size:18px; font-weight:800; }
+        .tx-bulk-sub { font-size:12px; color:var(--text3); font-weight:500; }
+        .tx-bulk-body { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+        .tx-bulk-totaux { font-size:13px; color:var(--text2); font-variant-numeric:tabular-nums; }
+        .tx-bulk-totaux strong { color:var(--text); }
+        .tx-bulk-total { color:var(--accent) !important; }
+        .tx-bulk-sep { color:var(--text3); margin:0 4px; }
+        .tx-bulk-actions { display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
+        .tx-bulk-tout { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); cursor:pointer; flex-basis:100%; }
+    </style>
     @push('scripts')
     <script>
     // 2026-10-06 — Filtre catégories : on envoie la liste des catégories
@@ -597,15 +662,18 @@
     };
 
     window.TAX_EXPORT_RENAME = (function () {
-        let url = null, ext = 'pdf';
+        let url = null, ext = 'pdf', champs = null;
 
         const modal = () => document.getElementById('modal-export-rename');
         const input = () => document.getElementById('export-rename-input');
 
         return {
-            open(extension, exportUrl, suggested) {
+            // opts.champs (2026-11-18) : sélection multiple, envoyée en POST
+            // (la liste des lignes peut dépasser la longueur d'une adresse).
+            open(extension, exportUrl, suggested, opts = null) {
                 ext = extension || 'pdf';
                 url = exportUrl;
+                champs = opts?.champs || null;
                 document.getElementById('export-rename-ext').textContent = '.' + ext;
                 document.getElementById('export-rename-title').textContent =
                     ext === 'xlsx' ? 'Nommer le fichier Excel' : 'Nommer le fichier PDF';
@@ -617,6 +685,7 @@
             close() {
                 modal().style.display = 'none';
                 url = null;
+                champs = null;
             },
             confirm() {
                 if (!url) return;
@@ -624,12 +693,115 @@
                 // On repart de l'URL générée côté serveur (elle porte déjà
                 // tous les filtres) et on n'ajoute que le nom voulu.
                 const u = new URL(url, window.location.origin);
+                if (champs) {
+                    // Sélection : formulaire POST (jeton CSRF), mêmes filtres dans l'adresse.
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = u.toString();
+                    form.style.display = 'none';
+                    const ajouter = (nomChamp, valeur) => {
+                        const i = document.createElement('input');
+                        i.type = 'hidden'; i.name = nomChamp; i.value = valeur;
+                        form.appendChild(i);
+                    };
+                    ajouter('_token', document.querySelector('meta[name="csrf-token"]')?.content || '');
+                    if (nom !== '') ajouter('custom_filename', nom);
+                    Object.entries(champs).forEach(([k, v]) => [].concat(v).forEach(val => ajouter(k, val)));
+                    document.body.appendChild(form);
+                    this.close();
+                    form.submit();
+                    setTimeout(() => form.remove(), 1000);
+                    return;
+                }
                 if (nom !== '') u.searchParams.set('custom_filename', nom);
                 const cible = u.toString();
                 this.close();
                 window.location.href = cible;
             }
         };
+    })();
+
+
+    // ═══ Sélection multiple (2026-11-18) ═══
+    // État par jeu de filtres, gardé dans l'onglet (sessionStorage) :
+    //   mode « cles » : seulement les lignes cochées ;
+    //   mode « sauf » : toutes les lignes du filtre, sauf celles décochées.
+    // Montants et types gardés pour afficher les totaux sans recharger.
+    (function () {
+        const barre = document.getElementById('tx-bulk');
+        if (!barre) return;
+        const fmt = n => Math.round(n).toLocaleString('fr-FR');
+        const TOTAL = parseInt(barre.dataset.total, 10) || 0;
+        const ODP = parseInt(barre.dataset.odp, 10) || 0;
+        const TM = parseInt(barre.dataset.tm, 10) || 0;
+        const memoire = 'taxes-selection:' + barre.dataset.signature;
+
+        let etat = { mode: 'cles', cles: {} };
+        try { etat = JSON.parse(sessionStorage.getItem(memoire)) || etat; } catch (e) {}
+        const garder = () => { try { sessionStorage.setItem(memoire, JSON.stringify(etat)); } catch (e) {} };
+
+        const cases = () => [...document.querySelectorAll('input.tx-sel')];
+        const choisie = cle => etat.mode === 'cles' ? (cle in etat.cles) : !(cle in etat.cles);
+
+        function nombre() {
+            const n = Object.keys(etat.cles).length;
+            return etat.mode === 'cles' ? n : TOTAL - n;
+        }
+        function totaux() {
+            let odp = 0, tm = 0;
+            Object.values(etat.cles).forEach(([type, montant]) => { if (type === 'odp') odp += montant; else tm += montant; });
+            return etat.mode === 'cles' ? [odp, tm] : [ODP - odp, TM - tm];
+        }
+
+        function afficher() {
+            const n = nombre();
+            if (n <= 0 && etat.mode === 'sauf') { etat = { mode: 'cles', cles: {} }; }
+            barre.classList.toggle('visible', nombre() > 0);
+            document.getElementById('tx-bulk-n').textContent = nombre().toLocaleString('fr-FR');
+            document.getElementById('tx-bulk-nom').textContent = nombre() > 1 ? 'lignes sélectionnées' : 'ligne sélectionnée';
+            const [odp, tm] = totaux();
+            document.getElementById('tx-sel-odp').textContent = fmt(odp);
+            document.getElementById('tx-sel-tm').textContent = fmt(tm);
+            document.getElementById('tx-sel-total').textContent = fmt(odp + tm);
+            const tout = document.getElementById('tx-sel-tout');
+            if (tout) tout.checked = etat.mode === 'sauf';
+
+            const lesCases = cases();
+            lesCases.forEach(c => {
+                c.checked = choisie(c.dataset.cle);
+                c.closest('tr')?.classList.toggle('tx-choisie', c.checked);
+            });
+            const page = document.getElementById('tx-sel-page');
+            if (page) {
+                const cochees = lesCases.filter(c => c.checked).length;
+                page.checked = lesCases.length > 0 && cochees === lesCases.length;
+                page.indeterminate = cochees > 0 && cochees < lesCases.length;
+            }
+            garder();
+        }
+
+        function basculer(caseLigne, cochee) {
+            const cle = caseLigne.dataset.cle;
+            const valeur = [caseLigne.dataset.type, parseInt(caseLigne.dataset.montant, 10) || 0];
+            // « cles » : on garde les cochées ; « sauf » : on garde les décochées.
+            const garderLaCle = etat.mode === 'cles' ? cochee : !cochee;
+            if (garderLaCle) etat.cles[cle] = valeur; else delete etat.cles[cle];
+        }
+
+        document.addEventListener('change', e => {
+            if (e.target.matches('input.tx-sel')) { basculer(e.target, e.target.checked); afficher(); }
+            if (e.target.id === 'tx-sel-page') { cases().forEach(c => basculer(c, e.target.checked)); afficher(); }
+            if (e.target.id === 'tx-sel-tout') { etat = { mode: e.target.checked ? 'sauf' : 'cles', cles: {} }; afficher(); }
+        });
+        document.getElementById('tx-bulk-clear').addEventListener('click', () => { etat = { mode: 'cles', cles: {} }; afficher(); });
+
+        const exporter = (ext, url) => TAX_EXPORT_RENAME.open(ext, url, barre.dataset.nom + '-selection', {
+            champs: { selection: etat.mode, 'cles[]': Object.keys(etat.cles) },
+        });
+        document.getElementById('tx-sel-excel').addEventListener('click', () => exporter('xlsx', barre.dataset.urlExcel));
+        document.getElementById('tx-sel-pdf').addEventListener('click', () => exporter('pdf', barre.dataset.urlPdf));
+
+        afficher();
     })();
 
     document.addEventListener('keydown', function (e) {
