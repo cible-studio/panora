@@ -2885,12 +2885,16 @@ Josiane (17/11) : le champ « réponses » de ⚙ Réglages reste vide.
       l'écran (« Retirer » au bout de la ligne).
 - [ ] Prod : carte « À envoyer » (≈ 126 attendus après exclusions) et
       carte « Sans destinataire »
-- [ ] Google : coller `docs/outils/barometre-panora.gs` dans le projet
+- [x] Google : coller `docs/outils/barometre-panora.gs` dans le projet
       Apps Script du questionnaire, propriétés `PANORA_URL` et
       `PANORA_JETON`, puis `bpInstaller` : le journal donne la date limite,
       et la description du formulaire passe à « Durée estimée : 5 minutes. »
       (alignée sur le mail, décision du 17/11). La case « Réponses Google »
       de l'écran passe au vert à la première réponse.
+      *(fait le 2026-11-18 : projet « Baromètre-Cible », fichier panora.gs ;
+      journal « Panora joint : baromètre 2026, réponses jusqu'au 2026-11-30 » ;
+      durée passée à 5 minutes. 1er essai refusé : redéploiement Coolify oublié
+      après l'ajout de BAROMETRE_JETON_GOOGLE)*
 - [ ] Jour J : `BAROMETRE_MODE=production`, puis « Envoyer à N clients »
 - [ ] 1 h après : carte « Invités », Brevo → Transactionnel → tag
       `barometre-2026`, aucune ligne « Échec »
