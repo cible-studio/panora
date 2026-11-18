@@ -3016,3 +3016,40 @@ Les boutons Excel / PDF du haut exportent toujours tout le filtre.
       Intérieur, TOTAL à la taille du tableau, jamais seul en haut de page ;
       **relevé d'une mairie** : passe proprement sur deux pages quand il y a
       beaucoup de règlements (rien n'a changé sur une page)
+
+## § 38 — Suivi des mairies : cartes filtres, sélection, relevé en deux versions *(2026-11-18)*
+
+Demandes du 18/11 : « le fichier PDF est trop basique, on ne voit pas où sont
+les versements, les arriérés » · « je veux sélectionner juste Cocody et Abobo
+pour sortir le PDF ou l'Excel » · « les cartes filtres n'affichent pas les
+listes ». Choix validés : deux versions du relevé (mairie / interne), annulés
+seulement dans l'interne, boutons du haut inchangés (tout l'exercice), pas de
+pagination des versements.
+
+### Liste (Suivi des mairies)
+- [ ] Clic sur **Payé** → seulement les mairies qui ont reçu un versement ;
+      **Reste à payer** → solde positif ; **Dû à ce jour** → montant dû
+      aujourd'hui ; **À venir** (2027) → TM à venir. Second clic, « Total dû »
+      ou « ✕ Toutes les mairies » : toutes. La page ne se recharge pas.
+- [ ] Bandeau orange (2026) → « Voir ces mairies » : les mairies sans réclamé saisi
+- [ ] Les onglets Abidjan / Intérieur / Toutes comptent la liste filtrée ;
+      le TOTAL du bas suit le filtre (« · N mairies »)
+- [ ] Cocher Cocody et Abobo → barre « 2 mairies sélectionnées » avec leurs
+      noms, total dû, payé, solde ; la sélection tient en changeant d'onglet
+      ou de carte
+- [ ] **PDF de la sélection** : « Sélection : 2 mairies sur 30 » en tête,
+      seules ces mairies ; zone sans mairie choisie non imprimée
+- [ ] **Excel de la sélection** : mêmes mairies ; feuille de zone absente si
+      aucune mairie de cette zone ; la feuille REGLEMENTS ne liste qu'elles
+- [ ] Boutons Excel / PDF du haut : tout l'exercice, comme avant
+
+### Relevé d'une mairie (fiche → deux boutons)
+- [ ] **Relevé pour la mairie** : récapitulatif (arriérés, total dû, versé,
+      solde, dû à ce jour), puis 1. Ce qui est dû · 2. Versements reçus
+      (n°, date, objet, mode, référence, quittance) · 3. Solde posé en
+      opération (total dû − versé = solde) · 4. Base de calcul. Ni calcul
+      Panora, ni versement annulé
+- [ ] **Relevé interne** : bandeau « Document interne », colonne « Saisi par »,
+      5. Contrôle réclamé / calcul Panora (ODP, TM, écart) en 2026,
+      6. Versements annulés avec date, auteur et motif
+- [ ] Cocody 2026 en dev : versé 52 050 000 (3 versements), solde 53 000

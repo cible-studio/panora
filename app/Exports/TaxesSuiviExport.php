@@ -27,14 +27,22 @@ class TaxesSuiviExport implements WithMultipleSheets
         protected int $exercice,
         protected array $zones,
         protected bool $reprise,
+        // 2026-11-18 — Sélection de mairies : libellé « N mairies sur M », ou null (tout l'exercice).
+        protected ?string $selection = null,
     ) {}
 
     public function sheets(): array
     {
-        return [
-            new TaxesSuiviZoneSheet($this->exercice, 'ABIDJAN', 'ABIDJAN ET BANLIEUE', $this->zones['abidjan'], $this->reprise),
-            new TaxesSuiviZoneSheet($this->exercice, 'INTERIEUR', 'INTÉRIEUR', $this->zones['interieur'], $this->reprise),
-            new TaxesSuiviReglementsSheet($this->exercice, $this->zones['abidjan']->concat($this->zones['interieur'])),
-        ];
+        $feuilles = [];
+        foreach (['abidjan' => ['ABIDJAN', 'ABIDJAN ET BANLIEUE'], 'interieur' => ['INTERIEUR', 'INTÉRIEUR']] as $z => [$titre, $libelle]) {
+            // Avec une sélection, une zone sans mairie choisie n'a pas de feuille.
+            if ($this->selection && $this->zones[$z]->isEmpty()) {
+                continue;
+            }
+            $feuilles[] = new TaxesSuiviZoneSheet($this->exercice, $titre, $libelle, $this->zones[$z], $this->reprise, $this->selection);
+        }
+        $feuilles[] = new TaxesSuiviReglementsSheet($this->exercice, $this->zones['abidjan']->concat($this->zones['interieur']));
+
+        return $feuilles;
     }
 }
