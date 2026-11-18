@@ -3003,3 +3003,9 @@ Les boutons Excel / PDF du haut exportent toujours tout le filtre.
 - [ ] ✕ vide la sélection ; changer de filtre repart d'une sélection vide
 - [ ] PDF avec « ODP seul » (ou une sélection d'ODP uniquement) : pas de colonnes
       Client, Campagne, Période (demande du 18/11) ; PDF TM ou mixte : inchangé
+- [ ] Mise en page pour la DG (18/11), vérifiée sur le vrai rendu DomPDF :
+      PDF du détail ODP (une page, marges, total et note avec le tableau) ;
+      **Suivi des mairies** PDF : colonnes alignées entre Abidjan et
+      Intérieur, TOTAL à la taille du tableau, jamais seul en haut de page ;
+      **relevé d'une mairie** : passe proprement sur deux pages quand il y a
+      beaucoup de règlements (rien n'a changé sur une page)

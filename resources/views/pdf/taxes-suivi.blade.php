@@ -8,6 +8,21 @@
          Chiffres : TaxeExerciceService. --}}
     <style>@page { size: A4 landscape; margin: 12mm 12mm 20mm 12mm !important; }</style>
     @include('pdf.partials.tax-doc-styles')
+    {{-- 2026-11-18 (présentation à la DG) — propre à ce document : les deux
+         tableaux (Abidjan, Intérieur) ont les mêmes largeurs de colonnes,
+         le TOTAL reste à la taille du tableau, les zones sont séparées et
+         la note ne se coupe pas. Les autres PDF de taxes gardent le style
+         partagé. --}}
+    <style>
+        .tdoc-suivi { font-size:8.5px; margin-bottom:22px; }
+        .tdoc-suivi thead th { padding-left:5px; padding-right:5px; }
+        .tdoc-suivi tbody td { padding:5px; }
+        .tdoc-suivi tr { page-break-inside:avoid; }
+        .tdoc-suivi tr.tdoc-total { page-break-before:avoid; } /* jamais seul en haut de page */
+        .tdoc-suivi .mono { white-space:nowrap; }
+        .tdoc-suivi .tdoc-total td { font-size:9px; padding-top:8px; padding-bottom:8px; }
+        .tdoc-note.tdoc-suivi-fin { page-break-inside:avoid; margin-top:4px; padding:5px 0 5px 3mm; font-size:8.5px; line-height:1.45; }
+    </style>
 </head>
 <body>
 @php
@@ -30,14 +45,15 @@
 
 @foreach(['abidjan', 'interieur'] as $z)
     @php $t = $totaux[$z]; @endphp
-    <table class="tdoc-table" style="margin-bottom:12px;font-size:8.5px">
+    <table class="tdoc-table tdoc-suivi">
         <thead>
             <tr>
-                <th>Mairie</th><th class="right">Pan.</th><th class="right">Faces</th>
-                <th class="right">Arriérés</th><th class="right">ODP {{ $exercice }}</th>
-                <th class="right">TM T1</th><th class="right">TM T2</th><th class="right">TM T3</th><th class="right">TM T4</th>
-                <th class="right">Total TM</th><th class="right">Total général</th>
-                <th class="right">Payé</th><th class="right">Solde</th>
+                {{-- Largeurs fixées : les deux zones s'alignent colonne par colonne. --}}
+                <th style="width:15%">Mairie</th><th class="right" style="width:4.5%">Pan.</th><th class="right" style="width:4.5%">Faces</th>
+                <th class="right" style="width:8.5%">Arriérés</th><th class="right" style="width:8%">ODP {{ $exercice }}</th>
+                <th class="right" style="width:6.5%">TM T1</th><th class="right" style="width:6.5%">TM T2</th><th class="right" style="width:6.5%">TM T3</th><th class="right" style="width:6.5%">TM T4</th>
+                <th class="right" style="width:7%">Total TM</th><th class="right" style="width:9.5%">Total général</th>
+                <th class="right" style="width:8%">Payé</th><th class="right" style="width:9%">Solde</th>
             </tr>
         </thead>
         <tbody>
@@ -78,7 +94,7 @@
     </table>
 @endforeach
 
-<div class="tdoc-note">
+<div class="tdoc-note tdoc-suivi-fin">
     @if($reprise)
         ■ Année de reprise : le dû de chaque mairie est ce qu'elle a réclamé, arriérés compris. Le solde au
         31/12/{{ $exercice }} devient l'arriéré de {{ $exercice + 1 }}.

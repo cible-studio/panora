@@ -399,6 +399,15 @@ class TaxeExerciceServiceTest extends TestCase
         $this->assertStringContainsString('ABIDJAN ET BANLIEUE', $tableauPdf);
         $this->assertStringContainsString('DALOA', $tableauPdf);
 
+        // Mise en page pour la DG (18/11), vérifiée sur le vrai rendu DomPDF :
+        // les deux zones s'alignent, un TOTAL n'arrive jamais seul en haut
+        // de page, la note ne se coupe pas.
+        $this->assertSame(2, substr_count($tableauPdf, '<table class="tdoc-table tdoc-suivi">'), 'une table par zone');
+        $this->assertSame(2, substr_count($tableauPdf, '<th style="width:15%">Mairie</th>'), 'mêmes largeurs dans les deux zones');
+        $this->assertStringContainsString('.tdoc-suivi tr.tdoc-total { page-break-before:avoid; }', $tableauPdf);
+        $this->assertStringContainsString('class="tdoc-note tdoc-suivi-fin"', $tableauPdf);
+        $this->assertStringContainsString('.tdoc-table tr.tdoc-total { page-break-before:avoid; }', $releve, 'relevé sur deux pages : total jamais seul');
+
         // L'Excel au format de la fiche de la direction.
         $feuille = (new \App\Exports\Sheets\TaxesSuiviZoneSheet(2027, 'ABIDJAN', 'ABIDJAN ET BANLIEUE', $zones['abidjan'], false))->array();
         $this->assertStringContainsString('EXERCICE 2027', $feuille[0][0]);
