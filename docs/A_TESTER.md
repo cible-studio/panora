@@ -2875,14 +2875,17 @@ Josiane (17/11) : le champ « réponses » de ⚙ Réglages reste vide.
       bouton → questionnaire au nom « TEST — ADDOHA ».
       **Ne pas valider le questionnaire** depuis un test (sinon : réponse
       de test, non comptée, mais visible dans la feuille Google)
-- [ ] Prod : mêmes réglages à l'écran (l'écran de dev ne règle pas la prod)
-- [ ] Prod : exclusions (les 9 régies, G2I et les 4 nouveaux clients) :
+- [x] Prod : mêmes réglages à l'écran (l'écran de dev ne règle pas la prod)
+      *(fait le 2026-11-18 : questionnaire relié, expéditeur « Josiane SAY – CIBLE CI »,
+      réponses à commercial@ ; `BAROMETRE_ACCES` posé en prod pour Josiane)*
+- [x] Prod : exclusions (les 9 régies, G2I et les 4 nouveaux clients) :
       ```
       php artisan barometre:exclure "UNFOLD" "CORAL MEDIA AFRICA" "JCDECAUX" "JOSHO GROUP" "LEDCOM" "LIGHT MEDIA" "PUB RÉGIE" "RÉGIE MEDIA CENTER" "SN PUBLISTAR" --motif="Régie concurrente"
       php artisan barometre:exclure "G2I" "BLUE LIONS" "PRODIGE COM" "SDTM" "HAVAS AFRICA" --motif="Nouveau client"
       ```
       Lire la sortie : un nom « introuvable » ou « ambigu » se retire à
       l'écran (« Retirer » au bout de la ligne).
+      *(fait le 2026-11-18 : 9 + 5 exclus, aucun introuvable)*
 - [ ] Prod : carte « À envoyer » (≈ 126 attendus après exclusions) et
       carte « Sans destinataire »
 - [x] Google : coller `docs/outils/barometre-panora.gs` dans le projet
@@ -2895,6 +2898,10 @@ Josiane (17/11) : le champ « réponses » de ⚙ Réglages reste vide.
       journal « Panora joint : baromètre 2026, réponses jusqu'au 2026-11-30 » ;
       durée passée à 5 minutes. Un 1er essai avait été refusé (« Panora refuse
       le jeton »), corrigé côté jeton/Coolify avant le 2e)*
+- [ ] Contacts à compléter : bouton « 📥 Contacts à compléter » (Excel par
+      commercial, colonnes jaunes) envoyé à l'équipe le 18/11, retour attendu
+      lundi 23/11 matin ; les commerciaux complètent la fiche client dans
+      Panora (interlocuteur + e-mail), le client passe alors en « À envoyer »
 - [ ] Jour J : `BAROMETRE_MODE=production`, puis « Envoyer à N clients »
 - [ ] 1 h après : carte « Invités », Brevo → Transactionnel → tag
       `barometre-2026`, aucune ligne « Échec »

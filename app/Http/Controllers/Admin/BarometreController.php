@@ -34,7 +34,7 @@ class BarometreController extends Controller
         'a_envoyer'         => BarometreService::A_ENVOYER,
         'invites'           => ['invite', 'ouvert', 'en_cours'],
         'repondus'          => ['repondu'],
-        'sans_destinataire' => ['sans_email', 'a_choisir', 'doublon'],
+        'sans_destinataire' => BarometreService::SANS_DESTINATAIRE,
         'exclus'            => ['exclu'],
     ];
 
@@ -98,6 +98,15 @@ class BarometreController extends Controller
         }
 
         return $lignes->values();
+    }
+
+    /** Excel des clients sans destinataire, à faire compléter par les commerciaux (18/11). */
+    public function aCompleter()
+    {
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\BarometreACompleterExport($this->service->aCompleter()),
+            'barometre-contacts-a-completer-' . now()->format('Y-m-d') . '.xlsx',
+        );
     }
 
     /** Le mail exact d'un client, à l'adresse de la personne connectée. */

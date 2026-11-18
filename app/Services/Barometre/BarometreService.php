@@ -63,6 +63,9 @@ class BarometreService
     /** Statuts qui recevront l'invitation au prochain « Envoyer à tous ». */
     public const A_ENVOYER = ['pret', 'echec'];
 
+    /** Statuts « sans destinataire » : il manque un interlocuteur utilisable. */
+    public const SANS_DESTINATAIRE = ['sans_email', 'a_choisir', 'doublon'];
+
     private ?BarometreEdition $edition = null;
     private ?Collection $liste = null;
 
@@ -372,6 +375,44 @@ class BarometreService
             'echecs'      => (int) ($par['echec'] ?? 0),
             'clients'     => $l->count(),
         ];
+    }
+
+    /**
+     * Fichier « contacts à compléter » (18/11) : les clients sans
+     * destinataire, triés par commercial, avec ce que Panora connaît déjà.
+     * Les commerciaux remplissent les colonnes jaunes, puis la fiche client.
+     *
+     * @return list<array{commercial: string, client: string, probleme: string, connus: string, fiche: string}>
+     */
+    public function aCompleter(): array
+    {
+        $problemes = [
+            'sans_email' => 'Aucun e-mail : indiquer l\'interlocuteur à qui envoyer le questionnaire',
+            'a_choisir'  => 'Plusieurs interlocuteurs, aucun indice : indiquer celui à qui envoyer',
+        ];
+
+        return $this->liste()
+            ->filter(fn ($l) => in_array($l['statut'], self::SANS_DESTINATAIRE, true))
+            ->map(function ($l) use ($problemes) {
+                $client = $l['client'];
+                $connus = $client->contacts->map(fn ($ct) => implode(' · ', array_filter([$ct->name, $ct->email, $ct->phone])))
+                    ->filter()->values()->all();
+                if ($client->email) {
+                    $connus[] = 'Fiche : ' . $client->email;
+                }
+
+                return [
+                    'commercial' => $client->user?->name ?: 'Sans commercial attitré',
+                    'client'     => (string) $client->name,
+                    'probleme'   => $problemes[$l['statut']]
+                        ?? ($l['detail'] . ' Donner un autre interlocuteur si l\'entreprise doit répondre séparément.'),
+                    'connus'     => $connus ? implode("\n", $connus) : 'Aucun interlocuteur',
+                    'fiche'      => route('admin.clients.show', $client),
+                ];
+            })
+            ->sortBy(fn ($r) => mb_strtolower($r['commercial'] . '|' . $r['client']))
+            ->values()
+            ->all();
     }
 
     /** Invités qui n'ont pas répondu et pas encore été relancés. */
