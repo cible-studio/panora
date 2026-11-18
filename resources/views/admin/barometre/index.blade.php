@@ -66,7 +66,9 @@
     .bm-liste-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--border); }
     .bm-liste-titre { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:800; color:var(--text); }
     .bm-compte { font-size:11px; font-weight:800; padding:2px 9px; border-radius:20px; background:var(--surface2); color:var(--text2); }
-    .bm-recherche { position:relative; flex:0 1 320px; min-width:220px; }
+    .bm-outils { display:flex; gap:8px; align-items:center; flex:0 1 auto; }
+    .bm-outils .btn { white-space:nowrap; }
+    .bm-recherche { position:relative; display:block; width:300px; }
     .bm-recherche svg { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text3); pointer-events:none; }
     .bm-recherche input { width:100%; padding:8px 12px 8px 32px; background:var(--surface2); border:1px solid var(--border2); border-radius:10px; color:var(--text); font-size:13px; outline:none; }
     .bm-recherche input:focus { border-color:var(--accent); }
@@ -97,6 +99,7 @@
     .bm-courant { font-size:11px; color:var(--text3); margin-top:4px; word-break:break-all; }
     #bm-modal-reglages input::placeholder { font-style:italic; opacity:.55; }
     .bm-deux { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media (max-width:760px) { .bm-outils { flex-wrap:wrap; width:100%; } .bm-recherche { width:100%; } }
     @media (max-width:640px) { .bm-deux { grid-template-columns:1fr; } .bm-etape { border-right:0; border-bottom:1px solid var(--border); } }
 </style>
 
@@ -209,7 +212,7 @@
                 adresse écartée des envois commerciaux (désinscrit, adresse invalide).
             </x-aide>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="bm-outils">
         @if($nombres['sans_destinataire'] > 0)
             <a href="{{ route('admin.barometre.a-completer') }}" class="btn btn-ghost btn-sm"
                title="Excel des clients sans destinataire, par commercial : colonnes jaunes à remplir">📥 Contacts à compléter · {{ $nombres['sans_destinataire'] }}</a>

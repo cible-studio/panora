@@ -526,4 +526,22 @@ class BarometreServiceTest extends TestCase
         $this->assertSame(['Sans commercial attitré', 'BANK'], array_slice($export->array()[0], 0, 2));
         $this->assertCount(9, $export->headings());
     }
+
+    public function test_une_fiche_completee_sort_aussitot_des_contacts_a_completer(): void
+    {
+        $this->assertSame(2, $this->service()->compteurs()['sans_email'] + $this->service()->compteurs()['doublons']);
+        $this->assertCount(2, $this->service()->aCompleter());
+
+        // Le commercial ajoute l'interlocuteur de BANK sur la fiche client.
+        DB::table('client_contacts')->insert(['client_id' => 3, 'name' => 'Awa KONÉ', 'email' => 'awa@bank.ci', 'is_primary' => false]);
+
+        // Rien n'est gardé en mémoire d'une page à l'autre : le compte suit la fiche.
+        $s = $this->service();
+        $this->assertSame('pret', collect($s->liste())->firstWhere('client.name', 'BANK')['statut']);
+        $this->assertSame(['GUYS MEDIA'], array_column($s->aCompleter(), 'client'));
+        $this->assertSame(4, $s->compteurs()['a_envoyer'], 'BANK rejoint « À envoyer »');
+
+        // Le compteur du bouton de l'écran (nombres de la carte « Sans destinataire ») suit aussi.
+        $this->assertStringContainsString('Contacts à compléter · 1', $this->ecran());
+    }
 }
