@@ -3158,3 +3158,18 @@ Les 4 chemins du PDF (bouton admin, espace client, lien public, pièce jointe du
 - [ ] Le même PDF depuis l'espace client, le lien public et la pièce jointe du mail d'envoi
 - [ ] La facture FNE n'a pas bougé (polices, pied, mise en page)
 - [ ] **Désignations en italique** : même police que le reste (Nunito), pas une police plus large qui fait passer chaque emplacement sur 3 lignes. Sinon, c'est le cache de polices DomPDF qui est périmé : il pointe vers des fichiers supprimés (constaté le 19/11 sur un poste de test). Dans ce cas, renommer `storage/fonts/installed-fonts.json` sur le serveur, puis régénérer le PDF : DomPDF reconstruit le cache.
+
+## § 43 — Devis : cachet et signature de la Directrice Commerciale sur chaque devis *(2026-11-19)*
+
+Demande écrite du 19/11 : le cachet signé apparaît automatiquement sur **chaque** devis généré, dans les deux cadres « Pour CIBLE SARL » (Bon pour accord de la page 1 et de la fin des CG), sans circuit de validation. La procédure longue (bouton « Signer », QR, page de vérification) est abandonnée.
+
+L'image est lue sur le disque privé : `storage/app/private/signatures/directrice.png` (config `devis.cachet_signature`, variable `DEVIS_CACHET_SIGNATURE`). Elle n'est jamais dans Git ni dans public/. Sans le fichier, les cadres restent vides et le PDF se génère normalement.
+
+### À faire au déploiement (dev, puis prod)
+- [ ] Déposer l'image sur le serveur : coller dans le terminal Coolify le contenu du fichier « Commande serveur - cachet des devis.txt », préparé dans Documents le 19/11. Contrôler que `md5sum` donne `1212a7c15e2ba411fd86b343bbe1ffbb`, puis supprimer ce fichier du PC.
+- [ ] Après le **déploiement suivant**, régénérer un devis : le cachet doit toujours y être. S'il a disparu, c'est que `storage/app/private` n'est pas sur un volume persistant dans Coolify : il faut l'y mettre.
+
+### À vérifier
+- [ ] PDF d'un devis : cachet dans les deux cadres « Pour CIBLE SARL », lisible, qui chevauche légèrement le trait
+- [ ] Devis long (8 à 10 emplacements) : toujours 2 pages
+- [ ] Le même cachet sur le PDF de l'espace client, du lien public et de la pièce jointe du mail

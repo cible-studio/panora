@@ -107,7 +107,65 @@ class DevisPdfPagesTest extends TestCase
         ], 30);
 
         $this->assertSame(7306000, $q->total_a_payer);
-        $this->assertSame(2, $this->pages($q), 'Un devis de 10 emplacements doit tenir sur 2 pages avec la charte.');
+        // Avec le cachet signé dans les deux cadres (2026-11-19) : une image
+        // de remplacement sur un disque privé simulé.
+        $this->poserCachet();
+        $this->assertStringContainsString('class="cachet"', view('pdf.quote', ['quote' => $q])->render());
+        $this->assertSame(2, $this->pages($q), 'Un devis de 10 emplacements doit tenir sur 2 pages avec la charte et le cachet.');
+    }
+
+    /**
+     * Cachet et signature de la Directrice Commerciale (demande écrite du
+     * 2026-11-19) : sur CHAQUE devis généré, dans les deux cadres « Pour
+     * CIBLE SARL », lu sur le disque privé et intégré en base64.
+     */
+    public function test_le_cachet_signe_est_sur_chaque_devis(): void
+    {
+        $this->poserCachet();
+        $html = view('pdf.quote', ['quote' => $this->devisSimple()])->render();
+
+        $this->assertSame(2, substr_count($html, '<div class="cachet"><img src="data:image/png;base64,'),
+            'Le cachet doit figurer dans les deux cadres « Pour CIBLE SARL ».');
+        $this->assertSame(2, substr_count($html, 'trait trait-cachet'));
+    }
+
+    /** Sans le fichier (poste neuf, serveur pas encore servi) : cadres vides, PDF normal. */
+    public function test_sans_cachet_le_devis_se_genere_comme_avant(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $q = $this->devisSimple();
+
+        $this->assertStringNotContainsString('class="cachet"', view('pdf.quote', ['quote' => $q])->render());
+        $this->assertSame(2, $this->pages($q));
+    }
+
+    /** Le cachet vient du disque privé, jamais d'un dossier public ni de Git. */
+    public function test_le_cachet_est_lu_sur_le_disque_prive(): void
+    {
+        $src = File::get(resource_path('views/pdf/quote.blade.php'));
+        $this->assertStringContainsString("config('devis.cachet_signature', 'signatures/directrice.png')", $src);
+        $this->assertStringContainsString("\\Illuminate\\Support\\Facades\\Storage::disk('local')", $src);
+        $this->assertSame('signatures/directrice.png', config('devis.cachet_signature'));
+        $this->assertSame(storage_path('app/private'), config('filesystems.disks.local.root'));
+        $this->assertStringContainsString('*', File::get(storage_path('app/private/.gitignore')),
+            'storage/app/private reste hors de Git.');
+    }
+
+    private function poserCachet(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        // Image de remplacement : le logo public, pour ne jamais dépendre du
+        // vrai cachet (absent des postes de test et hors de Git).
+        \Illuminate\Support\Facades\Storage::disk('local')
+            ->put('signatures/directrice.png', File::get(public_path('images/logol.png')));
+    }
+
+    private function devisSimple(): Quote
+    {
+        return $this->devis([[
+            'designation' => 'Cocody', 'snapshot_commune_name' => 'Cocody', 'dimension_m2' => 12, 'quantite' => 1,
+            'duree_mois' => 1, 'pu_ht_mensuel' => 80000, 'odp_rate_applique' => 5000, 'tm_rate_applique' => 1000,
+        ]], [], 15);
     }
 
     /**
