@@ -3134,3 +3134,26 @@ Corrigé au passage : en modification, la quantité des services revenait à 1. 
 - [ ] Fiche admin : TTC panneaux + TM + ODP + services HT + TVA services = total à payer
 - [ ] Espace client et lien public, devis avec un service « HT » : sa TVA n'est plus comptée ; même TVA que le PDF
 - [ ] Facture issue d'un devis : même net que le devis ; son TTC reste HT + TVA (la TSP est dans les autres taxes)
+
+## § 42 — PDF du devis : mise en page sur 2 pages, ligne de remise *(2026-11-19)*
+
+Arbitrages écrits du 19/11 (les choix déjà validés priment sur le cahier) :
+- l'en-tête garde son fond jaune, le filet orange s'ajoute dessous ;
+- aucun saut de page forcé avant les CG, chaque article reste d'un seul tenant ;
+- le pied de page est fixe, sur une seule ligne ;
+- polices de la charte en Regular et Bold seulement, jamais ExtraLight ;
+- montant net : texte jaune sur barre bleue.
+
+Option 1 retenue : les CG passent en 7 pt pour qu'un devis long tienne sur 2 pages.
+
+Ligne de remise ajoutée : la barre des lignes donne le HT brut, puis « Montant HT − Remise = Montant Total HT ».
+
+Les 4 chemins du PDF (bouton admin, espace client, lien public, pièce jointe du mail) passent par `App\Services\QuotePdf`.
+
+### À vérifier (dev, puis prod)
+- [ ] Télécharger le PDF d'un devis réel depuis la fiche admin : 2 pages, texte foncé (pas pâle), pied sur une ligne, sans chevauchement
+- [ ] **Pied de page avec les coordonnées du serveur** : la ligne tient dans la largeur, sans déborder à droite. Les valeurs de prod peuvent être plus longues que celles de ce poste.
+- [ ] Devis avec remise : lignes brutes → barre = HT brut → « Remise (x %) » → Montant Total HT = net ; le reste se recoupe jusqu'au net
+- [ ] Devis long (8 à 10 emplacements) : la 2e signature tient en bas de la page 2
+- [ ] Le même PDF depuis l'espace client, le lien public et la pièce jointe du mail d'envoi
+- [ ] La facture FNE n'a pas bougé (polices, pied, mise en page)

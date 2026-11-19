@@ -13,7 +13,6 @@ use App\Models\Quote;
 use App\Services\AlertService;
 use App\Services\InvoiceCalculator;
 use App\Services\QuoteBuilder;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -787,8 +786,8 @@ class QuoteController extends Controller
         $this->authorize('exportPdf', $quote);
         $quote->load(['client', 'campaign', 'commercial', 'creator', 'lines', 'services']);
 
-        $pdf = Pdf::loadView('pdf.quote', ['quote' => $quote])
-            ->setPaper('A4', 'portrait');
+        // Rendu commun aux quatre chemins du PDF devis (2026-11-19).
+        $pdf = app(\App\Services\QuotePdf::class)->pdf($quote);
 
         return $pdf->download("devis-{$quote->reference}.pdf");
     }

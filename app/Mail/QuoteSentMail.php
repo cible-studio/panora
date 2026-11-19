@@ -4,7 +4,6 @@ namespace App\Mail;
 
 use App\Mail\Concerns\MailCommercial;
 use App\Models\Quote;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -29,8 +28,9 @@ class QuoteSentMail extends Mailable implements MailCommercial
     {
         $this->quote->loadMissing(['client', 'commercial', 'lines', 'services']);
 
-        // Génération du PDF en pièce jointe (mêmes règles que le download)
-        $pdf = Pdf::loadView('pdf.quote', ['quote' => $this->quote])->setPaper('A4', 'portrait');
+        // Génération du PDF en pièce jointe : le même rendu que le
+        // téléchargement, par le service commun (2026-11-19).
+        $pdf = app(\App\Services\QuotePdf::class)->pdf($this->quote);
 
         $filename = 'Devis-' . $this->quote->reference . '.pdf';
         $subject  = 'Devis CIBLE · ' . $this->quote->title . ' (' . $this->quote->reference . ')';

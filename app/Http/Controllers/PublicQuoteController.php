@@ -6,7 +6,6 @@ use App\Enums\QuoteStatus;
 use App\Models\Quote;
 use App\Services\AlertService;
 use App\Services\QuoteConverter;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -53,7 +52,8 @@ class PublicQuoteController extends Controller
     public function pdf(string $token)
     {
         $quote = $this->resolveOrFail($token);
-        $pdf = Pdf::loadView('pdf.quote', ['quote' => $quote])->setPaper('A4', 'portrait');
+        // Rendu commun aux quatre chemins du PDF devis (2026-11-19).
+        $pdf = app(\App\Services\QuotePdf::class)->pdf($quote);
         return $pdf->download("devis-{$quote->reference}.pdf");
     }
 
