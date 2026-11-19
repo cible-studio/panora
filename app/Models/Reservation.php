@@ -37,6 +37,10 @@ class Reservation extends Model
         'bc_relance_j15_at',
         'bc_relance_j7_at',
         'bc_relance_j2_at',
+        // Confirmation (2026-11-19) : qui, et pourquoi sans BC (exception admin).
+        'confirme_par',
+        'confirme_sans_bc_motif',
+        'bc_echeance_signalee_at',
         'is_technical',
         'proposition_token',
         'proposition_sent_at',
@@ -96,6 +100,8 @@ class Reservation extends Model
         'bc_relance_j15_at'      => 'datetime',
         'bc_relance_j7_at'       => 'datetime',
         'bc_relance_j2_at'       => 'datetime',
+        'confirme_par'           => 'integer',
+        'bc_echeance_signalee_at' => 'datetime',
         'cancelled_at'           => 'datetime',
         'total_amount'           => 'integer', // RÈGLE 4 — entier FCFA (audit Phase 8E)
         'status'                 => ReservationStatus::class,
@@ -331,6 +337,18 @@ class Reservation extends Model
     public function cancelledByUser()
     {
         return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /** Qui a enregistré le bon de commande (2026-11-19 : affiché sur la fiche). */
+    public function bcRecuParUser()
+    {
+        return $this->belongsTo(User::class, 'bc_recu_par');
+    }
+
+    /** Qui a confirmé la réservation (BC reçu, ou exception « sans BC »). */
+    public function confirmeParUser()
+    {
+        return $this->belongsTo(User::class, 'confirme_par');
     }
 
     /**

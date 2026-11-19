@@ -3053,3 +3053,33 @@ pagination des versements.
       5. Contrôle réclamé / calcul Panora (ODP, TM, écart) en 2026,
       6. Versements annulés avec date, auteur et motif
 - [ ] Cocody 2026 en dev : versé 52 050 000 (3 versements), solde 53 000
+
+## § 39 — Réservation : le BC reçu confirme, « Confirmer sans BC », accès du commercial *(2026-11-19)*
+
+Règles validées par écrit le 19/11 :
+1. **le BC reçu confirme la réservation** et bloque fermement ses panneaux ; le MP crée ensuite la campagne ;
+2. l'admin garde **« Confirmer sans BC (exception) »**, motif obligatoire ; le suivi du BC continue ; à l'échéance, pas d'annulation : l'admin et le commercial sont prévenus une fois ;
+3. un dossier concurrent annulé garde son motif (« Panneaux pris par RES-… »), son commercial est prévenu (alerte + mail) ;
+4. le commercial ne voit et ne touche que ses réservations (fiche, édition, BC, facture, suppression).
+Le client reçoit « réservation confirmée » au BC reçu ; « Annuler la réception » remet en option (les dossiers concurrents annulés ne reviennent pas).
+
+### À jouer au déploiement
+- [ ] Migration `2026_11_19_150000_add_confirmation_auteur_to_reservations` (3 colonnes nullables : `confirme_par`, `confirme_sans_bc_motif`, `bc_echeance_signalee_at`)
+
+### À vérifier (dev, puis prod)
+- [ ] Option en attente de BC : la carte Actions propose **« ⚠ Confirmer sans BC (exception) »** (plus « Confirmer la réservation ») ; sans motif → refusé
+- [ ] Commercial : « 📥 BC reçu » → message « réservation confirmée, panneaux bloqués » ; fiche : « Enregistré le … **par [nom]** », bloc « Confirmation : … par [nom] · à la réception du bon de commande »
+- [ ] Après BC reçu : panneau **Confirmé** (fiche panneau), **Occupé** dans Disponibilités ; le client reçoit le mail « réservation confirmée »
+- [ ] Le MP reçoit l'alerte et le mail « BC reçu, campagne à créer » ; « 🚀 Créer la campagne » demande le nom, prérempli avec le nom prévu
+- [ ] Autre option sur le même panneau : annulée, motif « Panneaux pris par RES-… », son commercial reçoit l'alerte et le mail
+- [ ] Panneau déjà pris ferme par un autre dossier : « BC reçu » refusé avec le nom du panneau, rien n'est enregistré
+- [ ] Admin : « ↺ Annuler la réception » → la réservation repasse en option, panneau en Option
+- [ ] Confirmée sans BC : relances J-15/J-7/J-2 continuent ; le lendemain de l'échéance, alerte « BC toujours absent » (une seule fois), réservation toujours confirmée
+- [ ] Commercial A ouvre l'adresse de la réservation du commercial B → 403 ; le comptable ouvre toujours toutes les réservations
+- [ ] Confirmation groupée : une option en attente de BC est sautée (« BC attendu : confirmer depuis la fiche, avec un motif »)
+- [ ] Fenêtre d'annulation d'une réservation avec campagne : « la campagne … sera annulée elle aussi »
+
+### Laissé de côté (même logique, autre chantier — à trancher)
+- [ ] Devis accepté et réservation « ferme » : naissent confirmés sans BC
+- [ ] Client qui a déjà accepté : reçoit encore des rappels, la page publique propose encore Confirmer/Refuser
+- [ ] Panneau en option affiché sélectionnable dans Disponibilités, mais refusé à la création

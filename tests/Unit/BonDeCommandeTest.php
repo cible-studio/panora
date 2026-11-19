@@ -53,13 +53,19 @@ class BonDeCommandeTest extends TestCase
         $this->assertStringContainsString('$bc->peutCreerCampagne($reservation)', $src);
         $this->assertStringContainsString("throw new \\RuntimeException('BC_MANQUANT:'", $src);
 
-        // Le verrou doit précéder la transaction, sinon il ne protège rien.
-        $posVerrou = strpos($src, 'BC_MANQUANT');
-        $posTrans  = strpos($src, 'DB::transaction(function () use ($reservation, &$campaign)');
+        // Le verrou doit précéder la confirmation et la création, sinon il
+        // ne protège rien. 2026-11-19 : confirmer() appelle désormais
+        // confirmerReservation() puis creerCampagne() (cf. ReservationBcConfirmationTest).
+        $posVerrou  = strpos($src, 'BC_MANQUANT');
+        $posConfirm = strpos($src, '$this->confirmerReservation($reservation);');
+        $posCreer   = strpos($src, 'return $this->creerCampagne($reservation, $nomCampagne);');
         $this->assertIsInt($posVerrou);
-        $this->assertIsInt($posTrans);
-        $this->assertLessThan($posTrans, $posVerrou,
-            'Le contrôle du BC doit être évalué AVANT la transaction de confirmation.');
+        $this->assertIsInt($posConfirm);
+        $this->assertIsInt($posCreer);
+        $this->assertLessThan($posConfirm, $posVerrou,
+            'Le contrôle du BC doit être évalué AVANT la confirmation.');
+        $this->assertLessThan($posCreer, $posVerrou,
+            'Le contrôle du BC doit être évalué AVANT la création de la campagne.');
     }
 
     public function test_le_clic_du_client_n_appelle_plus_confirmer(): void

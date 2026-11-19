@@ -212,10 +212,42 @@ class ReservationService
     // ══════════════════════════════════════════════════════════════
     // CHANGER LE STATUT
     // ══════════════════════════════════════════════════════════════
-    public function changeStatus(Reservation $reservation, string $newStatus): void
+    /**
+     * @param string|null $motifSansBc  2026-11-19 — obligatoire pour confirmer
+     *        une réservation qui attend encore son bon de commande (exception
+     *        de l'admin) ; le suivi du BC continue.
+     * @throws \InvalidArgumentException 'MOTIF_SANS_BC' si le motif manque
+     */
+    public function changeStatus(Reservation $reservation, string $newStatus, ?string $motifSansBc = null): void
     {
         $oldStatus = $reservation->status->value;
         $data      = ['status' => $newStatus];
+
+        // 2026-11-19 — Confirmer passe par la source unique de la confirmation
+        // (blocage ferme, dossiers concurrents annulés et prévenus, auteur
+        // enregistré). Si le BC est attendu, c'est une exception motivée.
+        if ($newStatus === ReservationStatus::CONFIRME->value && $oldStatus !== ReservationStatus::CONFIRME->value) {
+            $bc = app(BonDeCommandeService::class);
+            $sansBc = $bc->estEnAttente($reservation);
+            if ($sansBc && trim((string) $motifSansBc) === '') {
+                throw new \InvalidArgumentException('MOTIF_SANS_BC');
+            }
+
+            app(PropositionService::class)->confirmerReservation(
+                $reservation,
+                auth()->id(),
+                $sansBc ? $motifSansBc : null
+            );
+
+            Log::info('reservation.status_changed', [
+                'reservation_id' => $reservation->id,
+                'from'           => $oldStatus,
+                'to'             => $newStatus,
+                'sans_bc'        => $sansBc,
+                'user_id'        => auth()->id(),
+            ]);
+            return;
+        }
 
         // Confirmer = prendre les panneaux fermement : refus si un autre dossier
         // les tient déjà sur la période (règle validée le 2026-10-30).

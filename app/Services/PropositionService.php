@@ -10,6 +10,7 @@ use App\Enums\ReservationStatus;
 use App\Models\Campaign;
 use App\Models\Reservation;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -111,43 +112,68 @@ class PropositionService
     }
 
     /**
-     * Confirme fermement et crée la campagne.
+     * Crée la campagne d'une réservation (bouton « Créer la campagne » du
+     * MP, et confirmation d'une proposition par l'admin).
      *
      * 2026-11-13 — N'est plus appelée par le clic du client : elle
-     * intervient APRÈS réception du bon de commande, quand le MP crée la
-     * campagne dédiée. Le verrou est posé ici, pas chez les appelants :
-     * aucun chemin ne doit pouvoir créer une campagne sans BC.
+     * intervient APRÈS réception du bon de commande. Le verrou est posé ici,
+     * pas chez les appelants : aucun chemin ne doit pouvoir créer une
+     * campagne sans BC.
+     *
+     * 2026-11-19 — Coupée en deux (règles validées par écrit) : la
+     * CONFIRMATION (blocage ferme, dossiers concurrents annulés et
+     * prévenus) a lieu dès la réception du BC — confirmerReservation(),
+     * appelée par BonDeCommandeService. Il reste ici la création de la
+     * campagne ; une réservation pas encore confirmée (dossier antérieur à
+     * la règle) l'est au passage.
      */
-    public function confirmer(Reservation $reservation): ?Campaign
+    public function confirmer(Reservation $reservation, ?string $nomCampagne = null): ?Campaign
     {
         $bc = app(\App\Services\BonDeCommandeService::class);
         if (!$bc->peutCreerCampagne($reservation)) {
             throw new \RuntimeException('BC_MANQUANT:' . $bc->motifBlocage($reservation));
         }
 
-        $campaign = null;
+        if ($reservation->status !== ReservationStatus::CONFIRME) {
+            $this->confirmerReservation($reservation);
+        }
 
-        DB::transaction(function () use ($reservation, &$campaign) {
+        return $this->creerCampagne($reservation, $nomCampagne);
+    }
+
+    /**
+     * Confirme une réservation : panneaux bloqués fermement, dossiers
+     * concurrents (options en attente sur les mêmes panneaux et la même
+     * période) annulés avec leur motif, leur commercial prévenu.
+     *
+     * SOURCE UNIQUE de la confirmation (2026-11-19) : BC reçu, « Confirmer
+     * sans BC » de l'admin (motif obligatoire, contrôlé par l'appelant),
+     * confirmation groupée, création de campagne d'un dossier ancien.
+     *
+     * @return Collection<int, Reservation> les dossiers concurrents annulés
+     * @throws \App\Exceptions\BookingConflictException|\RuntimeException si un panneau est déjà pris ferme ailleurs
+     */
+    public function confirmerReservation(Reservation $reservation, ?int $parUserId = null, ?string $motifSansBc = null): Collection
+    {
+        $parUserId ??= auth()->id();
+        $annules = collect();
+
+        DB::transaction(function () use ($reservation, $parUserId, $motifSansBc, &$annules) {
 
             $availability = app(AvailabilityService::class);
+            $reservation->loadMissing(['panels', 'externalPanels', 'client']);
 
-            // Vérification anti-double-booking avant confirmation :
-            // une autre proposition confirmée en parallèle aurait pu prendre le panneau.
             $panelIds    = $reservation->panels->pluck('id')->toArray();
             $extIds      = $reservation->externalPanels->pluck('id')->toArray();
-            $start       = $reservation->start_date instanceof \Carbon\Carbon
-                ? $reservation->start_date->toDateString()
-                : (string) $reservation->start_date;
-            $end         = $reservation->end_date instanceof \Carbon\Carbon
-                ? $reservation->end_date->toDateString()
-                : (string) $reservation->end_date;
+            $start       = Carbon::parse($reservation->start_date)->toDateString();
+            $end         = Carbon::parse($reservation->end_date)->toDateString();
 
             // On bloque si un autre dossier tient déjà le panneau FERMEMENT :
             // réservation CONFIRMÉE, ou campagne planifiée / active / en pause
             // (2026-10-30 : les campagnes n'étaient pas vérifiées — une campagne
             // importée par PDF, sans réservation, laissait passer). Pas les
-            // options EN_ATTENTE : plusieurs peuvent coexister, la première
-            // confirmée gagne ; la lockForUpdate garantit l'atomicité.
+            // options EN_ATTENTE : elles tombent ci-dessous, le premier
+            // confirmé gagne ; la lockForUpdate garantit l'atomicité.
             // Overlap INCLUSIF (<= >=), cf. AvailabilityService::conflitsFermes().
             if (!empty($panelIds)) {
                 \App\Models\Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
@@ -165,142 +191,238 @@ class PropositionService
                 }
             }
 
-            // Changer statut → confirmé + promouvoir type option → ferme
+            // Statut → confirmé, type option → ferme, et qui a confirmé.
+            $motif = $motifSansBc !== null && trim($motifSansBc) !== ''
+                ? mb_substr(trim($motifSansBc), 0, 500)
+                : null;
             $reservation->update([
-                'status'       => ReservationStatus::CONFIRME,
-                'type'         => 'ferme',
-                'confirmed_at' => now(),
+                'status'                 => ReservationStatus::CONFIRME,
+                'type'                   => 'ferme',
+                'confirmed_at'           => now(),
+                'confirme_par'           => $parUserId,
+                'confirme_sans_bc_motif' => $motif,
             ]);
 
-            // Sync panneaux internes
+            if (!empty($panelIds)) $availability->syncPanelStatuses($panelIds);
+            if (!empty($extIds))   $availability->syncExternalPanelStatuses($extIds);
+
+            $annules = $this->annulerConcurrents($reservation, $panelIds, $extIds, $start, $end, $parUserId);
+
+            Log::info('reservation.confirmee', [
+                'reservation_id' => $reservation->id,
+                'par'            => $parUserId,
+                'sans_bc'        => $motif !== null,
+                'concurrents'    => $annules->pluck('reference')->all(),
+            ]);
+        });
+
+        // Une fois la transaction validée seulement : prévenir le commercial
+        // de chaque dossier tombé (règle 3 du 19/11).
+        foreach ($annules as $autre) {
+            $this->prevenirConcurrentAnnule($autre, $reservation);
+        }
+
+        return $annules;
+    }
+
+    /**
+     * Annule les options EN_ATTENTE qui chevauchent les mêmes panneaux sur
+     * la même période. Avant (2026-11-19) : mise à jour en masse, sans
+     * motif, sans date, sans auteur, sans prévenir personne. Maintenant :
+     * chaque dossier garde la raison de sa chute.
+     *
+     * @return Collection<int, Reservation>
+     */
+    private function annulerConcurrents(Reservation $reservation, array $panelIds, array $extIds, string $start, string $end, ?int $parUserId): Collection
+    {
+        $availability = app(AvailabilityService::class);
+        $competingIds = collect();
+
+        if (!empty($panelIds)) {
+            $competingIds = $competingIds->merge(DB::table('reservation_panels')
+                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                ->whereIn('reservation_panels.panel_id', $panelIds)
+                ->where('reservations.status', ReservationStatus::EN_ATTENTE->value)
+                ->where('reservations.id', '!=', $reservation->id)
+                ->whereNull('reservations.deleted_at')
+                ->where('reservations.start_date', '<=', $end)
+                ->where('reservations.end_date',   '>=', $start)
+                ->distinct()
+                ->pluck('reservations.id'));
+        }
+        if (!empty($extIds)) {
+            $competingIds = $competingIds->merge(DB::table('reservation_panels')
+                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                ->whereIn('reservation_panels.external_panel_id', $extIds)
+                ->where('reservation_panels.source', 'externe')
+                ->where('reservations.status', ReservationStatus::EN_ATTENTE->value)
+                ->where('reservations.id', '!=', $reservation->id)
+                ->whereNull('reservations.deleted_at')
+                ->where('reservations.start_date', '<=', $end)
+                ->where('reservations.end_date',   '>=', $start)
+                ->distinct()
+                ->pluck('reservations.id'));
+        }
+        if ($competingIds->isEmpty()) {
+            return collect();
+        }
+
+        $ids    = $competingIds->unique()->values()->all();
+        $autres = Reservation::with(['client:id,name', 'commercial:id,name,email', 'user:id,name,email'])
+            ->whereIn('id', $ids)->get();
+
+        $motif = sprintf(
+            'Panneaux pris par %s (%s), confirmée le %s.',
+            $reservation->reference,
+            $reservation->client?->name ?? 'autre client',
+            now()->format('d/m/Y')
+        );
+
+        foreach ($autres as $autre) {
+            // update() par modèle (et non en masse) : l'observateur libère
+            // les panneaux et trace l'annulation, comme une annulation manuelle.
+            $autre->update([
+                'status'        => ReservationStatus::ANNULE->value,
+                'cancel_type'   => 'panneaux_pris',
+                'cancel_reason' => $motif,
+                'cancelled_at'  => now(),
+                'cancelled_by'  => $parUserId,
+            ]);
+        }
+
+        // Les panneaux des dossiers tombés qui ne font pas partie de notre
+        // confirmation (sinon ils restent en cache avec le statut « option »).
+        $extraInternalIds = DB::table('reservation_panels')
+            ->whereIn('reservation_id', $ids)->where('source', 'interne')->whereNotNull('panel_id')
+            ->when(!empty($panelIds), fn($q) => $q->whereNotIn('panel_id', $panelIds))
+            ->distinct()->pluck('panel_id')->toArray();
+        $extraExternalIds = DB::table('reservation_panels')
+            ->whereIn('reservation_id', $ids)->where('source', 'externe')->whereNotNull('external_panel_id')
+            ->when(!empty($extIds), fn($q) => $q->whereNotIn('external_panel_id', $extIds))
+            ->distinct()->pluck('external_panel_id')->toArray();
+
+        if (!empty($extraInternalIds)) $availability->syncPanelStatuses($extraInternalIds);
+        if (!empty($extraExternalIds)) $availability->syncExternalPanelStatuses($extraExternalIds);
+
+        return $autres;
+    }
+
+    /** Alerte + mail au commercial d'un dossier tombé (règle 3 du 2026-11-19). */
+    private function prevenirConcurrentAnnule(Reservation $autre, Reservation $gagnant): void
+    {
+        $destinataire = $autre->commercial ?? $autre->user;
+        $titre = '🚫 Réservation annulée : panneaux pris — ' . $autre->reference;
+        $corps = sprintf(
+            "La réservation %s de %s est annulée : ses panneaux ont été confirmés pour %s (%s).\n"
+            . "Motif enregistré : %s\nProposez d'autres emplacements au client depuis les disponibilités.",
+            $autre->reference,
+            $autre->client?->name ?? 'ce client',
+            $gagnant->reference,
+            $gagnant->client?->name ?? 'un autre client',
+            $autre->cancel_reason
+        );
+
+        try {
+            AlertService::notify('reservation_annulee_concurrence', $titre, $corps, $autre, [
+                'niveau'  => 'danger',
+                'user_id' => $destinataire?->id,
+                'lien'    => route('admin.reservations.show', $autre->id),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('reservation.concurrent.alerte', ['resa' => $autre->id, 'erreur' => $e->getMessage()]);
+        }
+
+        if ($destinataire?->email) {
+            app(NotificationMailer::class)->sendSilently(
+                $destinataire->email,
+                new \App\Mail\AdminAlertMail(
+                    severity: 'danger',
+                    title:    'Réservation annulée : panneaux pris — ' . $autre->reference,
+                    summary:  $corps,
+                    ctaLabel: 'Ouvrir la réservation',
+                    ctaUrl:   route('admin.reservations.show', $autre->id),
+                    emoji:    '🚫',
+                ),
+                context: ['reservation_id' => $autre->id, 'gagnant_id' => $gagnant->id],
+            );
+        }
+    }
+
+    /**
+     * Crée la campagne d'une réservation CONFIRMÉE (2026-11-19 : le nom est
+     * demandé au MP, prérempli avec le nom prévu ; à défaut « Campagne RES-… »).
+     */
+    public function creerCampagne(Reservation $reservation, ?string $nomCampagne = null): Campaign
+    {
+        $reservation->refresh()->loadMissing(['panels', 'externalPanels', 'campaign']);
+
+        if ($reservation->status !== ReservationStatus::CONFIRME) {
+            throw new \RuntimeException('NON_CONFIRMEE:La réservation doit être confirmée avant de créer sa campagne.');
+        }
+        if ($reservation->campaign) {
+            return $reservation->campaign;
+        }
+
+        $nom = $nomCampagne !== null && trim($nomCampagne) !== ''
+            ? mb_substr(trim($nomCampagne), 0, 190)
+            : "Campagne {$reservation->reference}";
+        $campaign = null;
+
+        DB::transaction(function () use ($reservation, $nom, &$campaign) {
+            $availability = app(AvailabilityService::class);
+            $panelIds = $reservation->panels->pluck('id')->toArray();
+            $extIds   = $reservation->externalPanels->pluck('id')->toArray();
+
+            // Si la campagne commence dans le futur → PLANIFIE, sinon ACTIF.
+            // Cohérent avec ReservationController::store + scheduler
+            // campaigns:activate-planned qui basculera ensuite à ACTIF
+            // au premier jour de la campagne.
+            $campStatus = now()->startOfDay()->lt(
+                Carbon::parse($reservation->start_date)->startOfDay()
+            )
+                ? CampaignStatus::PLANIFIE->value
+                : CampaignStatus::ACTIF->value;
+
+            $campaign = Campaign::create([
+                'name'           => $nom,
+                'client_id'      => $reservation->client_id,
+                'client_contact_id' => $reservation->client_contact_id, // interlocuteur (2026-10-29)
+                'reservation_id' => $reservation->id,
+                'start_date'     => $reservation->start_date,
+                'end_date'       => $reservation->end_date,
+                'status'         => $campStatus,
+                'total_panels'   => count($panelIds) + count($extIds),
+                'total_amount'   => $reservation->total_amount,
+                'user_id'        => $reservation->user_id,
+            ]);
+
             if (!empty($panelIds)) {
-                $availability->syncPanelStatuses($panelIds);
+                $campaign->panels()->sync($panelIds);
             }
 
-            // Sync panneaux externes
+            // Le pivot campaign_panels supporte external_panel_id avec
+            // type='externe' — même schéma que ReservationController::store.
             if (!empty($extIds)) {
-                $availability->syncExternalPanelStatuses($extIds);
+                $rows = array_map(fn($extId) => [
+                    'campaign_id'       => $campaign->id,
+                    'external_panel_id' => $extId,
+                    'type'              => 'externe',
+                    'created_at'        => now(),
+                    'updated_at'        => now(),
+                ], $extIds);
+                DB::table('campaign_panels')->insert($rows);
             }
 
-            // Annuler automatiquement toutes les autres propositions EN_ATTENTE
-            // qui chevauchent les mêmes panneaux sur la même période.
-            // Overlap INCLUSIF aussi pour la cascade d'annulation des
-            // propositions concurrentes (même règle que le check ci-dessus).
-            $competingIds = collect();
-            if (!empty($panelIds)) {
-                $ids = DB::table('reservation_panels')
-                    ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-                    ->whereIn('reservation_panels.panel_id', $panelIds)
-                    ->where('reservations.status', ReservationStatus::EN_ATTENTE->value)
-                    ->where('reservations.id', '!=', $reservation->id)
-                    ->where('reservations.start_date', '<=', $end)
-                    ->where('reservations.end_date',   '>=', $start)
-                    ->distinct()
-                    ->pluck('reservations.id');
-                $competingIds = $competingIds->merge($ids);
-            }
-            if (!empty($extIds)) {
-                $ids = DB::table('reservation_panels')
-                    ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-                    ->whereIn('reservation_panels.external_panel_id', $extIds)
-                    ->where('reservation_panels.source', 'externe')
-                    ->where('reservations.status', ReservationStatus::EN_ATTENTE->value)
-                    ->where('reservations.id', '!=', $reservation->id)
-                    ->where('reservations.start_date', '<=', $end)
-                    ->where('reservations.end_date',   '>=', $start)
-                    ->distinct()
-                    ->pluck('reservations.id');
-                $competingIds = $competingIds->merge($ids);
-            }
-            if ($competingIds->isNotEmpty()) {
-                $uniqueCompeting = $competingIds->unique()->toArray();
-                Reservation::whereIn('id', $uniqueCompeting)
-                    ->update(['status' => ReservationStatus::ANNULE->value]);
+            // Lot 9.1 — Auto-création des tâches de pose APRÈS le sync
+            // des panneaux (l'observer `created` est trop tôt, panneaux
+            // pas encore liés à ce moment-là).
+            $campaign->ensurePoseTasksAutoCreated();
 
-                // Sync les panneaux des réservations annulées qui ne font pas partie
-                // de notre confirmation (sinon ils restent en cache avec statut 'option').
-                $extraInternalIds = DB::table('reservation_panels')
-                    ->whereIn('reservation_id', $uniqueCompeting)
-                    ->where('source', 'interne')
-                    ->whereNotNull('panel_id')
-                    ->when(!empty($panelIds), fn($q) => $q->whereNotIn('panel_id', $panelIds))
-                    ->distinct()->pluck('panel_id')->toArray();
-
-                $extraExternalIds = DB::table('reservation_panels')
-                    ->whereIn('reservation_id', $uniqueCompeting)
-                    ->where('source', 'externe')
-                    ->whereNotNull('external_panel_id')
-                    ->when(!empty($extIds), fn($q) => $q->whereNotIn('external_panel_id', $extIds))
-                    ->distinct()->pluck('external_panel_id')->toArray();
-
-                if (!empty($extraInternalIds)) $availability->syncPanelStatuses($extraInternalIds);
-                if (!empty($extraExternalIds)) $availability->syncExternalPanelStatuses($extraExternalIds);
-            }
-
-            // Créer campagne si elle n'existe pas
-            if (!$reservation->campaign) {
-                // Si la campagne commence dans le futur → PLANIFIE, sinon ACTIF.
-                // Cohérent avec ReservationController::store + scheduler
-                // campaigns:activate-planned qui basculera ensuite à ACTIF
-                // au premier jour de la campagne.
-                $campStatus = now()->startOfDay()->lt(
-                    Carbon::parse($reservation->start_date)->startOfDay()
-                )
-                    ? CampaignStatus::PLANIFIE->value
-                    : CampaignStatus::ACTIF->value;
-
-                $campaign = Campaign::create([
-                    'name'           => "Campagne {$reservation->reference}",
-                    'client_id'      => $reservation->client_id,
-                    'client_contact_id' => $reservation->client_contact_id, // interlocuteur (2026-10-29)
-                    'reservation_id' => $reservation->id,
-                    'start_date'     => $reservation->start_date,
-                    'end_date'       => $reservation->end_date,
-                    'status'         => $campStatus,
-                    'total_panels'   => count($panelIds) + count($extIds),
-                    'total_amount'   => $reservation->total_amount,
-                    'user_id'        => $reservation->user_id,
-                ]);
-
-                if (!empty($panelIds)) {
-                    $campaign->panels()->sync($panelIds);
-                }
-
-                // Le pivot campaign_panels supporte external_panel_id avec
-                // type='externe' — même schéma que ReservationController::store.
-                if (!empty($extIds)) {
-                    $rows = array_map(fn($extId) => [
-                        'campaign_id'       => $campaign->id,
-                        'external_panel_id' => $extId,
-                        'type'              => 'externe',
-                        'created_at'        => now(),
-                        'updated_at'        => now(),
-                    ], $extIds);
-                    DB::table('campaign_panels')->insert($rows);
-                }
-
-                // Lot 9.1 — Auto-création des tâches de pose APRÈS le sync
-                // des panneaux (l'observer `created` est trop tôt, panneaux
-                // pas encore liés à ce moment-là).
-                $campaign->ensurePoseTasksAutoCreated();
-
-                // ⚠ Bug fix : si la campagne est créée directement en ACTIF
-                // (start_date == today), les panneaux doivent passer à
-                // OCCUPE immédiatement. Sans ce sync ils restaient à
-                // CONFIRME (hérité de la transition résa OPTION→CONFIRME)
-                // et l'admin voyait "Confirmé" alors que la campagne
-                // diffusait déjà sur le terrain. Pour une campagne PLANIFIE
-                // (future), le sync est aussi sain : il maintient CONFIRME
-                // correctement et corrige tout reliquat OCCUPE.
-                if (!empty($panelIds)) {
-                    $availability->syncPanelStatuses($panelIds);
-                }
-                if (!empty($extIds)) {
-                    $availability->syncExternalPanelStatuses($extIds);
-                }
-            } else {
-                $campaign = $reservation->campaign;
-            }
+            // Campagne créée directement en ACTIF : les panneaux passent à
+            // OCCUPE tout de suite (sinon ils restaient à CONFIRME). Pour une
+            // campagne PLANIFIE, le sync maintient CONFIRME.
+            if (!empty($panelIds)) $availability->syncPanelStatuses($panelIds);
+            if (!empty($extIds))   $availability->syncExternalPanelStatuses($extIds);
 
             Log::info('proposition.confirmed', [
                 'reservation_id' => $reservation->id,
