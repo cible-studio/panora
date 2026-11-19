@@ -1,23 +1,33 @@
 @php
     /**
-     * PDF Devis — modèle CIBLE SARL officiel (BARRY PN-2025-09).
+     * PDF Devis — modèle CIBLE SARL officiel.
      *
-     * Habillage : charte graphique CIBLE (2026-10-01) — palette lue dans
-     * $charte (config/charte.php via App\Support\PdfCharte) :
-     *   • rouge (accent / call-out), noir (headers de section),
-     *     jaune (chiffre mis en avant sur fond noir), gris / gris_clair (fonds).
-     *   (remplace l'ancienne palette orange / bleu marine)
+     * ═══ MISE EN PAGE (lot B, 2026-11-19) ═══
+     * Reprise du gabarit validé (docs/reference/…/gabarit_devis_reference.php)
+     * et du modèle Excel (devis_modele.pdf), avec les arbitrages écrits du
+     * 2026-11-19, qui priment sur le cahier des charges :
+     *   a. en-tête sur fond jaune (17/11), filet orange #FAAF00 DESSOUS ;
+     *   b. aucun saut de page forcé avant les conditions générales (17/11) :
+     *      elles commencent en page 1 et continuent en page 2, comme dans le
+     *      modèle Excel. Chaque article et chaque bloc de signature reste
+     *      d'un seul tenant (page-break-inside: avoid) ;
+     *   c. pied de page fixe (05/11) gardé, sur UNE seule ligne ;
+     *   d. polices de la charte (16/11), en Regular et Bold seulement —
+     *      jamais le poids 300 ni ExtraLight ;
+     *   e. montant net : texte #FFC000 sur la barre bleue #327DAF.
      *
-     * Structure 3 pages :
-     *   Page 1 — Header + Émetteur/Client + tableau lignes + taxes + services + net + modalités
-     *   Page 2 — Signatures grand format (Directrice Commerciale + Annonceur)
-     *   Page 3 — 8 articles de Conditions Générales
+     * Une seule grille de 7 colonnes (29 / 11 / 11.5 / 8.5 / 8.5 / 14.75 /
+     * 16.75 %) pour tous les blocs de la page 1, posée par une ligne de
+     * dimensionnement invisible en tête de chaque table : DomPDF respecte
+     * mal <col>. Les colonnes s'alignent donc d'un bloc à l'autre.
+     *
+     * Rendu : App\Services\QuotePdf (fontHeightRatio 0,85, propre au devis).
      *
      * Ce template ne fait AUCUN calcul. Tous les montants viennent du
      * modèle Quote (calculés par QuoteBuilder → InvoiceCalculator :
      * source unique). Modifier ici ne change JAMAIS le montant du devis.
      */
-    // ═══ PALETTE DU MODÈLE OFFICIEL (2026-11-16) ═══
+    // ═══ PALETTE DU MODÈLE OFFICIEL ═══
     //
     // Décision du 2026-11-16 : ce PDF doit être IDENTIQUE au modèle de
     // devis que la direction envoie aux clients. Il reprend donc sa
@@ -25,34 +35,58 @@
     // (rouge / noir / jaune), qui reste en vigueur sur les autres PDF —
     // facture FNE, rapports.
     //
-    // Les valeurs ne sont pas approximées : elles ont été extraites des
-    // opérateurs de couleur du PDF de référence
-    // (docs/devis/DEVIS HAVAS 05 PANNEAUX 12M².pdf).
-    //
-    // Les POLICES, elles, restent celles de la charte ($charte['ff_titres']) :
-    // seules les couleurs changent.
+    // Les POLICES, elles, restent celles de la charte ($charte['ff_titres'],
+    // $charte['ff_texte']) : seules les couleurs changent.
     $dv = [
-        // Rôle de chaque couleur, repris du modèle (2026-11-17) : la
-        // palette était juste, mais posée aux mauvais endroits.
-        'bleu'       => '#1C2E3D', // barres de titre des sections, total net
-        'bleu_moyen' => '#327DAF', // barres Émetteur/Client, titres des CG
-        'bleu_table' => '#4D8EB9', // en-tête du tableau des emplacements
-        'bleu_pale'  => '#EEF5FB', // fonds de sous-section
-        'or'         => '#FAAF00', // valeurs mises en avant (n°, date)
-        'or_vif'     => '#FFC000', // bandeaux haut et bas, montant net
+        // Rôle de chaque couleur (cahier lot B, B4 ; gabarit validé).
+        'bleu'       => '#1C2E3D', // texte, barres de section
+        'bleu_moyen' => '#327DAF', // barres Émetteur/Client, sous-totaux, titres des CG, net
+        'bleu_table' => '#4D8EB9', // en-têtes de tableau
+        'bleu_pale'  => '#EEF5FB', // lignes claires
+        'bordure'    => '#BDD0E0', // filets de cellule (0,5 pt)
+        'or'         => '#FAAF00', // filet sous l'en-tête et sous le titre des CG
+        'or_vif'     => '#FFC000', // bandeau d'en-tête, montant net
         'or_doux'    => '#FFE082', // fond de la ligne MONTANT TOTAL TTC
-        'or_pale'    => '#FFF4CC', // bandes de sous-total
-        'ardoise'    => '#445566', // texte secondaire
-        'gris'       => '#D7DEE5', // filets de tableau
-        'gris_clair' => '#F8F9FA', // fonds neutres
+        'or_pale'    => '#FFF4CC', // fond de l'article 3 des CG
+        'gris_clair' => '#F8F9FA', // fond des modalités
+        'noir'       => '#000000', // cadre de la ligne TTC
         'blanc'      => '#FFFFFF',
     ];
 
     $company = config('billing.company');
     $bank    = config('billing.bank');
+    $societe = $company['name'] ?? 'CIBLE SARL';
 
     // Formatage entier FCFA (espaces normes locales)
     $fmt = fn($n) => number_format((int) $n, 0, ',', ' ');
+
+    // Grille commune : une ligne invisible qui fixe la largeur des 7
+    // colonnes, en tête de chaque table (gabarit validé).
+    $grille = '<tr class="sz"><td style="width:29%"></td><td style="width:11%"></td>'
+        . '<td style="width:11.5%"></td><td style="width:8.5%"></td><td style="width:8.5%"></td>'
+        . '<td style="width:14.75%"></td><td style="width:16.75%"></td></tr>';
+
+    // ═══ POLICES DU DEVIS (2026-11-19) ═══
+    // Déclarées ici, pour ce document seul : Regular et Bold de la charte,
+    // et rien d'autre. Les autres PDF gardent les déclarations de
+    // App\Support\PdfCharte. Les fichiers Nunito portent dans leurs
+    // métadonnées le nom « Nunito ExtraLight » (instances tirées de la
+    // police variable), mais leur dessin est bien Regular et Bold : épaisseur
+    // du fût mesurée le 2026-11-19, identique à celle de Carlito Regular et
+    // Bold. Poppins ne sert qu'aux titres, toujours en gras.
+    $policesDevis = '';
+    if ($charte['polices_ok'] ?? false) {
+        foreach ([
+            ['Nunito',  'normal', 400, 'Nunito-Regular.ttf'],
+            ['Nunito',  'normal', 700, 'Nunito-Bold.ttf'],
+            ['Nunito',  'italic', 400, 'Nunito-Italic.ttf'],
+            ['Nunito',  'italic', 700, 'Nunito-BoldItalic.ttf'],
+            ['Poppins', 'normal', 700, 'Poppins-Bold.ttf'],
+        ] as [$famille, $style, $poids, $fichier]) {
+            $policesDevis .= "@font-face{font-family:'{$famille}';font-style:{$style};font-weight:{$poids};"
+                . "src:url('file://" . str_replace('\\', '/', resource_path('fonts/' . $fichier)) . "') format('truetype');}\n";
+        }
+    }
 
     // Logo émetteur en base64 (DomPDF ne charge PAS les URLs distantes,
     // isRemoteEnabled: false par défaut, base64 obligatoire).
@@ -60,6 +94,32 @@
     $logoSrc  = file_exists($logoPath)
         ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
         : null;
+
+    // Coordonnées de l'émetteur, ligne à ligne en face des champs du client
+    // (disposition du modèle). Chaque élément reste optionnel : un .env
+    // incomplet ne doit pas laisser « Tél. : » ou « | » orphelins.
+    $telephones = implode(' &nbsp;|&nbsp; ', array_filter([
+        !empty($company['phone'])  ? 'Tél. : ' . e($company['phone'])  : null,
+        !empty($company['mobile']) ? 'Mob. : ' . e($company['mobile']) : null,
+    ]));
+    $courriels = implode(' &nbsp;|&nbsp; ', array_filter([
+        !empty($company['email_finance']) ? e($company['email_finance']) : null,
+        !empty($company['email'])         ? e($company['email'])         : null,
+    ]));
+    $emetteur = [
+        '<b>' . e($societe) . '</b>',
+        !empty($company['address']) ? e($company['address']) : '',
+        $telephones,
+        !empty($company['ncc']) ? 'CC : N°' . e($company['ncc']) : '',
+        $courriels,
+    ];
+    $clientLignes = [
+        'Nom :'        => $quote->client?->contact_name ?? $quote->client?->name ?? '—',
+        'Entreprise :' => $quote->client?->company ?? $quote->client?->name ?? '—',
+        'N°CC :'       => $quote->client?->ncc ?? '',
+        'Tél. :'       => $quote->client?->phone ?? '',
+        'Email :'      => $quote->client?->email ?? '',
+    ];
 
     // Taxes publicitaires agrégées par commune (TM + ODP)
     // Reconstruites depuis odp_ligne / tm_ligne des lignes du devis.
@@ -148,817 +208,515 @@
     };
 
     $dateEmission = ($quote->sent_at ?: $quote->created_at)?->format('d/m/Y');
+    // Remise (2026-11-19) : HT brut des lignes (`amount`) et taux, affichés
+    // seulement s'il y a une remise. « 10 % », « 7,5 % ».
+    $htBrut   = (int) $quote->amount;
+    $aRemise  = (float) $quote->remise_pct > 0 && $htBrut > $netHt;
+    $remisePct = rtrim(rtrim(number_format((float) $quote->remise_pct, 2, ',', ''), '0'), ',');
+
     $tvaRate = (int) $quote->tva;
     $tspRate = (int) config('billing.tsp_rate', 3);
+
+    // Fonds des articles des CG, dans l'ordre 1 → 8 (cahier lot B, B5) :
+    // l'article 3 (annulation, non-remboursement) ressort en jaune.
+    $fondsCg = [
+        $dv['bleu_pale'], $dv['blanc'], $dv['or_pale'], $dv['bleu_pale'],
+        $dv['blanc'], $dv['bleu_pale'], $dv['blanc'], $dv['bleu_pale'],
+    ];
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <title>Devis N° {{ $quote->reference }}</title>
-    {{-- 2026-10-01 — charte graphique : socle commun (polices, palette, classes ch-*).
-         La palette orange / bleu marine du modèle d'origine est remplacée par la
-         charte (rouge / noir / jaune…) ; structure et contenus inchangés. --}}
-    @include('pdf.partials.charte-styles')
     <style>
-        /* !important : « * { margin:0 } » annule sinon la marge @page sous DomPDF.
-           Marge basse 18 mm : réserve la place du pied fixe charte-footer. */
-        @page { margin: 9mm 9mm 15mm 9mm !important; size: A4 portrait; }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-size: 9px; color: {{ $dv['bleu'] }}; line-height: 1.2; }
-        table { border-collapse: collapse; width: 100%; }
-        td, th { vertical-align: middle; }
-        strong, b { font-weight: 700; }
-        .page-break { page-break-after: always; }
-        .no-break { page-break-inside: avoid; }
-
-        /* ═══ BANDEAU D'EN-TÊTE (2026-11-17) ═══
-           Fond jaune #FFC000 sur toute la largeur, logo à gauche, puis
-           « DEVIS » et le couple N° / Date à droite. C'est la signature
-           visuelle du modèle — le simple liséré posé la veille ne lui
-           ressemblait pas. */
-        .header-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 10px;
-            background: {{ $dv['or_vif'] }};
+{!! $policesDevis !!}
+        /* Marges du gabarit (10 / 10 / 9 mm), la marge basse portée à 13 mm
+           pour loger le pied fixe d'une ligne (arbitrage c) : il se pose
+           dans cette marge et ne chevauche jamais le contenu.
+           ⚠ Aucune règle « margin: 0 » sur html ni sur * : DomPDF
+           l'applique à la boîte de page et annule les marges @page. */
+        @page { margin: 10mm 10mm 13mm 10mm; size: A4 portrait; }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: {!! $charte['ff_texte'] !!};
+            font-size: 8pt;
+            font-weight: 400;
+            color: {{ $dv['bleu'] }};
+            background: {{ $dv['blanc'] }};
         }
-        .header-left  {
-            width: 42%;
-            padding: 10px 14px;
+        ul, li { margin-top: 0; margin-bottom: 0; }
+        b, strong { font-weight: 700; }
+
+        /* ═══ GRILLE COMMUNE ═══ */
+        table.g { width: 100%; table-layout: fixed; border-collapse: collapse; }
+        table.g td, table.g th {
+            border: 0.5pt solid {{ $dv['bordure'] }};
+            padding: 1pt 4pt;
             vertical-align: middle;
+            font-weight: 400;
             text-align: left;
         }
-        .header-left img { max-height: 50px; max-width: 160px; }
-        .header-left .company-name { font-family: {!! $charte['ff_titres'] !!}; font-size: 22px; font-weight: 900; color: {{ $dv['bleu'] }}; }
-        .header-right {
-            width: 58%;
-            padding: 10px 14px;
+        table.g tr.sz td { border: 0; padding: 0; height: 0; line-height: 0; font-size: 0; }
+        .r { text-align: right !important; }
+        .c { text-align: center !important; }
+        .b { font-weight: 700 !important; }
+        .i { font-style: italic; }
+        .gap { height: 4pt; }
+        .keep { page-break-inside: avoid; }
+        /* Titres : police de titre de la charte, toujours en gras (seul le
+           Bold de Poppins est déclaré). */
+        .t { font-family: {!! $charte['ff_titres'] !!}; font-weight: 700; }
+        /* Cases ☐ / ☑ et flèches : DejaVu Sans, qui porte ces glyphes. */
+        .box { font-family: 'DejaVu Sans', sans-serif; }
+
+        /* ═══ EN-TÊTE ═══
+           Fond jaune #FFC000 sur toute la largeur (17/11) : logo sur les
+           colonnes 1 à 3, « DEVIS », « N° : » et « Date : » sur les
+           colonnes 4-5, les valeurs sur les colonnes 6-7. Trois lignes de
+           même hauteur. Le filet or se pose dessous (arbitrage a). */
+        .header-table {
+            width: 100%;
+            background: {{ $dv['or_vif'] }};
+        }
+        table.g.header-table td {
+            border: 0;
+            padding: 0 4pt;
+            height: 13pt;
+            font-weight: 700;
             vertical-align: middle;
         }
-        .header-right .title {
+        table.g.header-table td.logo { padding: 3pt 4pt; }
+        .header-table .logo img { height: 36pt; }
+        .header-table .titre-doc { font-family: {!! $charte['ff_titres'] !!}; font-size: 11pt; font-weight: 700; letter-spacing: 1pt; }
+        .filet { height: 2pt; background: {{ $dv['or'] }}; font-size: 0; line-height: 0; }
+
+        /* ═══ BARRES ═══
+           bleu moyen : Émetteur / Client, sous-totaux, net ;
+           bleu nuit  : sections (taxes, services, modalités, accord, CG). */
+        table.g tr.section-header.moyen td,
+        table.g tr.bar td {
+            background: {{ $dv['bleu_moyen'] }};
+            color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
-            font-size: 15px;
-            font-weight: 800;
-            color: {{ $dv['bleu'] }};
-            letter-spacing: 1px;
-            line-height: 1.4;
+            font-weight: 700;
         }
-        .header-right .meta {
-            font-size: 10.5px;
-            color: {{ $dv['bleu'] }};
-            margin-top: 2px;
-            line-height: 1.5;
-        }
-        .header-right .meta .lbl { font-weight: 700; display: inline-block; width: 52px; }
-        /* Sur fond jaune, l'or ne se verrait pas : le bleu nuit tranche. */
-        .header-right .meta .val { color: {{ $dv['bleu'] }}; font-weight: 800; }
-
-        /* Bandeau jaune de pied de page 1, en écho à l'en-tête. */
-        .bandeau-bas { height: 10px; background: {{ $dv['or_vif'] }}; margin-top: 8px; }
-
-        /* ═══ BARRES DE TITRE ═══
-           Deux bleus distincts dans le modèle, et pas au hasard :
-             · bleu nuit  → Taxes, Services, Modalités, total net ;
-             · bleu moyen → Émetteur / Client, titres des articles des CG.
-           Les confondre aplatissait toute la page sur un seul ton. */
-        .section-header {
+        table.g tr.sec td {
             background: {{ $dv['bleu'] }};
             color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
-            font-size: 10px;
             font-weight: 700;
-            padding: 6px 10px;
-            letter-spacing: 1px;
-            text-transform: uppercase;
+            border-color: {{ $dv['bleu'] }};
         }
-        .section-header.moyen { background: {{ $dv['bleu_moyen'] }}; }
+        table.g tr.lt td, table.g tr.alt td { background: {{ $dv['bleu_pale'] }}; }
+        table.g tr.gr td { background: {{ $dv['gris_clair'] }}; }
 
-        /* ═══ BLOC ÉMETTEUR / CLIENT ═══ */
-        .party-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        .party-table td { vertical-align: top; width: 50%; border: 1px solid {{ $dv['gris'] }}; padding: 0; }
-        .party-body {
-            padding: 4px 8px;
-            font-size: 9px;
-            line-height: 1.3;
-        }
-        .party-body .row { padding: 1px 0; }
-        .party-body .lbl { font-weight: 700; color: {{ $dv['bleu'] }}; display: inline-block; min-width: 78px; }
-        .party-body .link { color: {{ $dv['bleu_moyen'] }}; text-decoration: underline; }
-
-        /* ═══ TABLEAU DES LIGNES PANNEAUX ═══ */
-        .panneaux-table { width: 100%; border-collapse: collapse; margin-bottom: 0; font-size: 9px; }
-        /* En-tête du tableau des emplacements : bleu intermédiaire du
-           modèle (#4D8EB9), ni le bleu nuit des barres de section ni le
-           bleu moyen des blocs Émetteur/Client. */
+        /* ═══ TABLEAU DES EMPLACEMENTS ═══ */
         .panneaux-table th {
             background: {{ $dv['bleu_table'] }};
             color: {{ $dv['blanc'] }};
-            font-family: {!! $charte['ff_titres'] !!};
-            padding: 6px 4px;
-            text-align: center;
-            font-size: 9px;
-            font-weight: 700;
-            border-right: 1px solid {{ $dv['ardoise'] }};
+            font-weight: 700 !important;
+            text-align: center !important;
         }
-        .panneaux-table th:last-child { border-right: none; }
-        .panneaux-table th.left { text-align: left; padding-left: 10px; }
-        .panneaux-table td {
-            padding: 4px 4px;
-            border-bottom: 1px solid {{ $dv['gris'] }};
-            border-right: 1px solid {{ $dv['gris_clair'] }};
-            vertical-align: middle;
-            font-size: 9px;
-            text-align: center;
-        }
-        .panneaux-table td:last-child { border-right: none; }
-        .panneaux-table td.designation-cell {
-            text-align: left;
-            padding-left: 10px;
-            font-style: italic;
-            line-height: 1.35;
-        }
-        .panneaux-table td.designation-cell .row-desc { display: block; }
-        .panneaux-table td.num { text-align: right; padding-right: 8px; }
-        .panneaux-table td.montant-ht-col { background: {{ $dv['gris_clair'] }}; text-align: right; padding-right: 8px; font-weight: 700; }
-
-        /* ═══ SOUS-TOTAUX (colonne 55% droite) ═══ */
-        .subtotals { width: 55%; margin-left: 45%; border-collapse: collapse; margin-top: 0; }
-        .subtotals td {
-            padding: 3px 10px;
-            font-size: 10px;
-            border: 1px solid {{ $dv['gris'] }};
-        }
-        .subtotals .lbl { text-align: right; background: {{ $dv['gris_clair'] }}; font-weight: 700; }
-        .subtotals .val { text-align: right; font-weight: 700; width: 40%; }
-        /* MONTANT TOTAL TTC : fond ambre clair du modèle, texte bleu nuit.
-           Le fond bleu plein posé la veille écrasait le total net, qui est
-           censé être la ligne la plus forte de la page. */
-        .subtotals tr.ttc td {
-            background: {{ $dv['or_doux'] }};
-            color: {{ $dv['bleu'] }};
-            font-family: {!! $charte['ff_titres'] !!};
-            font-size: 12px;
-            font-weight: 800;
-            padding: 8px 10px;
-            border-color: {{ $dv['gris'] }};
-        }
-        .subtotals tr.ttc td.val { font-size: 13px; color: {{ $dv['bleu'] }}; }
-
-        /* ═══ SECTIONS TAXES / SERVICES ═══ */
-        .section-tbl { width: 100%; border-collapse: collapse; margin-top: 8px; border: 1px solid {{ $dv['gris'] }}; }
-        /* En-têtes de colonnes : bandeau bleu moyen, texte blanc — le gris
-           du modèle d'avant ne se distinguait pas des lignes. */
-        .section-tbl thead th {
-            background: {{ $dv['bleu_moyen'] }};
-            color: {{ $dv['blanc'] }};
-            font-family: {!! $charte['ff_titres'] !!};
-            font-size: 9.5px;
-            font-weight: 700;
-            padding: 6px 8px;
-            text-align: left;
-            border-right: 1px solid {{ $dv['blanc'] }};
-        }
-        .section-tbl thead th:last-child { border-right: none; }
-        .section-tbl thead th.num { text-align: right; }
-        .section-tbl tbody td {
-            padding: 4px 8px;
-            border-top: 1px solid {{ $dv['gris'] }};
-            font-size: 9.5px;
-        }
-        .section-tbl tbody td.num { text-align: right; }
-        .section-tbl tbody td.center { text-align: center; }
-        .section-tbl tbody td.empty { text-align: center; color: {{ $dv['ardoise'] }}; font-style: italic; }
-        /* Service refacturé sans TVA : le dire sur la ligne, sinon le
-           client ne comprend pas pourquoi elle échappe au calcul. */
-        .svc-ht-flag { color: {{ $dv['ardoise'] }}; font-size: 8.5px; font-style: italic; }
-
-        /* ═══ BARRE DE SOUS-TOTAL SOUS LE TABLEAU (2026-11-17) ═══
-           Barre BLEUE dans le modèle, pas ambre : l'ambre y est réservé
-           aux lignes de total. Le cumul des lignes avant taxes. */
-        .bande-soustotal { width: 100%; border-collapse: collapse; margin: 0; }
-        .bande-soustotal td {
+        .taxes-table th {
             background: {{ $dv['bleu_table'] }};
             color: {{ $dv['blanc'] }};
-            font-family: {!! $charte['ff_titres'] !!};
-            font-size: 11px;
-            font-weight: 800;
-            text-align: right;
-            padding: 6px 10px;
-            border: 1px solid {{ $dv['bleu_table'] }};
-            border-top: none;
-        }
-        /* Sous-total de section sur bande or, comme les cumuls du modèle.
-           On garde le LIBELLÉ, que le modèle n'a pas : une bande portant
-           un nombre seul ne dit pas de quoi il est le total. */
-        .section-tbl tfoot td {
-            padding: 6px 10px;
-            font-weight: 800;
-            font-size: 10px;
-            background: {{ $dv['or_pale'] }};
-            color: {{ $dv['bleu'] }};
-            text-align: right;
-            border-top: 1px solid {{ $dv['gris'] }};
-        }
-        .section-tbl tfoot td.num { color: {{ $dv['bleu'] }}; }
-
-        /* Services : pas de sous-header coloré (juste le titre de section) */
-        .section-tbl.no-thead-color thead th { background: transparent; color: {{ $dv['bleu'] }}; padding: 4px 8px; }
-
-        /* ═══ MONTANT NET TOTAL À PAYER ═══ */
-        /* Bandeau du net à payer : fond bleu nuit, libellé blanc, montant
-           en or — c'est la ligne la plus lue du devis, elle est traitée
-           comme sur le modèle. */
-        .montant-net {
-            margin-top: 12px;
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .montant-net td {
-            background: {{ $dv['bleu'] }};
-            padding: 7px 14px;
-            vertical-align: middle;
-        }
-        .montant-net .lbl-net {
-            font-family: {!! $charte['ff_titres'] !!};
-            font-size: 13px;
-            font-weight: 800;
-            color: {{ $dv['blanc'] }};
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .montant-net .val-net {
-            font-family: {!! $charte['ff_titres'] !!};
-            text-align: right;
-            font-size: 18px;
-            font-weight: 800;
-            /* Jaune vif du modèle sur la barre bleu nuit : c'est le
-               chiffre que le client cherche en premier. */
-            color: {{ $dv['or_vif'] }};
-        }
-        .montant-lettres {
-            padding: 4px 14px;
-            font-style: italic;
-            font-size: 9px;
-            color: {{ $dv['ardoise'] }};
-            border: 1px solid {{ $dv['gris'] }};
-            border-top: none;
+            font-weight: 700 !important;
+            text-align: center !important;
         }
 
-        /* ═══ MODALITÉS DE RÈGLEMENT ═══ */
-        .modalites { width: 100%; border-collapse: collapse; margin-top: 8px; border: 1px solid {{ $dv['gris'] }}; }
-        .modalites td { padding: 4px 10px; font-size: 9px; border-top: 1px solid {{ $dv['gris'] }}; }
-        .modalites td.lbl { background: {{ $dv['gris_clair'] }}; font-weight: 700; width: 32%; color: {{ $dv['bleu'] }}; }
-        .modalites .cb {
-            display: inline-block;
-            width: 10px; height: 10px;
-            border: 1.2px solid {{ $dv['bleu'] }};
-            margin-right: 4px;
-            vertical-align: middle;
-        }
-        .bon-accord {
-            background: {{ $dv['bleu'] }};
-            color: {{ $dv['blanc'] }};
-            font-family: {!! $charte['ff_titres'] !!};
-            padding: 6px 12px;
-            margin-top: 10px;
-            font-size: 10.5px;
-            font-weight: 800;
-            letter-spacing: .8px;
-            text-align: center;
-            text-transform: uppercase;
-            border-bottom: 3px solid {{ $dv['or'] }};
+        /* ═══ SOUS-TOTAUX ═══ */
+        table.g.subtotals td.lbl { border: 0; text-align: right; }
+        /* MONTANT TOTAL TTC : fond ambre clair, cadre noir de 1 pt. */
+        .subtotals tr.ttc td {
+            background: {{ $dv['or_doux'] }};
+            font-weight: 700;
+            border: 1pt solid {{ $dv['noir'] }};
         }
 
-        /* ═══ SIGNATURES ═══
-           2026-11-16 : les cadres font 70px au lieu de 180px. Ils
-           occupaient une page entière, alors que le modèle les pose sous
-           le bandeau « Bon pour accord », sur la même page que le devis. */
-        .sig-title-block {
-            text-align: center;
-            margin-top: 30px;
-            margin-bottom: 20px;
-        }
-        .sig-title-block .st-title { font-family: {!! $charte['ff_titres'] !!}; font-size: 18px; font-weight: 800; color: {{ $dv['bleu'] }}; letter-spacing: 2px; }
-        .sig-title-block .st-sub   { font-size: 11px; color: {{ $dv['or'] }}; margin-top: 4px; font-weight: 700; }
-        .sig-table { width: 100%; border-collapse: collapse; margin-top: 0; }
-        .sig-table td {
-            width: 50%;
-            border: 1px solid {{ $dv['gris'] }};
-            border-top: none;
-            padding: 5px 12px 6px 12px;
-            vertical-align: top;
-            height: 44px;
-            background: {{ $dv['blanc'] }};
-        }
-        .sig-table .sig-label {
-            font-family: {!! $charte['ff_titres'] !!};
-            font-size: 11px;
-            font-weight: 800;
-            color: {{ $dv['bleu'] }};
-            text-align: center;
-        }
-        .sig-table .sig-role {
-            font-size: 10px;
-            color: {{ $dv['ardoise'] }};
-            text-align: center;
-            margin-top: 4px;
-        }
-        .sig-table .sig-line {
-            border-bottom: 1px solid {{ $dv['bleu'] }};
-            width: 70%;
-            margin: 100px auto 0 auto;
-        }
-
-        /* ═══ CGV (page 3) ═══ */
-        .cgv-header {
-            background: {{ $dv['bleu'] }};
-            color: {{ $dv['blanc'] }};
-            font-family: {!! $charte['ff_titres'] !!};
-            padding: 8px 12px;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            border-left: 4px solid {{ $dv['or'] }};
-        }
-        .cgv-header .site {
-            float: right;
-            font-size: 10px;
-            font-weight: 600;
-            color: {{ $dv['or'] }};
-            text-transform: none;
-            letter-spacing: 0;
-        }
-        /* Titres d'articles : bandeau bleu moyen, comme le modèle (l'or
-           est réservé aux montants mis en avant). */
-        .cgv-art-title {
+        /* ═══ MONTANT NET ═══ (arbitrage e)
+           Barre bleu moyen, libellé blanc, montant en jaune #FFC000. */
+        table.g tr.net td {
             background: {{ $dv['bleu_moyen'] }};
             color: {{ $dv['blanc'] }};
             font-family: {!! $charte['ff_titres'] !!};
-            padding: 4px 10px;
-            font-size: 9px;
-            font-weight: 800;
-            margin-top: 4px;
-            text-transform: uppercase;
-            letter-spacing: .5px;
+            font-weight: 700;
+            font-size: 9pt;
+            padding-top: 4pt;
+            padding-bottom: 4pt;
         }
-        /* 2026-11-16 : interlignes resserrés pour que les 8 articles
-           tiennent avec le devis en 2 pages, comme le modèle. */
-        .cgv-body {
-            padding: 5px 12px;
-            font-size: 8.5px;
-            line-height: 1.25;
+        table.g tr.net td.v { color: {{ $dv['or_vif'] }}; }
+
+        /* Service refacturé sans TVA : le dire sur la ligne. */
+        .svc-ht-flag { font-size: 7pt; font-style: italic; }
+
+        /* ═══ SIGNATURES ═══ */
+        table.g tr.sig td {
+            background: {{ $dv['bleu_pale'] }};
+            text-align: center;
+            vertical-align: top;
+            height: 52pt;
+            padding-top: 5pt;
+            border-color: {{ $dv['bleu'] }};
+        }
+        .trait { margin-top: 26pt; }
+        .bandeau-bas { height: 5pt; background: {{ $dv['or_vif'] }}; margin-top: 3pt; font-size: 0; line-height: 0; }
+
+        /* ═══ CONDITIONS GÉNÉRALES ═══ */
+        /* 2026-11-19 — 7pt (au lieu de 7.5pt) : un devis long (10 emplacements,
+           5 communes) tient sur 2 pages avec les polices de la charte. */
+        table.g.cg td { font-size: 7pt; padding: 1.1pt 5pt; line-height: 8.2pt; }
+        table.g.cg tr.art td {
+            background: {{ $dv['bleu_moyen'] }};
+            color: {{ $dv['blanc'] }};
+            font-family: {!! $charte['ff_titres'] !!};
+            font-weight: 700;
+            padding: 1.3pt 5pt;
+        }
+        table.g.cg tr.filet-cg td { height: 2pt; padding: 0; background: {{ $dv['or'] }}; border: 0; font-size: 1pt; line-height: 2pt; }
+        /* Police du texte en gras italique : Poppins n'est déclaré qu'en gras
+           droit, son italique retomberait sur DejaVu. */
+        .cg-site { float: right; color: {{ $dv['or_vif'] }}; font-family: {!! $charte['ff_texte'] !!}; font-style: italic; font-weight: 700; }
+        .cg ul { margin: 1pt 0 1pt 0; padding-left: 12pt; }
+        /* Article 3 : retenues alignées en colonnes, sans bordure ni gras. */
+        table.ret { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 1pt 0; }
+        table.g.cg table.ret td { border: 0; padding: 0 2pt 0 0; background: transparent; }
+
+        /* ═══ PIED FIXE (une ligne) ═══ — cf. pdf.partials.charte-footer-devis */
+        .dv-pied {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: -8mm;
+            border-top: 1pt solid {{ $dv['or_vif'] }};
+            padding-top: 1.5pt;
+            font-size: 6.5pt;
+            font-style: italic;
+            text-align: center;
+            white-space: nowrap;
             color: {{ $dv['bleu'] }};
-            border: 1px solid {{ $dv['gris'] }};
-            border-top: none;
         }
-        .cgv-body ul { margin: 2px 0 2px 18px; }
-        .cgv-body li { margin: 1px 0; }
-        .cgv-body .hi { font-weight: 700; }
     </style>
 </head>
 <body>
 
-    {{-- ═══════════════════════════════════════════════════════════════
-         PAGE 1
-    ═══════════════════════════════════════════════════════════════ --}}
-
-    {{-- HEADER (2026-11-16) : liséré or, logo, puis « DEVIS » avec le
-         numéro et la date en or — disposition du modèle officiel. Le
-         liséré 5 couleurs de la charte a été retiré de ce document : il
-         n'existe pas sur le modèle envoyé aux clients. --}}
-    <table class="header-table">
+    {{-- ═══ EN-TÊTE ═══ --}}
+    <table class="g header-table">
+        {!! $grille !!}
         <tr>
-            <td class="header-left">
+            <td class="logo" colspan="3" rowspan="3">
                 @if($logoSrc)
-                    <img src="{{ $logoSrc }}" alt="{{ $company['name'] }}">
+                    <img src="{{ $logoSrc }}" alt="{{ $societe }}">
                 @else
-                    <div class="company-name">{{ $company['name'] }}</div>
+                    <span class="titre-doc">{{ $societe }}</span>
                 @endif
             </td>
-            <td class="header-right">
-                <div class="title">DEVIS</div>
-                <div class="meta">
-                    <span class="lbl">N° :</span> <span class="val">{{ $quote->reference }}</span><br>
-                    <span class="lbl">Date :</span> <span class="val">{{ $dateEmission }}</span>
-                </div>
-            </td>
+            <td colspan="2"><span class="titre-doc">DEVIS</span></td>
+            <td colspan="2"></td>
         </tr>
+        <tr><td colspan="2">N° :</td><td colspan="2">{{ $quote->reference }}</td></tr>
+        <tr><td colspan="2">Date :</td><td colspan="2">{{ $dateEmission }}</td></tr>
     </table>
+    <div class="filet"></div>
 
-    {{-- ÉMETTEUR / CLIENT --}}
-    <table class="party-table">
-        <tr>
-            <td>
-                <div class="section-header moyen">ÉMETTEUR</div>
-                <div class="party-body">
-                    <div class="row"><strong>{{ $company['name'] ?? 'CIBLE SARL' }}</strong></div>
-                    @if(!empty($company['address']))
-                        <div class="row">{{ $company['address'] }}</div>
-                    @endif
-                    {{-- Fixe et mobile sur une seule ligne, puis les deux
-                         adresses e-mail : disposition du modèle (2026-11-17).
-                         Chaque élément reste optionnel — un .env incomplet
-                         ne doit pas laisser « Tél. : » ou « | » orphelins. --}}
-                    @if(!empty($company['phone']) || !empty($company['mobile']))
-                        <div class="row">
-                            @if(!empty($company['phone']))Tél. : {{ $company['phone'] }}@endif
-                            @if(!empty($company['phone']) && !empty($company['mobile'])) &nbsp;|&nbsp; @endif
-                            @if(!empty($company['mobile']))Mob. : {{ $company['mobile'] }}@endif
-                        </div>
-                    @endif
-                    @if(!empty($company['ncc']))
-                        <div class="row">CC : N°{{ $company['ncc'] }}</div>
-                    @endif
-                    @if(!empty($company['email_finance']) || !empty($company['email']))
-                        <div class="row">
-                            @if(!empty($company['email_finance'])){{ $company['email_finance'] }}@endif
-                            @if(!empty($company['email_finance']) && !empty($company['email'])) &nbsp;|&nbsp; @endif
-                            @if(!empty($company['email'])){{ $company['email'] }}@endif
-                        </div>
-                    @endif
-                </div>
-            </td>
-            <td>
-                <div class="section-header moyen">CLIENT / MANDATAIRE</div>
-                <div class="party-body">
-                    <div class="row"><span class="lbl">Nom :</span>{{ $quote->client?->contact_name ?? $quote->client?->name ?? '—' }}</div>
-                    <div class="row"><span class="lbl">Entreprise :</span>{{ $quote->client?->company ?? $quote->client?->name ?? '—' }}</div>
-                    <div class="row"><span class="lbl">N°CC :</span>{{ $quote->client?->ncc ?? '' }}</div>
-                    <div class="row"><span class="lbl">Tél. :</span>{{ $quote->client?->phone ?? '' }}</div>
-                    <div class="row"><span class="lbl">Email :</span>@if($quote->client?->email)<span class="link">{{ $quote->client->email }}</span>@endif</div>
-                </div>
-            </td>
-        </tr>
-    </table>
-
-    {{-- TABLEAU LIGNES PANNEAUX --}}
-    <table class="panneaux-table">
-        <thead>
-            <tr>
-                <th class="left" style="width:35%">DÉSIGNATION / EMPLACEMENT</th>
-                <th style="width:8%">Format<br>m²</th>
-                <th style="width:12%">Commune</th>
-                <th style="width:5%">Qté</th>
-                <th style="width:8%">Durée<br>(mois)</th>
-                <th style="width:13%">PU HT<br>(FCFA)</th>
-                <th style="width:13%">Montant HT<br>(FCFA)</th>
+    {{-- ═══ ÉMETTEUR / CLIENT ═══
+         Chaque coordonnée de l'émetteur fait face à un champ du client,
+         comme dans le modèle. --}}
+    <table class="g">
+        {!! $grille !!}
+        <tr class="section-header moyen"><td colspan="3">ÉMETTEUR</td><td colspan="4">CLIENT / MANDATAIRE</td></tr>
+        @foreach($clientLignes as $libelle => $valeur)
+            <tr class="lt">
+                <td colspan="3">{!! $emetteur[$loop->index] ?? '' !!}</td>
+                <td class="b" style="white-space:nowrap;padding-right:1pt;font-size:7.5pt">{{ $libelle }}</td>
+                <td colspan="3" style="background:{{ $dv['blanc'] }}">{{ $valeur }}</td>
             </tr>
-        </thead>
-        <tbody>
-            @foreach($quote->lines as $line)
-                @php
-                    // `Panel::find()` par ligne (2026-11-16) : conservé pour
-                    // retrouver l'adresse réelle quand la ligne n'en porte
-                    // pas. withTrashed() — un panneau démantelé depuis
-                    // l'émission du devis ne doit pas vider sa désignation.
-                    $panel  = $line->panel_id
-                        ? \App\Models\Panel::withTrashed()->find($line->panel_id)
-                        : null;
-                    $addr   = $panel?->adresse ?: $panel?->quartier ?: $line->designation;
-                @endphp
-                <tr>
-                    {{-- Emplacement seul (2026-11-16), comme le modèle
-                         officiel. La période et le code du panneau en ont
-                         été retirés : la période figure déjà en tête du
-                         devis, et le modèle envoyé au client ne les porte
-                         pas. --}}
-                    <td class="designation-cell">
-                        Emplacement : {{ $addr ?: ($line->snapshot_commune_name ?? '—') }}
-                    </td>
-                    <td>{{ (int) $line->dimension_m2 }}</td>
-                    <td>{{ $line->snapshot_commune_name ?: '—' }}</td>
-                    <td>{{ (int) $line->quantite }}</td>
-                    <td>{{ rtrim(rtrim(number_format((float) $line->duree_mois, 1, ',', ''), '0'), ',') }}</td>
-                    <td class="num">{{ $fmt($line->pu_ht_mensuel) }}</td>
-                    <td class="montant-ht-col">{{ $fmt($line->montant_ht_ligne) }}</td>
-                </tr>
-            @endforeach
-        </tbody>
+        @endforeach
     </table>
+    <div class="gap"></div>
 
-    {{-- Bande de sous-total brut, comme le modèle officiel : le cumul des
-         lignes avant taxes, détaché du bloc de totaux. --}}
-    <table class="bande-soustotal">
-        <tr><td>{{ $fmt($netHt) }}</td></tr>
-    </table>
-
-    {{-- SOUS-TOTAUX
-         2026-11-16 : la ligne « Total HT » faisait doublon avec
-         « Montant Total HT » — même valeur, affichée deux fois. --}}
-    <table class="subtotals">
+    {{-- ═══ EMPLACEMENTS ═══ --}}
+    <table class="g panneaux-table">
+        {!! $grille !!}
         <tr>
-            <td class="lbl">Montant Total HT</td>
-            <td class="val">{{ $fmt($netHt) }} FCFA</td>
+            <th>DÉSIGNATION / EMPLACEMENT</th>
+            <th>Format<br>m²</th>
+            <th>Commune</th>
+            <th>Qté</th>
+            <th>Durée<br>(mois)</th>
+            <th>PU HT<br>(FCFA)</th>
+            <th>Montant HT<br>(FCFA)</th>
         </tr>
-        <tr>
-            <td class="lbl">TVA ({{ $tvaRate }}%)</td>
-            <td class="val">{{ $fmt($tvaAmount) }} FCFA</td>
-        </tr>
-        <tr>
-            <td class="lbl">TSP ({{ $tspRate }}%)</td>
-            <td class="val">{{ $fmt($tspAmount) }} FCFA</td>
-        </tr>
-        <tr class="ttc">
-            <td class="lbl">MONTANT TOTAL TTC</td>
-            <td class="val">{{ $fmt($totalTtc) }} FCFA</td>
-        </tr>
-    </table>
-
-    {{-- TAXES PUBLICITAIRES --}}
-    <div class="section-header" style="margin-top:12px">Taxes publicitaires</div>
-    <table class="section-tbl no-break" style="margin-top:0;border-top:none">
-        <thead>
-            <tr>
-                <th style="width:30%">Type</th>
-                <th style="width:20%">Commune</th>
-                <th class="num" style="width:25%">PU/m²/mois</th>
-                <th class="num" style="width:25%">Montant</th>
+        @foreach($quote->lines as $line)
+            @php
+                // `Panel::find()` par ligne (2026-11-16) : conservé pour
+                // retrouver l'adresse réelle quand la ligne n'en porte
+                // pas. withTrashed() — un panneau démantelé depuis
+                // l'émission du devis ne doit pas vider sa désignation.
+                $panel  = $line->panel_id
+                    ? \App\Models\Panel::withTrashed()->find($line->panel_id)
+                    : null;
+                $addr   = $panel?->adresse ?: $panel?->quartier ?: $line->designation;
+            @endphp
+            {{-- Emplacement seul (2026-11-16), comme le modèle officiel. --}}
+            <tr class="{{ $loop->odd ? '' : 'alt' }}">
+                <td class="i">Emplacement : {{ $addr ?: ($line->snapshot_commune_name ?? '—') }}</td>
+                <td class="c">{{ (int) $line->dimension_m2 }}</td>
+                <td class="c">{{ $line->snapshot_commune_name ?: '—' }}</td>
+                <td class="c">{{ (int) $line->quantite }}</td>
+                <td class="c">{{ rtrim(rtrim(number_format((float) $line->duree_mois, 1, ',', ''), '0'), ',') }}</td>
+                <td class="r">{{ $fmt($line->pu_ht_mensuel) }}</td>
+                <td class="r">{{ $fmt($line->montant_ht_ligne) }}</td>
             </tr>
-        </thead>
-        <tbody>
-            @forelse($taxesPub as $tax)
-                <tr>
-                    <td>{{ $tax['type'] }}</td>
-                    <td>{{ $tax['commune'] }}</td>
-                    <td class="num">{{ $fmt($tax['rate']) }}</td>
-                    <td class="num">{{ $fmt($tax['montant']) }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="4" class="empty">Aucune taxe publicitaire applicable</td></tr>
-            @endforelse
-        </tbody>
-        <tfoot>
-            <tr>
-                <td colspan="3">Total Taxes Publicitaires</td>
-                <td class="num">{{ $fmt($totalTaxesPub) }} FCFA</td>
-            </tr>
-        </tfoot>
+        @endforeach
+        {{-- Barre de sous-total : le cumul des lignes avant taxes.
+             2026-11-19 — avec une remise, le cumul des lignes est le HT
+             BRUT (`amount`) : la barre affichait le net, et le PDF ne se
+             recoupait plus avec les lignes. --}}
+        <tr class="bar"><td colspan="5"></td><td colspan="2" class="r">{{ $fmt($aRemise ? $htBrut : $netHt) }}</td></tr>
     </table>
 
-    {{-- SERVICES ADDITIONNELS
-         2026-11-16 — Trois corrections :
-           · la quantité apparaît (« 30 × 20 000 = 600 000 »), le client
-             peut refaire le calcul ;
-           · la TVA des services est affichée, comme sur le modèle ;
-           · le total passe en TTC. Il était en HT alors que le MONTANT NET
-             plus bas additionne les services TTC : les chiffres du PDF ne
-             se recoupaient pas.
-         2026-11-17 — La section disparaît quand il n'y a aucun service :
-         un encadré vide annonçant qu'il n'y en a aucun attire l'œil sur
-         ce qui n'est pas vendu. --}}
+    {{-- ═══ SOUS-TOTAUX ═══ — HT, TVA, TSP, puis le TTC qui les additionne.
+         2026-11-19 — Remise : même lecture que la fiche admin et l'espace
+         client (HT brut − net HT, deux montants enregistrés), pour que
+         HT brut − remise = Montant Total HT. --}}
+    <table class="g subtotals">
+        {!! $grille !!}
+        @if($aRemise)
+            <tr><td colspan="5" class="lbl">Montant HT</td><td colspan="2" class="r">{{ $fmt($htBrut) }} FCFA</td></tr>
+            <tr><td colspan="5" class="lbl">Remise ({{ $remisePct }} %)</td><td colspan="2" class="r">− {{ $fmt($htBrut - $netHt) }} FCFA</td></tr>
+        @endif
+        <tr><td colspan="5" class="lbl">Montant Total HT</td><td colspan="2" class="r">{{ $fmt($netHt) }} FCFA</td></tr>
+        <tr><td colspan="5" class="lbl">TVA ({{ $tvaRate }}%)</td><td colspan="2" class="r">{{ $fmt($tvaAmount) }} FCFA</td></tr>
+        <tr><td colspan="5" class="lbl">TSP ({{ $tspRate }}%)</td><td colspan="2" class="r">{{ $fmt($tspAmount) }} FCFA</td></tr>
+        <tr class="ttc"><td colspan="5" class="r">MONTANT TOTAL TTC</td><td colspan="2" class="r">{{ $fmt($totalTtc) }} FCFA</td></tr>
+    </table>
+    <div class="gap"></div>
+
+    {{-- ═══ TAXES PUBLICITAIRES ═══ --}}
+    <table class="g taxes-table keep">
+        {!! $grille !!}
+        <tr class="sec"><td colspan="7">TAXES PUBLICITAIRES</td></tr>
+        {{-- Commune sur deux colonnes de la grille : « PORT-BOUET » ne tenait
+             pas dans une seule en police de la charte. --}}
+        <tr><th>Type</th><th colspan="2">Commune</th><th colspan="2"></th><th>PU/m²/mois</th><th>Montant</th></tr>
+        @forelse($taxesPub as $tax)
+            <tr>
+                <td>{{ $tax['type'] }}</td>
+                <td colspan="2" class="c">{{ $tax['commune'] }}</td>
+                <td colspan="2"></td>
+                <td class="r">{{ $fmt($tax['rate']) }}</td>
+                <td class="r">{{ $fmt($tax['montant']) }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="7" class="c i">Aucune taxe publicitaire applicable</td></tr>
+        @endforelse
+        {{-- Le libellé est gardé (2026-11-17) : un nombre seul sur la barre
+             ne dirait pas de quoi il est le total. --}}
+        <tr class="bar"><td colspan="5" class="r">Total Taxes Publicitaires</td><td colspan="2" class="r">{{ $fmt($totalTaxesPub) }} FCFA</td></tr>
+    </table>
+    <div class="gap"></div>
+
+    {{-- ═══ SERVICES ADDITIONNELS ═══
+         2026-11-16 : quantité, TVA des services et total TTC (le net les
+         additionne en TTC). 2026-11-17 : la section disparaît quand le devis
+         n'a aucun service. --}}
     @if($quote->services->isNotEmpty())
-    <div class="section-header" style="margin-top:12px">Services additionnels</div>
-    <table class="section-tbl no-thead-color no-break" style="margin-top:0;border-top:none">
-        <tbody>
-            @foreach($quote->services as $svc)
-                @php
-                    $svcQte = max(1, (int) ($svc->quantite ?: 1));
-                    $svcHt  = $svc->montantHt();
-                @endphp
-                <tr>
-                    <td style="width:45%">{{ $svc->label }}@unless($svc->tva_applicable) <span class="svc-ht-flag">(HT strict)</span>@endunless</td>
-                    <td class="center" style="width:12%">{{ $svcQte }}</td>
-                    <td class="num" style="width:21%">{{ $svc->prix_ht > 0 ? $fmt($svc->prix_ht) . ' FCFA' : 'OFFERT' }}</td>
-                    <td class="num" style="width:22%">{{ $svcHt > 0 ? $fmt($svcHt) . ' FCFA' : 'OFFERT' }}</td>
-                </tr>
-            @endforeach
-
-            {{-- TVA des services : seuls ceux qui y sont soumis comptent
-                 (interrupteur `tva_applicable`, 2026-10-30). --}}
-            @if($servicesTvaAmount > 0)
-                <tr>
-                    <td colspan="2"></td>
-                    <td class="num">TVA ({{ $tvaRate }}%)</td>
-                    <td class="num">{{ $fmt($servicesTvaAmount) }} FCFA</td>
-                </tr>
-            @endif
-        </tbody>
-        <tfoot>
+    <table class="g keep">
+        {!! $grille !!}
+        <tr class="sec"><td colspan="7">SERVICES ADDITIONNELS</td></tr>
+        @foreach($quote->services as $svc)
+            @php
+                $svcQte = max(1, (int) ($svc->quantite ?: 1));
+                $svcHt  = $svc->montantHt();
+            @endphp
             <tr>
-                <td colspan="3">Total Services Additionnels</td>
-                <td class="num">{{ $fmt($servicesTtcTot) }} FCFA</td>
+                <td>{{ $svc->label }}@unless($svc->tva_applicable) <span class="svc-ht-flag">(HT strict)</span>@endunless</td>
+                <td colspan="4" class="c">{{ $svcQte }}</td>
+                <td class="r">{{ $svc->prix_ht > 0 ? $fmt($svc->prix_ht) . ' FCFA' : 'OFFERT' }}</td>
+                <td class="r">{{ $svcHt > 0 ? $fmt($svcHt) . ' FCFA' : 'OFFERT' }}</td>
             </tr>
-        </tfoot>
+        @endforeach
+        {{-- TVA des services : seuls ceux qui y sont soumis comptent. --}}
+        @if($servicesTvaAmount > 0)
+            <tr><td></td><td colspan="4" class="c">TVA ({{ $tvaRate }}%)</td><td></td><td class="r">{{ $fmt($servicesTvaAmount) }} FCFA</td></tr>
+        @endif
+        <tr class="lt"><td colspan="5" class="r b">Total Services Additionnels</td><td colspan="2" class="r b">{{ $fmt($servicesTtcTot) }} FCFA</td></tr>
     </table>
+    <div class="gap"></div>
     @endif
 
-    {{-- MONTANT NET TOTAL À PAYER --}}
-    <table class="montant-net no-break">
-        <tr>
-            <td class="lbl-net">Montant Net Total à Payer</td>
-            <td class="val-net">{{ $fmt($totalAPayer) }} FCFA</td>
+    {{-- ═══ MONTANT NET TOTAL À PAYER ═══ --}}
+    <table class="g keep">
+        {!! $grille !!}
+        <tr class="net"><td colspan="5" class="r">MONTANT NET TOTAL À PAYER</td><td colspan="2" class="r v">{{ $fmt($totalAPayer) }} FCFA</td></tr>
+        <tr><td colspan="7" class="i">Arrêté le présent devis à la somme de : <b>{{ ucfirst($montantEnLettres($totalAPayer)) }} francs</b></td></tr>
+    </table>
+    <div class="gap"></div>
+
+    {{-- ═══ MODALITÉS DE RÈGLEMENT ═══ — d'un seul tenant. --}}
+    <table class="g keep">
+        {!! $grille !!}
+        <tr class="sec"><td colspan="7">MODALITÉS DE RÈGLEMENT</td></tr>
+        <tr class="gr"><td colspan="3" class="b">Moyens de paiement :</td><td colspan="4">Espèces · Chèque · Virement bancaire</td></tr>
+        <tr class="gr">
+            <td colspan="3" class="b">Conditions de paiement :</td>
+            <td colspan="4"><span class="box">☐</span> 100% à la commande &nbsp;&nbsp; <span class="box">☐</span> 70% à la commande + 30% à J-15 avant fin de campagne</td>
+        </tr>
+        <tr class="gr"><td colspan="3" class="b">Libellé du chèque :</td><td colspan="4">{{ $societe }}</td></tr>
+        <tr class="gr"><td colspan="3" class="b">Banque / BIC :</td><td colspan="4">{{ $bank['name'] ?? '' }}@if(!empty($bank['swift'])) &nbsp;·&nbsp; BIC : {{ $bank['swift'] }}@endif</td></tr>
+        <tr class="gr"><td colspan="3" class="b">IBAN :</td><td colspan="4">{{ $bank['iban'] ?? '' }}</td></tr>
+    </table>
+    <div class="gap"></div>
+
+    {{-- ═══ BON POUR ACCORD (page 1) ═══ — d'un seul tenant. --}}
+    <table class="g keep">
+        {!! $grille !!}
+        <tr class="sec"><td colspan="7">BON POUR ACCORD — Lu et approuvé</td></tr>
+        <tr class="sig">
+            <td colspan="3"><b>Pour {{ $societe }}</b><br><b>Directrice Commerciale</b><div class="trait">_____________________________</div></td>
+            <td colspan="4"><b>Pour l'Annonceur / Mandataire</b><br><b>Nom &amp; Fonction :</b><div class="trait">_____________________________</div></td>
         </tr>
     </table>
-    <div class="montant-lettres">
-        Arrêté le présent devis à la somme de : <strong>{{ ucfirst($montantEnLettres($totalAPayer)) }} francs</strong>
-    </div>
-
-    {{-- MODALITÉS DE RÈGLEMENT
-         Le bandeau et son tableau restent solidaires (no-break sur le
-         groupe) : sans cela le titre « Modalités de règlement » tombait
-         seul en bas de page, ses lignes sur la suivante. --}}
-    <div class="no-break">
-    <div class="section-header" style="margin-top:12px">Modalités de règlement</div>
-    <table class="modalites" style="margin-top:0;border-top:none">
-        <tr>
-            <td class="lbl">Moyens de paiement :</td>
-            <td>Espèces · Chèque · Virement bancaire</td>
-        </tr>
-        <tr>
-            <td class="lbl">Conditions de paiement :</td>
-            <td>
-                <span class="cb"></span> 100% à la commande
-                &nbsp;&nbsp;&nbsp;
-                <span class="cb"></span> 70% à la commande + 30% à J-15 avant fin de campagne
-            </td>
-        </tr>
-        <tr>
-            <td class="lbl">Libellé du chèque :</td>
-            <td>{{ $company['name'] ?? 'CIBLE SARL' }}</td>
-        </tr>
-        <tr>
-            <td class="lbl">Banque / BIC :</td>
-            <td>{{ $bank['name'] ?? '' }}@if(!empty($bank['swift'])) &nbsp;·&nbsp; BIC : {{ $bank['swift'] }}@endif</td>
-        </tr>
-        <tr>
-            <td class="lbl">IBAN :</td>
-            <td>{{ $bank['iban'] ?? '' }}</td>
-        </tr>
-    </table>
-    {{-- BON POUR ACCORD + signatures, à la suite des modalités
-         (2026-11-16). La page de signatures séparée a été supprimée : le
-         modèle officiel pose les deux cadres juste sous le bandeau. --}}
-    <div class="bon-accord">BON POUR ACCORD — Lu et approuvé</div>
-    <table class="sig-table">
-        <tr>
-            <td>
-                <div class="sig-label">Pour {{ $company['name'] ?? 'CIBLE SARL' }}</div>
-                <div class="sig-role">Directrice Commerciale</div>
-                <div class="sig-line"></div>
-            </td>
-            <td>
-                <div class="sig-label">Pour l'Annonceur / Mandataire</div>
-                <div class="sig-role">Nom &amp; Fonction :</div>
-                <div class="sig-line"></div>
-            </td>
-        </tr>
-    </table>
-    </div>{{-- /no-break : modalités + accord + signatures restent groupés --}}
-
-    {{-- ⚠ PAS de saut de page forcé ici (2026-11-17).
-         Le modèle tient en 2 pages parce que son tableau ne compte que
-         deux lignes, à la hauteur de ligne d'un tableur. Un devis Panora
-         de dix ou trente panneaux déborde forcément : forcer la coupure
-         ici produisait une page quasi vide avec les seules modalités, et
-         repoussait tout le reste d'une page.
-         Le document coule donc naturellement ; seul le bandeau jaune de
-         fin, en écho à l'en-tête, ferme la dernière page. --}}
-
-    {{-- ═══════════════════════════════════════════════════════════════
-         PAGE 2 — CONDITIONS GÉNÉRALES
-         Saut de page forcé (2026-11-17) : le devis chiffré tient sur une
-         page, les conditions sur la suivante. Les laisser s'enchaîner
-         coupait les articles au milieu, et la page 1 ne se lisait plus
-         comme le document de référence.
-    ═══════════════════════════════════════════════════════════════ --}}
-    <div class="cgv-header">
-        {{ $company['name'] ?? 'CIBLE SARL' }} — Conditions générales
-        <span class="site">www.cible-ci.com</span>
-    </div>
-
-    <div class="cgv-art-title">1. Validité du devis</div>
-    <div class="cgv-body">
-        Le présent devis est valable <strong>{{ $quote->valid_days ?? 30 }} jours calendaires</strong>
-        à compter de sa date d'émission, sous réserve de la disponibilité des emplacements à la date
-        de signature des deux parties. Passé ce délai, {{ $company['name'] ?? 'CIBLE SARL' }} se
-        réserve le droit de modifier les tarifs et/ou les disponibilités sans préavis.
-        <span class="hi">La commande n'est confirmée qu'après réception du présent devis signé,
-        cacheté par l'annonceur/mandataire, et accompagné du règlement correspondant aux conditions
-        définies ci-après.</span>
-    </div>
-
-    <div class="cgv-art-title">2. Conditions de paiement</div>
-    <div class="cgv-body">
-        Sauf conditions particulières expressément mentionnées sur ce devis, le règlement s'effectue
-        selon l'une des modalités suivantes :
-        <ul>
-            <li><strong>Option A</strong> — 100 % du montant TTC à la signature du devis / bon de commande (paiement intégral à la commande) ;</li>
-            <li><strong>Option B</strong> — 70 % du montant TTC à la signature, solde de 30 % au plus tard quinze (15) jours avant la date de fin de campagne.</li>
-        </ul>
-        La modalité applicable est cochée sur la page 1. {{ $company['name'] ?? 'CIBLE SARL' }} se
-        réserve le droit de suspendre toute prestation en cas de non-respect des délais de paiement,
-        sans que cela ne constitue un manquement contractuel de sa part.
-    </div>
-
-    <div class="cgv-art-title">3. Annulation, report et non-remboursement</div>
-    <div class="cgv-body">
-        Tout acompte ou paiement versé est <strong>NON REMBOURSABLE</strong> en cas d'annulation ou
-        de report de campagne, quelle qu'en soit la cause, à l'exception des cas de force majeure
-        dûment reconnus (voir article 4).<br>
-        En cas d'annulation confirmée par écrit, les retenues suivantes s'appliquent sur le montant total TTC :
-        <ul>
-            <li>Annulation <strong>avant J-30</strong> du démarrage → retenue de <strong>30 %</strong></li>
-            <li>Annulation <strong>entre J-30 et J-15</strong> du démarrage → retenue de <strong>50 %</strong></li>
-            <li>Annulation <strong>à moins de J-15</strong> ou en cours → retenue de <strong>100 %</strong></li>
-        </ul>
-        Un <strong>AVOIR</strong> sera émis pour le montant versé diminué de la retenue applicable.
-        Cet avoir est valable à compter de sa date d'émission sur l'exercice comptable en cours,
-        utilisable exclusivement pour toute prestation {{ $company['name'] ?? 'CIBLE SARL' }},
-        non remboursable et non cessible.
-    </div>
-
-    <div class="cgv-art-title">4. Cas de force majeure</div>
-    <div class="cgv-body">
-        Sont considérés comme cas de force majeure tout événement imprévisible, irrésistible et
-        extérieur aux parties : catastrophe naturelle, acte de guerre, émeute, décision
-        gouvernementale rendant impossible l'exécution des prestations. En cas de force majeure dûment
-        prouvée et notifiée par écrit dans les 72 heures, {{ $company['name'] ?? 'CIBLE SARL' }}
-        émettra un avoir sans retenue dans les conditions de l'article 3.
-    </div>
-
-    <div class="cgv-art-title">5. Production et livraison des visuels</div>
-    <div class="cgv-body">
-        Les frais d'impression, de pose et de dépose des visuels sont à la charge de
-        l'annonceur/mandataire, sauf mention contraire expressément indiquée sur ce devis. Les visuels
-        doivent être livrés en haute définition au moins cinq (5) jours ouvrables avant le démarrage
-        de la campagne. Tout retard de livraison imputable à l'annonceur ne donnera droit à aucun
-        report, prolongation, ni remboursement.
-    </div>
-
-    <div class="cgv-art-title">6. Taxes, impôts et redevances</div>
-    <div class="cgv-body">
-        Tous les montants sont exprimés en FCFA Hors Taxes. La <strong>TVA ({{ $tvaRate }} %)</strong>
-        et la <strong>TSP ({{ $tspRate }} %)</strong> sont appliquées conformément à la législation
-        fiscale de la République de Côte d'Ivoire. Les taxes publicitaires municipales
-        (<strong>ODP</strong> et <strong>Taxe Municipale</strong>) sont facturées séparément selon la
-        commune d'implantation du panneau. Toute modification législative entraînant une variation
-        de ces taux sera répercutée de plein droit sur les montants facturés.
-    </div>
-
-    <div class="cgv-art-title">7. Droits de timbre</div>
-    <div class="cgv-body">
-        Pour tout règlement en espèces, des droits de timbre s'appliquent conformément à la
-        réglementation fiscale ivoirienne :
-        De 0 à 5 000 FCFA : 0 FCFA · De 5 001 à 100 000 FCFA : 100 FCFA ·
-        De 100 001 à 500 000 FCFA : 500 FCFA · De 500 001 à 1 000 000 FCFA : 1 000 FCFA ·
-        De 1 000 001 à 5 000 000 FCFA : 2 000 FCFA · Au-delà de 5 000 000 FCFA : 5 000 FCFA.
-    </div>
-
-    <div class="cgv-art-title">8. Droit applicable et règlement des litiges</div>
-    <div class="cgv-body">
-        Le présent devis/contrat est régi par le <strong>droit ivoirien</strong>. En cas de litige
-        relatif à son interprétation, son exécution ou sa résiliation, les parties s'engagent à
-        rechercher une solution amiable dans les trente (30) jours suivant la notification écrite du
-        différend. À défaut d'accord amiable dans ce délai, tout litige sera soumis à la
-        <strong>compétence exclusive du Tribunal de Commerce d'Abidjan</strong>.
-    </div>
-
-    <div class="bon-accord" style="margin-top:14px">BON POUR ACCORD — Lu et approuvé, bon pour accord</div>
-
-    <table class="sig-table no-break" style="margin-top:10px">
-        <tr>
-            <td style="height:80px">
-                <div class="sig-label">Pour {{ $company['name'] ?? 'CIBLE SARL' }}</div>
-                <div class="sig-role">Directrice Commerciale</div>
-                <div class="sig-line" style="margin-top:42px"></div>
-            </td>
-            <td style="height:80px">
-                <div class="sig-label">Pour l'Annonceur / Mandataire</div>
-                <div class="sig-role">Nom &amp; Fonction :</div>
-                <div class="sig-line" style="margin-top:42px"></div>
-            </td>
-        </tr>
-    </table>
-
-    {{-- Bandeau jaune de clôture, en écho à l'en-tête du modèle. --}}
     <div class="bandeau-bas"></div>
+    <div class="gap"></div>
 
-    {{-- ═══════════════════════════════════════════════════════════════
-         FOOTER LÉGAL (fixed, apparaît sur toutes les pages)
-    ═══════════════════════════════════════════════════════════════ --}}
-    {{-- 2026-10-01 — charte graphique : pied fixe commun ; la mention légale
-         d'origine est reprise mot pour mot en 2e ligne. Pas de « Page N » CSS
-         ici : la numérotation reste confiée au script text/php ci-dessous
-         (évite un double numéro si enable_php est réactivé). --}}
+    {{-- ═══ CONDITIONS GÉNÉRALES ═══
+         ⚠ PAS de saut de page forcé (17/11, confirmé le 2026-11-19) : comme
+         dans le modèle Excel, les conditions commencent en page 1 et
+         continuent en page 2. Chaque article est une table d'un seul tenant :
+         il passe en entier sur la page suivante plutôt que d'être coupé. --}}
+    <table class="g cg keep">
+        <tr class="sec"><td>{{ mb_strtoupper($societe) }} — CONDITIONS GÉNÉRALES <span class="cg-site">www.cible-ci.com</span></td></tr>
+        <tr class="filet-cg"><td>&nbsp;</td></tr>
+    </table>
+
+    <table class="g cg keep">
+        <tr class="art"><td>1. VALIDITÉ DU DEVIS</td></tr>
+        <tr><td style="background:{{ $fondsCg[0] }}">
+            Le présent devis est valable <b>{{ $quote->valid_days ?? 30 }} jours calendaires</b>
+            à compter de sa date d'émission, sous réserve de la disponibilité des emplacements à la date
+            de signature des deux parties. Passé ce délai, {{ $societe }} se réserve le droit de modifier
+            les tarifs et/ou les disponibilités sans préavis.
+            <b>La commande n'est confirmée qu'après réception du présent devis signé, cacheté par
+            l'annonceur/mandataire, et accompagné du règlement correspondant aux conditions définies
+            ci-après.</b>
+        </td></tr>
+    </table>
+
+    <table class="g cg keep">
+        <tr class="art"><td>2. CONDITIONS DE PAIEMENT</td></tr>
+        <tr><td style="background:{{ $fondsCg[1] }}">
+            Sauf conditions particulières expressément mentionnées sur ce devis, le règlement s'effectue
+            selon l'une des modalités suivantes :
+            <ul>
+                <li><b>Option A</b> — 100 % du montant TTC à la signature du devis / bon de commande (paiement intégral à la commande) ;</li>
+                <li><b>Option B</b> — 70 % du montant TTC à la signature, solde de 30 % au plus tard quinze (15) jours avant la date de fin de campagne.</li>
+            </ul>
+            La modalité applicable est cochée sur la page 1. {{ $societe }} se réserve le droit de
+            suspendre toute prestation en cas de non-respect des délais de paiement, sans que cela ne
+            constitue un manquement contractuel de sa part.
+        </td></tr>
+    </table>
+
+    {{-- Article 3 : fond jaune, sans gras ; les trois retenues alignées en
+         colonnes dans une petite table sans bordure (cahier lot B, B5). --}}
+    <table class="g cg keep">
+        <tr class="art"><td>3. ANNULATION, REPORT ET NON-REMBOURSEMENT</td></tr>
+        <tr><td style="background:{{ $fondsCg[2] }}">
+            Tout acompte ou paiement versé est NON REMBOURSABLE en cas d'annulation ou de report de
+            campagne, quelle qu'en soit la cause, à l'exception des cas de force majeure dûment reconnus
+            (voir article 4).<br>
+            En cas d'annulation confirmée par écrit, les retenues suivantes s'appliquent sur le montant total TTC :
+            <table class="ret">
+                <tr><td style="width:3%" class="c">•</td><td style="width:44%">Annulation avant J-30 du démarrage</td><td style="width:4%" class="c"><span class="box">→</span></td><td style="width:9%">retenue de</td><td style="width:6%" class="r">30 %</td><td style="width:34%"></td></tr>
+                <tr><td class="c">•</td><td>Annulation entre J-30 et J-15 du démarrage</td><td class="c"><span class="box">→</span></td><td>retenue de</td><td class="r">50 %</td><td></td></tr>
+                <tr><td class="c">•</td><td>Annulation à moins de J-15 ou en cours</td><td class="c"><span class="box">→</span></td><td>retenue de</td><td class="r">100 %</td><td></td></tr>
+            </table>
+            Un AVOIR sera émis pour le montant versé diminué de la retenue applicable. Cet avoir est
+            valable à compter de sa date d'émission sur l'exercice comptable en cours, utilisable
+            exclusivement pour toute prestation {{ $societe }}, non remboursable et non cessible.
+        </td></tr>
+    </table>
+
+    <table class="g cg keep">
+        <tr class="art"><td>4. CAS DE FORCE MAJEURE</td></tr>
+        <tr><td style="background:{{ $fondsCg[3] }}">
+            Sont considérés comme cas de force majeure tout événement imprévisible, irrésistible et
+            extérieur aux parties : catastrophe naturelle, acte de guerre, émeute, décision
+            gouvernementale rendant impossible l'exécution des prestations. En cas de force majeure dûment
+            prouvée et notifiée par écrit dans les 72 heures, {{ $societe }} émettra un avoir sans retenue
+            dans les conditions de l'article 3.
+        </td></tr>
+    </table>
+
+    <table class="g cg keep">
+        <tr class="art"><td>5. PRODUCTION ET LIVRAISON DES VISUELS</td></tr>
+        <tr><td style="background:{{ $fondsCg[4] }}">
+            Les frais d'impression, de pose et de dépose des visuels sont à la charge de
+            l'annonceur/mandataire, sauf mention contraire expressément indiquée sur ce devis. Les visuels
+            doivent être livrés en haute définition au moins cinq (5) jours ouvrables avant le démarrage
+            de la campagne. Tout retard de livraison imputable à l'annonceur ne donnera droit à aucun
+            report, prolongation, ni remboursement.
+        </td></tr>
+    </table>
+
+    <table class="g cg keep">
+        <tr class="art"><td>6. TAXES, IMPÔTS ET REDEVANCES</td></tr>
+        <tr><td style="background:{{ $fondsCg[5] }}">
+            Tous les montants sont exprimés en FCFA Hors Taxes. La <b>TVA ({{ $tvaRate }} %)</b>
+            et la <b>TSP ({{ $tspRate }} %)</b> sont appliquées conformément à la législation
+            fiscale de la République de Côte d'Ivoire. Les taxes publicitaires municipales
+            (<b>ODP</b> et <b>Taxe Municipale</b>) sont facturées séparément selon la
+            commune d'implantation du panneau. Toute modification législative entraînant une variation
+            de ces taux sera répercutée de plein droit sur les montants facturés.
+        </td></tr>
+    </table>
+
+    <table class="g cg keep">
+        <tr class="art"><td>7. DROITS DE TIMBRE</td></tr>
+        <tr><td style="background:{{ $fondsCg[6] }}">
+            Pour tout règlement en espèces, des droits de timbre s'appliquent conformément à la
+            réglementation fiscale ivoirienne :
+            De 0 à 5 000 FCFA : 0 FCFA · De 5 001 à 100 000 FCFA : 100 FCFA ·
+            De 100 001 à 500 000 FCFA : 500 FCFA · De 500 001 à 1 000 000 FCFA : 1 000 FCFA ·
+            De 1 000 001 à 5 000 000 FCFA : 2 000 FCFA · Au-delà de 5 000 000 FCFA : 5 000 FCFA.
+        </td></tr>
+    </table>
+
+    <table class="g cg keep">
+        <tr class="art"><td>8. DROIT APPLICABLE ET RÈGLEMENT DES LITIGES</td></tr>
+        <tr><td style="background:{{ $fondsCg[7] }}">
+            Le présent devis/contrat est régi par le <b>droit ivoirien</b>. En cas de litige
+            relatif à son interprétation, son exécution ou sa résiliation, les parties s'engagent à
+            rechercher une solution amiable dans les trente (30) jours suivant la notification écrite du
+            différend. À défaut d'accord amiable dans ce délai, tout litige sera soumis à la
+            <b>compétence exclusive du Tribunal de Commerce d'Abidjan</b>.
+        </td></tr>
+    </table>
+    <div class="gap"></div>
+
+    {{-- ═══ BON POUR ACCORD (fin des conditions) ═══ — d'un seul tenant. --}}
+    <table class="g keep">
+        {!! $grille !!}
+        <tr class="sec"><td colspan="7">BON POUR ACCORD — Lu et approuvé, bon pour accord</td></tr>
+        <tr class="sig">
+            <td colspan="3"><b>Pour {{ $societe }}</b><br><b>Directrice Commerciale</b><div class="trait">_____________________________</div></td>
+            <td colspan="4"><b>Pour l'Annonceur / Mandataire</b><br><b>Nom &amp; Fonction :</b><div class="trait">_____________________________</div></td>
+        </tr>
+    </table>
+
+    {{-- ═══ PIED FIXE ═══ (05/11 : le devis garde son pied ; une seule
+         ligne depuis le 2026-11-19). Mention légale du modèle officiel. --}}
     @include('pdf.partials.charte-footer-devis', [
-        'footerHint' => ($company['name'] ?? 'CIBLE SARL') . ' — Capital : 10 000 000 FCFA'
-            . ' · ' . ($company['address'] ?? '')
-            . ' · Tél. ' . ($company['phone'] ?? '')
-            . ' · ' . ($company['email'] ?? ''),
-        'footerPage' => false,
+        'footerHint' => implode('  |  ', array_filter([
+            $societe . ' — Capital : 10 000 000 FCFA',
+            $company['address'] ?? null,
+            !empty($company['phone'])  ? 'Tél. ' . $company['phone']  : null,
+            !empty($company['mobile']) ? 'Mob. ' . $company['mobile'] : null,
+            $company['email'] ?? null,
+        ])),
     ])
-
-    {{-- Numérotation "Page X sur Y" (DomPDF spécifique) --}}
-    <script type="text/php">
-        if (isset($pdf)) {
-            $pdf->page_text(
-                520, 815,
-                "Page {PAGE_NUM} sur {PAGE_COUNT}",
-                null, 8, [100, 100, 100]
-            );
-        }
-    </script>
 </body>
 </html>

@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Quote;
 use App\Services\AlertService;
 use App\Services\QuoteConverter;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -55,7 +54,8 @@ class ClientQuoteController extends Controller
         abort_unless($this->appartientAuClient($quote), 403);
 
         $quote->load(['client', 'commercial', 'lines', 'services']);
-        $pdf = Pdf::loadView('pdf.quote', ['quote' => $quote])->setPaper('A4', 'portrait');
+        // Rendu commun aux quatre chemins du PDF devis (2026-11-19).
+        $pdf = app(\App\Services\QuotePdf::class)->pdf($quote);
         return $pdf->download("devis-{$quote->reference}.pdf");
     }
 
