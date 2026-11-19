@@ -95,6 +95,17 @@
         ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
         : null;
 
+    // Cachet et signature de la Directrice Commerciale (2026-11-19) : sur
+    // chaque devis généré, dans les deux cadres « Pour CIBLE SARL ». Disque
+    // privé (config devis.cachet_signature), intégré en base64. Fichier
+    // absent : cadre vide, comme avant.
+    $cachetChemin = (string) config('devis.cachet_signature', 'signatures/directrice.png');
+    $cachetDisque = \Illuminate\Support\Facades\Storage::disk('local');
+    $cachetSrc    = $cachetChemin !== '' && $cachetDisque->exists($cachetChemin)
+        ? 'data:' . ($cachetDisque->mimeType($cachetChemin) ?: 'image/png') . ';base64,'
+            . base64_encode($cachetDisque->get($cachetChemin))
+        : null;
+
     // Coordonnées de l'émetteur, ligne à ligne en face des champs du client
     // (disposition du modèle). Chaque élément reste optionnel : un .env
     // incomplet ne doit pas laisser « Tél. : » ou « | » orphelins.
@@ -361,6 +372,11 @@
             border-color: {{ $dv['bleu'] }};
         }
         .trait { margin-top: 26pt; }
+        /* Cachet signé (2026-11-19) : il chevauche le trait, comme sur le
+           devis papier ; le cadre ne grandit que de quelques points. */
+        .cachet { margin-top: -3pt; height: 46pt; }
+        .cachet img { height: 46pt; }
+        .trait-cachet { margin-top: -16pt; }
         .bandeau-bas { height: 5pt; background: {{ $dv['or_vif'] }}; margin-top: 3pt; font-size: 0; line-height: 0; }
 
         /* ═══ CONDITIONS GÉNÉRALES ═══ */
@@ -575,7 +591,7 @@
         {!! $grille !!}
         <tr class="sec"><td colspan="7">BON POUR ACCORD — Lu et approuvé</td></tr>
         <tr class="sig">
-            <td colspan="3"><b>Pour {{ $societe }}</b><br><b>Directrice Commerciale</b><div class="trait">_____________________________</div></td>
+            <td colspan="3"><b>Pour {{ $societe }}</b><br><b>Directrice Commerciale</b>@if($cachetSrc)<div class="cachet"><img src="{{ $cachetSrc }}" alt=""></div>@endif<div class="trait{{ $cachetSrc ? ' trait-cachet' : '' }}">_____________________________</div></td>
             <td colspan="4"><b>Pour l'Annonceur / Mandataire</b><br><b>Nom &amp; Fonction :</b><div class="trait">_____________________________</div></td>
         </tr>
     </table>
@@ -702,7 +718,7 @@
         {!! $grille !!}
         <tr class="sec"><td colspan="7">BON POUR ACCORD — Lu et approuvé, bon pour accord</td></tr>
         <tr class="sig">
-            <td colspan="3"><b>Pour {{ $societe }}</b><br><b>Directrice Commerciale</b><div class="trait">_____________________________</div></td>
+            <td colspan="3"><b>Pour {{ $societe }}</b><br><b>Directrice Commerciale</b>@if($cachetSrc)<div class="cachet"><img src="{{ $cachetSrc }}" alt=""></div>@endif<div class="trait{{ $cachetSrc ? ' trait-cachet' : '' }}">_____________________________</div></td>
             <td colspan="4"><b>Pour l'Annonceur / Mandataire</b><br><b>Nom &amp; Fonction :</b><div class="trait">_____________________________</div></td>
         </tr>
     </table>
