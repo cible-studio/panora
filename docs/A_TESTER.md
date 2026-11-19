@@ -3157,3 +3157,4 @@ Les 4 chemins du PDF (bouton admin, espace client, lien public, pièce jointe du
 - [ ] Devis long (8 à 10 emplacements) : la 2e signature tient en bas de la page 2
 - [ ] Le même PDF depuis l'espace client, le lien public et la pièce jointe du mail d'envoi
 - [ ] La facture FNE n'a pas bougé (polices, pied, mise en page)
+- [ ] **Désignations en italique** : même police que le reste (Nunito), pas une police plus large qui fait passer chaque emplacement sur 3 lignes. Sinon, c'est le cache de polices DomPDF qui est périmé : il pointe vers des fichiers supprimés (constaté le 19/11 sur un poste de test). Dans ce cas, renommer `storage/fonts/installed-fonts.json` sur le serveur, puis régénérer le PDF : DomPDF reconstruit le cache.
