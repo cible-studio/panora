@@ -44,7 +44,7 @@ class LigneCliquableTest extends TestCase
             // mairies, sur l'exercice affiché).
             'taxes'        => ['taxes/index.blade.php',             'taxes/index.blade.php',                      '${ficheUrl(c.commune_id)}'],
             // Suivi des mairies (2026-11-16).
-            'suivi_mairies' => ['taxes/suivi/index.blade.php',      'taxes/suivi/index.blade.php',                "{{ route('admin.taxes.suivi.commune', ['commune' => \$l['commune_id'], 'exercice' => \$exercice]) }}"],
+            'suivi_mairies' => ['taxes/suivi/index.blade.php',      'taxes/suivi/partials/tableau.blade.php',                "{{ route('admin.taxes.suivi.commune', ['commune' => \$l['commune_id'], 'exercice' => \$exercice]) }}"],
         ];
     }
 
