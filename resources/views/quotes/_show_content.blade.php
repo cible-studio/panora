@@ -185,7 +185,14 @@
         </div>
     @endif
 
-    {{-- ═══════════════════ TOTAUX ═══════════════════ --}}
+    {{-- ═══════════════════ TOTAUX ═══════════════════
+         2026-11-19 — même lecture que le PDF que le client télécharge :
+         HT, TVA, TSP, TTC (= net HT + TVA + TSP, valeur enregistrée),
+         taxes publicitaires (TM + ODP), services, total.
+         La TVA des services vient de Quote::tvaServices(), la source
+         unique de la fiche admin et du PDF. Avant, cet écran taxait TOUS
+         les services en bloc, y compris ceux refacturés hors TVA : il
+         annonçait une TVA différente du PDF. --}}
     <div class="qw-card">
         <div style="font-size:15px;font-weight:800;margin-bottom:10px">💰 Totaux</div>
         <table class="qw-totals" style="width:100%">
@@ -193,11 +200,17 @@
             @if($quote->remise_pct > 0)
                 <tr><td class="lbl">Remise ({{ number_format($quote->remise_pct, 2, ',', '') }}%)</td><td class="val" style="color:#dc2626">- {{ number_format($quote->amount - $quote->net_ht, 0, ',', ' ') }}</td></tr>
             @endif
+            <tr><td class="lbl">TVA ({{ (int) $quote->tva }}%)</td><td class="val">{{ number_format($quote->tva_amount, 0, ',', ' ') }}</td></tr>
+            <tr><td class="lbl">TSP</td><td class="val">{{ number_format($quote->tsp_amount, 0, ',', ' ') }}</td></tr>
+            <tr><td class="lbl" style="font-weight:700;color:#0f172a">Total TTC</td><td class="val">{{ number_format($quote->amount_ttc, 0, ',', ' ') }}</td></tr>
+            <tr><td class="lbl">Taxes publicitaires (TM, ODP)</td><td class="val">{{ number_format($quote->tm_total + $quote->odp_total, 0, ',', ' ') }}</td></tr>
             @if($quote->services_ht_total > 0)
+                @php $tvaServices = $quote->tvaServices(); @endphp
                 <tr><td class="lbl">Services HT</td><td class="val">{{ number_format($quote->services_ht_total, 0, ',', ' ') }}</td></tr>
+                @if($tvaServices > 0)
+                    <tr><td class="lbl">TVA services ({{ (int) $quote->tva }}%)</td><td class="val">{{ number_format($tvaServices, 0, ',', ' ') }}</td></tr>
+                @endif
             @endif
-            <tr><td class="lbl">TVA ({{ (int) $quote->tva }}%)</td><td class="val">{{ number_format($quote->tva_amount + (int) round($quote->services_ht_total * ((float) $quote->tva / 100)), 0, ',', ' ') }}</td></tr>
-            <tr><td class="lbl">Autres taxes (ODP, TM, TSP)</td><td class="val">{{ number_format($quote->tsp_amount + $quote->tm_total + $quote->odp_total, 0, ',', ' ') }}</td></tr>
             <tr class="grand"><td>TOTAL À PAYER</td><td class="val" style="text-align:right">{{ number_format($quote->total_a_payer, 0, ',', ' ') }} FCFA</td></tr>
         </table>
     </div>

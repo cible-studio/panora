@@ -1072,7 +1072,7 @@ class QuoteController extends Controller
      * mémoire. Un formulaire incomplet renvoie des totaux à zéro plutôt
      * qu'une erreur de validation.
      */
-    public function totaux(Request $request, InvoiceCalculator $calculator): \Illuminate\Http\JsonResponse
+    public function totaux(Request $request, InvoiceCalculator $calculator, QuoteBuilder $builder): \Illuminate\Http\JsonResponse
     {
         $this->authorize('create', Quote::class);
 
@@ -1113,7 +1113,7 @@ class QuoteController extends Controller
         }
 
         $services = [];
-        foreach ((array) $request->input('services', []) as $s) {
+        foreach ((array) $request->input('services', []) as $cle => $s) {
             $label = trim((string) ($s['label'] ?? ''));
             $prix  = (float) ($s['prix_ht'] ?? 0);
             if ($label === '' || $prix <= 0) {
@@ -1123,6 +1123,10 @@ class QuoteController extends Controller
             // devis saisi avant ce champ reste identique.
             $qte = max(1, (int) ($s['quantite'] ?? 1));
             $services[] = [
+                // Clé de la ligne dans le formulaire (services[<clé>][…]) :
+                // le navigateur y affiche le HT et le TTC renvoyés ici, sans
+                // les recalculer (2026-11-19).
+                'cle'            => (string) $cle,
                 'label'          => $label,
                 'quantite'       => $qte,
                 'prix_ht'        => $prix,
@@ -1132,7 +1136,9 @@ class QuoteController extends Controller
             ];
         }
 
-        $totaux = $calculator->calculateInvoice($lignes, [
+        // Totaux du devis, TTC compris (= net HT + TVA + TSP, 2026-11-19) :
+        // la même méthode qu'à l'enregistrement (QuoteBuilder::totaux).
+        $totaux = $builder->totaux($lignes, [
             'remise_pct' => (float) $request->input('remise_pct', 0),
             'services'   => $services ?: null,
         ]);
@@ -1145,7 +1151,10 @@ class QuoteController extends Controller
             // Le détail nommé des services (2026-10-30) : un montant
             // global ne dit pas d'où il vient. Le TTC est calculé ici,
             // avec la même règle que le total — jamais côté navigateur.
+            // Le formulaire affiche aussi `ht` et `ttc` sur la ligne du
+            // service, repérée par `cle` (2026-11-19).
             'services' => array_map(fn (array $s) => [
+                'cle'            => $s['cle'],
                 'label'          => $s['label'],
                 'tva_applicable' => $s['tva_applicable'],
                 'quantite'       => $s['quantite'],
@@ -1153,7 +1162,7 @@ class QuoteController extends Controller
                 // `ht` reste le montant de la LIGNE (quantité comprise) :
                 // c'est ce que l'écran additionne.
                 'ht'             => (int) round($s['montant_ht']),
-                'ttc'            => (int) round($s['tva_applicable'] ? $s['montant_ht'] * (1 + $tva / 100) : $s['montant_ht']),
+                'ttc'            => \App\Models\QuoteService::ttcPour($s['montant_ht'], $s['tva_applicable'], $tva),
             ], $services),
         ]);
     }

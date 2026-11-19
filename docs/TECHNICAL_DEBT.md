@@ -778,3 +778,19 @@ sur `AvailabilityService::getPanelAvailabilityData()`, qui rend déjà
 `available` / `release_date` / `blocking_status` par panneau. Le risque est
 la régression d'affichage sur un écran très utilisé : à faire avec des
 captures avant/après sur la vraie base.
+
+### Devis : deux restes repérés pendant le lot « TTC avec TSP » (constaté 2026-11-19)
+
+1. **Les listes de services affichent le prix unitaire, pas le montant de
+   la ligne.** C'est le cas sur la fiche admin
+   (`admin/quotes/show.blade.php`, vers la l. 124) et sur l'espace client
+   et le lien public (`quotes/_show_content.blade.php`, vers la l. 181) :
+   les deux affichent `prix_ht`. Depuis l'ajout de la quantité (16/11), un
+   service « 30 × 20 000 » s'y lit 20 000, alors que le total, lui, compte
+   600 000. Le PDF est juste. À corriger avec `montantHt()`, après accord.
+2. **Une formule TTC est encore recopiée en JavaScript dans le formulaire
+   de facture** (`admin/invoices/partials/_form-fne.blade.php`, vers la
+   l. 2093), ce que CLAUDE.md interdit. Le formulaire de devis ne recalcule
+   plus rien depuis le 19/11 : il lit le TTC renvoyé par
+   `QuoteController::totaux`. Côté facture, à brancher de la même façon sur
+   le serveur, sans changer la règle de la facture FNE.

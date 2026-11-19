@@ -163,7 +163,13 @@
                 @endif
             </div>
 
-            {{-- Bloc totaux --}}
+            {{-- Bloc totaux
+                 2026-11-19 — même ordre que le PDF : HT, TVA, TSP, puis le
+                 TTC (= net HT + TVA + TSP, valeur enregistrée), les taxes
+                 publicitaires (TM, ODP), les services et le total. La TVA
+                 des services a sa propre ligne : la TVA du haut est celle
+                 des panneaux, pour que HT + TVA + TSP redonne le TTC.
+                 Le total ne change pas : TTC + TM + ODP + services TTC. --}}
             <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">
                 <div style="font-weight:700;margin-bottom:10px;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Totaux</div>
                 <table style="width:100%;font-size:13px">
@@ -172,27 +178,24 @@
                         <tr><td style="padding:4px 0;color:var(--text2)">Remise ({{ number_format($quote->remise_pct, 2, ',', '') }}%)</td><td style="text-align:right;color:#dc2626">- {{ number_format($quote->amount - $quote->net_ht, 0, ',', ' ') }}</td></tr>
                         <tr><td style="padding:4px 0;color:var(--text2)">Net HT panneaux</td><td style="text-align:right">{{ number_format($quote->net_ht, 0, ',', ' ') }}</td></tr>
                     @endif
-                    @if($quote->services_ht_total > 0)
-                        <tr><td style="padding:4px 0;color:var(--text2)">Services HT</td><td style="text-align:right">{{ number_format($quote->services_ht_total, 0, ',', ' ') }}</td></tr>
-                    @endif
-                    @php
-                        // TVA des services (2026-11-16) : on ne taxe que les
-                        // services qui le sont. Avant, l'écran appliquait la
-                        // TVA à services_ht_total en bloc, en ignorant
-                        // l'interrupteur `tva_applicable` posé le 30/10 — un
-                        // service refacturé HT était donc taxé ici, et pas
-                        // dans le PDF ni dans la facture. Le montant de
-                        // chaque service tient compte de sa quantité.
-                        $tauxQuote  = (float) $quote->tva;
-                        $servicesHtTaxes = (int) $quote->services
-                            ->filter(fn ($s) => (bool) $s->tva_applicable)
-                            ->sum(fn ($s) => $s->montantHt());
-                        $tvaServices = (int) round($servicesHtTaxes * $tauxQuote / 100);
-                    @endphp
-                    <tr><td style="padding:4px 0;color:var(--text2)">TVA ({{ (int) $quote->tva }}%)</td><td style="text-align:right">{{ number_format($quote->tva_amount + $tvaServices, 0, ',', ' ') }}</td></tr>
+                    <tr><td style="padding:4px 0;color:var(--text2)">TVA ({{ (int) $quote->tva }}%)</td><td style="text-align:right">{{ number_format($quote->tva_amount, 0, ',', ' ') }}</td></tr>
                     <tr><td style="padding:4px 0;color:var(--text2)">TSP</td><td style="text-align:right">{{ number_format($quote->tsp_amount, 0, ',', ' ') }}</td></tr>
+                    <tr><td style="padding:4px 0;font-weight:700">Total TTC panneaux</td><td style="text-align:right;font-weight:700">{{ number_format($quote->amount_ttc, 0, ',', ' ') }}</td></tr>
                     <tr><td style="padding:4px 0;color:var(--text2)">TM</td><td style="text-align:right">{{ number_format($quote->tm_total, 0, ',', ' ') }}</td></tr>
                     <tr><td style="padding:4px 0;color:var(--text2)">ODP</td><td style="text-align:right">{{ number_format($quote->odp_total, 0, ',', ' ') }}</td></tr>
+                    @if($quote->services_ht_total > 0)
+                        @php
+                            // TVA des services : Quote::tvaServices(), la source
+                            // unique (2026-11-19) — seuls les services soumis à
+                            // TVA la portent, quantité comprise. Même valeur
+                            // que le PDF, l'espace client et le lien public.
+                            $tvaServices = $quote->tvaServices();
+                        @endphp
+                        <tr><td style="padding:4px 0;color:var(--text2)">Services HT</td><td style="text-align:right">{{ number_format($quote->services_ht_total, 0, ',', ' ') }}</td></tr>
+                        @if($tvaServices > 0)
+                            <tr><td style="padding:4px 0;color:var(--text2)">TVA services ({{ (int) $quote->tva }}%)</td><td style="text-align:right">{{ number_format($tvaServices, 0, ',', ' ') }}</td></tr>
+                        @endif
+                    @endif
                     <tr style="border-top:2px solid var(--border);background:var(--accent);color:#fff">
                         <td style="padding:8px 6px;font-weight:800">TOTAL À PAYER</td>
                         <td style="padding:8px 6px;text-align:right;font-weight:800;font-size:16px">{{ number_format($quote->total_a_payer, 0, ',', ' ') }}</td>

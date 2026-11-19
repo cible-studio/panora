@@ -3112,3 +3112,25 @@ Correctif lié : un panneau à **démarrage différé** n'est plus vérifié ava
 
 ### Laissé de côté
 - [ ] L'avertissement « déjà en option » reste à l'écran seulement (pas d'alerte au commercial de l'autre dossier) — choix par défaut gardé le 19/11
+
+## § 41 — Devis : TTC avec TSP, TVA des services côté client, quantité des services *(2026-11-19)*
+
+Règles validées par écrit le 19/11 :
+1. **TTC du devis = net HT + TVA + TSP**, pour le DEVIS seulement. La facture FNE ne change pas. Le net à payer est identique entre le devis et la facture.
+2. **Rien de rétroactif** : un devis prend le nouveau TTC à son prochain enregistrement. Les devis déjà enregistrés gardent leur TTC d'origine (HT + TVA).
+3. **L'espace client et le lien public** utilisent le même calcul de TVA des services que la fiche admin et le PDF (`Quote::tvaServices()`).
+
+Corrigé au passage : en modification, la quantité des services revenait à 1. Réenregistrer le devis faisait baisser le net.
+
+### Liste des devis enregistrés avant la règle (sur dev, puis prod)
+- [ ] Structure : `php artisan tinker --execute='echo DB::select("SHOW CREATE TABLE quotes")[0]->{"Create Table"}, PHP_EOL;'`
+- [ ] Liste (TTC actuel ≠ HT + TVA + TSP ; `ecart_net` doit valoir 0) : requête donnée le 19/11, à rejouer. Ces devis gardent leur TTC : on ne recalcule rien sans décision.
+
+### À vérifier (dev, puis prod)
+- [ ] Formulaire, cas ILUX : ligne « TSP » puis « Total TTC » 5 808 000 ; total 6 236 400 (inchangé)
+- [ ] Formulaire, service « 30 × 20 000 » avec TVA : la ligne affiche 600 000 HT et 708 000 TTC, renvoyés par le serveur ; supprimer la ligne relance le récapitulatif
+- [ ] Modifier un devis qui a un service en quantité 30 : le champ Qté affiche 30, et le net reste le même après l'enregistrement
+- [ ] Brouillon réenregistré : sur le PDF, HT + TVA + TSP = TTC ; net inchangé
+- [ ] Fiche admin : TTC panneaux + TM + ODP + services HT + TVA services = total à payer
+- [ ] Espace client et lien public, devis avec un service « HT » : sa TVA n'est plus comptée ; même TVA que le PDF
+- [ ] Facture issue d'un devis : même net que le devis ; son TTC reste HT + TVA (la TSP est dans les autres taxes)

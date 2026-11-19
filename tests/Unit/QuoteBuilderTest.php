@@ -53,6 +53,10 @@ class QuoteBuilderTest extends TestCase
         $quote = app(QuoteBuilder::class)->recalculateAndPersist($quote->fresh());
 
         $this->assertSame(120000, (int) $quote->amount);
-        $this->assertGreaterThan(0, (int) $quote->amount_ttc);
+        // TTC du devis = net HT + TVA + TSP (règle du 2026-11-19) :
+        // 120 000 + 21 600 + 3 600. « > 0 » ne vérifiait pas la règle.
+        $this->assertSame(145200, (int) $quote->amount_ttc);
+        // Net inchangé : TTC + TM (1 000 × 12 m² × 1 mois, taux par défaut).
+        $this->assertSame(157200, (int) $quote->total_a_payer);
     }
 }

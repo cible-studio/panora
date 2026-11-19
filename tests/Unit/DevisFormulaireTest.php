@@ -127,7 +127,9 @@ class DevisFormulaireTest extends TestCase
         $this->assertStringContainsString('chargerTotaux', $source);
 
         // Aucune des formules du calculateur ne doit apparaître côté client.
-        foreach (['1.18', '* 1.18', 'odp_rate', 'tm_rate', '/ 100 * 18'] as $formule) {
+        // « (1 + taux / 100) » : TTC des services, recalculé en JavaScript
+        // jusqu'au 2026-11-19 ; il vient désormais du serveur.
+        foreach (['1.18', '* 1.18', 'odp_rate', 'tm_rate', '/ 100 * 18', '(1 + taux / 100)'] as $formule) {
             $this->assertStringNotContainsString($formule, $source,
                 "La formule « {$formule} » ne doit pas être recopiée en JavaScript.");
         }
@@ -271,7 +273,9 @@ class DevisFormulaireTest extends TestCase
         $source = file_get_contents(base_path('app/Http/Controllers/Admin/QuoteController.php'));
 
         $this->assertStringContainsString("'services' => array_map(", $source);
-        $this->assertStringContainsString("'ttc'            => (int) round(", $source);
+        // 2026-11-19 : la règle vit dans QuoteService::ttcPour(), partagée
+        // avec QuoteService::montantTtc() — plus de formule recopiée ici.
+        $this->assertStringContainsString("'ttc'            => \\App\\Models\\QuoteService::ttcPour(", $source);
     }
 
     public function test_la_facture_affiche_aussi_le_total_ht_des_services(): void
@@ -285,6 +289,20 @@ class DevisFormulaireTest extends TestCase
         $this->assertStringContainsString('Total services TTC', $source);
         // Et elle continue de nommer chaque service.
         $this->assertStringContainsString('rec-svc-detail', $source);
+    }
+
+    public function test_la_modification_garde_la_quantite_des_services(): void
+    {
+        // 2026-11-19 — en modification, les services étaient rechargés sans
+        // leur quantité : le champ revenait à 1 et réenregistrer le devis
+        // faisait baisser le net sans prévenir.
+        $source = $this->formulaire();
+        $debut  = strpos($source, '$quote->services->map(fn($s) => [');
+        $this->assertNotFalse($debut, 'rechargement des services introuvable');
+        $bloc = substr($source, $debut, 600);
+        $this->assertStringContainsString("'quantite'       => \$s->quantite,", $bloc);
+        $this->assertStringContainsString("value=\"{{ max(1, (int) (\$s['quantite'] ?? 1)) }}\"", $source,
+            'le champ Qté lit la quantité rechargée');
     }
 
     private function formulaire(): string

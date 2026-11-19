@@ -92,20 +92,23 @@
     $netHt         = (int) $quote->net_ht;
     $tvaAmount     = (int) $quote->tva_amount;
     $tspAmount     = (int) $quote->tsp_amount;
-    $totalTtc      = (int) $quote->amount_ttc;      // panneaux HT + TVA + TSP
+    // TTC du devis = net HT + TVA + TSP (règle du 2026-11-19, écrite par
+    // QuoteBuilder::totaux). Valeur STOCKÉE, lue telle quelle : un devis
+    // enregistré avant cette règle garde son TTC d'origine (HT + TVA)
+    // jusqu'à son prochain enregistrement — rien n'est recalculé ici.
+    $totalTtc      = (int) $quote->amount_ttc;
     $servicesHtTot = (int) $quote->services_ht_total;
-    $totalAPayer   = (int) $quote->total_a_payer;   // TTC + Taxes pub + Services
+    // Net = TTC + Taxes pub (TM + ODP) + Services TTC. La TSP est dans le
+    // TTC : elle n'est pas rajoutée une seconde fois.
+    $totalAPayer   = (int) $quote->total_a_payer;
 
     // TVA et TTC des services (2026-11-16).
     // Seuls les services soumis à TVA la portent (interrupteur
     // `tva_applicable`, 2026-10-30) ; montantHt() tient compte de la
-    // quantité. Ces deux montants ne sont pas des colonnes de `quotes` :
-    // on les recompose ici avec la MÊME règle que InvoiceCalculator, pour
-    // que le détail affiché redonne exactement le total net.
-    $servicesHtTaxes   = (int) $quote->services
-        ->filter(fn ($s) => (bool) $s->tva_applicable)
-        ->sum(fn ($s) => $s->montantHt());
-    $servicesTvaAmount = (int) round($servicesHtTaxes * ((float) $quote->tva) / 100);
+    // quantité. La TVA vient de Quote::tvaServices() (2026-11-19), la
+    // source unique que lisent aussi la fiche admin, l'espace client et
+    // le lien public.
+    $servicesTvaAmount = $quote->tvaServices();
     $servicesTtcTot    = $servicesHtTot + $servicesTvaAmount;
 
     // Somme en toutes lettres (français, jusqu'aux millions)
