@@ -183,10 +183,17 @@ class DevisPdfModeleOfficielTest extends TestCase
             "La TVA des services doit apparaître, comme sur le modèle."
         );
 
-        // Seuls les services soumis à TVA la portent.
+        // Seuls les services soumis à TVA la portent. Depuis le 2026-11-19
+        // la règle vit dans Quote::tvaServices(), source unique du PDF, de
+        // la fiche admin, de l'espace client et du lien public.
+        $this->assertStringContainsString(
+            '$quote->tvaServices()',
+            $src,
+            "Le PDF doit lire la TVA des services dans Quote::tvaServices()."
+        );
         $this->assertStringContainsString(
             'filter(fn ($s) => (bool) $s->tva_applicable)',
-            $src,
+            $this->src('app/Models/Quote.php'),
             "La TVA des services ne doit frapper que ceux qui y sont "
             . "soumis (interrupteur du 2026-10-30)."
         );
@@ -208,10 +215,17 @@ class DevisPdfModeleOfficielTest extends TestCase
             . "facture."
         );
 
+        // 2026-11-19 : l'écran lit la source unique, qui compte la quantité
+        // de chaque service (montantHt()).
+        $this->assertStringContainsString(
+            '$quote->tvaServices()',
+            $src,
+            "L'écran doit lire la TVA des services dans Quote::tvaServices()."
+        );
         $this->assertStringContainsString(
             '$s->montantHt()',
-            $src,
-            "L'écran doit compter la quantité de chaque service."
+            $this->src('app/Models/Quote.php'),
+            "La TVA des services doit compter la quantité de chaque service."
         );
     }
 

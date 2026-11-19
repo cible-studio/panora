@@ -13,6 +13,9 @@ use App\Models\QuoteLine;
  * sur son devis puis sur sa facture finale. Utiliser 2 calculators
  * différents = risque de divergence → un seul calculator, appelé par
  * QuoteBuilder ici et par InvoiceCalculator::recalculateAndPersist().
+ *
+ * Une seule différence, voulue (2026-11-19) : le TTC du devis inclut la
+ * TSP (cf. totaux()). Le net à payer, lui, est strictement le même.
  */
 class QuoteBuilder
 {
@@ -72,7 +75,7 @@ class QuoteBuilder
             'tva_applicable' => (bool) $s->tva_applicable,
         ])->all();
 
-        $totals = $this->calculator->calculateInvoice($linesArr, [
+        $totals = $this->totaux($linesArr, [
             'remise_pct' => (float) $quote->remise_pct,
             'services'   => !empty($svcArr) ? $svcArr : null,
         ]);
@@ -88,5 +91,37 @@ class QuoteBuilder
 
         $quote->forceFill($totals)->save();
         return $quote->fresh(['lines', 'services']);
+    }
+
+    /**
+     * Totaux d'un devis — SOURCE UNIQUE (2026-11-19), appelée à
+     * l'enregistrement (recalculateAndPersist) et par le récapitulatif en
+     * direct du formulaire (QuoteController::totaux).
+     *
+     * Ce sont les totaux de la facture (InvoiceCalculator), sauf le TTC :
+     *
+     *   TTC du devis = net HT + TVA + TSP
+     *
+     * Règle validée par écrit le 2026-11-19, pour le DEVIS SEULEMENT. La
+     * facture FNE garde TTC = net HT + TVA, la TSP restant dans ses
+     * « autres taxes » : InvoiceCalculator n'est pas modifié.
+     *
+     * Le total à payer n'est PAS recalculé ici : c'est celui du calculateur,
+     * qui compte déjà la TSP une fois (net HT + TVA + TSP + TM + ODP +
+     * services TTC). Le net du devis reste donc, au franc près, celui de la
+     * facture qui en découlera. Lu à partir du TTC du devis :
+     *   total à payer = TTC + TM + ODP + services TTC (sans rajouter la TSP).
+     *
+     * Sans effet de bord : calcule et retourne, ne persiste rien.
+     */
+    public function totaux(array $lines, array $opts = []): array
+    {
+        $totals = $this->calculator->calculateInvoice($lines, $opts);
+
+        $totals['amount_ttc'] = (int) $totals['net_ht']
+            + (int) $totals['tva_amount']
+            + (int) $totals['tsp_amount'];
+
+        return $totals;
     }
 }

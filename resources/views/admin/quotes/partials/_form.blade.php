@@ -70,12 +70,16 @@
     $services = $oldServices ?: ($isEdit && $quote->services->count() > 0
         ? $quote->services->map(fn($s) => [
             'label'          => $s->label,
+            // 2026-11-19 — sans elle, le champ revenait à 1 en modification :
+            // réenregistrer « 30 × 20 000 » donnait 20 000, le net baissait.
+            'quantite'       => $s->quantite,
             'prix_ht'        => $s->prix_ht,
             'tva_applicable' => (bool) $s->tva_applicable,
           ])->all()
         : []);
-    // Taux de TVA du devis (colonne `tva`), pour afficher le TTC de chaque
-    // service dans le formulaire (2026-10-30).
+    // Taux de TVA du devis (colonne `tva`), affiché dans l'en-tête de la
+    // colonne TVA des services (2026-10-30). Le TTC de chaque service, lui,
+    // vient du serveur depuis le 2026-11-19 (QuoteController::totaux).
     $quoteTva = (float) old('tva', $isEdit ? ($quote->tva ?? 18) : 18);
 @endphp
 
@@ -454,14 +458,21 @@
             <div class="qf-recap-ligne qf-recap-fort"><span>Total HT</span><strong id="qf-net">0</strong></div>
             <div class="qf-recap-ligne"><span id="qf-tva-libelle">TVA</span><strong id="qf-tva">0</strong></div>
 
+            {{-- TTC du devis = net HT + TVA + TSP (2026-11-19), comme sur le
+                 PDF : la TSP quitte le groupe des taxes publicitaires et
+                 précède le TTC. Valeur du serveur (QuoteBuilder::totaux). --}}
+            <div class="qf-recap-ligne" id="qf-ligne-tsp" hidden>
+                <span id="qf-tsp-libelle">TSP</span><strong id="qf-tsp">0</strong>
+            </div>
+            <div class="qf-recap-ligne qf-recap-fort"><span>Total TTC</span><strong id="qf-ttc">0</strong></div>
+
             {{-- Taxes détaillées, une ligne chacune (2026-10-30) : elles
                  étaient regroupées sous « Taxes (TSP · TM · ODP) », on ne
-                 savait pas ce que couvrait le montant. --}}
+                 savait pas ce que couvrait le montant.
+                 2026-11-19 : il ne reste ici que les taxes publicitaires
+                 (TM, ODP), comme sur le PDF. --}}
             <div class="qf-recap-groupe" id="qf-groupe-taxes" hidden>
-                <div class="qf-recap-sous-titre">Taxes</div>
-                <div class="qf-recap-ligne" id="qf-ligne-tsp" hidden>
-                    <span id="qf-tsp-libelle">TSP</span><strong id="qf-tsp">0</strong>
-                </div>
+                <div class="qf-recap-sous-titre">Taxes publicitaires</div>
                 <div class="qf-recap-ligne" id="qf-ligne-tm" hidden>
                     <span>Taxe municipale <small>TM</small></span><strong id="qf-tm">0</strong>
                 </div>
@@ -1418,7 +1429,7 @@ window.QuoteForm = (function() {
                 </label>
             </td>
             <td style="padding:6px;text-align:right" data-label="TTC"><span class="qs-ttc" style="font-weight:700">—</span></td>
-            <td style="padding:6px;text-align:center"><button type="button" onclick="this.closest('tr').remove();recalcServices()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
+            <td style="padding:6px;text-align:center"><button type="button" onclick="this.closest('tr').remove();QuoteForm.recalcServices()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer" title="Supprimer">🗑</button></td>
         `;
         tbody.appendChild(row);
 
@@ -1433,28 +1444,19 @@ window.QuoteForm = (function() {
     }
 
     /**
-     * TTC de chaque service et sous-total (2026-10-30).
-     * Le taux vient du champ TVA du devis : un seul endroit à changer.
+     * Services : état de l'interrupteur TVA, puis montants (2026-10-30).
+     *
+     * 2026-11-19 — le HT et le TTC de chaque ligne et le sous-total ne
+     * sont plus calculés ici : ils viennent de QuoteController::totaux
+     * (QuoteService::ttcPour, la règle de l'enregistrement), affichés par
+     * afficherMontantsServices(). Le navigateur ne recopie aucune formule
+     * (CLAUDE.md). Cette fonction ne fait plus que suivre l'interrupteur et
+     * demander les totaux — y compris quand une ligne est supprimée, ce
+     * qui ne déclenchait jusque-là aucun recalcul du récapitulatif.
      */
     function recalcServices() {
-        const taux = parseFloat(document.querySelector('[name="tva"]')?.value ?? {{ $quoteTva }}) || 0;
-        let totalTtc = 0;
-
         document.querySelectorAll('#quote-services-tbody .qs-row').forEach(row => {
-            const prix   = parseFloat(row.querySelector('.qs-prix')?.value) || 0;
-            // Quantité (2026-11-16) : prix unitaire × quantité. Vide ou
-            // absente = 1, la saisie d'avant reste donc valable telle quelle.
-            const qte    = Math.max(1, parseInt(row.querySelector('.qs-qte')?.value, 10) || 1);
-            const ht     = Math.round(prix * qte);
-            const coche  = row.querySelector('.qs-tva')?.checked;
-            const ttc    = coche ? Math.round(ht * (1 + taux / 100)) : ht;
-            totalTtc    += ttc;
-
-            const cibleHt = row.querySelector('.qs-ht');
-            if (cibleHt) cibleHt.textContent = prix > 0 ? ht.toLocaleString('fr-FR') + ' F' : '—';
-
-            const cible = row.querySelector('.qs-ttc');
-            if (cible) cible.textContent = prix > 0 ? ttc.toLocaleString('fr-FR') + ' F' : '—';
+            const coche = row.querySelector('.qs-tva')?.checked;
 
             // L'étiquette de l'interrupteur suit son état.
             const bascule = row.querySelector('.qs-tva-toggle');
@@ -1464,8 +1466,34 @@ window.QuoteForm = (function() {
             if (texte)   texte.textContent = coche ? 'TVA' : 'HT';
         });
 
+        demanderTotaux();
+    }
+
+    /**
+     * Pose sur chaque ligne de service le HT et le TTC renvoyés par le
+     * serveur (2026-11-19). La ligne est retrouvée par sa clé
+     * services[<clé>][…]. Une ligne que le serveur n'a pas retenue —
+     * sans libellé ou sans prix, elle ne serait pas enregistrée — affiche
+     * « — ».
+     */
+    function afficherMontantsServices(services, sousTotalTtc) {
+        const parCle = {};
+        (services || []).forEach(s => { parCle[String(s.cle)] = s; });
+
+        document.querySelectorAll('#quote-services-tbody .qs-row').forEach(row => {
+            const nom = row.querySelector('input[name^="services["]')?.name || '';
+            const cle = (nom.match(/^services\[([^\]]+)\]/) || [])[1];
+            const s   = cle !== undefined ? parCle[cle] : undefined;
+
+            const cibleHt = row.querySelector('.qs-ht');
+            if (cibleHt) cibleHt.textContent = s ? fmt(s.ht) + ' F' : '—';
+
+            const cible = row.querySelector('.qs-ttc');
+            if (cible) cible.textContent = s ? fmt(s.ttc) + ' F' : '—';
+        });
+
         const sousTotal = document.getElementById('qs-sous-total');
-        if (sousTotal) sousTotal.textContent = totalTtc.toLocaleString('fr-FR') + ' FCFA';
+        if (sousTotal) sousTotal.textContent = fmt(sousTotalTtc) + ' FCFA';
     }
 
     // ── Boot ──
@@ -1579,6 +1607,8 @@ window.QuoteForm = (function() {
             txt('qf-net',   fmt(t.net_ht));
             txt('qf-tva',   fmt(t.tva_amount));
             txt('qf-tva-libelle', 'TVA (' + taux(t.tva) + ' %)');
+            // TTC du devis (net HT + TVA + TSP), tel que le serveur le rend.
+            txt('qf-ttc',   fmt(t.amount_ttc));
             txt('qf-total', fmt(t.total_a_payer) + ' FCFA');
 
             const remise = (t.amount || 0) - (t.net_ht || 0);
@@ -1587,9 +1617,11 @@ window.QuoteForm = (function() {
             txt('qf-remise', '− ' + fmt(remise));
 
             // Taxes, une ligne chacune : on doit savoir ce qu'on paie.
+            // La TSP précède le TTC ; le groupe ne porte plus que les
+            // taxes publicitaires (2026-11-19).
             const tsp = t.tsp_amount || 0, tm = t.tm_total || 0, odp = t.odp_total || 0;
-            bloc('qf-groupe-taxes', tsp + tm + odp > 0);
             bloc('qf-ligne-tsp', tsp > 0); txt('qf-tsp', fmt(tsp));
+            bloc('qf-groupe-taxes', tm + odp > 0);
             bloc('qf-ligne-tm',  tm  > 0); txt('qf-tm',  fmt(tm));
             bloc('qf-ligne-odp', odp > 0); txt('qf-odp', fmt(odp));
 
@@ -1598,6 +1630,10 @@ window.QuoteForm = (function() {
             bloc('qf-groupe-services', services.length > 0);
             txt('qf-services-ht', fmt(t.services_ht_total));
             txt('qf-services',    fmt(t.services_ttc_total));
+
+            // Montants HT et TTC sur chaque ligne du tableau des services,
+            // et leur sous-total : valeurs du serveur (2026-11-19).
+            afficherMontantsServices(services, t.services_ttc_total);
 
             const detail = document.getElementById('qf-services-detail');
             if (detail) {

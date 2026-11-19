@@ -40,7 +40,23 @@ class QuoteService extends Model
     /** Montant TTC de ce service : avec ou sans TVA selon le choix. */
     public function montantTtc(float $tauxTva): int
     {
-        return (int) round($this->montantHt() * ($this->tva_applicable ? 1 + $tauxTva / 100 : 1));
+        return self::ttcPour($this->montantHt(), (bool) $this->tva_applicable, $tauxTva);
+    }
+
+    /**
+     * TTC d'un service de devis — SOURCE UNIQUE (2026-11-19).
+     *
+     * Appelée par montantTtc() (service enregistré) et par le récapitulatif
+     * en direct du formulaire (QuoteController::totaux), qui ne manipule
+     * que des tableaux. Le formulaire ne recalcule plus ce montant en
+     * JavaScript : il affiche ce que le serveur renvoie.
+     *
+     * Même règle que le calculateur : TVA ajoutée seulement si le service
+     * y est soumis, arrondi au franc.
+     */
+    public static function ttcPour(float $montantHt, bool $tvaApplicable, float $tauxTva): int
+    {
+        return (int) round($montantHt * ($tvaApplicable ? 1 + $tauxTva / 100 : 1));
     }
 
     public function quote(): BelongsTo { return $this->belongsTo(Quote::class); }

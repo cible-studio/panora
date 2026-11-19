@@ -118,6 +118,27 @@ class Quote extends Model implements Auditable
 
     // ─── Helpers métier ────────────────────────────────────────────
 
+    /**
+     * TVA des services annexes — SOURCE UNIQUE (2026-11-19).
+     *
+     * Seuls les services soumis à TVA la portent (interrupteur
+     * `tva_applicable`, 2026-10-30), quantité comprise (montantHt(),
+     * 2026-11-16). Lue par la fiche admin, l'espace client, le lien public
+     * et le PDF : avant, chacun la recalculait, et l'espace client taxait
+     * TOUS les services en bloc — il annonçait une TVA différente du PDF.
+     *
+     * Cette valeur n'est pas une colonne de `quotes` : elle se recompose à
+     * partir des services, avec la règle du calculateur.
+     */
+    public function tvaServices(): int
+    {
+        $htTaxable = (int) $this->services
+            ->filter(fn ($s) => (bool) $s->tva_applicable)
+            ->sum(fn ($s) => $s->montantHt());
+
+        return (int) round($htTaxable * ((float) $this->tva) / 100);
+    }
+
     /** Peut-il être modifié ? (brouillon ou en négociation) */
     public function isEditable(): bool
     {
