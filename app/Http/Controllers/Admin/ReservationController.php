@@ -2408,8 +2408,11 @@ class ReservationController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function show(Reservation $reservation)
     {
+        $this->verifierAccesCommercial($reservation);
         $reservation->load([
             'client', 'user',
+            // 2026-11-19 — qui a enregistré le BC, qui a confirmé.
+            'bcRecuParUser:id,name', 'confirmeParUser:id,name',
             'panels.commune', 'panels.format', 'panels.photos',
             'externalPanels.commune', 'externalPanels.format',
             'externalPanels.agency:id,name',
@@ -2507,6 +2510,7 @@ class ReservationController extends Controller
      */
     public function createInvoice(Reservation $reservation)
     {
+        $this->verifierAccesCommercial($reservation);
         if ($reservation->status === ReservationStatus::ANNULE) {
             return redirect()
                 ->route('admin.reservations.show', $reservation)
@@ -2525,6 +2529,7 @@ class ReservationController extends Controller
 
     public function edit(Reservation $reservation)
     {
+        $this->verifierAccesCommercial($reservation);
         if (!$reservation->isEditable())
             abort(403, 'Cette réservation ne peut plus être modifiée (' . $reservation->status->label() . ').');
         $reservation->load('panels');
@@ -2548,6 +2553,7 @@ class ReservationController extends Controller
 
     public function update(UpdateReservationRequest $request, Reservation $reservation)
     {
+        $this->verifierAccesCommercial($reservation);
         if (!$reservation->isEditable())
             abort(403, 'Cette réservation ne peut plus être modifiée.');
         if ($reservation->client?->trashed())
@@ -2624,8 +2630,15 @@ class ReservationController extends Controller
         } else {
             $previousStatus = $reservation->status?->value ?? $reservation->status;
             try {
-                $this->reservationService->changeStatus($reservation, $request->status);
+                // 2026-11-19 — BC attendu : « Confirmer sans BC », motif obligatoire.
+                $this->reservationService->changeStatus($reservation, $request->status, $request->input('motif_sans_bc'));
+            } catch (\InvalidArgumentException $e) {
+                return back()->with('error', $e->getMessage() === 'MOTIF_SANS_BC'
+                    ? "Le bon de commande n'est pas encore reçu : indiquez pourquoi vous confirmez sans l'attendre."
+                    : $e->getMessage());
             } catch (\App\Exceptions\BookingConflictException $e) {
+                return back()->with('error', $e->getMessage());
+            } catch (\RuntimeException $e) {
                 return back()->with('error', $e->getMessage());
             }
 
@@ -2938,9 +2951,17 @@ class ReservationController extends Controller
     // confirmation verbale suffit, la référence est facultative) ; le MP
     // crée ensuite la campagne dédiée.
 
-    /** Le commercial confirme avoir reçu le bon de commande. */
+    /**
+     * Le commercial confirme avoir reçu le bon de commande.
+     *
+     * 2026-11-19 — Le BC reçu CONFIRME la réservation : panneaux bloqués
+     * fermement, dossiers concurrents annulés et prévenus, client informé
+     * (« réservation confirmée »), MP prévenu pour créer la campagne.
+     */
     public function enregistrerBc(Request $request, Reservation $reservation)
     {
+        $this->verifierAccesCommercial($reservation);
+
         $data = $request->validate([
             // Champ LIBRE et FACULTATIF : numéro de BC, ou toute autre
             // information utile (« reçu par mail le 12/11 »…).
@@ -2956,55 +2977,103 @@ class ReservationController extends Controller
         if ($bc->estRecu($reservation)) {
             return back()->with('info', 'Le bon de commande était déjà enregistré.');
         }
+        if (in_array($reservation->status->value, ['annule', 'refuse', 'termine'], true)) {
+            return back()->with('error', 'Cette réservation est ' . $reservation->status->label() . ' : impossible d\'y enregistrer un bon de commande.');
+        }
 
-        $bc->enregistrerReception($reservation, $data['bc_reference'] ?? null, $request->user());
+        $etaitEnAttente = $reservation->status->value === 'en_attente';
+        $reservation->loadMissing(['panels', 'externalPanels', 'client']);
 
-        // Prévenir le MP : c'est lui qui crée la campagne ensuite.
         try {
-            \App\Services\AlertService::notify(
-                'bc_recu',
-                '📥 Bon de commande reçu — ' . $reservation->reference,
-                sprintf(
-                    "%s a enregistré le bon de commande de %s%s.\nLa campagne peut maintenant être créée.",
-                    $request->user()?->name ?? 'Un commercial',
-                    $reservation->client?->name ?? 'ce client',
-                    $reservation->bc_reference ? ' (réf. ' . $reservation->bc_reference . ')' : ''
-                ),
-                $reservation,
-                ['lien' => route('admin.reservations.show', $reservation->id)]
-            );
+            $bc->enregistrerReception($reservation, $data['bc_reference'] ?? null, $request->user());
+        } catch (\App\Exceptions\BookingConflictException $e) {
+            return back()->with('error', 'Bon de commande non enregistré : ' . $e->getMessage());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', "Bon de commande non enregistré : un panneau n'est plus disponible sur cette période — " . $e->getMessage());
+        }
+        $reservation->refresh();
+
+        // Prévenir le MP (alerte + mail) : c'est lui qui crée la campagne.
+        $titre = '📥 BC reçu, campagne à créer — ' . $reservation->reference;
+        $corps = sprintf(
+            "%s a enregistré le bon de commande de %s%s.\nLa réservation est confirmée et ses panneaux sont bloqués. Il reste à créer la campagne.",
+            $request->user()?->name ?? 'Un commercial',
+            $reservation->client?->name ?? 'ce client',
+            $reservation->bc_reference ? ' (réf. ' . $reservation->bc_reference . ')' : ''
+        );
+        try {
+            \App\Services\AlertService::notify('bc_recu', $titre, $corps, $reservation,
+                ['lien' => route('admin.reservations.show', $reservation->id)]);
         } catch (\Throwable $e) {
             Log::error('bc.recu.alerte', ['resa' => $reservation->id, 'erreur' => $e->getMessage()]);
         }
+        $mps = \App\Models\User::query()->where('role', 'mediaplanner')->whereNotNull('email')
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'is_active'), fn ($q) => $q->where('is_active', true))
+            ->pluck('email')->all();
+        if ($mps) {
+            app(\App\Services\NotificationMailer::class)->sendSilently(
+                $mps,
+                new \App\Mail\AdminAlertMail(
+                    severity: 'success', title: 'BC reçu, campagne à créer — ' . $reservation->reference, summary: $corps,
+                    ctaLabel: 'Créer la campagne', ctaUrl: route('admin.reservations.show', $reservation->id), emoji: '📥',
+                ),
+                context: ['reservation_id' => $reservation->id],
+            );
+        }
+
+        // Le client est informé : ses panneaux sont bloqués (règle du 19/11).
+        if ($etaitEnAttente && $reservation->status->value === 'confirme') {
+            $this->notifyClientReservationConfirmed($reservation->loadMissing('client'));
+        }
+
+        $tombes = $bc->derniersConcurrentsAnnules ?? collect();
 
         return back()->with('success',
-            '📥 Bon de commande enregistré. Le média-planneur peut créer la campagne.');
+            '📥 Bon de commande enregistré : la réservation est confirmée et ses panneaux sont bloqués. '
+            . 'Le média planner est prévenu pour créer la campagne.'
+            . ($tombes->isNotEmpty()
+                ? ' ' . $tombes->count() . ' dossier(s) concurrent(s) annulé(s), leur commercial prévenu : ' . $tombes->pluck('reference')->join(', ') . '.'
+                : ''));
     }
 
-    /** Admin seulement : corriger une réception saisie par erreur. */
+    /**
+     * Admin seulement : corriger une réception saisie par erreur.
+     * 2026-11-19 — si c'est ce BC qui avait confirmé, la réservation
+     * repasse en option (les dossiers concurrents annulés ne reviennent pas).
+     */
     public function annulerBc(Reservation $reservation)
     {
+        $this->verifierAccesCommercial($reservation);
+
         if ($reservation->campaign) {
             return back()->with('error',
                 "La campagne {$reservation->campaign->name} existe déjà : annule-la d'abord.");
         }
 
-        app(\App\Services\BonDeCommandeService::class)->annulerReception($reservation);
+        $bc = app(\App\Services\BonDeCommandeService::class);
+        $retourOption = $bc->confirmeeParLeBc($reservation);
+        $bc->annulerReception($reservation);
 
-        return back()->with('success', 'Réception du bon de commande annulée.');
+        return back()->with('success', $retourOption
+            ? 'Réception du bon de commande annulée : la réservation repasse en option, ses panneaux aussi.'
+            : 'Réception du bon de commande annulée.');
     }
 
     /**
      * Le MP crée la campagne dédiée, une fois le BC reçu.
      *
-     * Toute la mécanique (blocage ferme des panneaux, annulation des
-     * dossiers concurrents, création de la campagne, tâches de pose) vit
-     * déjà dans PropositionService::confirmer() : on la réutilise telle
-     * quelle. Le verrou « BC reçu » y est posé, donc aucun chemin ne peut
-     * créer une campagne sans bon de commande.
+     * 2026-11-19 — La réservation est déjà confirmée par le BC ; ici, on
+     * crée la campagne avec le nom saisi (prérempli avec le nom prévu).
+     * PropositionService::confirmer() garde le verrou « BC reçu ».
      */
     public function creerCampagneApresBc(Request $request, Reservation $reservation)
     {
+        $this->verifierAccesCommercial($reservation);
+
+        $data = $request->validate([
+            'nom_campagne' => 'nullable|string|max:190',
+        ]);
+
         $bc = app(\App\Services\BonDeCommandeService::class);
 
         if ($reservation->campaign) {
@@ -3018,11 +3087,14 @@ class ReservationController extends Controller
         $reservation->loadMissing(['panels', 'externalPanels', 'client']);
 
         try {
-            $campaign = app(\App\Services\PropositionService::class)->confirmer($reservation);
+            $campaign = app(\App\Services\PropositionService::class)->confirmer($reservation, $data['nom_campagne'] ?? null);
         } catch (\RuntimeException $e) {
-            $message = str_starts_with($e->getMessage(), 'BC_MANQUANT:')
-                ? substr($e->getMessage(), 12)
-                : "Un panneau n'est plus disponible sur cette période : " . $e->getMessage();
+            $message = $e->getMessage();
+            $message = match (true) {
+                str_starts_with($message, 'BC_MANQUANT:')   => substr($message, 12),
+                str_starts_with($message, 'NON_CONFIRMEE:') => substr($message, 14),
+                default => "Un panneau n'est plus disponible sur cette période : " . $message,
+            };
             return back()->with('error', $message);
         } catch (\Throwable $e) {
             Log::error('bc.creer_campagne.erreur', [
@@ -3053,8 +3125,21 @@ class ReservationController extends Controller
 
         return $campaign
             ? redirect()->route('admin.campaigns.show', $campaign->id)
-                ->with('success', '🚀 Campagne créée à partir du bon de commande.')
+                ->with('success', '🚀 Campagne « ' . $campaign->name . ' » créée.')
             : back()->with('success', 'Réservation confirmée.');
+    }
+
+    /**
+     * Règle du 2026-11-19 : le commercial ne voit et ne touche que SES
+     * réservations (ReservationPolicy::view). Les autres rôles gardent
+     * leur accès actuel (le comptable lit toutes les réservations).
+     */
+    private function verifierAccesCommercial(Reservation $reservation): void
+    {
+        $user = auth()->user();
+        if ($user && $user->role === \App\Enums\UserRole::COMMERCIAL && !$user->can('view', $reservation)) {
+            abort(403, "Cette réservation est suivie par un autre commercial.");
+        }
     }
 
     public function annuler(Request $request, Reservation $reservation)
@@ -3186,6 +3271,11 @@ class ReservationController extends Controller
                         $skipped[] = $r->reference . ' (non confirmable)';
                         continue;
                     }
+                    // 2026-11-19 — BC attendu : se confirme depuis sa fiche, avec un motif.
+                    if (app(\App\Services\BonDeCommandeService::class)->estEnAttente($r)) {
+                        $skipped[] = $r->reference . ' (BC attendu : confirmer depuis la fiche, avec un motif)';
+                        continue;
+                    }
                     $this->reservationService->changeStatus($r, ReservationStatus::CONFIRME->value);
                     $this->notifyClientReservationConfirmed($r->fresh()->loadMissing('client'));
                     $applied++;
@@ -3255,6 +3345,7 @@ class ReservationController extends Controller
 
     public function destroy(Reservation $reservation)
     {
+        $this->verifierAccesCommercial($reservation);
         if (!$reservation->isDeletable())
             abort(403, 'Impossible : réservation active ou liée à une campagne.');
         $panelCount = $reservation->panels()->count() + $reservation->externalPanels()->count();

@@ -296,7 +296,7 @@
                     class="text-sm font-medium hover:underline" style="color:var(--accent)">
                         {{ $reservation->campaign->name }} →
                     </a>
-                @elseif($reservation->status->value === 'confirme')
+                @elseif($reservation->status->value === 'confirme' && app(\App\Services\BonDeCommandeService::class)->peutCreerCampagne($reservation))
                     <a href="{{ route('admin.campaigns.create', ['reservation_id' => $reservation->id]) }}"
                     class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--green);
                             border-color:rgba(34,197,94,0.3);">
@@ -304,11 +304,29 @@
                     </a>
                 @else
                     <span class="text-sm" style="color:var(--text3)">
-                        Disponible après confirmation
+                        {{ $reservation->bc_attendu_jusqu_au && !$reservation->bc_recu_at ? 'Disponible après réception du bon de commande' : 'Disponible après confirmation' }}
                     </span>
                 @endif
             </div>
         </div>
+
+        {{-- 2026-11-19 — Qui a confirmé, et pourquoi sans bon de commande. --}}
+        @if(in_array($reservation->status->value, ['confirme', 'termine'], true) && $reservation->confirmed_at)
+        <div class="mt-4 pt-4" style="border-top:1px solid var(--border)">
+            <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">Confirmation</div>
+            <div class="text-sm" style="color:var(--text2)">
+                Confirmée le {{ $reservation->confirmed_at->format('d/m/Y à H:i') }}
+                @if($reservation->confirmeParUser) par <strong>{{ $reservation->confirmeParUser->name }}</strong>@endif
+                @if($reservation->confirme_sans_bc_motif)
+                    <div style="margin-top:6px;padding:8px 11px;background:#fef3c7;color:#78350f;border-radius:6px;font-size:12px;line-height:1.5">
+                        ⚠ Confirmée <strong>sans bon de commande</strong> (exception) — motif : {{ $reservation->confirme_sans_bc_motif }}
+                    </div>
+                @elseif($reservation->bc_recu_at)
+                    · à la réception du bon de commande
+                @endif
+            </div>
+        </div>
+        @endif
 
         {{-- ✅ Motif d'annulation (si annulée avec motif documenté) --}}
         @if($reservation->status->value === 'annule' && ($reservation->cancel_reason ?? null))
@@ -323,6 +341,7 @@
                                 'budget'         => 'Client : Contrainte budgétaire',
                                 'concurrent'     => 'Client : A choisi un concurrent',
                                 'report'         => 'Report de campagne',
+                                'panneaux_pris'  => 'Panneaux pris par un autre dossier',
                                 'autre'          => 'Autre motif',
                             ];
                         @endphp
@@ -369,7 +388,12 @@
     $peutSaisirBc  = in_array($role, ['admin', 'commercial'], true);
     $peutCreerCamp = in_array($role, ['admin', 'mediaplanner'], true);
 @endphp
-@if($bcOuvert && !$reservation->campaign && $reservation->status->value !== 'annule')
+@if($bcOuvert && !$reservation->campaign && in_array($reservation->status->value, ['en_attente', 'confirme'], true))
+@php
+    $bcSansBc = $bcService->confirmeSansBc($reservation);
+    // Nom prévu à la création (rangé dans les notes) : prérempli pour la campagne.
+    $bcNomPrevu = preg_match('/Nom de campagne prévu\s*:\s*(.+)$/mu', (string) $reservation->notes, $m) ? trim($m[1]) : '';
+@endphp
 @php
     $bcCouleur = $bcRecu ? '#22c55e' : (($bcJours ?? 0) < 0 ? '#ef4444' : (($bcJours ?? 99) <= 7 ? '#f59e0b' : '#3b82f6'));
 @endphp
@@ -379,7 +403,9 @@
             <div style="flex:1;min-width:260px">
                 <div style="font-size:14px;font-weight:700;color:{{ $bcCouleur }};margin-bottom:5px">
                     @if($bcRecu)
-                        📥 Bon de commande reçu
+                        📥 Bon de commande reçu — réservation confirmée
+                    @elseif($bcSansBc)
+                        📄 Bon de commande attendu — réservation confirmée sans BC
                     @elseif(($bcJours ?? 0) < 0)
                         ⌛ Délai du bon de commande dépassé
                     @else
@@ -389,16 +415,23 @@
                 <div style="font-size:12.5px;color:var(--text2);line-height:1.6">
                     @if($bcRecu)
                         Enregistré le {{ $reservation->bc_recu_at->format('d/m/Y à H:i') }}
+                        @if($reservation->bcRecuParUser)
+                            par <strong>{{ $reservation->bcRecuParUser->name }}</strong>
+                        @endif
                         @if($reservation->bc_reference)
                             · réf. <strong>{{ $reservation->bc_reference }}</strong>
                         @endif
-                        <br>La campagne peut être créée.
+                        <br>La réservation est <strong>confirmée</strong> et ses panneaux sont <strong>bloqués</strong>. Il reste à créer la campagne (média planner).
+                    @elseif($bcSansBc)
+                        Échéance : <strong>{{ \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y') }}</strong>
+                        <br>Les panneaux sont bloqués. Le BC reste attendu et les relances continuent ; à l'échéance, la réservation n'est <strong>pas</strong> annulée.
                     @else
                         Échéance : <strong>{{ \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y') }}</strong>
                         @if($bcJours !== null)
                             ({{ $bcJours >= 0 ? $bcJours . ' jour' . ($bcJours > 1 ? 's' : '') . ' restant' . ($bcJours > 1 ? 's' : '') : 'dépassée depuis ' . abs($bcJours) . ' j' }})
                         @endif
                         <br>Les panneaux sont tenus <strong>en option</strong>. Sans BC à cette date, ils repartent au catalogue.
+                        <br>Enregistrer le BC <strong>confirme la réservation</strong> et bloque ses panneaux.
                     @endif
                 </div>
                 @if($bcConcur)
@@ -416,14 +449,19 @@
                                style="height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--text);width:190px">
                         <button type="submit" class="btn btn-sm"
                                 style="background:#22c55e;color:#fff;border:none;font-weight:700"
-                                title="Une confirmation verbale suffit — la référence est facultative">
+                                title="Une confirmation verbale suffit — la référence est facultative. Confirme la réservation et bloque ses panneaux.">
                             📥 BC reçu
                         </button>
                     </form>
                 @endif
-                @if($bcRecu && $peutCreerCamp)
-                    <form method="POST" action="{{ route('admin.reservations.creer-campagne', $reservation->id) }}">
+                @if(($bcRecu || $bcSansBc) && $peutCreerCamp)
+                    <form method="POST" action="{{ route('admin.reservations.creer-campagne', $reservation->id) }}"
+                          style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                         @csrf
+                        {{-- 2026-11-19 — Le nom est demandé, prérempli avec le nom prévu. --}}
+                        <input type="text" name="nom_campagne" maxlength="190" value="{{ $bcNomPrevu }}"
+                               placeholder="Nom de la campagne (sinon « Campagne {{ $reservation->reference }} »)"
+                               style="height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--text);width:260px">
                         <button type="submit" class="btn btn-sm"
                                 style="background:var(--accent);color:#fff;border:none;font-weight:700">
                             🚀 Créer la campagne
@@ -432,7 +470,7 @@
                 @endif
                 @if($bcRecu && $role === 'admin')
                     <form method="POST" action="{{ route('admin.reservations.bc.annuler', $reservation->id) }}"
-                          onsubmit="return confirm('Annuler la réception du bon de commande ?')">
+                          onsubmit="return confirm('Annuler la réception du bon de commande ?\n\nLa réservation repassera en option, ses panneaux aussi.\nLes dossiers concurrents déjà annulés ne seront pas rétablis.')">
                         @csrf
                         <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--text3)">↺ Annuler la réception</button>
                     </form>
@@ -610,9 +648,18 @@
     <div class="card-body">
         <div class="flex flex-wrap gap-3">
             @if(in_array('confirme', \App\Models\Reservation::ALLOWED_TRANSITIONS[$reservation->status->value] ?? []) && $can['updateStatus'])
-                <button onclick="openStatusModal('confirme')" class="btn btn-success">
-                    ✅ Confirmer la réservation
-                </button>
+                {{-- 2026-11-19 — BC attendu : la voie normale est « BC reçu » ;
+                     l'admin garde une exception, motif obligatoire. --}}
+                @if(app(\App\Services\BonDeCommandeService::class)->estEnAttente($reservation))
+                    <button onclick="openStatusModal('confirme_sans_bc')" class="btn btn-ghost" style="color:#b45309;border-color:rgba(245,158,11,.5)"
+                            title="Exception : confirmer sans attendre le bon de commande (motif obligatoire)">
+                        ⚠ Confirmer sans BC (exception)
+                    </button>
+                @else
+                    <button onclick="openStatusModal('confirme')" class="btn btn-success">
+                        ✅ Confirmer la réservation
+                    </button>
+                @endif
             @endif
             @if(in_array('refuse', \App\Models\Reservation::ALLOWED_TRANSITIONS[$reservation->status->value] ?? []) && $can['updateStatus'])
                 <button onclick="openStatusModal('refuse')" class="btn btn-danger">
@@ -1159,6 +1206,13 @@
             <form id="modal-status-form" method="POST">
                 @csrf @method('PATCH')
                 <input type="hidden" name="status" id="modal-status-input">
+                {{-- 2026-11-19 — Motif obligatoire pour « Confirmer sans BC ». --}}
+                <div id="modal-status-motif" style="display:none;margin-bottom:12px">
+                    <label for="modal-status-motif-text" style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--text)">Pourquoi confirmer sans attendre le bon de commande ?</label>
+                    <textarea id="modal-status-motif-text" name="motif_sans_bc" maxlength="500" rows="2"
+                              placeholder="Ex. : client de confiance, BC promis par la direction le…"
+                              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--surface);color:var(--text)"></textarea>
+                </div>
                 <button type="submit" id="modal-status-btn" class="btn">Confirmer</button>
             </form>
         </div>
@@ -1198,7 +1252,7 @@
                     @if($reservation->campaign)
                     <li class="flex items-start gap-2">
                         <span style="color:var(--red)">⚠</span>
-                        <span>La campagne <strong>{{ $reservation->campaign->reference }}</strong> devra être gérée séparément.</span>
+                        <span>La campagne <strong>{{ $reservation->campaign->name }}</strong> sera <strong>annulée elle aussi</strong>.</span>
                     </li>
                     @endif
                 </ul>
@@ -1303,10 +1357,26 @@ const STATUS_CONFIG = {
         consequences: [
             { icon: '🔒', text: 'Les panneaux seront <strong>définitivement bloqués</strong> pour la période.' },
             { icon: '📄', text: 'La réservation passera en <strong>Ferme</strong> — plus modifiable.' },
-            { icon: '📅', text: 'La date de confirmation sera enregistrée automatiquement.' },
+            { icon: '🚫', text: 'Les autres options sur ces panneaux et cette période seront <strong>annulées</strong>, leur commercial prévenu.' },
+            { icon: '✉️', text: 'Le client reçoit un mail « réservation confirmée ».' },
+            { icon: '🚀', text: 'La campagne reste à créer ensuite.' },
         ],
         warning: 'La confirmation est irréversible. Le statut ne pourra plus revenir à "En attente".',
         btnClass: 'btn-success', btnLabel: '✅ Confirmer',
+    },
+    // 2026-11-19 — Exception de l'admin : confirmer sans attendre le BC.
+    confirme_sans_bc: {
+        status: 'confirme', motif: true,
+        title: '⚠ Confirmer sans bon de commande', icon: '⚠', iconBg: 'rgba(245,158,11,.12)',
+        desc: 'Le bon de commande de {{ $reservation->reference }} n\'est pas encore reçu. Vous confirmez quand même, à titre d\'exception.',
+        consequences: [
+            { icon: '🔒', text: 'Les panneaux seront <strong>bloqués</strong> pour la période.' },
+            { icon: '🚫', text: 'Les autres options sur ces panneaux seront <strong>annulées</strong>, leur commercial prévenu.' },
+            { icon: '📄', text: 'Le BC reste attendu : les relances continuent. À l\'échéance, la réservation n\'est <strong>pas</strong> annulée ; l\'admin et le commercial sont prévenus.' },
+            { icon: '✉️', text: 'Le client reçoit un mail « réservation confirmée ».' },
+        ],
+        warning: 'Le motif est obligatoire et reste affiché sur la fiche.',
+        btnClass: 'btn-success', btnLabel: '⚠ Confirmer sans BC',
     },
     refuse: {
         title: '❌ Refuser la réservation', icon: '❌', iconBg: 'rgba(239,68,68,.1)',
@@ -1336,7 +1406,14 @@ function openStatusModal(newStatus) {
         + cfg.consequences.map(c => `<li style="display:flex;gap:8px;align-items:flex-start"><span>${c.icon}</span><span>${c.text}</span></li>`).join('')
         + '</ul>';
     document.getElementById('modal-status-warning-text').textContent = cfg.warning;
-    document.getElementById('modal-status-input').value = newStatus;
+    document.getElementById('modal-status-input').value = cfg.status || newStatus;
+    const motifWrap = document.getElementById('modal-status-motif');
+    const motifText = document.getElementById('modal-status-motif-text');
+    if (motifWrap && motifText) {
+        motifWrap.style.display = cfg.motif ? 'block' : 'none';
+        motifText.required = !!cfg.motif;
+        if (!cfg.motif) motifText.value = '';
+    }
     const btn = document.getElementById('modal-status-btn');
     btn.className = 'btn ' + cfg.btnClass; btn.textContent = cfg.btnLabel;
     document.getElementById('modal-status-form').action = '{{ route("admin.reservations.update-status", $reservation) }}';

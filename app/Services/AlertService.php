@@ -73,6 +73,18 @@ class AlertService
             'label' => 'Bon de commande reçu',
             'group' => 'Réservations',
         ],
+        // 2026-11-19 — dossier tombé parce qu'un autre a pris ses panneaux ;
+        // confirmée sans BC dont l'échéance est passée (jamais annulée).
+        'reservation_annulee_concurrence' => [
+            'icon' => '🚫', 'niveau' => 'danger', 'color' => '#ef4444',
+            'label' => 'Réservation annulée : panneaux pris',
+            'group' => 'Réservations',
+        ],
+        'bc_echeance_confirme' => [
+            'icon' => '📄', 'niveau' => 'warning', 'color' => '#f59e0b',
+            'label' => 'BC absent sur une réservation confirmée',
+            'group' => 'Réservations',
+        ],
         'reservation_expiree' => [
             'icon' => '⏱', 'niveau' => 'warning', 'color' => '#f97316',
             'label' => 'Réservation expirée',
@@ -765,6 +777,8 @@ class AlertService
                 // Réservations — alertes opérationnelles
                 'reservation_en_attente_longue', 'reservation_expiree',
                 'reservation_nouvelle',
+                // 2026-11-19 — BC reçu : c'est au MP de créer la campagne.
+                'bc_recu',
                 'proposition_acceptee', 'proposition_refusee',
                 // Devis (commercial) — visibilité pilotage
                 'devis_accepte', 'devis_refuse', 'devis_converti_avec_conflit',

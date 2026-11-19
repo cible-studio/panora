@@ -38,11 +38,23 @@ use Illuminate\Support\Facades\Log;
  *      aucune pièce jointe obligatoire. Un champ libre facultatif
  *      recueille le numéro de BC ou toute autre information.
  *
- *   4. Le MP crée la campagne dédiée. C'est seulement là que les panneaux
- *      se bloquent fermement et que les dossiers concurrents tombent.
+ *   4. Le MP crée la campagne dédiée.
+ *
+ *   ═══ MODIFIÉ LE 2026-11-19 (règles validées par écrit) ═══
+ *   · Le BC reçu CONFIRME la réservation : panneaux bloqués fermement dès
+ *     l'étape 3, dossiers concurrents annulés avec leur motif et leur
+ *     commercial prévenu (PropositionService::confirmerReservation). Le
+ *     MP est prévenu ; il crée ensuite la campagne (étape 4).
+ *   · L'admin garde « Confirmer sans BC » pour les exceptions, motif
+ *     obligatoire. Le suivi du BC continue (relances) ; passé l'échéance,
+ *     la réservation n'est PAS annulée : l'admin et le commercial sont
+ *     prévenus une fois (aSignalerEchus).
+ *   · « Annuler la réception » remet la réservation en option si c'est le
+ *     BC qui l'avait confirmée ; les dossiers concurrents déjà annulés ne
+ *     sont pas rétablis.
  *
  *   Passé le délai sans BC, l'option expire et les panneaux repartent au
- *   catalogue (reservations:expire-options).
+ *   catalogue (reservations:expire-bc).
  *
  * Aucune des dates ni des durées n'est écrite ailleurs : tout vient d'ici
  * ou de la config.
@@ -142,7 +154,18 @@ class BonDeCommandeService
         // pas, sinon l'historique deviendrait ingérable.
         if (!$reservation->bc_attendu_jusqu_au) return true;
 
-        return $this->estRecu($reservation);
+        // 2026-11-19 — Exception de l'admin : confirmée sans BC, avec motif.
+        return $this->estRecu($reservation) || $this->confirmeSansBc($reservation);
+    }
+
+    /** Confirmée par l'admin sans attendre le BC (exception motivée, 2026-11-19). */
+    public function confirmeSansBc(Reservation $reservation): bool
+    {
+        $statut = $reservation->status instanceof \BackedEnum ? $reservation->status->value : $reservation->status;
+
+        return $statut === 'confirme'
+            && $reservation->bc_recu_at === null
+            && trim((string) $reservation->confirme_sans_bc_motif) !== '';
     }
 
     /** Message d'explication quand la création est refusée. */
@@ -163,56 +186,117 @@ class BonDeCommandeService
     // 3 — ENREGISTRER LA RÉCEPTION
     // ══════════════════════════════════════════════════════════════
 
+    /** Les dossiers concurrents tombés lors de la dernière réception enregistrée. */
+    public ?Collection $derniersConcurrentsAnnules = null;
+
     /**
      * Le commercial confirme avoir reçu le BC. Verbalement suffit : la
      * référence est un champ LIBRE et FACULTATIF (numéro de BC, « reçu par
      * mail le 12/11 », etc.).
      *
-     * Ne crée pas la campagne : c'est le MP qui s'en charge ensuite, pour
-     * la nommer et la configurer.
+     * 2026-11-19 — Le BC reçu CONFIRME la réservation dans la même
+     * transaction : panneaux bloqués fermement, dossiers concurrents
+     * annulés et prévenus. Si un autre dossier tient déjà les panneaux
+     * fermement, rien n'est enregistré (l'exception remonte à l'appelant).
+     * La campagne reste à créer par le MP.
      */
     public function enregistrerReception(
         Reservation $reservation,
         ?string $reference = null,
         ?User $par = null
     ): Reservation {
+        $this->derniersConcurrentsAnnules = collect();
+
         if ($this->estRecu($reservation)) {
             return $reservation;
         }
 
-        $reservation->forceFill([
-            'bc_recu_at'   => now(),
-            'bc_recu_par'  => $par?->id ?? auth()->id(),
-            'bc_reference' => $reference !== null && trim($reference) !== ''
-                ? mb_substr(trim($reference), 0, 190)
-                : null,
-        ])->save();
+        $parId = $par?->id ?? auth()->id();
+
+        DB::transaction(function () use ($reservation, $reference, $parId) {
+            $reservation->forceFill([
+                'bc_recu_at'   => now(),
+                'bc_recu_par'  => $parId,
+                'bc_reference' => $reference !== null && trim($reference) !== ''
+                    ? mb_substr(trim($reference), 0, 190)
+                    : null,
+            ])->save();
+
+            $statut = $reservation->status instanceof \BackedEnum ? $reservation->status->value : $reservation->status;
+            if ($statut === 'en_attente') {
+                $this->derniersConcurrentsAnnules = app(PropositionService::class)
+                    ->confirmerReservation($reservation, $parId);
+            }
+        });
 
         Log::info('bc.recu', [
             'reservation_id' => $reservation->id,
             'reference'      => $reservation->reference,
             'bc_reference'   => $reservation->bc_reference,
             'par'            => $reservation->bc_recu_par,
+            'confirmee'      => true,
         ]);
 
         return $reservation;
     }
 
-    /** Annuler une réception saisie par erreur (admin). */
+    /**
+     * Annuler une réception saisie par erreur (admin).
+     *
+     * 2026-11-19 — Si c'est ce BC qui avait confirmé la réservation (et
+     * qu'aucune campagne n'existe), elle repasse en option et ses panneaux
+     * aussi. Les dossiers concurrents déjà annulés ne sont PAS rétablis
+     * (règle validée par écrit ; la fenêtre de l'écran le dit).
+     */
     public function annulerReception(Reservation $reservation): Reservation
     {
-        $reservation->forceFill([
-            'bc_recu_at'   => null,
-            'bc_recu_par'  => null,
-            'bc_reference' => null,
-        ])->save();
+        DB::transaction(function () use ($reservation) {
+            $confirmeeParCeBc = $this->confirmeeParLeBc($reservation) && !$reservation->campaign()->exists();
+
+            $reservation->forceFill(array_merge([
+                'bc_recu_at'   => null,
+                'bc_recu_par'  => null,
+                'bc_reference' => null,
+            ], $confirmeeParCeBc ? [
+                'status'       => 'en_attente',
+                'type'         => 'option',
+                'confirmed_at' => null,
+                'confirme_par' => null,
+            ] : []))->save();
+
+            if ($confirmeeParCeBc) {
+                $availability = app(AvailabilityService::class);
+                $panelIds = $reservation->panels()->pluck('panels.id')->all();
+                $extIds   = $reservation->externalPanels()->pluck('external_panels.id')->all();
+                if ($panelIds) $availability->syncPanelStatuses($panelIds);
+                if ($extIds)   $availability->syncExternalPanelStatuses($extIds);
+            }
+        });
 
         Log::warning('bc.reception.annulee', [
             'reservation_id' => $reservation->id,
             'par'            => auth()->id(),
+            'retour_option'  => $reservation->status?->value === 'en_attente',
         ]);
 
         return $reservation;
+    }
+
+    /**
+     * La confirmation vient-elle de la réception du BC ? (même instant, à
+     * deux minutes près, et pas une exception motivée de l'admin).
+     */
+    public function confirmeeParLeBc(Reservation $reservation): bool
+    {
+        $statut = $reservation->status instanceof \BackedEnum ? $reservation->status->value : $reservation->status;
+        if ($statut !== 'confirme' || !$reservation->bc_recu_at || !$reservation->confirmed_at) {
+            return false;
+        }
+        if (trim((string) $reservation->confirme_sans_bc_motif) !== '') {
+            return false;
+        }
+
+        return abs(Carbon::parse($reservation->confirmed_at)->diffInSeconds(Carbon::parse($reservation->bc_recu_at))) <= 120;
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -288,7 +372,8 @@ class BonDeCommandeService
             ->whereNull('deleted_at')
             ->whereNotNull('bc_attendu_jusqu_au')
             ->whereNull('bc_recu_at')
-            ->where('status', 'en_attente')
+            // 2026-11-19 — Confirmée sans BC (exception admin) : le suivi continue.
+            ->whereIn('status', ['en_attente', 'confirme'])
             ->whereDate('bc_attendu_jusqu_au', $cible)
             ->when($colonne, fn ($q) => $q->whereNull($colonne))
             ->get();
@@ -303,6 +388,24 @@ class BonDeCommandeService
             ->whereNotNull('bc_attendu_jusqu_au')
             ->whereNull('bc_recu_at')
             ->where('status', 'en_attente')
+            ->whereDate('bc_attendu_jusqu_au', '<', Carbon::today()->toDateString())
+            ->get();
+    }
+
+    /**
+     * Confirmées SANS BC dont l'échéance est passée (2026-11-19) : on ne
+     * les annule pas — l'admin les a confirmées exprès — mais l'admin et le
+     * commercial sont prévenus, une seule fois.
+     */
+    public function aSignalerEchus(): Collection
+    {
+        return Reservation::query()
+            ->with(['client', 'commercial'])
+            ->whereNull('deleted_at')
+            ->whereNotNull('bc_attendu_jusqu_au')
+            ->whereNull('bc_recu_at')
+            ->whereNull('bc_echeance_signalee_at')
+            ->where('status', 'confirme')
             ->whereDate('bc_attendu_jusqu_au', '<', Carbon::today()->toDateString())
             ->get();
     }

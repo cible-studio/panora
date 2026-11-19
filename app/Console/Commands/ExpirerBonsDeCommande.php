@@ -29,6 +29,10 @@ class ExpirerBonsDeCommande extends Command
     public function handle(BonDeCommandeService $bc, AvailabilityService $availability): int
     {
         $simulation = (bool) $this->option('dry-run');
+
+        // 2026-11-19 — Confirmées sans BC (exception admin) : jamais annulées,
+        // mais l'admin et le commercial sont prévenus une fois l'échéance passée.
+        $this->signalerConfirmeesSansBc($bc, $simulation);
         $dossiers   = $bc->aExpirer();
 
         if ($dossiers->isEmpty()) {
@@ -89,5 +93,45 @@ class ExpirerBonsDeCommande extends Command
             : "{$dossiers->count()} option(s) expirée(s), panneaux libérés.");
 
         return self::SUCCESS;
+    }
+
+    /** Prévenir (une fois) l'admin et le commercial des confirmées sans BC échues. */
+    private function signalerConfirmeesSansBc(BonDeCommandeService $bc, bool $simulation): void
+    {
+        foreach ($bc->aSignalerEchus() as $resa) {
+            $client   = $resa->client?->name ?? 'Client';
+            $echeance = \Carbon\Carbon::parse($resa->bc_attendu_jusqu_au)->format('d/m/Y');
+            $this->line("   ⚠ {$resa->reference} · {$client} · confirmée sans BC, échéance {$echeance} dépassée");
+            if ($simulation) continue;
+
+            $titre = '📄 BC toujours absent — ' . $resa->reference;
+            $corps = sprintf(
+                "La réservation de %s a été confirmée sans bon de commande (motif : %s).\n"
+                . "L'échéance du %s est dépassée et le BC n'est toujours pas enregistré. La réservation reste confirmée.",
+                $client, $resa->confirme_sans_bc_motif ?: '—', $echeance
+            );
+            try {
+                // Ciblée sur le commercial ; l'admin voit toutes les alertes.
+                AlertService::notify('bc_echeance_confirme', $titre, $corps, $resa, [
+                    'niveau'  => 'warning',
+                    'user_id' => $resa->commercial_user_id,
+                    'lien'    => route('admin.reservations.show', $resa->id),
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('bc.echeance_confirme.alerte', ['resa' => $resa->id, 'erreur' => $e->getMessage()]);
+            }
+            if ($resa->commercial?->email) {
+                app(\App\Services\NotificationMailer::class)->sendSilently(
+                    $resa->commercial->email,
+                    new \App\Mail\AdminAlertMail(
+                        severity: 'warning', title: 'BC toujours absent — ' . $resa->reference, summary: $corps,
+                        ctaLabel: 'Ouvrir la réservation', ctaUrl: route('admin.reservations.show', $resa->id), emoji: '📄',
+                    ),
+                    context: ['reservation_id' => $resa->id],
+                );
+            }
+            $resa->forceFill(['bc_echeance_signalee_at' => now()])->save();
+            Log::info('bc.echeance_confirme', ['reservation_id' => $resa->id]);
+        }
     }
 }
