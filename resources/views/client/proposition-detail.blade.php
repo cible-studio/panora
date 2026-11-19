@@ -376,6 +376,7 @@
 @php
     // Conditions pour pouvoir agir (cohérentes avec PropositionController::assertActionable)
     $canAct = $reservation->status->value === 'en_attente'
+        && !$reservation->bc_attendu_jusqu_au   // 2026-11-19 : déjà acceptée, BC attendu
         && $joursRestants >= 0
         && !empty($reservation->proposition_token)
         && !empty($reservation->proposition_slug);
@@ -385,7 +386,9 @@
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:32px;text-align:center;">
         <h3 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;">Quelle est votre décision ?</h3>
         <p style="font-size:13px;color:var(--text2);max-width:500px;margin:0 auto 24px;line-height:1.7;">
-            En confirmant, les panneaux vous seront attribués immédiatement et une campagne sera créée dans votre espace.
+            {{-- 2026-11-19 — aligné sur la règle du BC --}}
+            En confirmant, les panneaux vous sont réservés en option pendant {{ (int) config('bon_de_commande.delai_jours', 30) }} jours.
+            Votre bon de commande, transmis à votre commercial, les bloque définitivement et lance la campagne.
         </p>
         <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:16px;">
             <button onclick="openConfirmModal()"
@@ -406,11 +409,18 @@
     {{-- Action impossible — affichage explicite pour ne pas laisser le client perplexe --}}
     @php
         $blockReason = match(true) {
+            // 2026-11-19 — Acceptée, en attente du bon de commande.
+            $reservation->status->value === 'en_attente' && $reservation->bc_attendu_jusqu_au => [
+                'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+                'color' => '#22c55e',
+                'title' => 'Proposition acceptée — bon de commande attendu',
+                'msg'   => 'Merci ! Vos emplacements sont réservés en option jusqu\'au ' . \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y') . '. Transmettez votre bon de commande à votre commercial pour les bloquer définitivement.',
+            ],
             $reservation->status->value === 'confirme' => [
                 'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
                 'color' => '#22c55e',
                 'title' => 'Proposition déjà acceptée',
-                'msg'   => 'Vous avez confirmé cette proposition. Une campagne a été créée dans votre espace. Notre équipe commerciale prendra contact avec vous pour la suite.',
+                'msg'   => 'Votre réservation est confirmée et vos emplacements sont bloqués. Notre équipe commerciale vous tient informé du lancement de la campagne.',
             ],
             $reservation->status->value === 'refuse' => [
                 'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
@@ -529,7 +539,7 @@
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <h3 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;">Confirmer la proposition</h3>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Souhaitez-vous confirmer cette proposition ? Les panneaux vous seront attribués et une campagne sera créée.</p>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Souhaitez-vous confirmer cette proposition ? Les panneaux vous sont réservés en option ; votre bon de commande les bloquera définitivement.</p>
 
         {{-- Récap clair : durée réelle + montant total --}}
         @php $totalAmount = (float) $reservation->total_amount; @endphp

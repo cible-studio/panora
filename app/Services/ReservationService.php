@@ -31,7 +31,9 @@ class ReservationService
 
             Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
 
-            $conflicts = $this->availability->getUnavailablePanelIds(
+            // 2026-11-19 (choix 3a) — « le premier BC gagne » : une simple option
+            // concurrente ne bloque pas, seuls les engagements fermes bloquent.
+            $conflicts = $this->availability->panneauxPrisFermement(
                 $panelIds,
                 $data['start_date'],
                 $data['end_date'],
@@ -46,9 +48,9 @@ class ReservationService
                 throw new \RuntimeException("CONFLICT:{$refs}");
             }
 
-            $status    = $data['type'] === 'ferme'
-                ? ReservationStatus::CONFIRME
-                : ReservationStatus::EN_ATTENTE;
+            // 2026-11-19 (choix 1a) — Toujours créée en option : « ferme » veut
+            // dire « BC déjà reçu », enregistré plus bas ; c'est lui qui confirme.
+            $status    = ReservationStatus::EN_ATTENTE;
 
             $months    = $this->monthsBetween($data['start_date'], $data['end_date']);
             $panelData = Panel::whereIn('id', $panelIds)->get()->keyBy('id');
@@ -70,10 +72,10 @@ class ReservationService
                 'start_date'   => $data['start_date'],
                 'end_date'     => $data['end_date'],
                 'status'       => $status,
-                'type'         => $data['type'],
+                'type'         => 'option',
                 'notes'        => $data['notes'] ?? null,
                 'total_amount' => $total,
-                'confirmed_at' => $data['type'] === 'ferme' ? now() : null,
+                'confirmed_at' => null,
             ]);
 
             $reservation->panels()->attach($attach);
@@ -98,8 +100,6 @@ class ReservationService
             // dans les notes du dossier pour que le MP le reprenne.
             $campaign = null;
             if ($data['type'] === 'ferme' && $campaignName !== '') {
-                app(\App\Services\BonDeCommandeService::class)->ouvrirAttente($reservation);
-
                 $reservation->forceFill([
                     'notes' => trim(($reservation->notes ? $reservation->notes . "\n" : '')
                         . 'Nom de campagne prévu : ' . $campaignName),
@@ -109,8 +109,21 @@ class ReservationService
                     'reservation_id' => $reservation->id,
                     'reference'      => $reservation->reference,
                     'campagne_prevue'=> $campaignName,
-                    'bc_jusqu_au'    => $reservation->bc_attendu_jusqu_au,
                 ]);
+            }
+
+            // 2026-11-19 (choix 1a) — « ferme » : le BC est enregistré tout de
+            // suite (reçu par le commercial du dossier). Il confirme la
+            // réservation et fait tomber les options concurrentes.
+            if ($data['type'] === 'ferme') {
+                $bc = app(\App\Services\BonDeCommandeService::class);
+                $bc->ouvrirAttente($reservation);
+                $bc->enregistrerReception(
+                    $reservation->fresh(['panels', 'externalPanels', 'client']),
+                    $data['bc_reference'] ?? null,
+                    auth()->user()
+                );
+                $reservation->refresh();
             }
 
             return ['reservation' => $reservation, 'campaign' => $campaign];
@@ -129,7 +142,13 @@ class ReservationService
 
             Panel::whereIn('id', $data['panel_ids'])->lockForUpdate()->get();
 
-            $conflicts = $this->availability->getUnavailablePanelIds(
+            // 2026-11-19 (choix 3a) — Tant qu'elle est en option, une simple option
+            // concurrente ne bloque pas. Confirmée, la réservation garde le contrôle
+            // strict : sinon on la rendrait ferme sur un panneau tenu ailleurs.
+            $verifier = $reservation->status === ReservationStatus::EN_ATTENTE
+                ? 'panneauxPrisFermement'
+                : 'getUnavailablePanelIds';
+            $conflicts = $this->availability->{$verifier}(
                 $data['panel_ids'],
                 $data['start_date'],
                 $data['end_date'],

@@ -57,6 +57,7 @@ class ReservationBcConfirmationTest extends TestCase
             $t->softDeletes(); $t->timestamps();
         });
         (require base_path('database/migrations/2026_11_19_150000_add_confirmation_auteur_to_reservations.php'))->up();
+        (require base_path('database/migrations/2026_11_19_170000_add_bc_saisi_par_to_reservations.php'))->up();
         Schema::create('reservation_panels', function (Blueprint $t) {
             $t->id(); $t->unsignedBigInteger('reservation_id'); $t->unsignedBigInteger('panel_id')->nullable();
             $t->unsignedBigInteger('external_panel_id')->nullable(); $t->string('source')->default('interne');
@@ -134,7 +135,8 @@ class ReservationBcConfirmationTest extends TestCase
         $r = DB::table('reservations')->where('id', 1)->first();
         $this->assertSame('confirme', $r->status, 'le BC reçu confirme la réservation');
         $this->assertSame('ferme', $r->type);
-        $this->assertSame(2, (int) $r->bc_recu_par, 'qui a enregistré le BC');
+        $this->assertSame(2, (int) $r->bc_recu_par, 'reçu par le commercial du dossier');
+        $this->assertSame(2, (int) $r->bc_saisi_par, 'saisi par Awa elle-même');
         $this->assertSame(2, (int) $r->confirme_par, 'qui a confirmé');
         $this->assertNull($r->confirme_sans_bc_motif);
         $this->assertSame('confirme', DB::table('panels')->where('id', 10)->value('status'), 'le panneau est bloqué fermement');
@@ -279,7 +281,8 @@ class ReservationBcConfirmationTest extends TestCase
     {
         $vue = file_get_contents(resource_path('views/admin/reservations/show.blade.php'));
         foreach ([
-            'par <strong>{{ $reservation->bcRecuParUser->name }}</strong>',
+            'Reçu par <strong>{{ $reservation->bcRecuParUser->name }}</strong>',
+            '— saisi par <strong>{{ $reservation->bcSaisiParUser->name }}</strong>',
             '⚠ Confirmer sans BC (exception)',
             'name="motif_sans_bc"',
             'name="nom_campagne"',
@@ -297,5 +300,200 @@ class ReservationBcConfirmationTest extends TestCase
         exec('php -l ' . escapeshellarg($tmp) . ' 2>&1', $sortie, $code);
         @unlink($tmp);
         $this->assertSame(0, $code, implode("\n", $sortie));
+    }
+
+    // ── 2026-11-19 — Choix 1a / 2a / 3a et rappels ─────────────────────
+
+    /** Le BC est reçu par le commercial du dossier, même quand l'admin le saisit. */
+    public function test_l_admin_saisit_le_bc_recu_par_le_commercial_du_dossier(): void
+    {
+        $admin = User::find(1);
+        $this->actingAs($admin);
+        $this->bc()->enregistrerReception($this->resa(1), 'BC-901', $admin);
+
+        $r = DB::table('reservations')->where('id', 1)->first();
+        $this->assertSame(2, (int) $r->bc_recu_par, 'reçu par Awa, commerciale du dossier');
+        $this->assertSame(1, (int) $r->bc_saisi_par, 'saisi par l\'admin');
+        $this->assertSame('confirme', $r->status);
+
+        $this->bc()->annulerReception($this->resa(1));
+        $r = DB::table('reservations')->where('id', 1)->first();
+        $this->assertNull($r->bc_recu_par);
+        $this->assertNull($r->bc_saisi_par, 'annuler la réception efface aussi qui l\'a saisi');
+    }
+
+    /** Sans commercial assigné : le créateur du dossier reçoit le BC. */
+    public function test_sans_commercial_assigne_le_createur_recoit_le_bc(): void
+    {
+        DB::table('reservations')->where('id', 1)->update(['commercial_user_id' => null]);
+        $this->actingAs(User::find(4));
+        $this->bc()->enregistrerReception($this->resa(1), null, User::find(4));
+
+        $r = DB::table('reservations')->where('id', 1)->first();
+        $this->assertSame(2, (int) $r->bc_recu_par, 'Awa a créé le dossier');
+        $this->assertSame(4, (int) $r->bc_saisi_par);
+    }
+
+    /** Choix 3a : une option concurrente ne bloque pas ; un engagement ferme, si. */
+    public function test_une_option_concurrente_ne_bloque_pas_un_engagement_ferme_si(): void
+    {
+        $dispo = app(\App\Services\AvailabilityService::class);
+
+        $this->assertContains(10, array_map('intval', $dispo->getUnavailablePanelIds([10, 20], '2026-12-01', '2026-12-31')),
+            'le contrôle strict voit toujours l\'option');
+        $this->assertSame([20], $dispo->panneauxPrisFermement([10, 20], '2026-12-01', '2026-12-31'),
+            'P-10 n\'est qu\'en option : retenable ; P-20 est pris par une campagne');
+
+        $carte = $dispo->getInternalConflictMap([10, 20], '2026-12-01', '2026-12-31');
+        $this->assertSame([10], \App\Services\AvailabilityService::optionsConcurrentes($carte)->keys()->map(fn ($v) => (int) $v)->all());
+        $this->assertSame([20], \App\Services\AvailabilityService::seulementBloquants($carte)->keys()->map(fn ($v) => (int) $v)->all());
+    }
+
+    /** Choix 3a : une seconde option sur un panneau déjà en option est acceptée. */
+    public function test_une_seconde_option_sur_un_panneau_en_option_est_acceptee(): void
+    {
+        $this->actingAs(User::find(3));
+        $res = app(ReservationService::class)->createFromSelection(
+            ['client_id' => 3, 'start_date' => '2026-12-05', 'end_date' => '2026-12-25', 'type' => 'option'],
+            [10]
+        );
+
+        $r = $res['reservation']->fresh();
+        $this->assertSame('en_attente', $r->status->value);
+        $this->assertSame('option', $r->type);
+        $this->assertNull($r->bc_recu_at);
+        $this->assertSame('en_attente', DB::table('reservations')->where('id', 1)->value('status'), 'les autres options restent vivantes');
+        $this->assertSame('en_attente', DB::table('reservations')->where('id', 2)->value('status'));
+    }
+
+    /** Choix 1a : « Ferme » = BC déjà reçu ; il confirme et les options concurrentes tombent. */
+    public function test_une_reservation_ferme_enregistre_le_bc_et_confirme(): void
+    {
+        $this->actingAs(User::find(3));
+        $res = app(ReservationService::class)->createFromSelection(
+            ['client_id' => 3, 'start_date' => '2026-12-05', 'end_date' => '2026-12-25', 'type' => 'ferme', 'bc_reference' => 'BC-MOOV-7'],
+            [10],
+            'Fêtes MOOV'
+        );
+
+        $r = DB::table('reservations')->where('id', $res['reservation']->id)->first();
+        $this->assertSame('confirme', $r->status, 'le BC enregistré confirme');
+        $this->assertSame('ferme', $r->type);
+        $this->assertNotNull($r->bc_recu_at);
+        $this->assertSame('BC-MOOV-7', $r->bc_reference);
+        $this->assertSame(3, (int) $r->bc_recu_par);
+        $this->assertSame(3, (int) $r->confirme_par);
+        $this->assertStringContainsString('Nom de campagne prévu : Fêtes MOOV', (string) $r->notes);
+        $this->assertSame('confirme', DB::table('panels')->where('id', 10)->value('status'));
+        $this->assertSame('annule', DB::table('reservations')->where('id', 1)->value('status'), 'le premier BC l\'emporte');
+        $this->assertSame('annule', DB::table('reservations')->where('id', 2)->value('status'));
+        $this->assertSame(0, DB::table('campaigns')->where('reservation_id', $r->id)->count(), 'la campagne reste au MP');
+    }
+
+    /** Un panneau pris ferme bloque toujours la réservation « Ferme ». */
+    public function test_une_reservation_ferme_sur_un_panneau_pris_est_refusee(): void
+    {
+        $this->actingAs(User::find(3));
+        try {
+            app(ReservationService::class)->createFromSelection(
+                ['client_id' => 2, 'start_date' => '2026-12-05', 'end_date' => '2026-12-25', 'type' => 'ferme'],
+                [20]
+            );
+            $this->fail('Réservation ferme acceptée sur P-20, tenu par une campagne active.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringStartsWith('CONFLICT:', $e->getMessage());
+        }
+        $this->assertSame(2, DB::table('reservations')->count(), 'rien n\'est créé');
+    }
+
+    /** Un panneau à démarrage différé n'est vérifié qu'à partir de son propre début. */
+    public function test_le_bc_confirme_une_reservation_avec_un_panneau_differe(): void
+    {
+        DB::table('reservations')->insert(['id' => 3, 'reference' => 'RES-DIFF', 'client_id' => 1, 'user_id' => 2, 'commercial_user_id' => 2,
+            'status' => 'en_attente', 'type' => 'option', 'start_date' => '2026-12-15', 'end_date' => '2027-01-31', 'bc_attendu_jusqu_au' => '2026-12-19']);
+        // P-20 est tenu par « Lancement » jusqu'au 31/12 : il rejoint le dossier le 01/01.
+        DB::table('reservation_panels')->insert(['reservation_id' => 3, 'panel_id' => 20, 'panel_start_date' => '2027-01-01']);
+
+        $this->actingAs(User::find(2));
+        $this->bc()->enregistrerReception($this->resa(3), null, User::find(2));
+        $this->assertSame('confirme', DB::table('reservations')->where('id', 3)->value('status'));
+
+        // Le même panneau, sans démarrage différé : refusé.
+        DB::table('reservations')->insert(['id' => 4, 'reference' => 'RES-PLEIN', 'client_id' => 1, 'user_id' => 2, 'commercial_user_id' => 2,
+            'status' => 'en_attente', 'type' => 'option', 'start_date' => '2026-12-15', 'end_date' => '2026-12-28', 'bc_attendu_jusqu_au' => '2026-12-19']);
+        DB::table('reservation_panels')->insert(['reservation_id' => 4, 'panel_id' => 20]);
+        $this->expectException(BookingConflictException::class);
+        $this->bc()->enregistrerReception($this->resa(4), null, User::find(2));
+    }
+
+    /** L'acceptation du client suit la même règle : le panneau différé ne la bloque pas. */
+    public function test_le_client_accepte_une_proposition_avec_un_panneau_differe(): void
+    {
+        DB::table('reservations')->insert(['id' => 3, 'reference' => 'RES-DIFF', 'client_id' => 1, 'user_id' => 2, 'commercial_user_id' => 2,
+            'status' => 'en_attente', 'type' => 'option', 'start_date' => '2026-12-15', 'end_date' => '2027-01-31']);
+        DB::table('reservation_panels')->insert(['reservation_id' => 3, 'panel_id' => 20, 'panel_start_date' => '2027-01-01']);
+
+        $r = app(PropositionService::class)->accepterClient($this->resa(3));
+        $this->assertSame('en_attente', $r->status->value, 'l\'acceptation laisse la réservation en option');
+        $this->assertNotNull($r->bc_attendu_jusqu_au, 'elle ouvre l\'attente du BC');
+    }
+
+    /** Choix 2a : le devis accepté crée une option en attente de BC (canari de source). */
+    public function test_le_devis_accepte_cree_une_option_en_attente_de_bc(): void
+    {
+        $src = file_get_contents(base_path('app/Services/QuoteConverter.php'));
+        $this->assertStringContainsString("'status'             => ReservationStatus::EN_ATTENTE->value,", $src);
+        $this->assertStringContainsString("'type'               => 'option',", $src);
+        $this->assertStringContainsString("'confirmed_at'       => null,", $src);
+        $this->assertStringContainsString('->ouvrirAttente($reservation);', $src);
+        $this->assertStringContainsString('->panneauxPrisFermement(', $src);
+        $this->assertStringNotContainsString('ReservationStatus::CONFIRME', $src, 'le devis ne confirme plus : c\'est le BC');
+    }
+
+    /** Une proposition déjà acceptée (BC attendu) ne reçoit plus de rappel « répondez ». */
+    public function test_plus_de_rappel_une_fois_la_proposition_acceptee(): void
+    {
+        foreach (['SendPropositionReminders', 'SendPropositionRappels'] as $commande) {
+            $src = file_get_contents(base_path("app/Console/Commands/{$commande}.php"));
+            $this->assertStringContainsString("->whereNull('bc_attendu_jusqu_au')", $src, $commande);
+        }
+
+        $ctrl = file_get_contents(base_path('app/Http/Controllers/Admin/PropositionController.php'));
+        $this->assertStringContainsString('&& !$reservation->bc_attendu_jusqu_au;', $ctrl, 'page publique : plus de boutons');
+        $this->assertStringContainsString('Vous avez déjà accepté cette proposition : nous attendons votre bon de commande.', $ctrl);
+
+        foreach (['views/admin/propositions/show.blade.php', 'views/client/proposition-detail.blade.php'] as $chemin) {
+            $vue = file_get_contents(resource_path($chemin));
+            $this->assertStringContainsString('Proposition acceptée — bon de commande attendu', $vue, $chemin);
+            // Le client n'entend plus « une campagne sera créée » au clic (règle du 13/11).
+            $this->assertStringNotContainsString('une campagne sera automatiquement', $vue, $chemin);
+            $this->assertStringNotContainsString('une campagne sera créée', $vue, $chemin);
+            $this->assertVueCompile($vue, $chemin);
+        }
+
+        $devis = file_get_contents(resource_path('views/quotes/_show_content.blade.php'));
+        $this->assertStringNotContainsString('une réservation ferme sera créée automatiquement', $devis, 'choix 2a : le devis accepté crée une option');
+        $this->assertVueCompile($devis, 'quotes/_show_content');
+    }
+
+    /** Disponibilités : « Ferme — BC reçu », numéro de BC facultatif, options retenables. */
+    public function test_l_ecran_disponibilites_dit_que_ferme_veut_dire_bc_recu(): void
+    {
+        $vue = file_get_contents(resource_path('views/admin/reservations/disponibilites.blade.php'));
+        $this->assertStringContainsString('🔒 Ferme — BC reçu', $vue);
+        $this->assertStringContainsString('name="bc_reference"', $vue);
+        $this->assertStringContainsString('le premier bon de commande reçu l\'emporte', $vue);
+        $this->assertStringNotContainsString('>Définitive<', $vue);
+        $this->assertVueCompile($vue, 'disponibilites');
+    }
+
+    private function assertVueCompile(string $vue, string $nom): void
+    {
+        $php = app('blade.compiler')->compileString($vue);
+        $tmp = tempnam(sys_get_temp_dir(), 'vue') . '.php';
+        file_put_contents($tmp, $php);
+        exec('php -l ' . escapeshellarg($tmp) . ' 2>&1', $sortie, $code);
+        @unlink($tmp);
+        $this->assertSame(0, $code, $nom . "\n" . implode("\n", $sortie));
     }
 }

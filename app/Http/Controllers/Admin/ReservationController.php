@@ -1579,6 +1579,8 @@ class ReservationController extends Controller
             'notes' => 'nullable|string|max:2000',
             'type' => 'required|in:option,ferme',
             'campaign_name' => 'nullable|string|max:150',
+            // 2026-11-19 — « Ferme — BC reçu » : numéro de BC facultatif.
+            'bc_reference'  => 'nullable|string|max:190',
             // Tâche 6.1 — montant personnalisé optionnel (override du calcul auto)
             'amount' => 'nullable|numeric|min:0|max:9999999999',
         ], [
@@ -1613,6 +1615,9 @@ class ReservationController extends Controller
         $reservation       = null;
         $excludedPanels    = []; // panneaux EXCLUS (libération > end_date)
         $deferredPanels    = []; // panneaux RETENUS avec démarrage différé
+        $optionsConcurrentes = []; // 2026-11-19 — panneau => réf. de l'option concurrente (avertissement)
+        $bcRecuALaCreation   = false;
+        $concurrentsTombes   = collect();
 
         // Ingest les exclusions pré-validation (panel_start_date > end_date)
         // → elles seront remontées dans le warning final
@@ -1626,7 +1631,7 @@ class ReservationController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($request, &$internalIds, &$externalIds, &$internalStartDates, &$externalStartDates, &$createdCampaignId, &$reservation, &$excludedPanels, &$deferredPanels) {
+            DB::transaction(function () use ($request, &$internalIds, &$externalIds, &$internalStartDates, &$externalStartDates, &$createdCampaignId, &$reservation, &$excludedPanels, &$deferredPanels, &$optionsConcurrentes, &$bcRecuALaCreation, &$concurrentsTombes) {
                 // ── Gestion des conflits — démarrage différé ──────────────────
                 // Stratégie métier (validée terrain) : un panneau partiellement
                 // occupé n'est PAS exclu — il rejoint la campagne à partir de
@@ -1651,7 +1656,13 @@ class ReservationController extends Controller
 
                     $standardIds = array_values(array_filter($internalIds, fn($id) => !isset($internalStartDates[$id])));
                     if ($standardIds) {
-                        $cmap = $this->availability->getInternalConflictMap($standardIds, $request->start_date, $request->end_date, null, null, $clientId);
+                        $carte = $this->availability->getInternalConflictMap($standardIds, $request->start_date, $request->end_date, null, null, $clientId);
+                        // 2026-11-19 — « Le premier BC gagne » : une simple option
+                        // concurrente n'exclut ni ne décale le panneau, elle est signalée.
+                        foreach (AvailabilityService::optionsConcurrentes($carte) as $opid => $oc) {
+                            $optionsConcurrentes[$opid] = $oc->conflicting_ref;
+                        }
+                        $cmap = AvailabilityService::seulementBloquants($carte);
                         if ($cmap->isNotEmpty()) {
                             $panelRefs = Panel::whereIn('id', $cmap->keys()->all())->get()->keyBy('id');
                             foreach ($cmap as $pid => $c) {
@@ -1686,7 +1697,11 @@ class ReservationController extends Controller
                     foreach ($internalIds as $panelId) {
                         if (!isset($internalStartDates[$panelId])) continue;
                         if (!in_array($panelId, $availableInternal)) continue;
-                        $cmap = $this->availability->getInternalConflictMap([$panelId], $internalStartDates[$panelId], $request->end_date, null, null, $clientId);
+                        $carte = $this->availability->getInternalConflictMap([$panelId], $internalStartDates[$panelId], $request->end_date, null, null, $clientId);
+                        foreach (AvailabilityService::optionsConcurrentes($carte) as $opid => $oc) {
+                            $optionsConcurrentes[$opid] = $oc->conflicting_ref;
+                        }
+                        $cmap = AvailabilityService::seulementBloquants($carte);
                         if ($cmap->isNotEmpty()) {
                             $c = $cmap->first();
                             $nextFree = $c->release_date
@@ -1721,7 +1736,7 @@ class ReservationController extends Controller
 
                     $standardExtIds = array_values(array_filter($externalIds, fn($id) => !isset($externalStartDates[$id])));
                     if ($standardExtIds) {
-                        $cmap = $this->availability->getExternalConflictMap($standardExtIds, $request->start_date, $request->end_date);
+                        $cmap = AvailabilityService::seulementBloquants($this->availability->getExternalConflictMap($standardExtIds, $request->start_date, $request->end_date));
                         if ($cmap->isNotEmpty()) {
                             $extRefs = ExternalPanel::whereIn('id', $cmap->keys()->all())->get()->keyBy('id');
                             foreach ($cmap as $extId => $c) {
@@ -1754,7 +1769,7 @@ class ReservationController extends Controller
                     foreach ($externalIds as $extId) {
                         if (!isset($externalStartDates[$extId])) continue;
                         if (!in_array($extId, $availableExternal)) continue;
-                        $cmap = $this->availability->getExternalConflictMap([$extId], $externalStartDates[$extId], $request->end_date);
+                        $cmap = AvailabilityService::seulementBloquants($this->availability->getExternalConflictMap([$extId], $externalStartDates[$extId], $request->end_date));
                         if ($cmap->isNotEmpty()) {
                             $c = $cmap->first();
                             $nextFree = $c->release_date
@@ -1844,7 +1859,10 @@ class ReservationController extends Controller
                 $internalIds = $availableInternal;
                 $externalIds = $availableExternal;
 
-                $status = $request->type === 'ferme' ? ReservationStatus::CONFIRME : ReservationStatus::EN_ATTENTE;
+                // 2026-11-19 — Toujours créée en option : une réservation « Ferme »
+                // veut dire « BC déjà reçu », on l'enregistre plus bas, et c'est
+                // le BC qui confirme (source unique : confirmerReservation).
+                $status = ReservationStatus::EN_ATTENTE;
                 $reference = $this->generateUniqueReference();
                 $months = $this->monthsBetween($request->start_date, $request->end_date);
 
@@ -1941,10 +1959,10 @@ class ReservationController extends Controller
                     'start_date' => $request->start_date,
                     'end_date' => $request->end_date,
                     'status' => $status,
-                    'type' => $request->type,
+                    'type' => 'option',
                     'notes' => (string) $request->notes,
                     'total_amount' => $total,
-                    'confirmed_at' => $request->type === 'ferme' ? now() : null,
+                    'confirmed_at' => null,
                 ]);
 
                 if ($attach) {
@@ -1969,9 +1987,9 @@ class ReservationController extends Controller
                                 "INCOHERENT:Panel #{$pid} a panel_start_date={$effStart} > end_date={$request->end_date}"
                             );
                         }
-                        $conflicts = $this->availability->getInternalConflictMap(
+                        $conflicts = AvailabilityService::seulementBloquants($this->availability->getInternalConflictMap(
                             [$pid], $effStart, $request->end_date, null, null, (int) $request->client_id
-                        );
+                        ));
                         if ($conflicts->isNotEmpty()) {
                             $c   = $conflicts->first();
                             $ref = Panel::find($pid)?->reference ?? "#{$pid}";
@@ -2040,7 +2058,6 @@ class ReservationController extends Controller
                         throw new \RuntimeException('CAMPAIGN_EXISTS:Une campagne avec ce nom existe déjà pour ce client.');
                     }
 
-                    app(\App\Services\BonDeCommandeService::class)->ouvrirAttente($reservation);
                     $reservation->forceFill([
                         'notes' => trim(((string) $request->notes ? (string) $request->notes . "\n" : '')
                             . 'Nom de campagne prévu : ' . $request->campaign_name),
@@ -2050,8 +2067,25 @@ class ReservationController extends Controller
                         'reservation_id'  => $reservation->id,
                         'reference'       => $reference,
                         'campagne_prevue' => $request->campaign_name,
-                        'bc_jusqu_au'     => $reservation->bc_attendu_jusqu_au,
                     ]);
+                }
+
+                // 2026-11-19 (choix 1a) — « Ferme » = le client a déjà envoyé son
+                // BC : on l'enregistre tout de suite. Reçu par le commercial du
+                // dossier, saisi par la personne qui crée. C'est ce BC qui
+                // confirme la réservation, bloque ses panneaux et fait tomber
+                // les options concurrentes (prévenues).
+                if ($request->type === 'ferme') {
+                    $bc = app(\App\Services\BonDeCommandeService::class);
+                    $bc->ouvrirAttente($reservation);
+                    $bc->enregistrerReception(
+                        $reservation->fresh(['panels', 'externalPanels', 'client']),
+                        $request->input('bc_reference'),
+                        auth()->user()
+                    );
+                    $reservation->refresh();
+                    $bcRecuALaCreation = true;
+                    $concurrentsTombes = $bc->derniersConcurrentsAnnules ?? collect();
                 }
 
 
@@ -2144,13 +2178,27 @@ class ReservationController extends Controller
             ? \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y')
             : null;
 
+        // 2026-11-19 — « Ferme » = BC reçu : la réservation est confirmée,
+        // le MP et le client sont prévenus comme au bouton « BC reçu ».
+        if ($bcRecuALaCreation && $reservation) {
+            $this->apresReceptionBc($reservation, true);
+        }
+
         $successMsg = $request->type === 'ferme'
-            ? ($createdCampaignId
-                ? 'Réservation ferme créée et campagne lancée. ✅'
-                : 'Réservation créée. ⏳ En attente du bon de commande'
-                  . ($echeanceBc ? " jusqu'au {$echeanceBc}" : '')
-                  . ' — la campagne sera créée à sa réception.')
+            ? '🔒 Réservation ferme créée : BC enregistré, panneaux bloqués. Le média planner est prévenu pour créer la campagne.'
+              . ($concurrentsTombes->isNotEmpty()
+                  ? ' Dossier(s) concurrent(s) annulé(s), leur commercial prévenu : ' . $concurrentsTombes->pluck('reference')->join(', ') . '.'
+                  : '')
             : 'Panneaux mis sous option. ⏳';
+
+        // 2026-11-19 (choix 3a) — Panneaux déjà en option pour d'autres dossiers.
+        if ($request->type !== 'ferme' && !empty($optionsConcurrentes)) {
+            $refsPanneaux = Panel::whereIn('id', array_keys($optionsConcurrentes))->pluck('reference', 'id');
+            $details = collect($optionsConcurrentes)
+                ->map(fn ($ref, $pid) => ($refsPanneaux[$pid] ?? "#{$pid}") . ' (' . $ref . ')')
+                ->join(', ');
+            $successMsg .= ' ⚠ Déjà en option pour d\'autres dossiers : ' . $details . '. Le premier bon de commande reçu l\'emporte.';
+        }
 
         // ── Récap : panneaux différés (inclus mais démarrent plus tard) ──
         // Information importante pour l'admin/commercial : la résa a bien été
@@ -2412,7 +2460,7 @@ class ReservationController extends Controller
         $reservation->load([
             'client', 'user',
             // 2026-11-19 — qui a enregistré le BC, qui a confirmé.
-            'bcRecuParUser:id,name', 'confirmeParUser:id,name',
+            'bcRecuParUser:id,name', 'bcSaisiParUser:id,name', 'confirmeParUser:id,name',
             'panels.commune', 'panels.format', 'panels.photos',
             'externalPanels.commune', 'externalPanels.format',
             'externalPanels.agency:id,name',
@@ -2993,12 +3041,33 @@ class ReservationController extends Controller
         }
         $reservation->refresh();
 
+        $this->apresReceptionBc($reservation, $etaitEnAttente);
+
+        $tombes = $bc->derniersConcurrentsAnnules ?? collect();
+
+        return back()->with('success',
+            '📥 Bon de commande enregistré : la réservation est confirmée et ses panneaux sont bloqués. '
+            . 'Le média planner est prévenu pour créer la campagne.'
+            . ($tombes->isNotEmpty()
+                ? ' ' . $tombes->count() . ' dossier(s) concurrent(s) annulé(s), leur commercial prévenu : ' . $tombes->pluck('reference')->join(', ') . '.'
+                : ''));
+    }
+
+    /**
+     * Après l'enregistrement d'un BC (bouton « BC reçu » ou création d'une
+     * réservation « Ferme ») : le MP est prévenu (alerte + mail) pour créer
+     * la campagne, le client reçoit « réservation confirmée » (2026-11-19).
+     */
+    private function apresReceptionBc(Reservation $reservation, bool $etaitEnAttente): void
+    {
+        $reservation->loadMissing(['client', 'bcRecuParUser:id,name']);
+
         // Prévenir le MP (alerte + mail) : c'est lui qui crée la campagne.
         $titre = '📥 BC reçu, campagne à créer — ' . $reservation->reference;
         $corps = sprintf(
-            "%s a enregistré le bon de commande de %s%s.\nLa réservation est confirmée et ses panneaux sont bloqués. Il reste à créer la campagne.",
-            $request->user()?->name ?? 'Un commercial',
+            "Bon de commande de %s reçu par %s%s.\nLa réservation est confirmée et ses panneaux sont bloqués. Il reste à créer la campagne.",
             $reservation->client?->name ?? 'ce client',
+            $reservation->bcRecuParUser?->name ?? 'le commercial',
             $reservation->bc_reference ? ' (réf. ' . $reservation->bc_reference . ')' : ''
         );
         try {
@@ -3025,15 +3094,6 @@ class ReservationController extends Controller
         if ($etaitEnAttente && $reservation->status->value === 'confirme') {
             $this->notifyClientReservationConfirmed($reservation->loadMissing('client'));
         }
-
-        $tombes = $bc->derniersConcurrentsAnnules ?? collect();
-
-        return back()->with('success',
-            '📥 Bon de commande enregistré : la réservation est confirmée et ses panneaux sont bloqués. '
-            . 'Le média planner est prévenu pour créer la campagne.'
-            . ($tombes->isNotEmpty()
-                ? ' ' . $tombes->count() . ' dossier(s) concurrent(s) annulé(s), leur commercial prévenu : ' . $tombes->pluck('reference')->join(', ') . '.'
-                : ''));
     }
 
     /**
@@ -3763,7 +3823,12 @@ class ReservationController extends Controller
                 }
 
                 // ── Re-check disponibilité APRÈS verrou = source de vérité ──
-                $conflicts = $this->availability->getUnavailablePanelIds(
+                // 2026-11-19 (choix 3a) — Réservation en option : une simple
+                // option concurrente ne bloque pas. Confirmée : contrôle strict.
+                $verifier = $reservation->status === ReservationStatus::EN_ATTENTE
+                    ? 'panneauxPrisFermement'
+                    : 'getUnavailablePanelIds';
+                $conflicts = $this->availability->{$verifier}(
                     [$panelId],
                     $reservation->start_date->format('Y-m-d'),
                     $reservation->end_date->format('Y-m-d'),

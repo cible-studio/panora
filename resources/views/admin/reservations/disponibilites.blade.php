@@ -505,8 +505,8 @@
                                 onclick="DISPO.setType('ferme')">
                                 <input type="radio" name="type" value="ferme" class="accent-green-500">
                                 <div>
-                                    <div class="text-sm font-bold text-[var(--text2)]">🔒 Ferme</div>
-                                    <div class="text-xs text-[var(--text3)]">Définitive</div>
+                                    <div class="text-sm font-bold text-[var(--text2)]">🔒 Ferme — BC reçu</div>
+                                    <div class="text-xs text-[var(--text3)]">Le client a envoyé son bon de commande</div>
                                 </div>
                             </label>
                         </div>
@@ -587,7 +587,22 @@
                         </div>
                     </div>
 
+                    {{-- 2026-11-19 — Panneau déjà en option : retenu quand même, le premier BC l'emporte. --}}
+                    <div class="text-xs text-[var(--text3)]" style="margin-top:-6px">
+                        Un panneau déjà <strong>en option</strong> pour un autre dossier peut être retenu : le premier bon de commande reçu l'emporte.
+                    </div>
+
                     <div id="wrapper-campaign-name" class="hidden">
+                        {{-- 2026-11-19 — « Ferme » = BC déjà reçu : il est enregistré à la création,
+                             reçu par le commercial du dossier. Il confirme la réservation. --}}
+                        <div class="text-xs mb-3" style="padding:8px 10px;border-radius:8px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);color:var(--text2)">
+                            Le bon de commande est enregistré comme reçu par le <strong>commercial du dossier</strong> :
+                            la réservation est confirmée, ses panneaux bloqués, et le média planner est prévenu pour créer la campagne.
+                        </div>
+                        <label class="filter-label block mb-1">N° de bon de commande <span
+                                class="text-[var(--text3)] font-normal">(facultatif)</span></label>
+                        <input type="text" name="bc_reference" id="modal-bc-reference" maxlength="190"
+                            placeholder="Ex : BC-2026-114, ou « reçu par mail le 19/11 »" class="modal-input w-full mb-3">
                         <label class="filter-label block mb-1">Nom campagne <span
                                 class="text-[var(--text3)] font-normal">(optionnel)</span></label>
                         <input type="text" name="campaign_name" id="modal-campaign"

@@ -414,9 +414,15 @@
                 </div>
                 <div style="font-size:12.5px;color:var(--text2);line-height:1.6">
                     @if($bcRecu)
-                        Enregistré le {{ $reservation->bc_recu_at->format('d/m/Y à H:i') }}
+                        {{-- 2026-11-19 — Reçu par le commercial du dossier ; saisi par qui a cliqué, s'il diffère. --}}
                         @if($reservation->bcRecuParUser)
-                            par <strong>{{ $reservation->bcRecuParUser->name }}</strong>
+                            Reçu par <strong>{{ $reservation->bcRecuParUser->name }}</strong>
+                            @if($reservation->bcSaisiParUser && (int) $reservation->bc_saisi_par !== (int) $reservation->bc_recu_par)
+                                — saisi par <strong>{{ $reservation->bcSaisiParUser->name }}</strong>
+                            @endif
+                            le {{ $reservation->bc_recu_at->format('d/m/Y à H:i') }}
+                        @else
+                            Enregistré le {{ $reservation->bc_recu_at->format('d/m/Y à H:i') }}
                         @endif
                         @if($reservation->bc_reference)
                             · réf. <strong>{{ $reservation->bc_reference }}</strong>

@@ -114,7 +114,9 @@ class QuoteConverter
             $conflicts = [];
             if (!empty($panelIds)) {
                 // Son propre renouvellement confirmé ne bloque pas le client (2026-11-11).
-                $unavailable = $this->availability->getUnavailablePanelIds(
+                // 2026-11-19 (choix 3a) — Le devis devient une OPTION : une simple
+                // option concurrente ne bloque pas (le premier BC gagne).
+                $unavailable = $this->availability->panneauxPrisFermement(
                     $panelIds, $periodStart, $periodEnd, null, null,
                     $quote->client_id ? (int) $quote->client_id : null
                 );
@@ -154,7 +156,10 @@ class QuoteConverter
                 return ['status' => 'conflict', 'conflicts' => $conflicts];
             }
 
-            // 4) Cas nominal : création de la réservation ferme
+            // 4) Cas nominal : création de la réservation EN OPTION, en attente du
+            //    bon de commande (2026-11-19, choix 2a — règle écrite du 13/11 :
+            //    « devis accepté → les panneaux sont tenus en option »). C'est le
+            //    BC reçu qui la confirmera (PropositionService::confirmerReservation).
             // Génération de référence RES-XXXXXXXX (aligné avec ReservationService)
             do {
                 $ref = 'RES-' . strtoupper(\Illuminate\Support\Str::random(8));
@@ -167,12 +172,12 @@ class QuoteConverter
                 'commercial_user_id' => $quote->commercial_user_id,
                 'user_id'            => $quote->commercial_user_id,
                 'quote_id'           => $quote->id,
-                'type'               => 'ferme',
-                'status'             => ReservationStatus::CONFIRME->value,
+                'type'               => 'option',
+                'status'             => ReservationStatus::EN_ATTENTE->value,
                 'start_date'         => $periodStart,
                 'end_date'           => $periodEnd,
                 'total_amount'       => $quote->total_a_payer,
-                'confirmed_at'       => now(),
+                'confirmed_at'       => null,
                 'origin'             => 'devis',
                 'notes'              => 'Créée automatiquement à partir du devis ' . $quote->reference,
             ]);
@@ -218,7 +223,10 @@ class QuoteConverter
             // la fermer plus tôt aurait rouvert le réseau à un autre client.
             $panelIdsOption = $this->libererOptionRemplacee($quote, $reservation);
 
-            // Sync statuts panneaux (bloqués maintenant)
+            // Attente du bon de commande (30 j), relances J-15 / J-7 / J-2.
+            app(BonDeCommandeService::class)->ouvrirAttente($reservation);
+
+            // Sync statuts panneaux (en option maintenant)
             $aResynchroniser = array_values(array_unique(array_merge($panelIds, $panelIdsOption)));
             if (!empty($aResynchroniser)) $this->availability->syncPanelStatuses($aResynchroniser);
             if (!empty($extPanelIds))     $this->availability->syncExternalPanelStatuses($extPanelIds);
@@ -234,7 +242,8 @@ class QuoteConverter
                 'devis_accepte',
                 '🎉 Devis accepté — ' . $quote->reference,
                 ($quote->client?->name ?? 'Client') . ' a accepté le devis ' . $quote->reference
-                . '. Réservation ' . $reservation->reference . ' créée automatiquement.',
+                . '. Réservation ' . $reservation->reference . ' créée en option : bon de commande attendu'
+                . ($reservation->bc_attendu_jusqu_au ? ' jusqu\'au ' . \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y') : '') . '.',
                 $quote,
                 [
                     'user_id' => $quote->commercial_user_id,
