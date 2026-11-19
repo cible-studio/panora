@@ -211,12 +211,17 @@ class BonDeCommandeService
             return $reservation;
         }
 
-        $parId = $par?->id ?? auth()->id();
+        // 2026-11-19 — Le BC est reçu par le commercial du dossier (assigné,
+        // à défaut le créateur) : l'admin ou le MP qui le saisit à sa place
+        // est gardé à part (bc_saisi_par).
+        $parId  = $par?->id ?? auth()->id();
+        $recuPar = $reservation->commercial_user_id ?: ($reservation->user_id ?: $parId);
 
-        DB::transaction(function () use ($reservation, $reference, $parId) {
+        DB::transaction(function () use ($reservation, $reference, $parId, $recuPar) {
             $reservation->forceFill([
                 'bc_recu_at'   => now(),
-                'bc_recu_par'  => $parId,
+                'bc_recu_par'  => $recuPar,
+                'bc_saisi_par' => $parId,
                 'bc_reference' => $reference !== null && trim($reference) !== ''
                     ? mb_substr(trim($reference), 0, 190)
                     : null,
@@ -234,6 +239,7 @@ class BonDeCommandeService
             'reference'      => $reservation->reference,
             'bc_reference'   => $reservation->bc_reference,
             'par'            => $reservation->bc_recu_par,
+            'saisi_par'      => $reservation->bc_saisi_par,
             'confirmee'      => true,
         ]);
 
@@ -256,6 +262,7 @@ class BonDeCommandeService
             $reservation->forceFill(array_merge([
                 'bc_recu_at'   => null,
                 'bc_recu_par'  => null,
+                'bc_saisi_par' => null,
                 'bc_reference' => null,
             ], $confirmeeParCeBc ? [
                 'status'       => 'en_attente',

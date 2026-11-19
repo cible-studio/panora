@@ -92,8 +92,10 @@
             <div id="qw-accept-form" style="display:none;margin-top:16px;padding:16px;background:#fff;border-radius:8px;border:1px solid #86efac">
                 <div style="font-weight:700;color:#166534;margin-bottom:8px">Confirmer l'acceptation ?</div>
                 <p style="font-size:13px;color:#166534;margin-bottom:12px">
-                    En acceptant, une réservation ferme sera créée automatiquement pour vous.
-                    Votre commercial vous contactera pour la suite.
+                    {{-- 2026-11-19 (choix 2a) — le devis accepté crée une option, le BC la confirme. --}}
+                    En acceptant, vos emplacements sont réservés en option pendant
+                    {{ (int) config('bon_de_commande.delai_jours', 30) }} jours. Transmettez ensuite votre
+                    bon de commande à votre commercial pour les bloquer définitivement.
                 </p>
                 <form method="POST" action="{{ $isPublic ? route('public.quote.accept', $quote->public_token) : route('client.devis.accept', $quote) }}">
                     @csrf

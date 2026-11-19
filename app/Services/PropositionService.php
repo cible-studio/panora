@@ -91,12 +91,7 @@ class PropositionService
                 \App\Models\Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
                 // Bloque uniquement sur du FERME (résa confirmée, campagne
                 // active) — pas sur les autres options, qui coexistent.
-                $availability->assertLibresFermement(
-                    $panelIds, $start, $end,
-                    $reservation->id,
-                    $reservation->campaign()->value('id'),
-                    (int) $reservation->client_id
-                );
+                $this->assertPanneauxLibresFermement($reservation, $availability, $start, $end);
             }
 
             app(\App\Services\BonDeCommandeService::class)->ouvrirAttente($reservation);
@@ -177,8 +172,7 @@ class PropositionService
             // Overlap INCLUSIF (<= >=), cf. AvailabilityService::conflitsFermes().
             if (!empty($panelIds)) {
                 \App\Models\Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
-                // Son propre renouvellement confirmé ne bloque pas le client (2026-11-11).
-                $availability->assertLibresFermement($panelIds, $start, $end, $reservation->id, $reservation->campaign()->value('id'), (int) $reservation->client_id);
+                $this->assertPanneauxLibresFermement($reservation, $availability, $start, $end);
             }
 
             if (!empty($extIds)) {
@@ -223,6 +217,36 @@ class PropositionService
         }
 
         return $annules;
+    }
+
+    /**
+     * Les panneaux de la réservation sont-ils libres FERMEMENT ? (2026-11-19)
+     *
+     * Source unique pour l'acceptation du client et la confirmation (BC reçu,
+     * « Ferme — BC reçu », « Confirmer sans BC »). Un panneau à démarrage
+     * différé (panel_start_date) n'est vérifié qu'à partir de son propre
+     * début : sinon la campagne qui le libère juste avant ferait échouer
+     * la confirmation. Son propre renouvellement confirmé ne bloque pas le
+     * client (2026-11-11).
+     *
+     * @throws \App\Exceptions\BookingConflictException
+     */
+    private function assertPanneauxLibresFermement(Reservation $reservation, AvailabilityService $availability, string $start, string $end): void
+    {
+        $parDebut = $reservation->panels->groupBy(function ($p) use ($start) {
+            $debut = $p->pivot?->panel_start_date
+                ? Carbon::parse($p->pivot->panel_start_date)->toDateString()
+                : $start;
+            return max($debut, $start);
+        });
+
+        $campagneId = $reservation->campaign()->value('id');
+        foreach ($parDebut as $debut => $groupe) {
+            $availability->assertLibresFermement(
+                $groupe->pluck('id')->all(), (string) $debut, $end,
+                $reservation->id, $campagneId, (int) $reservation->client_id
+            );
+        }
     }
 
     /**

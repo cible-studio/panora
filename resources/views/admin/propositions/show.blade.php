@@ -843,6 +843,15 @@
     @php
         $statusValue = $reservation->status->value;
         $stateInfo = match (true) {
+            // 2026-11-19 — Acceptée, en attente du bon de commande.
+            $statusValue === 'en_attente' && $reservation->bc_attendu_jusqu_au => [
+                'icon'  => '📄',
+                'title' => 'Proposition acceptée — bon de commande attendu',
+                'text'  => 'Merci ! Vos emplacements sont réservés en option jusqu\'au '
+                    . \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y')
+                    . '. Transmettez votre bon de commande à votre commercial pour les bloquer définitivement.',
+                'tone'  => 'success',
+            ],
             $isExpired                          => [
                 'icon'  => '⏱',
                 'title' => 'Cette proposition a expiré',
@@ -852,7 +861,7 @@
             $statusValue === 'confirme'         => [
                 'icon'  => '✅',
                 'title' => 'Proposition déjà confirmée',
-                'text'  => 'Cette proposition a été acceptée. Elle a donné lieu à une campagne — connectez-vous à votre espace client pour la suivre.',
+                'text'  => 'Votre réservation est confirmée et vos emplacements sont bloqués. Votre commercial vous tient informé du lancement de la campagne.',
                 'tone'  => 'success',
             ],
             $statusValue === 'refuse'           => [
@@ -988,12 +997,15 @@
 <div class="modal-overlay" id="modal-confirm" role="dialog" aria-modal="true">
     <div class="modal">
         <h3>Confirmer la proposition</h3>
+        {{-- 2026-11-19 — Texte aligné sur la règle du BC : l'acceptation réserve en
+             option, c'est le bon de commande qui bloque et lance la campagne. --}}
         <p>
-            En confirmant, les emplacements vous seront attribués et une campagne sera automatiquement
-            créée. Cette action est définitive.
+            En confirmant, les emplacements vous sont réservés en option pendant
+            {{ (int) config('bon_de_commande.delai_jours', 30) }} jours. Transmettez ensuite votre
+            bon de commande à votre commercial : il les bloque définitivement et lance la campagne.
         </p>
         <div class="modal-warning">
-            Vous recevrez ensuite un email de confirmation avec le récapitulatif détaillé.
+            Vous recevrez un email de confirmation dès que votre bon de commande sera enregistré.
         </div>
         <div class="modal-btns">
             <button type="button" class="btn btn-secondary" onclick="closeConfirmModal()">Annuler</button>

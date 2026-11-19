@@ -33,6 +33,9 @@ class SendPropositionReminders extends Command
         $candidates = Reservation::query()
             ->with(['client', 'user', 'panels', 'externalPanels'])
             ->where('status', 'en_attente')
+            // 2026-11-19 — Le client a déjà accepté (attente du BC ouverte) : plus
+            // de rappel « répondez », les relances du bon de commande prennent le relais.
+            ->whereNull('bc_attendu_jusqu_au')
             ->whereNotNull('proposition_token')
             ->whereNotNull('proposition_sent_at')
             ->where(function ($q) use ($now) {

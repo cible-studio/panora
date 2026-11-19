@@ -33,6 +33,7 @@ class Reservation extends Model
         'bc_attendu_jusqu_au',
         'bc_recu_at',
         'bc_recu_par',
+        'bc_saisi_par',   // 2026-11-19 : qui a cliqué (admin, MP) si ce n'est pas le commercial
         'bc_reference',
         'bc_relance_j15_at',
         'bc_relance_j7_at',
@@ -97,6 +98,7 @@ class Reservation extends Model
         'bc_attendu_jusqu_au'    => 'date',
         'bc_recu_at'             => 'datetime',
         'bc_recu_par'            => 'integer',
+        'bc_saisi_par'           => 'integer',
         'bc_relance_j15_at'      => 'datetime',
         'bc_relance_j7_at'       => 'datetime',
         'bc_relance_j2_at'       => 'datetime',
@@ -343,6 +345,12 @@ class Reservation extends Model
     public function bcRecuParUser()
     {
         return $this->belongsTo(User::class, 'bc_recu_par');
+    }
+
+    /** Qui a saisi le BC dans Panora, quand ce n'est pas le commercial (2026-11-19). */
+    public function bcSaisiParUser()
+    {
+        return $this->belongsTo(User::class, 'bc_saisi_par');
     }
 
     /** Qui a confirmé la réservation (BC reçu, ou exception « sans BC »). */

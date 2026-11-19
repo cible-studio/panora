@@ -20,6 +20,8 @@ class SendPropositionRappels extends Command
         foreach ([2, 5] as $jour) {
             $reservations = Reservation::query()
                 ->where('status', 'en_attente')
+                // 2026-11-19 — Déjà acceptée (attente du BC) : plus de rappel.
+                ->whereNull('bc_attendu_jusqu_au')
                 ->whereNotNull('proposition_token')
                 ->whereNotNull('proposition_sent_at')
                 ->where('proposition_expires_at', '>', now())

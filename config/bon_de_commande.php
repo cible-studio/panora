@@ -13,6 +13,16 @@
  *
  * Avant ce changement, le clic du client créait la campagne immédiatement,
  * alors qu'aucun BC n'était forcément arrivé.
+ *
+ * 2026-11-19 — Précisions validées :
+ *   - c'est le BC reçu qui CONFIRME la réservation (bloque les panneaux) ;
+ *   - devis accepté → réservation en option, BC attendu (même délai) ;
+ *   - « Ferme » dans Disponibilités = BC déjà reçu : il est enregistré à la
+ *     création ;
+ *   - le BC est toujours reçu par le commercial du dossier (bc_recu_par) ;
+ *     qui l'a saisi dans Panora est gardé à part (bc_saisi_par) ;
+ *   - un panneau en option peut être retenu par un autre dossier : le
+ *     premier BC reçu l'emporte, les autres options tombent.
  */
 return [
 

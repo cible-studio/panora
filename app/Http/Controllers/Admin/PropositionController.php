@@ -386,8 +386,11 @@ class PropositionController extends Controller
 
         // La proposition est-elle encore active ?
         $isExpired = $expiresIn !== null && $expiresIn <= 0;
+        // 2026-11-19 — Déjà acceptée (attente du BC ouverte) : le client ne
+        // répond plus, la page le lui dit.
         $isActif   = !$isExpired
-            && in_array($reservation->status->value, ['en_attente']);
+            && in_array($reservation->status->value, ['en_attente'])
+            && !$reservation->bc_attendu_jusqu_au;
 
         return view('admin.propositions.show', compact(
             'reservation', 'panels', 'months',
@@ -748,6 +751,18 @@ class PropositionController extends Controller
 
             return redirect()->route('proposition.show', [$reference, $slug])
                 ->with('error', "Cette proposition est {$stateLabel}. Impossible de la {$action}.");
+        }
+
+        // 2026-11-19 — Déjà acceptée : on attend le bon de commande.
+        if ($reservation->bc_attendu_jusqu_au) {
+            Log::warning('proposition.action.blocked.deja_acceptee', [
+                'reservation_id' => $reservation->id,
+                'reference'      => $reference,
+                'action'         => $action,
+            ]);
+
+            return redirect()->route('proposition.show', [$reference, $slug])
+                ->with('error', 'Vous avez déjà accepté cette proposition : nous attendons votre bon de commande.');
         }
 
         // Expiration : si proposition_expires_at est passée → bloqué

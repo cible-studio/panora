@@ -3080,6 +3080,35 @@ Le client reçoit « réservation confirmée » au BC reçu ; « Annuler la réc
 - [ ] Fenêtre d'annulation d'une réservation avec campagne : « la campagne … sera annulée elle aussi »
 
 ### Laissé de côté (même logique, autre chantier — à trancher)
-- [ ] Devis accepté et réservation « ferme » : naissent confirmés sans BC
-- [ ] Client qui a déjà accepté : reçoit encore des rappels, la page publique propose encore Confirmer/Refuser
-- [ ] Panneau en option affiché sélectionnable dans Disponibilités, mais refusé à la création
+- [x] Devis accepté et réservation « ferme » : naissent confirmés sans BC → réglé au § 40
+- [x] Client qui a déjà accepté : reçoit encore des rappels, la page publique propose encore Confirmer/Refuser → réglé au § 40
+- [x] Panneau en option affiché sélectionnable dans Disponibilités, mais refusé à la création → réglé au § 40
+
+## § 40 — Réservation : « Ferme » = BC reçu, devis accepté en option, options concurrentes, rappels *(2026-11-19)*
+
+Suite du § 39 — choix validés par écrit le 19/11 (« 1- a 2- a 3- a ») :
+1. **« Ferme » dans Disponibilités = le client a déjà envoyé son BC** : la réservation naît en option, le BC est enregistré tout de suite, c'est lui qui confirme (panneaux bloqués, options concurrentes annulées, MP prévenu, client prévenu) ;
+2. **devis accepté → réservation en option**, BC attendu 30 jours (relances J-15/J-7/J-2), plus de confirmation directe ;
+3. **un panneau déjà en option peut être retenu** par un autre dossier (avertissement à l'écran) : le premier BC reçu l'emporte ;
+4. une proposition déjà acceptée **ne reçoit plus de rappels** « répondez », la page publique et l'espace client n'affichent plus Confirmer/Refuser.
+
+Précision du 19/11 : **le BC est toujours reçu par le commercial du dossier** (assigné, à défaut le créateur). Si l'admin ou le MP le saisit à sa place, la fiche affiche « Reçu par [commercial] — saisi par [admin] ».
+
+Correctif lié : un panneau à **démarrage différé** n'est plus vérifié avant sa date de début à la confirmation (sinon la campagne qui le libère juste avant faisait échouer le BC reçu ou l'acceptation du client).
+
+### À jouer au déploiement
+- [ ] Migration `2026_11_19_170000_add_bc_saisi_par_to_reservations` (1 colonne nullable : `bc_saisi_par`)
+
+### À vérifier (dev, puis prod)
+- [ ] Disponibilités → sélection → fenêtre : la carte s'appelle **« 🔒 Ferme — BC reçu »** ; en la choisissant, l'encadré vert et le champ **N° de bon de commande (facultatif)** apparaissent
+- [ ] Ferme — BC reçu : message « BC enregistré, panneaux bloqués » ; fiche : statut **Confirmée**, bloc BC « Reçu par [commercial du dossier] » ; le MP reçoit « BC reçu, campagne à créer » ; aucune campagne créée automatiquement
+- [ ] Admin qui crée une « Ferme » pour un commercial assigné : fiche « Reçu par [commercial] — saisi par [admin] »
+- [ ] Option sur un panneau **déjà en option** ailleurs : créée, avec le message « ⚠ Déjà en option pour d'autres dossiers : P-… (RES-…). Le premier bon de commande reçu l'emporte. »
+- [ ] Panneau **pris ferme** (réservation confirmée, campagne) : toujours refusé ou décalé comme avant
+- [ ] Le premier des deux dossiers qui reçoit son BC : confirmé ; l'autre annulé « Panneaux pris par RES-… », son commercial prévenu
+- [ ] Devis accepté par le client (lien public ou espace client) : la réservation créée est **En attente / option**, « BC attendu jusqu'au … » ; l'alerte « Devis accepté » le dit ; aucun panneau en Confirmé
+- [ ] Proposition acceptée par le client : plus de mail de rappel J+2/J+5 ; en rouvrant le lien : « Proposition acceptée — bon de commande attendu », sans boutons ; idem dans l'espace client
+- [ ] Panneau à démarrage différé (libéré en cours de période) : « BC reçu » passe sans refus
+
+### Laissé de côté
+- [ ] L'avertissement « déjà en option » reste à l'écran seulement (pas d'alerte au commercial de l'autre dossier) — choix par défaut gardé le 19/11

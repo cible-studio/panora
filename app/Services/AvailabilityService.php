@@ -289,6 +289,41 @@ class AvailabilityService
     }
 
     /**
+     * « Le premier BC gagne » (règle du 2026-11-13, appliquée le 2026-11-19) :
+     * une SIMPLE option concurrente n'empêche pas de créer une autre option
+     * sur le même panneau. Seuls bloquent les engagements fermes : réservation
+     * confirmée, campagne, retenue pour le renouvellement d'un autre client.
+     * Le premier BC reçu confirme son dossier et fait tomber les autres
+     * (PropositionService::confirmerReservation).
+     *
+     * @param  Collection  $carte  résultat de getInternalConflictMap()
+     */
+    public static function seulementBloquants(Collection $carte): Collection
+    {
+        return $carte->reject(fn ($c) => ($c->blocking_status ?? null) === 'en_attente');
+    }
+
+    /** Les simples options concurrentes d'une carte de conflits (pour l'avertissement). */
+    public static function optionsConcurrentes(Collection $carte): Collection
+    {
+        return $carte->filter(fn ($c) => ($c->blocking_status ?? null) === 'en_attente');
+    }
+
+    /** Panneaux pris FERMEMENT parmi $panelIds (ids) — pour créer ou étendre une option. */
+    public function panneauxPrisFermement(
+        array $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int $excludeReservationId = null,
+        ?int $excludeCampaignId = null,
+        ?int $clientId = null
+    ): array {
+        return self::seulementBloquants(
+            $this->getInternalConflictMap($panelIds, $startDate, $endDate, $excludeReservationId, $excludeCampaignId, $clientId)
+        )->keys()->map(fn ($id) => (int) $id)->values()->all();
+    }
+
+    /**
      * Panneaux déjà pris FERMEMENT sur la période (2026-10-30) : réservation
      * confirmée ou campagne planifiée / active / en pause. Une option (en
      * attente) ne compte pas : plusieurs options peuvent coexister, la
