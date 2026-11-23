@@ -3163,11 +3163,10 @@ Les 4 chemins du PDF (bouton admin, espace client, lien public, pièce jointe du
 
 Demande écrite du 19/11 : le cachet signé apparaît automatiquement sur **chaque** devis généré, dans les deux cadres « Pour CIBLE SARL » (Bon pour accord de la page 1 et de la fin des CG), sans circuit de validation. La procédure longue (bouton « Signer », QR, page de vérification) est abandonnée.
 
-L'image est lue sur le disque privé : `storage/app/private/signatures/directrice.png` (config `devis.cachet_signature`, variable `DEVIS_CACHET_SIGNATURE`). Elle n'est jamais dans Git ni dans public/. Sans le fichier, les cadres restent vides et le PDF se génère normalement.
+L'image est **versionnée avec le code** depuis le 23/11 (`resources/signatures/directrice.png`, config `devis.cachet_signature`), à la demande de l'utilisateur : elle part avec chaque mise en ligne, **aucune action sur le serveur**. Dossier non public : aucune adresse web ne la sert. Sans le fichier, les cadres restent vides et le PDF se génère normalement.
 
-### À faire au déploiement (dev, puis prod)
-- [ ] Déposer l'image sur le serveur : coller dans le terminal Coolify le contenu du fichier « Commande serveur - cachet des devis.txt », préparé dans Documents le 19/11. Contrôler que `md5sum` donne `1212a7c15e2ba411fd86b343bbe1ffbb`, puis supprimer ce fichier du PC.
-- [ ] Après le **déploiement suivant**, régénérer un devis : le cachet doit toujours y être. S'il a disparu, c'est que `storage/app/private` n'est pas sur un volume persistant dans Coolify : il faut l'y mettre.
+### Au déploiement
+- [x] ~~Déposer l'image sur le serveur~~ : plus nécessaire depuis le 23/11 (le terminal Coolify était de toute façon en panne : « procReady not received »).
 
 ### À vérifier
 - [ ] PDF d'un devis : cachet dans les deux cadres « Pour CIBLE SARL », lisible, qui chevauche légèrement le trait

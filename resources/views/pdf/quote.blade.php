@@ -96,14 +96,15 @@
         : null;
 
     // Cachet et signature de la Directrice Commerciale (2026-11-19) : sur
-    // chaque devis généré, dans les deux cadres « Pour CIBLE SARL ». Disque
-    // privé (config devis.cachet_signature), intégré en base64. Fichier
-    // absent : cadre vide, comme avant.
-    $cachetChemin = (string) config('devis.cachet_signature', 'signatures/directrice.png');
-    $cachetDisque = \Illuminate\Support\Facades\Storage::disk('local');
-    $cachetSrc    = $cachetChemin !== '' && $cachetDisque->exists($cachetChemin)
-        ? 'data:' . ($cachetDisque->mimeType($cachetChemin) ?: 'image/png') . ';base64,'
-            . base64_encode($cachetDisque->get($cachetChemin))
+    // chaque devis généré, dans les deux cadres « Pour CIBLE SARL ».
+    // 2026-11-23 : fichier versionné avec le code (config
+    // devis.cachet_signature, resources/signatures/, dossier non public),
+    // intégré en base64. Fichier absent : cadre vide, comme avant.
+    $cachetChemin  = (string) config('devis.cachet_signature', 'resources/signatures/directrice.png');
+    $cachetFichier = $cachetChemin !== '' ? base_path($cachetChemin) : '';
+    $cachetInfos   = $cachetFichier !== '' && is_file($cachetFichier) ? @getimagesize($cachetFichier) : false;
+    $cachetSrc     = $cachetInfos
+        ? 'data:' . $cachetInfos['mime'] . ';base64,' . base64_encode(file_get_contents($cachetFichier))
         : null;
 
     // Coordonnées de l'émetteur, ligne à ligne en face des champs du client
