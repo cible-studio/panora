@@ -3196,9 +3196,12 @@ Le blocage ne vient donc pas des ressources. C'est un défaut de Docker, fréque
 La console Hetzner (bucket `panora-sauvegardes-cible/panora/`) s'arrête au **20/11 à 4h40** : aucune copie les 21, 22 et 23/11.
 - 21/11 : panne Hetzner hel1 (504 GatewayTimeout), les 3 essais ont échoué (mails reçus).
 - 22 et 23/11 : cause à établir. Soit nouvel échec d'envoi (chercher les mails « Échec de la sauvegarde » de ces jours-là), soit tâches de la nuit non lancées : le planificateur (`schedule:run`) est lancé par Coolify via `docker exec`, la commande en panne. Le baromètre envoyé le 23/11 après-midi montre que le planificateur tournait au moins à ce moment-là.
-- [ ] Coolify → panora-app → Scheduled Tasks : historique des exécutions vers 4h40 et 8h30 les 22 et 23/11 (succès ou échec ?)
-- [ ] Réessayer le terminal du conteneur (l'appli a été redéployée le 23/11) : s'il répond, rattraper tout de suite sans attendre le redémarrage
-- [ ] Après le redémarrage (ou dès que le terminal répond) : `php artisan backup:list` (copies sur le serveur), puis `php artisan backup:run --only-to-disk=backups-s3` (nouvelle copie chez Hetzner), puis vérifier le nouveau fichier dans la console Hetzner
+- [x] Cause établie le 23/11 au soir : `backup:list` donne une dernière copie **sur le serveur** au 21/11 à 5h45. La sauvegarde ne s'est donc pas lancée du tout les 22 et 23/11 (sinon la copie du serveur existerait). Le planificateur ne tournait plus : `docker exec` en panne sur l'ancien conteneur, et aucun mail d'alerte, puisque le contrôle de 8h30 passe par le même planificateur. Le redéploiement du 23/11 (nouveau conteneur) l'a remis en route : `schedule:run` en succès chaque minute, terminal de nouveau disponible.
+- [x] Terminal de nouveau disponible le 23/11 au soir ; `backup:run --only-to-disk=backups-s3` réussi : `2026-11-23-20-08-47.zip` (286 Mo) chez Hetzner
+- [ ] 24/11 matin : `php artisan backup:list` → les deux disques « Healthy », copie de la nuit du 24 sur le serveur ET chez Hetzner
+- [ ] Rappels « fin de campagne dans 3 jours » à l'équipe : sautés pendant la panne (ils visent un jour précis). Rattrapage, en essai d'abord avec `--dry-run` : `php artisan campaigns:notify-commercial-ending --days=1`, puis `--days=2`, puis `--days=3` (sans doublon : chaque envoi est mémorisé par campagne et par délai)
+- Les autres tâches se rattrapent seules au passage suivant : relances de fin de campagne (étape selon les jours restants), relances BC, activation des campagnes planifiées, alertes, nettoyage. Les rappels J+2 / J+5 des propositions envoyées du 19 au 21/11 sont perdus (jour précis), sans gravité.
+- Le redémarrage de Docker reste à faire à une heure creuse, mais n'est plus urgent : le défaut de `docker exec` peut revenir sur le nouveau conteneur.
 - Le redémarrage de Docker arrête puis relance les mêmes conteneurs, sans les recréer : rien n'est effacé. Il coupe seulement les applications quelques minutes.
 
 ## § 45 — Devis accepté, BC reçu sur une simple option, lien privé du devis, dates *(2026-11-23)*
