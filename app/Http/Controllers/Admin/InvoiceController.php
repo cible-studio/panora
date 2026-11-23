@@ -995,6 +995,17 @@ class InvoiceController extends Controller
             $msg .= " ⚠ Cette campagne a déjà {$existingCount} facture(s) — vérifie qu'il ne s'agit pas d'un doublon.";
         }
 
+        // 2026-11-23 — facture recopiée du devis accepté : elle doit retomber
+        // sur son total. Un écart vient d'un taux changé depuis (TVA, TSP) :
+        // on le dit, sans rien corriger à la place du comptable.
+        if ($devis = $builder->devisCopie) {
+            $ecart = (int) $invoice->total_a_payer - (int) $devis->total_a_payer;
+            $msg .= $ecart === 0
+                ? " Reprise à l'identique du devis {$devis->reference}."
+                : " ⚠ Reprise du devis {$devis->reference}, mais le total diffère de "
+                  . number_format(abs($ecart), 0, ',', ' ') . ' FCFA (taux modifié depuis le devis ?) : vérifie avant l\'envoi.';
+        }
+
         return redirect()->route('admin.invoices.show', $invoice)
             ->with('success', $msg);
     }

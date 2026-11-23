@@ -681,8 +681,10 @@ class QuoteController extends Controller
         $adresses = $quote->adressesClient(); // fiche + interlocuteur du devis (2026-10-29)
         if ($adresses) {
             try {
+                // Nom du PDF joint saisi dans la fenêtre d'envoi (2026-11-23),
+                // nettoyé par QuotePdf::nomPieceJointe.
                 \Illuminate\Support\Facades\Mail::to($adresses)
-                    ->send(new \App\Mail\QuoteSentMail($quote));
+                    ->send(new \App\Mail\QuoteSentMail($quote, $request->string('nom_piece_jointe')->toString() ?: null));
                 $mailSent = true;
             } catch (\Throwable $e) {
                 $mailError = $e->getMessage();

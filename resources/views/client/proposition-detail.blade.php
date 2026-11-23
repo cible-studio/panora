@@ -559,7 +559,7 @@
             <div style="display:flex;justify-content:space-between;align-items:center;font-size:14px;padding-top:8px;border-top:1px solid var(--border);margin-top:6px;">
                 <span style="color:var(--text);font-weight:700">{{ $totalAmount > 0 ? 'Total à payer (HT)' : 'Total' }}</span>
                 @if($totalAmount > 0)
-                    <span style="color:#e20613;font-weight:800;font-size:16px">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</span>
+                    <span style="color:#e20613;font-weight:800;font-size:16px">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA HT</span>
                 @else
                     <span style="display:inline-flex;align-items:baseline;gap:6px;">
                         <span style="color:#16a34a;font-weight:800;font-size:16px">0 FCFA</span>

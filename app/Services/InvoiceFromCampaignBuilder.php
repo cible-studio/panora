@@ -30,6 +30,13 @@ use Illuminate\Support\Facades\DB;
  */
 class InvoiceFromCampaignBuilder
 {
+    /**
+     * Devis recopié par le dernier build() (2026-11-23), null sinon. Lu par
+     * InvoiceController::fromCampaign pour vérifier que la facture retombe
+     * sur le total du devis.
+     */
+    public ?\App\Models\Quote $devisCopie = null;
+
     public function __construct(
         protected InvoiceCalculator $calculator,
     ) {}
@@ -77,6 +84,21 @@ class InvoiceFromCampaignBuilder
         // Durée facturable canonique CIBLE (cf. Campaign::billableMonths)
         $dureeMois = (float) $campaign->billableMonths();
 
+        // ── Campagne issue d'un devis accepté (2026-11-23, règles validées) ──
+        // Restée identique au devis (mêmes dates, mêmes panneaux) : la
+        // facture COPIE le devis — lignes, remise, services avec leur TVA,
+        // taux ODP/TM figés — et retombe sur son total. Sinon : la campagne
+        // réelle, aux prix nets du devis (pivot), avec ses services et ses
+        // taux figés pour les panneaux du devis. Cf. CampagneDevis.
+        $this->devisCopie = null;
+        $campagneDevis = app(CampagneDevis::class);
+        $devis = $campagneDevis->devis($campaign);
+        if ($devis && $campagneDevis->correspond($campaign, $devis)) {
+            $this->devisCopie = $devis;
+            return $this->copierDevis($campaign, $devis, $opts, $issuedAt, $year);
+        }
+        $tauxFiges = $devis ? CampagneDevis::tauxFiges($devis) : [];
+
         // ── Garde 3 : signalement panneaux incomplets ──
         // Si un panneau n'a pas de format (m²) ou pas de commune, sa
         // ligne aura ODP=0 et/ou montant_ht=0. On crée la ligne quand
@@ -114,7 +136,7 @@ class InvoiceFromCampaignBuilder
             }
         }
 
-        return DB::transaction(function () use ($campaign, $opts, $issuedAt, $year, $dureeMois, $negotiated) {
+        return DB::transaction(function () use ($campaign, $opts, $issuedAt, $year, $dureeMois, $negotiated, $devis, $tauxFiges) {
             // ─── Création facture brouillon ──────────────────────
             // commercial_user_id = COMMERCIAL responsable du compte client
             //   (priorité campaign.commercial_user_id, fallback campaign.user_id)
@@ -133,7 +155,8 @@ class InvoiceFromCampaignBuilder
                 'created_by'          => $createdBy,
                 'issued_at'           => $issuedAt->toDateString(),
                 'status'              => 'brouillon',
-                'tva'                 => $this->calculator->tvaRate(),
+                'tva'                 => $devis ? (float) $devis->tva : $this->calculator->tvaRate(),
+                // Devis : les prix du pivot sont déjà nets de sa remise.
                 'remise_pct'          => (float) ($opts['remise_pct'] ?? 0),
                 'services_impression' => (int) round((float) ($opts['services_impression'] ?? 0)),
                 'services_pose_depose'=> (int) round((float) ($opts['services_pose_depose'] ?? 0)),
@@ -161,6 +184,7 @@ class InvoiceFromCampaignBuilder
                     quantite: 1,
                     complement: $groupe['complement'],
                     taxesALaMain: $groupe['taxes_a_la_main'],
+                    tauxForces: $tauxFiges['int_' . $groupe['porteur']->id] ?? null,
                 );
             }
 
@@ -178,7 +202,15 @@ class InvoiceFromCampaignBuilder
                     orderIdx: $orderIdx++,
                     isExternal: true,
                     campaign: $campaign,
+                    tauxForces: $tauxFiges['ext_' . $ext->id] ?? null,
                 );
+            }
+
+            // ─── Services du devis (campagne modifiée depuis le devis) ──
+            // Pose, impression… sont des frais ponctuels : ils restent dus
+            // même si les dates ou les panneaux ont changé.
+            if ($devis && empty($opts['services_impression']) && empty($opts['services_pose_depose'])) {
+                $this->copierServices($invoice, $devis);
             }
 
             // ─── Recalcul agrégats facture ───────────────────────
@@ -205,6 +237,7 @@ class InvoiceFromCampaignBuilder
         int $quantite = 1,
         ?string $complement = null,
         bool $taxesALaMain = false,
+        ?array $tauxForces = null,
     ): InvoiceLine {
         // $puForce : prix déjà résolu par le regroupement des axes (le prix
         // négocié vit sur les pieds, pas sur la ligne de l'axe qui porte
@@ -221,7 +254,10 @@ class InvoiceFromCampaignBuilder
         // une date entre effective_from et effective_to).
         // Panneau éclairé (2026-11-18) : tarif « éclairé » de la commune s'il
         // existe. Un panneau de régie externe n'est jamais compté éclairé.
-        $rates = $commune?->ratesAt("{$year}-12-31", !$isExternal && (bool) ($panel->is_lit ?? false)) ?? ['odp' => 0, 'tm' => 1000];
+        // 2026-11-23 — panneau d'un devis accepté : taux FIGÉS du devis (règle validée).
+        $rates = $tauxForces
+            ?? $commune?->ratesAt("{$year}-12-31", !$isExternal && (bool) ($panel->is_lit ?? false))
+            ?? ['odp' => 0, 'tm' => 1000];
 
         // Désignation lisible : "ABG-001A — Abengourou rte gare UTI 4×3m"
         $ref  = $panel->reference ?? ($isExternal ? 'EXT-' . $panel->id : 'PAN-' . $panel->id);
@@ -260,6 +296,77 @@ class InvoiceFromCampaignBuilder
 
         $invoice->lines()->save($line);
         return $line;
+    }
+
+    /**
+     * Facture = copie du devis accepté (2026-11-23, règles validées 2 et 3) :
+     * mêmes lignes (désignation, m², PU, quantité, durée, dates, taux ODP/TM
+     * figés, montants ODP/TM saisis à la main), même remise, même TVA, mêmes
+     * services avec leur TVA. Le total retombe sur celui du devis ; le
+     * comptable peut toujours ajuster le brouillon.
+     */
+    protected function copierDevis(Campaign $campaign, \App\Models\Quote $devis, array $opts, \Carbon\Carbon $issuedAt, int $year): Invoice
+    {
+        return DB::transaction(function () use ($campaign, $devis, $opts, $issuedAt, $year) {
+            $commercialUserId = $campaign->commercial_user_id ?? $devis->commercial_user_id ?? $campaign->user_id;
+
+            $invoice = Invoice::create([
+                'reference'           => $this->generateReference($year),
+                'client_id'           => $campaign->client_id,
+                'campaign_id'         => $campaign->id,
+                'commercial_user_id'  => $commercialUserId,
+                'created_by'          => auth()->id() ?? $commercialUserId,
+                'issued_at'           => $issuedAt->toDateString(),
+                'status'              => 'brouillon',
+                'tva'                 => (float) $devis->tva,
+                'remise_pct'          => (float) $devis->remise_pct,
+                'services_impression' => 0,
+                'services_pose_depose'=> 0,
+                'campaign_year'       => $year,
+                'notes_client'        => $opts['notes_client'] ?? config('billing.payment_terms_default'),
+            ]);
+
+            foreach ($devis->lines->sortBy('order_index')->values() as $i => $l) {
+                $line = new InvoiceLine([
+                    'panel_id'              => $l->panel_id,
+                    'external_panel_id'     => $l->external_panel_id,
+                    'commune_id'            => $l->commune_id,
+                    'designation'           => $l->designation,
+                    'snapshot_commune_name' => $l->snapshot_commune_name,
+                    'dimension_m2'          => $l->dimension_m2,
+                    'pu_ht_mensuel'         => $l->pu_ht_mensuel,
+                    'quantite'              => $l->quantite,
+                    'duree_mois'            => $l->duree_mois,
+                    'campaign_start'        => $l->campaign_start,
+                    'campaign_end'          => $l->campaign_end,
+                    'odp_rate_applique'     => $l->odp_rate_applique,
+                    'tm_rate_applique'      => $l->tm_rate_applique,
+                    'odp_amount_override'   => $l->odp_amount_override,
+                    'tm_amount_override'    => $l->tm_amount_override,
+                    'order_index'           => $i,
+                ]);
+                $line->forceFill($this->calculator->calculateLine($line->toArray()));
+                $invoice->lines()->save($line);
+            }
+
+            $this->copierServices($invoice, $devis);
+
+            return $this->calculator->recalculateAndPersist($invoice);
+        });
+    }
+
+    /** Services du devis (libellé, quantité, prix unitaire HT, TVA ou non). */
+    protected function copierServices(Invoice $invoice, \App\Models\Quote $devis): void
+    {
+        foreach ($devis->services->sortBy('order_index')->values() as $i => $svc) {
+            $invoice->services()->create([
+                'label'          => $svc->label,
+                'quantite'       => max(1, (int) $svc->quantite),
+                'prix_ht'        => (int) $svc->prix_ht,
+                'tva_applicable' => (bool) $svc->tva_applicable,
+                'order_index'    => $i,
+            ]);
+        }
     }
 
     /**

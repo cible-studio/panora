@@ -31,6 +31,8 @@ class CopieCommercialeTest extends TestCase
         'PropositionReminderMail',
         'PropositionDateChangeMail',
         'PropositionDecisionMail',
+        // Réponse du client à un devis (2026-11-23), comme PropositionDecisionMail
+        'QuoteReponseClientMail',
         // Vie de la campagne
         'CampaignStartedMail',
         'ClientCampaignStartedMail',

@@ -6,6 +6,7 @@ use App\Enums\QuoteStatus;
 use App\Models\Quote;
 use App\Services\AlertService;
 use App\Services\QuoteConverter;
+use App\Services\QuoteDecisionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -59,6 +60,7 @@ class PublicQuoteController extends Controller
 
     public function accept(Request $request, string $token, QuoteConverter $converter)
     {
+        $decisions = app(QuoteDecisionService::class);
         $quote = $this->resolveOrFail($token);
         $this->assertCanDecide($quote);
 
@@ -74,6 +76,10 @@ class PublicQuoteController extends Controller
             );
         }
 
+        // 2026-11-23 — le commercial est prévenu par mail (récupérer le BC).
+        $decisions->prevenirCommercial($quote->fresh(), QuoteDecisionService::ACCEPTATION, null,
+            QuoteDecisionService::CANAL_LIEN, QuoteDecisionService::suiteAcceptation($result));
+
         // Période absente (2026-11-13) : distinguer du conflit de
         // disponibilité — ce n'est pas le même message pour le client.
         $message = match (true) {
@@ -88,33 +94,36 @@ class PublicQuoteController extends Controller
             ->with($result['status'] === 'converted' ? 'success' : 'warning', $message);
     }
 
+    /** Refus — même service que l'espace client (2026-11-23). */
     public function refuse(Request $request, string $token)
     {
+        $decisions = app(QuoteDecisionService::class);
         $quote = $this->resolveOrFail($token);
         $this->assertCanDecide($quote);
         $data = $request->validate(['reason' => 'nullable|string|max:1000']);
 
-        $quote->update([
-            'status'          => QuoteStatus::REFUSE->value,
-            'decision_at'     => now(),
-            'decision_reason' => $data['reason'] ?? null,
-        ]);
-
-        AlertService::notify(
-            'devis_refuse',
-            '❌ Devis refusé — ' . $quote->reference,
-            ($quote->client?->name ?? 'Client') . ' a refusé le devis ' . $quote->reference
-            . ($data['reason'] ? " (motif: {$data['reason']})" : '')
-            . ' (via lien public).',
-            $quote,
-            [
-                'user_id' => $quote->commercial_user_id,
-                'lien'    => route('admin.quotes.show', $quote->id),
-            ]
-        );
+        $decisions->refuser($quote, $data['reason'] ?? null, QuoteDecisionService::CANAL_LIEN);
 
         return redirect()->route('public.quote.show', $token)
             ->with('info', 'Votre refus a été enregistré. Merci de nous avoir considérés.');
+    }
+
+    /**
+     * Demande de modification par le lien privé (2026-11-23). Depuis le
+     * 23/11, TOUS les clients reçoivent ce lien dans le mail du devis : sans
+     * cette action, un client sans compte ne pouvait qu'accepter ou refuser.
+     */
+    public function requestModification(Request $request, string $token)
+    {
+        $decisions = app(QuoteDecisionService::class);
+        $quote = $this->resolveOrFail($token);
+        $this->assertCanDecide($quote);
+        $data = $request->validate(['reason' => 'required|string|max:1000']);
+
+        $decisions->demanderModification($quote, $data['reason'], QuoteDecisionService::CANAL_LIEN);
+
+        return redirect()->route('public.quote.show', $token)
+            ->with('success', 'Votre demande a été transmise à votre commercial. Il vous recontactera pour ajuster le devis.');
     }
 
     protected function assertCanDecide(Quote $quote): void

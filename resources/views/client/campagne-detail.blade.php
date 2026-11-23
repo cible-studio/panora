@@ -68,7 +68,7 @@ $coverageColor = $coveragePercent >= 80 ? '#22c55e' : ($coveragePercent >= 50 ? 
                 <span style="display:flex;align-items:center;gap:5px;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="{{ (float) $campaign->total_amount > 0 ? '#e20613' : '#16a34a' }}" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                     @if((float) $campaign->total_amount > 0)
-                        <strong style="color:#e20613;">{{ number_format($campaign->total_amount, 0, ',', ' ') }} FCFA</strong>
+                        <strong style="color:#e20613;">{{ number_format($campaign->total_amount, 0, ',', ' ') }} FCFA HT</strong>
                     @else
                         <strong style="color:#16a34a;">0 FCFA · Offert</strong>
                     @endif

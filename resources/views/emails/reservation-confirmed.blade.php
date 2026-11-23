@@ -3,7 +3,7 @@
     $operator  = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $title     = "Réservation confirmée — {$reservation->reference}";
     $preheader = "Votre réservation {$reservation->reference} est confirmée — "
-        . number_format($reservation->total_amount ?? 0, 0, ',', ' ') . ' FCFA.';
+        . number_format($reservation->total_amount ?? 0, 0, ',', ' ') . ' FCFA HT.';
 @endphp
 
 <x-mail.layout :title="$title" :preheader="$preheader">
@@ -34,7 +34,7 @@
         </div>
         <div class="info-row">
             <div class="lbl">Montant total</div>
-            <div class="val"><strong>{{ number_format($reservation->total_amount ?? 0, 0, ',', ' ') }} FCFA</strong></div>
+            <div class="val"><strong>{{ number_format($reservation->total_amount ?? 0, 0, ',', ' ') }} FCFA HT</strong></div>
         </div>
     </div>
 

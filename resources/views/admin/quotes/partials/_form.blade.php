@@ -276,7 +276,9 @@
                                     <select name="lines[{{ $i }}][panel_id]" class="ql-panel-search" data-line-index="{{ $i }}" data-placeholder="🔍 Rechercher un panneau du parc…">
                                         <option value=""></option>
                                         @if(!empty($l['panel_id']))
-                                            <option value="{{ $l['panel_id'] }}" selected>{{ $l['panel_label'] ?? ('Panneau #' . $l['panel_id']) }}</option>
+                                            {{-- 2026-11-23 — lignes venues de Disponibilités : pas de
+                                                 panel_label, on montre leur désignation (« RÉF — adresse »). --}}
+                                            <option value="{{ $l['panel_id'] }}" selected>{{ ($l['panel_label'] ?? null) ?: (($l['designation'] ?? null) ?: ('Panneau #' . $l['panel_id'])) }}</option>
                                         @endif
                                     </select>
                                     {{-- Libellé (2026-11-13) : masqué dès qu'un panneau du parc
@@ -1136,6 +1138,11 @@ window.QuoteForm = (function() {
         };
         const templatePanelSelected = (p) => {
             if (!p.id) return p.text || '';
+            // 2026-11-23 — panneau déjà choisi à l'ouverture (venu de
+            // Disponibilités, ou devis en modification) : Select2 ne connaît
+            // que le texte de l'option, sans référence ni adresse. Avant, la
+            // ligne affichait « — » et paraissait vide.
+            if (!p.reference && !p.address && !p.name) return escapeHtml(p.text || '');
             return $(`<span>${escapeHtml(p.reference || '')} — ${escapeHtml(p.address || p.name || '')}</span>`);
         };
 

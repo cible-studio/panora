@@ -135,7 +135,16 @@ class ClientDashboardController extends Controller
             $commercial = $lastCamp?->commercial ?? $lastCamp?->user;
         }
 
+        // Devis qui attendent la décision du client (2026-11-23) : encart en
+        // tête du tableau de bord. Même règle que le badge du menu.
+        $devisADecider = \App\Models\Quote::where('client_id', $client->id)
+            ->aDecider()
+            ->with('commercial:id,name')
+            ->orderByRaw('expires_at IS NULL, expires_at ASC')
+            ->get(['id', 'reference', 'title', 'total_a_payer', 'expires_at', 'commercial_user_id', 'status']);
+
         return view('client.dashboard', compact(
+            'devisADecider',
             'client', 'propositions', 'campagnesActives', 'stats',
             'recentPoses', 'recentPiges', 'commercial'
         ));

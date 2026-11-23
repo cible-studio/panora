@@ -43,7 +43,7 @@
         @if($campaign->total_amount)
         <div class="info-row">
             <div class="lbl">Montant</div>
-            <div class="val">{{ number_format($campaign->total_amount, 0, ',', ' ') }} FCFA</div>
+            <div class="val">{{ number_format($campaign->total_amount, 0, ',', ' ') }} FCFA HT</div>
         </div>
         @endif
         @if($campaign->total_panels)

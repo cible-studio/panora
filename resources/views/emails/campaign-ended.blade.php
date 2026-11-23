@@ -34,7 +34,7 @@
         @if($campaign->total_amount > 0)
         <div class="info-row">
             <div class="lbl">Montant</div>
-            <div class="val"><strong>{{ number_format((float) $campaign->total_amount, 0, ',', ' ') }} FCFA</strong></div>
+            <div class="val"><strong>{{ number_format((float) $campaign->total_amount, 0, ',', ' ') }} FCFA HT</strong></div>
         </div>
         @endif
     </div>

@@ -9,8 +9,12 @@
     @if(session('info')) <div style="padding:14px;background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;color:#1e40af;margin-bottom:14px">{{ session('info') }}</div> @endif
 
     @forelse($quotes as $quote)
-        @php $st = $quote->status->uiConfig(); @endphp
-        <a href="{{ route('client.devis.show', $quote) }}" style="display:block;text-decoration:none;color:inherit;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px;margin-bottom:12px;transition:box-shadow .15s,transform .15s"
+        @php
+            $st = $quote->status->uiConfig();
+            // 2026-11-23 — un devis qui attend la décision du client ressort.
+            $aDecider = $quote->estADecider();
+        @endphp
+        <a href="{{ route('client.devis.show', $quote) }}" style="display:block;text-decoration:none;color:inherit;background:#fff;border:1px solid #e2e8f0;{{ $aDecider ? 'border-left:4px solid #fab80b;' : '' }}border-radius:12px;padding:18px 20px;margin-bottom:12px;transition:box-shadow .15s,transform .15s"
            onmouseover="this.style.boxShadow='0 8px 24px -8px rgba(0,0,0,.12)';this.style.transform='translateY(-2px)'"
            onmouseout="this.style.boxShadow='';this.style.transform=''">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
@@ -20,6 +24,9 @@
                         <span style="background:{{ $st['bg'] }};color:{{ $st['color'] }};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">
                             {{ $st['icon'] }} {{ $quote->status->label() }}
                         </span>
+                        @if($aDecider)
+                            <span style="background:#fef3c7;color:#78350f;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">🎯 Votre décision est attendue</span>
+                        @endif
                     </div>
                     <div style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:4px">{{ $quote->title }}</div>
                     @if($quote->period_start && $quote->period_end)

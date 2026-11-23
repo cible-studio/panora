@@ -428,6 +428,17 @@ class Reservation extends Model
     }
 
     /**
+     * Devis dont cette réservation est issue (2026-11-23) : le devis accepté
+     * pointe vers elle par quotes.converted_reservation_id. La colonne
+     * reservations.quote_id existe mais n'est pas remplie (hors $fillable,
+     * cf. docs/TECHNICAL_DEBT.md) : c'est ce lien-ci qui fait foi.
+     */
+    public function devisOrigine()
+    {
+        return $this->hasOne(Quote::class, 'converted_reservation_id');
+    }
+
+    /**
      * Lien direct vers le pivot ReservationPanel (modèle dédié) — utile
      * quand on a besoin d'itérer sur les lignes pivot avec leurs colonnes
      * (unit_price, total_price, source, panel_start_date) ET d'accéder à

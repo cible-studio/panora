@@ -15,7 +15,7 @@ Détails :
 @php $panelCount = $reservation->panels->count() + $reservation->externalPanels->count(); @endphp
 - Panneaux  : {{ $panelCount }} emplacement{{ $panelCount > 1 ? 's' : '' }}
 @if($reservation->total_amount > 0)
-- Montant   : {{ number_format((float) $reservation->total_amount, 0, ',', ' ') }} FCFA
+- Montant   : {{ number_format((float) $reservation->total_amount, 0, ',', ' ') }} FCFA HT
 @endif
 @if(!empty($campaignName))
 - Campagne  : {{ $campaignName }}

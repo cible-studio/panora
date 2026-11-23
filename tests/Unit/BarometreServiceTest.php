@@ -352,7 +352,9 @@ class BarometreServiceTest extends TestCase
 
         // Lien coupé : message neutre, jamais la raison interne.
         $this->service()->exclure(Client::find(1), 'Régie concurrente');
-        $this->get('/p/' . $token)->assertStatus(410)->assertSee('plus disponible')->assertDontSee('Régie')->assertDontSee('Retiré');
+        // La raison interne (« Régie concurrente ») ne s'affiche jamais. Pas
+        // « Régie » seul : la page porte la charte (« Régie & Studio Créatif »).
+        $this->get('/p/' . $token)->assertStatus(410)->assertSee('plus disponible')->assertDontSee('Régie concurrente')->assertDontSee('Retiré');
         $this->service()->reintegrer(Client::find(1));
 
         // Après la date limite : fermé tout seul.

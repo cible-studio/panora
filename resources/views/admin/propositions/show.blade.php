@@ -823,7 +823,7 @@
         <div>
             <div class="lbl">Montant total estimé HT</div>
             <div class="amount">
-                {{ number_format($totalAmount, 0, ',', ' ') }} FCFA
+                {{ number_format($totalAmount, 0, ',', ' ') }} FCFA HT
                 @if($totalAmount === 0.0 || $totalAmount === 0)
                     <span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:12px;background:rgba(34,197,94,0.12);color:#16a34a;letter-spacing:.4px;margin-left:8px;vertical-align:middle;">OFFERT</span>
                 @endif
@@ -1060,7 +1060,7 @@
                     <span id="dc-amount-diff" style="font-weight:700"></span>
                 </div>
                 <div style="font-size:11px;color:#b45309;margin-top:3px">
-                    Montant actuel : <span id="dc-amount-old">{{ number_format((float) $reservation->total_amount, 0, ',', ' ') }} FCFA</span>
+                    Montant actuel : <span id="dc-amount-old">{{ number_format((float) $reservation->total_amount, 0, ',', ' ') }} FCFA HT</span>
                     · le montant définitif reste négociable et confirmé par notre équipe.
                 </div>
             </div>

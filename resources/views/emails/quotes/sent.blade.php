@@ -15,7 +15,7 @@
     $operator  = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $title     = "Devis {$quote->reference} — {$quote->title}";
     $preheader = 'Devis ' . $quote->reference
-               . ' d\'un montant de ' . number_format($quote->total_a_payer, 0, ',', ' ') . ' FCFA'
+               . ' d\'un montant de ' . number_format($quote->total_a_payer, 0, ',', ' ') . ' FCFA TTC'
                . ' — valable jusqu\'au ' . ($quote->expires_at?->format('d/m/Y') ?? '—') . '.';
 
     $totalFmt = number_format($quote->total_a_payer, 0, ',', ' ');
@@ -34,7 +34,7 @@
         Suite à nos échanges, veuillez trouver ci-joint le devis
         <strong>{{ $quote->reference }}</strong> pour votre projet
         <strong>« {{ $quote->title }} »</strong> d'un montant de
-        <strong>{{ $totalFmt }} FCFA</strong>.
+        <strong>{{ $totalFmt }} FCFA TTC</strong> (taxes et services compris).
     </p>
 
     <div class="info">
@@ -58,7 +58,7 @@
         </div>
         <div class="info-row" style="border-top:1px solid {{ $ch['gris'] }}">
             <div class="lbl" style="font-size:14px;color:{{ $ch['noir'] }};font-weight:700">Total à payer</div>
-            <div class="val"><span class="code-strong">{{ $totalFmt }} FCFA</span></div>
+            <div class="val"><span class="code-strong">{{ $totalFmt }} FCFA TTC</span></div>
         </div>
     </div>
 

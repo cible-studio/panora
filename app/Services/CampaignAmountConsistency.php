@@ -51,7 +51,17 @@ class CampaignAmountConsistency
         $reservation = $campaign->reservation;
 
         $expected = 0.0;
-        if ($reservation) {
+        // Campagne issue d'un devis, restée identique (mêmes dates, mêmes
+        // panneaux) : on attend exactement le HT net du devis (2026-11-23,
+        // règles validées, cf. CampagneDevis). Le recalcul ligne à ligne
+        // pourrait différer de quelques francs d'arrondi, ou d'une durée de
+        // ligne saisie à la main sur le devis : ce ne sont pas des écarts.
+        $devis = $reservation ? app(CampagneDevis::class)->devis($campaign) : null;
+
+        if ($devis && app(CampagneDevis::class)->correspond($campaign, $devis)) {
+            $expected = (float) $devis->net_ht;
+            $source   = 'devis';
+        } elseif ($reservation) {
             $expected = $reservation->estimateAmountForDates($start, $end);
             $source   = 'reservation';
         } else {
@@ -116,16 +126,18 @@ class CampaignAmountConsistency
 
         $sign = $check['diff'] > 0 ? '+' : '−';
         $abs  = $fmt(abs($check['diff']));
-        $sourceHint = $check['source'] === 'reservation'
-            ? 'Pour réaligner : ajustez la période de la réservation ou modifiez son montant.'
-            : 'Pour réaligner : ajustez la période de la campagne ou modifiez les prix négociés des panneaux.';
+        $sourceHint = match ($check['source']) {
+            'devis'       => 'Montant attendu : HT net du devis accepté. Pour réaligner : remettez le montant de la campagne au HT du devis.',
+            'reservation' => 'Pour réaligner : ajustez la période de la réservation ou modifiez son montant.',
+            default       => 'Pour réaligner : ajustez la période de la campagne ou modifiez les prix négociés des panneaux.',
+        };
 
         $overrideHint = $check['overridden']
             ? ' (un montant manuel est actuellement en vigueur — ne sera pas écrasé automatiquement)'
             : '';
 
         return "⚠ Écart de facturation sur la période {$start} → {$end} : "
-            . "montant actuel {$sto} FCFA, montant attendu {$exp} FCFA ({$sign}{$abs} FCFA){$overrideHint}. "
+            . "montant actuel {$sto} FCFA HT, montant attendu {$exp} FCFA HT ({$sign}{$abs} FCFA){$overrideHint}. "
             . $sourceHint;
     }
 }

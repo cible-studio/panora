@@ -101,6 +101,17 @@ class Quote extends Model implements Auditable
         return $q->whereIn('status', QuoteStatus::actionableStatuses());
     }
 
+    /**
+     * Devis qui attendent la décision du client (2026-11-23) : envoyés et
+     * pas encore expirés. Même règle que estADecider() — source unique du
+     * badge « Devis » et de l'encart du tableau de bord de l'espace client.
+     */
+    public function scopeADecider($q)
+    {
+        return $q->where('status', QuoteStatus::ENVOYE->value)
+                 ->where(fn ($w) => $w->whereNull('expires_at')->orWhere('expires_at', '>=', now()));
+    }
+
     public function scopeExpiringSoon($q, int $days = 7)
     {
         return $q->where('status', QuoteStatus::ENVOYE->value)
@@ -189,6 +200,12 @@ class Quote extends Model implements Auditable
     public function isExpired(): bool
     {
         return $this->expires_at !== null && $this->expires_at->isPast();
+    }
+
+    /** Le client peut-il encore accepter, refuser ou demander une modification ? (cf. scopeADecider) */
+    public function estADecider(): bool
+    {
+        return $this->status === QuoteStatus::ENVOYE && !$this->isExpired();
     }
 
     /**

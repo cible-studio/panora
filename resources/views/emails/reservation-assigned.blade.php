@@ -40,7 +40,7 @@
         @if($reservation->total_amount)
             <div class="info-row">
                 <div class="lbl">Montant</div>
-                <div class="val">{{ number_format($reservation->total_amount, 0, ',', ' ') }} FCFA</div>
+                <div class="val">{{ number_format($reservation->total_amount, 0, ',', ' ') }} FCFA HT</div>
             </div>
         @endif
     </div>

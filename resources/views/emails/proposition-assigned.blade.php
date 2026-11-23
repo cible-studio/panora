@@ -39,7 +39,7 @@
         @if($amount > 0)
         <div class="info-row">
             <div class="lbl">Montant</div>
-            <div class="val"><strong>{{ number_format($amount, 0, ',', ' ') }} FCFA</strong></div>
+            <div class="val"><strong>{{ number_format($amount, 0, ',', ' ') }} FCFA HT</strong></div>
         </div>
         @endif
     </div>

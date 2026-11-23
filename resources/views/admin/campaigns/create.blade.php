@@ -309,9 +309,10 @@
                                         data-end="{{ $r->end_date->format('Y-m-d') }}"
                                         data-client="{{ $r->client_id }}"
                                         data-amount="{{ $r->total_amount }}"
+                                        data-commercial="{{ $r->commercial_user_id ?: $r->user_id }}"
                                         data-panels="{{ $rTotal }}"
                                     {{ old('reservation_id', $preselectedReservation?->id) == $r->id ? 'selected' : '' }}>
-                                    {{ $r->reference }} — {{ $r->client?->name }} ({{ $rTotal }} pan. · {{ number_format($r->total_amount, 0, ',', ' ') }} FCFA)
+                                    {{ $r->reference }} — {{ $r->client?->name }} ({{ $rTotal }} pan. · {{ number_format($r->total_amount, 0, ',', ' ') }} FCFA HT)
                                 </option>
                             @endforeach
                         </select>
@@ -368,10 +369,14 @@
                 </div>
 
                 <label class="cc-field-label">Commercial assigné</label>
+                {{-- 2026-11-23 — campagne créée depuis une réservation : son
+                     commercial est proposé (avant : toujours l'utilisateur
+                     connecté, et la campagne changeait de commercial). --}}
+                @php $commercialParDefaut = $preselectedReservation?->commercial_user_id ?: ($preselectedReservation?->user_id ?: auth()->id()); @endphp
                 <select name="commercial_user_id" class="cc-select {{ $errors->has('commercial_user_id') ? 'is-error' : '' }}">
                     <option value="">— Par défaut : moi-même —</option>
                     @foreach($commerciaux ?? [] as $c)
-                        <option value="{{ $c->id }}" {{ old('commercial_user_id', auth()->id()) == $c->id ? 'selected' : '' }}>
+                        <option value="{{ $c->id }}" {{ old('commercial_user_id', $commercialParDefaut) == $c->id ? 'selected' : '' }}>
                             {{ $c->name }} ({{ strtoupper((string) ($c->role?->value ?? $c->role ?? '')) }})
                         </option>
                     @endforeach
@@ -579,7 +584,7 @@ function campaignCreate() {
             // Si réservation pré-sélectionnée au chargement, déclencher le remplissage
             const select = this.$el.querySelector('select[name="reservation_id"]');
             if (select && select.value) {
-                this.fillFromOption(select.options[select.selectedIndex]);
+                this.fillFromOption(select.options[select.selectedIndex], true);
             }
 
             // Initialise Select2 sur client + réservation (recherche)
@@ -617,7 +622,7 @@ function campaignCreate() {
             this.fillFromOption(option);
         },
 
-        fillFromOption(option) {
+        fillFromOption(option, auChargement = false) {
             if (!option || !option.value) return;
 
             const start  = option.dataset.start;
@@ -629,6 +634,15 @@ function campaignCreate() {
             if (client) {
                 this.selectedClientId = client;
                 $('#campaign-client-select').val(client).trigger('change.select2');
+            }
+            // 2026-11-23 — le commercial de la réservation suit la campagne
+            // (s'il fait partie de la liste proposée).
+            const commercial = option.dataset.commercial;
+            const selCommercial = this.$el.querySelector('select[name="commercial_user_id"]');
+            // Au chargement, le serveur a déjà choisi (ou rendu la saisie
+            // précédente après une erreur) : on n'y touche pas.
+            if (!auChargement && commercial && selCommercial && selCommercial.querySelector('option[value="' + commercial + '"]')) {
+                selCommercial.value = commercial;
             }
         }
     }
