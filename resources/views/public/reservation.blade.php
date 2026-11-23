@@ -22,21 +22,31 @@
         </div>
         <div class="kpi">
             <div class="kpi-label">Montant total</div>
-            <div class="kpi-value" style="color:var(--green)">{{ number_format($reservation->total_amount ?? 0, 0, ',', ' ') }} <span style="font-size:11px;color:var(--text3);font-weight:400">FCFA</span></div>
+            <div class="kpi-value" style="color:var(--green)">{{ number_format($reservation->total_amount ?? 0, 0, ',', ' ') }} <span style="font-size:11px;color:var(--text3);font-weight:400">FCFA HT</span></div>
         </div>
     </div>
+
+    {{-- 2026-11-23 — réservation issue d'un devis : le client retrouve le
+         total à payer qu'il a accepté (le montant ci-dessus est le HT net). --}}
+    @if($reservation->devisOrigine)
+        <p class="small" style="margin-top:-4px">
+            Total à payer du devis {{ $reservation->devisOrigine->reference }} :
+            <strong>{{ number_format((int) $reservation->devisOrigine->total_a_payer, 0, ',', ' ') }} FCFA TTC</strong>
+            (taxes et services compris).
+        </p>
+    @endif
 
     <h2>Panneaux réservés</h2>
     <table>
         <thead>
-            <tr><th>Référence</th><th>Commune</th><th style="text-align:right">Prix</th></tr>
+            <tr><th>Référence</th><th>Commune</th><th style="text-align:right">Prix HT</th></tr>
         </thead>
         <tbody>
             @forelse($reservation->reservationPanels ?? [] as $rp)
                 <tr>
                     <td><strong style="font-family:ui-monospace,monospace">{{ $rp->panel?->reference ?? '—' }}</strong></td>
                     <td>{{ $rp->panel?->commune?->name ?? '—' }}</td>
-                    <td style="text-align:right;font-weight:600">{{ number_format($rp->total_price ?? 0, 0, ',', ' ') }} FCFA</td>
+                    <td style="text-align:right;font-weight:600">{{ number_format($rp->total_price ?? 0, 0, ',', ' ') }} FCFA HT</td>
                 </tr>
             @empty
                 <tr><td colspan="3" style="text-align:center;color:var(--text3)">Aucun panneau</td></tr>

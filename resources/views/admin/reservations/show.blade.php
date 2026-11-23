@@ -249,22 +249,44 @@
                 </div>
             </div>
             <div>
-                <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">Montant total</div>
+                {{-- 2026-11-23 — HT des panneaux (prix × mois), précisé. Issue
+                     d'un devis : HT net après remise, et rappel du total à
+                     payer du devis (TTC, taxes et services compris). --}}
+                <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">Montant total HT</div>
                 <div class="font-bold text-lg" style="color:var(--accent)">
-                    {{ number_format($reservation->total_amount, 0, ',', ' ') }} FCFA
+                    {{ number_format($reservation->total_amount, 0, ',', ' ') }} FCFA HT
                 </div>
+                @if($reservation->devisOrigine)
+                    <div class="text-xs mt-0.5" style="color:var(--text3)">
+                        Total à payer du devis {{ $reservation->devisOrigine->reference }} :
+                        <strong style="color:var(--text2)">{{ number_format((int) $reservation->devisOrigine->total_a_payer, 0, ',', ' ') }} FCFA TTC</strong>
+                        (taxes et services compris)
+                    </div>
+                @endif
             </div>
         </div>
 
         @php
-            $showResCommercial = $reservation->resolveCommercialContact();
-            $showIsSameAsCreator = $showResCommercial && $reservation->user_id === $showResCommercial->id;
+            // 2026-11-23 — le commercial ASSIGNÉ (commercial_user_id) s'affiche
+            // toujours, même s'il a aussi créé le dossier. Avant, il était
+            // masqué dans ce cas : une réservation issue d'un devis montrait
+            // « Non assigné » alors qu'elle portait le commercial du devis.
+            // « Non assigné » = aucun commercial_user_id.
+            $showResCommercial = $reservation->commercial_user_id ? $reservation->resolveCommercialContact() : null;
+            // Devis d'origine : Reservation::devisOrigine (quotes.converted_reservation_id).
+            $devisOrigine = $reservation->devisOrigine;
         @endphp
         <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4 pt-4"
              style="border-top:1px solid var(--border)">
             <div>
                 <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">Créée par</div>
-                <div class="text-sm font-medium">{{ $reservation->user?->name ?? '—' }}</div>
+                @if($devisOrigine)
+                    {{-- Le client a accepté le devis : c'est lui qui a créé le dossier. --}}
+                    <div class="text-sm font-medium">🌐 Le client, en acceptant le devis</div>
+                    <a href="{{ route('admin.quotes.show', $devisOrigine->id) }}" class="text-xs" style="color:var(--accent);text-decoration:underline">{{ $devisOrigine->reference }}</a>
+                @else
+                    <div class="text-sm font-medium">{{ $reservation->user?->name ?? '—' }}</div>
+                @endif
                 @if($reservation->created_at)
                     <div class="text-xs mt-0.5" style="color:var(--text3)" title="{{ $reservation->created_at->format('d/m/Y H:i:s') }}">
                         🕐 {{ $reservation->created_at->format('d/m/Y') }} à {{ $reservation->created_at->format('H:i') }}
@@ -274,7 +296,7 @@
             </div>
             <div>
                 <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">🤝 Commercial</div>
-                @if($showResCommercial && !$showIsSameAsCreator)
+                @if($showResCommercial)
                     <div class="text-sm font-medium">{{ $showResCommercial->name }}</div>
                     @if($showResCommercial->email)
                         <div class="text-xs mt-0.5" style="color:var(--text3)">{{ $showResCommercial->email }}</div>

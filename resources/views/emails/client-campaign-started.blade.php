@@ -42,7 +42,7 @@
         @if($amount > 0)
         <div class="info-row">
             <div class="lbl">Montant</div>
-            <div class="val"><strong>{{ number_format($amount, 0, ',', ' ') }} FCFA</strong></div>
+            <div class="val"><strong>{{ number_format($amount, 0, ',', ' ') }} FCFA HT</strong></div>
         </div>
         @endif
     </div>
@@ -51,8 +51,8 @@
         {{-- Cas 1 : compte client existant → CTA direct vers le suivi --}}
         <h2 style="font-size:15px;margin-top:24px;">📊 Suivez votre campagne en temps réel</h2>
         <p>
-            Connectez-vous à votre espace client Panora pour suivre l'avancement
-            de votre campagne : poses, photos d'affichage (piges), factures.
+            <strong>Votre espace client Panora est déjà ouvert.</strong> Connectez-vous pour suivre
+            l'avancement de votre campagne : poses, photos d'affichage (piges), factures.
         </p>
         <div class="cta-wrap">
             <a href="{{ $loginUrl }}" class="cta">Accéder à mon espace client</a>
@@ -71,14 +71,15 @@
             télécharger vos factures.
         </p>
         <p style="color:{{ $ch['noir'] }};font-size:13px;">
-            Pour activer votre espace, contactez votre interlocuteur commercial
+            <strong>Vous n'avez pas encore d'espace client.</strong> Si vous le souhaitez, nous vous en
+            ouvrons un : répondez simplement à ce mail ou contactez votre commercial
             @if($contact)
                 <strong>{{ $contact->name }}</strong>
                 @if($contact->email) à
                     <a href="mailto:{{ $contact->email }}" style="color:{{ $ch['rouge'] }};">{{ $contact->email }}</a>
                 @endif
             @endif
-            — il vous transmettra vos identifiants sécurisés.
+            — vous recevrez vos identifiants sécurisés.
         </p>
     @endif
 

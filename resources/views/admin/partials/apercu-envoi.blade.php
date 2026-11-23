@@ -30,6 +30,16 @@
                     <span style="color:var(--text3);min-width:52px">Objet</span>
                     <strong data-sujet style="color:var(--text)"></strong>
                 </div>
+                {{-- 2026-11-23 — nom du PDF joint, modifiable (devis). --}}
+                <div data-ligne-pj style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+                    <label for="apercu-envoi-pj" style="color:var(--text3);min-width:52px">PDF joint</label>
+                    <span style="display:inline-flex;align-items:center;gap:4px;flex:1;min-width:220px">
+                        <input id="apercu-envoi-pj" data-pj type="text" maxlength="120" autocomplete="off"
+                               title="Nom du fichier PDF que le client recevra"
+                               style="flex:1;min-width:0;padding:5px 9px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+                        <span style="color:var(--text3)">.pdf</span>
+                    </span>
+                </div>
                 <div data-note style="display:none;margin-top:8px;font-size:12px;color:var(--text3)"></div>
             </div>
             <div data-erreur style="display:none;margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,.1);color:#ef4444;font-size:13px"></div>
@@ -47,6 +57,7 @@
 <script>
 window.ApercuEnvoi = (function () {
     var suite = null;
+    var champPj = null; // nom du champ envoyé avec le formulaire (null : pas de pièce jointe à nommer)
     function el(sel) { return document.querySelector('#apercu-envoi ' + sel); }
     function pastilles(cible, adresses) {
         cible.innerHTML = '';
@@ -74,6 +85,8 @@ window.ApercuEnvoi = (function () {
         el('[data-entete]').style.display = 'none';
         el('[data-erreur]').style.display = 'none';
         el('[data-cadre]').srcdoc = '';
+        champPj = null;
+        el('[data-ligne-pj]').style.display = 'none';
         var note = el('[data-note]');
         note.textContent = o.note || '';
         note.style.display = o.note ? 'block' : 'none';
@@ -89,6 +102,11 @@ window.ApercuEnvoi = (function () {
                 el('[data-ligne-copie]').style.display = (d.copie || []).length ? 'flex' : 'none';
                 el('[data-sujet]').textContent = d.sujet || '—';
                 el('[data-cadre]').srcdoc = d.html || '';
+                if (d.piece_jointe && d.piece_jointe.champ) {
+                    champPj = d.piece_jointe.champ;
+                    el('[data-pj]').value = d.piece_jointe.nom || '';
+                    el('[data-ligne-pj]').style.display = 'flex';
+                }
                 if (!d.destinataires.length) {
                     var e = el('[data-erreur]');
                     e.textContent = "Aucune adresse : ni interlocuteur, ni contact coché, ni adresse sur la fiche client. Le mail ne peut pas partir.";
@@ -109,8 +127,10 @@ window.ApercuEnvoi = (function () {
             ev.target.disabled = true;
             ev.target.textContent = 'Envoi…';
             var action = suite;
+            var extra = {};
+            if (champPj) extra[champPj] = el('[data-pj]').value;
             suite = null;
-            action();
+            action(extra);
         }
     });
     document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') fermer(); });
@@ -120,7 +140,20 @@ window.ApercuEnvoi = (function () {
         /** Pour un <form> : bloque l'envoi direct, montre l'aperçu, envoie à la confirmation. */
         formulaire: function (event, form, url, titre, bouton, note) {
             event.preventDefault();
-            ouvrir({ url: url, titre: titre, bouton: bouton, note: note, onConfirm: function () { form.submit(); } });
+            ouvrir({ url: url, titre: titre, bouton: bouton, note: note, onConfirm: function (extra) {
+                // Champs saisis dans la fenêtre (nom du PDF joint) : ajoutés au formulaire.
+                Object.keys(extra || {}).forEach(function (nom) {
+                    var champ = form.querySelector('input[type=hidden][name="' + nom + '"]');
+                    if (!champ) {
+                        champ = document.createElement('input');
+                        champ.type = 'hidden';
+                        champ.name = nom;
+                        form.appendChild(champ);
+                    }
+                    champ.value = extra[nom];
+                });
+                form.submit();
+            } });
             return false;
         },
     };

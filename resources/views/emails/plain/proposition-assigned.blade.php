@@ -16,7 +16,7 @@ Détails :
 - Client    : {{ $client?->name ?? '—' }}
 - Période   : {{ $period }}
 - Panneaux  : {{ $panelCount }} emplacement{{ $panelCount > 1 ? 's' : '' }}
-@if($amount > 0)- Montant   : {{ number_format($amount, 0, ',', ' ') }} FCFA
+@if($amount > 0)- Montant   : {{ number_format($amount, 0, ',', ' ') }} FCFA HT
 @endif
 
 Connectez-vous à PANORA pour vérifier puis cliquer "Envoyer au client" :

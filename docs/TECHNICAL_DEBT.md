@@ -799,4 +799,10 @@ captures avant/après sur la vraie base.
 
 `QuoteConverter` crée la réservation avec `quote_id` et `origin = 'devis'`, mais `Reservation::$fillable` ne déclare aucun des deux : la création les ignore sans erreur. Le lien entre le devis et la réservation ne tient que par `quotes.converted_reservation_id`. À corriger après avoir vérifié la vraie structure de `reservations` en prod (`SHOW CREATE TABLE`), car la colonne `origin` n'y existe peut-être pas.
 
+*Mise à jour 2026-11-23 :* tout le code passe désormais par `Reservation::devisOrigine()` (relation sur `quotes.converted_reservation_id`) : fiche réservation, page publique, fiche campagne, contrôle d'écart et facture FNE (`CampagneDevis`). Le jour où `quote_id` sera rempli, seule cette relation est à revoir.
+
+### `GREATEST()` absent de SQLite (constaté 2026-11-23)
+
+La migration `2026_06_08_162040_add_fne_columns_to_invoices` utilise `GREATEST`, inconnu de SQLite. `DevisMontantsCampagneTest` déclare la fonction avant de jouer les migrations des factures, et ajoute à la main les colonnes de `phase1_fne_foundations` (`commercial_user_id`, `created_by`, `campaign_year`). À reprendre si les migrations deviennent portables.
+
 Trouvé en corrigeant un défaut bien plus grave : depuis le 21/07, l'acceptation d'un devis échouait toujours, car le code écrivait une colonne `quantity` absente de `reservation_panels`. Aucun devis n'avait donc jamais pu devenir une réservation. Corrigé le 23/11, avec un vrai test de conversion.

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Quote;
 use App\Services\AlertService;
 use App\Services\QuoteConverter;
+use App\Services\QuoteDecisionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -63,6 +64,7 @@ class ClientQuoteController extends Controller
     public function accept(Request $request, Quote $quote, QuoteConverter $converter)
     {
         $this->assertCanDecide($quote);
+        $decisions = app(QuoteDecisionService::class);
 
         try {
             $result = $converter->convertFromQuote($quote, decidedBy: 'client:' . $this->clientConnecteId());
@@ -75,6 +77,10 @@ class ClientQuoteController extends Controller
                 . ' Veuillez contacter votre commercial ' . ($quote->commercial?->name ?? '') . '.'
             );
         }
+
+        // 2026-11-23 — le commercial est prévenu par mail (récupérer le BC).
+        $decisions->prevenirCommercial($quote->fresh(), QuoteDecisionService::ACCEPTATION, null,
+            QuoteDecisionService::CANAL_ESPACE, QuoteDecisionService::suiteAcceptation($result));
 
         if ($result['status'] === 'converted') {
             return redirect()->route('client.devis.show', $quote)
@@ -93,60 +99,34 @@ class ClientQuoteController extends Controller
             ->with('warning', "Devis accepté, mais certains panneaux ne sont plus disponibles. Votre commercial ({$quote->commercial?->name}) va vous contacter pour ajuster.");
     }
 
-    /** Refuser un devis avec motif. */
+    /**
+     * Refuser un devis avec motif. 2026-11-23 : écriture, alerte et mail au
+     * commercial par QuoteDecisionService, commun avec le lien privé.
+     */
     public function refuse(Request $request, Quote $quote)
     {
         $this->assertCanDecide($quote);
+        $decisions = app(QuoteDecisionService::class);
         $data = $request->validate([
             'reason' => 'nullable|string|max:1000',
         ]);
 
-        $quote->update([
-            'status'          => QuoteStatus::REFUSE->value,
-            'decision_at'     => now(),
-            'decision_reason' => $data['reason'] ?? null,
-        ]);
-
-        AlertService::notify(
-            'devis_refuse',
-            '❌ Devis refusé — ' . $quote->reference,
-            ($quote->client?->name ?? '') . ' a refusé le devis ' . $quote->reference
-            . ($data['reason'] ? " (motif: {$data['reason']})" : ''),
-            $quote,
-            [
-                'user_id' => $quote->commercial_user_id,
-                'lien'    => route('admin.quotes.show', $quote->id),
-            ]
-        );
+        $decisions->refuser($quote, $data['reason'] ?? null, QuoteDecisionService::CANAL_ESPACE);
 
         return redirect()->route('client.devis.show', $quote)
             ->with('info', 'Votre refus a été enregistré. Merci de nous avoir considérés.');
     }
 
-    /** Demander une modification (négociation). */
+    /** Demander une modification (négociation) — même service que le lien privé. */
     public function requestModification(Request $request, Quote $quote)
     {
         $this->assertCanDecide($quote);
+        $decisions = app(QuoteDecisionService::class);
         $data = $request->validate([
             'reason' => 'required|string|max:1000',
         ]);
 
-        $quote->update([
-            'status'          => QuoteStatus::EN_NEGOCIATION->value,
-            'decision_at'     => now(),
-            'decision_reason' => $data['reason'],
-        ]);
-
-        AlertService::notify(
-            'devis_en_negociation',
-            '💬 Demande de modification — ' . $quote->reference,
-            ($quote->client?->name ?? '') . ' demande une modification du devis ' . $quote->reference . ' : ' . $data['reason'],
-            $quote,
-            [
-                'user_id' => $quote->commercial_user_id,
-                'lien'    => route('admin.quotes.show', $quote->id),
-            ]
-        );
+        $decisions->demanderModification($quote, $data['reason'], QuoteDecisionService::CANAL_ESPACE);
 
         return redirect()->route('client.devis.show', $quote)
             ->with('success', 'Votre demande a été transmise à votre commercial. Il vous recontactera pour ajuster le devis.');

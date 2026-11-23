@@ -37,4 +37,30 @@ class QuotePdf
             ->setPaper('A4', 'portrait')
             ->setOption('fontHeightRatio', self::FONT_HEIGHT_RATIO);
     }
+
+    /**
+     * Nom du PDF joint au mail du devis (2026-11-23) : le commercial peut le
+     * changer dans la fenêtre d'envoi (« Devis CIBLE - Black Friday » au
+     * lieu de « Devis-DEV-2026-009 »). Sans saisie, ou si la saisie est
+     * vide après nettoyage : le nom habituel.
+     *
+     * Nettoyage : caractères interdits dans un nom de fichier (\ / : * ? " < > |
+     * et caractères de contrôle) retirés, espaces resserrés, 120 caractères
+     * au plus, « .pdf » ajouté s'il manque.
+     */
+    public static function nomPieceJointe(Quote $quote, ?string $souhaite = null): string
+    {
+        $nom = preg_replace('/[\x00-\x1F\x7F\\\\\/:*?"<>|]+/u', ' ', (string) $souhaite) ?? '';
+        $nom = trim(preg_replace('/\s+/u', ' ', $nom) ?? '', " .\t");
+        $nom = preg_replace('/\.pdf$/iu', '', $nom) ?? '';
+        $nom = trim(mb_substr($nom, 0, 120), " .");
+
+        return ($nom !== '' ? $nom : self::nomPieceJointeParDefaut($quote)) . '.pdf';
+    }
+
+    /** Nom habituel, sans extension : « Devis-DEV-2026-009 ». */
+    public static function nomPieceJointeParDefaut(Quote $quote): string
+    {
+        return 'Devis-' . $quote->reference;
+    }
 }

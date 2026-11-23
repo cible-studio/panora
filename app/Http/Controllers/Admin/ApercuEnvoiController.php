@@ -33,11 +33,18 @@ class ApercuEnvoiController extends Controller
 
         $html = $mail->render();
 
+        // Devis (2026-11-23) : nom du PDF joint, modifiable dans la fenêtre
+        // avant l'envoi. Le champ revient à QuoteController::send.
+        $pieceJointe = $type === 'devis'
+            ? ['nom' => \App\Services\QuotePdf::nomPieceJointeParDefaut(Quote::findOrFail($id)), 'champ' => 'nom_piece_jointe']
+            : null;
+
         return response()->json([
             'destinataires' => array_values($destinataires),
             'copie'         => array_values($copie),
             'sujet'         => $mail->subject ?: (method_exists($mail, 'envelope') ? $mail->envelope()->subject : null),
             'html'          => $html,
+            'piece_jointe'  => $pieceJointe,
         ]);
     }
 

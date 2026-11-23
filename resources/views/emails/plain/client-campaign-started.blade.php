@@ -18,7 +18,7 @@ Détails :
 @endif
 - Période      : {{ $period }}
 - Emplacements : {{ $totalPanels }} panneau{{ $totalPanels > 1 ? 'x' : '' }}
-@if($amount > 0)- Montant      : {{ number_format($amount, 0, ',', ' ') }} FCFA
+@if($amount > 0)- Montant      : {{ number_format($amount, 0, ',', ' ') }} FCFA HT
 @endif
 
 @if($hasAccount)

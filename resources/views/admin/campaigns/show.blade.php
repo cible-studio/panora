@@ -228,12 +228,20 @@
                     Écart de facturation détecté sur la période {{ $startH }} → {{ $endH }}
                 </div>
                 <div class="text-sm mt-1.5" style="color:var(--text2);line-height:1.55">
-                    Montant actuellement facturé : <strong>{{ $stoFmt }} FCFA</strong>.
-                    Montant attendu pour cette période : <strong style="color:#d97706">{{ $expFmt }} FCFA</strong>
+                    Montant actuellement facturé : <strong>{{ $stoFmt }} FCFA HT</strong>.
+                    Montant attendu pour cette période : <strong style="color:#d97706">{{ $expFmt }} FCFA HT</strong>
                     <span style="opacity:.85">({{ $sign }}{{ $diffAbs }} FCFA)</span>.
                 </div>
                 <div class="text-xs mt-2" style="color:var(--text3);line-height:1.5">
-                    @if($ac['source'] === 'reservation')
+                    @if($ac['source'] === 'devis')
+                        {{-- 2026-11-23 — campagne restée identique à son devis accepté. --}}
+                        Source : HT net (après remise) du devis accepté
+                        @if($campaign->reservation?->devisOrigine)
+                            <a href="{{ route('admin.quotes.show', $campaign->reservation->devisOrigine) }}"
+                               style="color:var(--accent);text-decoration:underline">{{ $campaign->reservation->devisOrigine->reference }}</a>.
+                        @endif
+                        Pour réaligner : remettez le montant de la campagne au HT du devis.
+                    @elseif($ac['source'] === 'reservation')
                         Source : prix négociés figés sur la réservation liée
                         @if($campaign->reservation)
                             <a href="{{ route('admin.reservations.show', $campaign->reservation) }}"
@@ -418,6 +426,17 @@
                                 <span data-override-by style="color:var(--text2);font-weight:500"></span>
                             @endif
                         </div>
+                        {{-- 2026-11-23 — campagne issue d'un devis accepté : rappel
+                             du total à payer du devis (TTC, taxes et services). --}}
+                        @if($campaign->reservation?->devisOrigine)
+                            @php $dvo = $campaign->reservation->devisOrigine; @endphp
+                            <div class="text-xs mt-2" style="color:var(--text3);line-height:1.45">
+                                Total à payer du devis
+                                <a href="{{ route('admin.quotes.show', $dvo) }}" style="color:var(--accent);text-decoration:underline">{{ $dvo->reference }}</a> :
+                                <strong style="color:var(--text2)">{{ number_format((int) $dvo->total_a_payer, 0, ',', ' ') }} FCFA TTC</strong>
+                                (taxes et services compris)
+                            </div>
+                        @endif
                     </div>
 
                     {{-- Réservation --}}

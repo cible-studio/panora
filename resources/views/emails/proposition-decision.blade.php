@@ -46,7 +46,7 @@
         @if($totalAmount > 0)
             <div class="info-row">
                 <div class="lbl">Montant</div>
-                <div class="val"><strong style="color:{{ $ch['rouge'] }};">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</strong></div>
+                <div class="val"><strong style="color:{{ $ch['rouge'] }};">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA HT</strong></div>
             </div>
         @endif
         @if($campaignName)

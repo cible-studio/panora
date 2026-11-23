@@ -3209,3 +3209,65 @@ Constaté le 23/11 en testant le circuit complet sur dev, avant la formation des
 - [ ] Admin, simple option : le bouton est « ⚠ Confirmer sans BC (exception) », motif demandé
 - [ ] Mail du devis : le bouton ouvre le devis sans connexion ; la phrase sur l'espace client correspond au client (avec ou sans compte)
 - [ ] Devis, réservation, campagne, Disponibilités : dans le calendrier de fin, les jours avant le début sont grisés
+
+## § 46 — Devis : réponses du client, lien privé à la charte, espace client, nom du PDF joint *(2026-11-23)*
+
+Suite des remarques du test de dev du 23/11 :
+1. **Réponse du client** : acceptation, refus ou demande de modification, depuis l'espace client ou le lien privé. Chaque réponse crée l'alerte **et envoie un mail au commercial du devis**, avec copie commerciale comme pour les propositions. À défaut de commercial joignable, les admins reçoivent le mail. Avant, aucun mail ne partait, et la fiche montrait seulement « En négociation ».
+2. **Le lien privé permet de demander une modification.** Avant, le bouton y était affiché, mais rien ne se passait. La demande s'affiche sur la fiche admin du devis, et le client la retrouve sur sa page.
+3. **Page du lien privé à la charte CIBLE** : liseré, logo, polices, couleurs, coordonnées.
+4. **Espace client** :
+   - badge sur « Devis » ;
+   - encart « devis attendent votre décision » en tête du tableau de bord ;
+   - mention « Votre décision est attendue » dans la liste.
+5. **Nom du PDF joint** modifiable dans la fenêtre d'envoi du devis (par défaut « Devis-DEV-… »).
+6. **Réservation issue d'un devis** :
+   - « Créée par » indique le client et le devis ;
+   - le commercial assigné s'affiche toujours (avant : « Non assigné » quand il avait aussi « créé » le dossier) ;
+   - la note dit par où le client a accepté.
+
+### À vérifier (dev)
+- [ ] Lien privé d'un devis envoyé : logo CIBLE, liseré, couleurs de la charte
+- [ ] « Demander une modification » sur le lien privé → message envoyé → la page affiche la demande ; la fiche admin du devis aussi ; mail reçu par le commercial (et la copie commerciale)
+- [ ] Refus sur le lien privé → mail « a refusé » au commercial, motif affiché sur la fiche
+- [ ] Acceptation → mail « a accepté » avec la réservation créée et « BC attendu jusqu'au … »
+- [ ] Réservation issue de l'acceptation : « Créée par : Le client, en acceptant le devis DEV-… », commercial du devis affiché
+- [ ] Espace client d'un client avec un devis envoyé : badge sur « Devis », encart sur le tableau de bord
+- [ ] Envoi d'un devis : champ « PDF joint » dans la fenêtre, nom modifié → la pièce jointe reçue porte ce nom
+- [ ] Disponibilités → cocher des panneaux → « 💼 Créer un devis » : chaque ligne montre « RÉF — adresse » du panneau (avant : la ligne paraissait vide, le panneau était pourtant bien repris)
+
+## § 47 — Montants d'une campagne issue d'un devis, HT / TTC, charte des pages publiques *(2026-11-23)*
+
+Constaté le 23/11 sur DEV-2026-009 → RES-V9RYNDNT → « CAMPAGNE FORMATION TEST » :
+- **montant faux** : la réservation recevait le total à payer du devis (317 565, TTC + taxes + services) ; la campagne le comparait à du HT (85 000) et affichait un faux « écart de facturation » ;
+- **facture FNE sans la remise ni les services** : elle repartait des prix des panneaux.
+
+### Règles validées par écrit le 23/11
+1. Réservation et campagne issues d'un devis portent le **HT net des panneaux** (après remise), étiqueté HT. Le **total à payer du devis** (TTC, taxes et services compris) est rappelé en dessous.
+2. La facture FNE générée depuis la campagne **copie le devis** : lignes, remise, services avec leur TVA.
+3. Elle garde les **taux ODP / TM figés sur le devis**.
+4. Si la campagne a changé de dates ou de panneaux : la facture suit la **campagne réelle**, aux prix nets du devis, avec les services du devis, et le bandeau d'écart le signale.
+
+### Également livré
+- **HT ou TTC précisé** sur les montants de réservation et de campagne :
+  - mails ;
+  - page publique de la réservation ;
+  - espace client ;
+  - propositions.
+- **Mail du devis** : « FCFA TTC (taxes et services compris) ».
+- **Création de campagne** depuis une réservation :
+  - le commercial de la réservation est proposé (avant : l'utilisateur connecté) ;
+  - le mail au client nomme le commercial de la campagne.
+- **Mails de démarrage de campagne** :
+  - « Votre espace client est déjà ouvert » ;
+  - sinon : « nous vous en ouvrons un si vous le souhaitez, répondez à ce mail ».
+- **Espace client** : une seule règle, `Client::hasAccount()` (aussi pour le mail du devis).
+- **Pages publiques à la charte CIBLE** (logo, liseré, couleurs, coordonnées) : réservation confirmée, facture, pige, lot de piges, décapage, lien invalide.
+
+### À vérifier (dev) — avec un NOUVEAU devis : RES-V9RYNDNT a été créée avec l'ancien montant
+- [ ] Devis avec remise et services → accepté → réservation : « Montant total HT » = HT net du devis, et rappel « Total à payer du devis … TTC »
+- [ ] BC reçu → « Créer la campagne » : le commercial proposé est celui de la réservation ; montant HT identique ; aucun bandeau d'écart
+- [ ] « Générer la facture FNE » : message « Reprise à l'identique du devis DEV-… » ; la facture a la remise, la pose, l'impression, et le même total à payer que le devis
+- [ ] Campagne prolongée d'un mois → bandeau d'écart (HT net × 2 mois) ; la facture FNE suit la campagne (prix nets, 2 mois, services du devis)
+- [ ] Mail « démarrage de campagne » : « Montant total … FCFA HT », bonne phrase sur l'espace client, bon commercial
+- [ ] Lien public d'une réservation confirmée (/p/…) : logo CIBLE, liseré, couleurs de la charte

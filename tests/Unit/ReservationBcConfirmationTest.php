@@ -606,6 +606,9 @@ class ReservationBcConfirmationTest extends TestCase
         $this->assertSame('en_attente', $r->status, 'choix 2a : une option, pas une réservation confirmée');
         $this->assertSame('option', $r->type);
         $this->assertNotNull($r->bc_attendu_jusqu_au, 'le BC est attendu');
+        // 2026-11-23 — le commercial du devis est assigné, et la note dit qui a accepté.
+        $this->assertSame(2, (int) $r->commercial_user_id, 'le commercial du devis suit la réservation');
+        $this->assertStringStartsWith("Créée automatiquement à l'acceptation du devis DEV-TEST-CONV par le client, depuis son espace client, le ", $r->notes);
 
         $interne = DB::table('reservation_panels')->where('reservation_id', $r->id)->where('panel_id', 10)->first();
         $this->assertSame(85000, (int) $interne->unit_price);
@@ -617,5 +620,56 @@ class ReservationBcConfirmationTest extends TestCase
         $this->assertSame('externe', $externe->source, 'un panneau de régie est noté « externe »');
         $this->assertSame(40000, (int) $externe->total_price);
         $this->assertSame('accepte', DB::table('quotes')->where('id', $quote->id)->value('status'));
+    }
+
+    /**
+     * 2026-11-23 (règle validée) — la réservation issue d'un devis porte le
+     * HT NET des panneaux (après remise), et chaque panneau son prix mensuel
+     * net (PU × quantité × (1 − remise)). Avant : le total à payer du devis
+     * (TTC + taxes + services), comparé ensuite à du HT.
+     */
+    public function test_un_devis_accepte_donne_des_montants_ht_nets(): void
+    {
+        foreach (['communes', 'invoice_lines'] as $table) {
+            Schema::create($table, function (Blueprint $t) { $t->id(); $t->string('name')->nullable(); $t->timestamps(); });
+        }
+        Schema::table('reservations', function (Blueprint $t) { $t->string('origin')->nullable(); });
+        Schema::table('external_panels', function (Blueprint $t) { $t->string('availability_status')->nullable(); });
+        foreach ([
+            '2026_07_21_150448_create_quotes_table.php',
+            '2026_07_21_150449_create_quote_lines_table.php',
+            '2026_07_21_150450_create_quote_services_table.php',
+            '2026_07_21_150451_add_quote_id_to_reservations.php',
+            '2026_07_29_100000_add_campaign_dates_to_invoice_and_quote_lines.php',
+            '2026_10_29_100000_add_interlocuteur_to_campaigns_reservations_quotes.php',
+            '2026_10_30_100000_add_tva_applicable_to_quote_services.php',
+            '2026_11_12_100000_add_axes_to_quote_lines.php',
+            '2026_11_16_140000_add_remplacee_par_quote_id_to_reservations.php',
+        ] as $m) {
+            (require base_path("database/migrations/$m"))->up();
+        }
+
+        // 2 faces de P-10 à 85 000 sur 2 mois, remise 10 % : HT brut 340 000, net 306 000.
+        $quote = \App\Models\Quote::create([
+            'reference' => 'DEV-TEST-NET', 'client_id' => 1, 'commercial_user_id' => 2, 'created_by' => 2,
+            'title' => 'Essai remise', 'status' => 'envoye', 'version' => 1, 'valid_days' => 30,
+            'remise_pct' => 10, 'tva' => 18, 'public_token' => str_repeat('e', 64),
+            'period_start' => '2026-12-01', 'period_end' => '2027-01-31',
+            'amount' => 340000, 'net_ht' => 306000, 'total_a_payer' => 999999,
+        ]);
+        $quote->lines()->create([
+            'designation' => 'P-10', 'panel_id' => 10, 'dimension_m2' => 12, 'pu_ht_mensuel' => 85000,
+            'quantite' => 2, 'duree_mois' => 2, 'odp_rate_applique' => 1000, 'tm_rate_applique' => 1000,
+        ]);
+
+        $resultat = app(\App\Services\QuoteConverter::class)->convertFromQuote($quote->fresh(['lines', 'client']), 'public:127.0.0.1');
+        $this->assertSame('converted', $resultat['status']);
+
+        $r = DB::table('reservations')->where('id', DB::table('quotes')->where('id', $quote->id)->value('converted_reservation_id'))->first();
+        $this->assertSame(306000, (int) $r->total_amount, 'HT net du devis, pas son total à payer');
+        $pivot = DB::table('reservation_panels')->where('reservation_id', $r->id)->where('panel_id', 10)->first();
+        $this->assertSame(153000, (int) $pivot->unit_price, '85 000 × 2 faces × 0,9 : prix mensuel net');
+        $this->assertSame(306000, (int) $pivot->total_price, '× 2 mois');
+        $this->assertStringContainsString('par le client, via le lien privé du mail', $r->notes);
     }
 }

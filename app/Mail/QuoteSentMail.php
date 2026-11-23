@@ -22,7 +22,11 @@ class QuoteSentMail extends Mailable implements MailCommercial
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public Quote $quote) {}
+    /**
+     * @param string|null $nomPieceJointe  nom du PDF choisi par le commercial
+     *                                     dans la fenêtre d'envoi (2026-11-23)
+     */
+    public function __construct(public Quote $quote, public ?string $nomPieceJointe = null) {}
 
     public function build()
     {
@@ -32,7 +36,7 @@ class QuoteSentMail extends Mailable implements MailCommercial
         // téléchargement, par le service commun (2026-11-19).
         $pdf = app(\App\Services\QuotePdf::class)->pdf($this->quote);
 
-        $filename = 'Devis-' . $this->quote->reference . '.pdf';
+        $filename = \App\Services\QuotePdf::nomPieceJointe($this->quote, $this->nomPieceJointe);
         $subject  = 'Devis CIBLE · ' . $this->quote->title . ' (' . $this->quote->reference . ')';
 
         // Lien du bouton (2026-11-23) : TOUJOURS le lien privé et sécurisé du
@@ -41,8 +45,11 @@ class QuoteSentMail extends Mailable implements MailCommercial
         // un compte recevait l'adresse de l'espace client, qui demande une
         // connexion : l'interlocuteur qui reçoit le mail n'est pas forcément
         // celui qui a le compte. Le compte est mentionné à côté du bouton.
-        $hasClientAccount = \App\Models\ClientUser::where('client_id', $this->quote->client_id)
-            ->where('is_active', true)->exists();
+        // Espace client : règle unique Client::hasAccount() (2026-11-23) —
+        // la même que la connexion. Avant : un membre d'équipe actif, donc
+        // un client avec son propre accès mais sans équipe lisait « demandez
+        // l'ouverture de votre espace ».
+        $hasClientAccount = (bool) $this->quote->client?->hasAccount();
         $consultUrl = $this->quote->publicUrl();
 
         return $this->subject($subject)

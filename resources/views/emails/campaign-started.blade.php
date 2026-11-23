@@ -2,10 +2,11 @@
     $ch = config('charte.couleurs');
     $start    = $campaign->start_date?->format('d/m/Y');
     $end      = $campaign->end_date?->format('d/m/Y');
-    $amount   = $campaign->total_amount ? number_format($campaign->total_amount, 0, ',', ' ') . ' FCFA' : null;
+    $amount   = $campaign->total_amount ? number_format($campaign->total_amount, 0, ',', ' ') . ' FCFA HT' : null;
     $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $isFuture = $isFuture ?? false;
-    $hasAccount = $client && !empty($client->password);
+    // Espace client : règle unique Client::hasAccount() (2026-11-23).
+    $hasAccount = $client && $client->hasAccount();
 
     $title    = $isFuture ? 'Votre campagne est planifiée' : 'Démarrage de votre campagne';
     $preheader = $isFuture
@@ -54,8 +55,9 @@
     </div>
 
     @if($hasAccount)
-        <p>Vous pouvez à tout moment suivre l'état de votre campagne (pose
-           des bâches, photos terrain, factures) depuis votre espace client.</p>
+        {{-- 2026-11-23 — dire clairement que l'espace est déjà ouvert. --}}
+        <p><strong>Votre espace client Panora est déjà ouvert.</strong> Vous pouvez à tout
+           moment y suivre votre campagne : pose des bâches, photos terrain (piges), factures.</p>
 
         <div class="cta-wrap">
             <a href="{{ route('client.dashboard') }}" class="cta">Accéder à mon espace</a>
@@ -71,12 +73,14 @@
             en temps réel (poses, photos d'affichage validées, factures).
         </p>
         <p style="color:{{ $ch['noir'] }};font-size:13px;">
-            Pour activer votre espace, contactez votre interlocuteur commercial
+            {{-- 2026-11-23 — l'ouverture est proposée, à la demande du client. --}}
+            <strong>Vous n'avez pas encore d'espace client.</strong> Si vous le souhaitez, nous vous en
+            ouvrons un : répondez simplement à ce mail ou contactez votre commercial
             @if($contact)
                 <strong>{{ $contact->name }}</strong>@if($contact->email) à
                 <a href="mailto:{{ $contact->email }}" style="color:{{ $ch['rouge'] }};">{{ $contact->email }}</a>@endif
             @endif
-            — il vous transmettra vos identifiants sécurisés.
+            — vous recevrez vos identifiants sécurisés.
         </p>
     @endif
 

@@ -40,9 +40,9 @@ class ClientCampaignStartedMail extends Mailable implements MailCommercial
     {
         $ref = $this->reservation->reference;
 
-        // Reply-To = commercial suivant le dossier
+        // Reply-To = commercial suivant le dossier (celui de la campagne d'abord, 2026-11-23)
         $replyTo = [];
-        $contact = $this->reservation->resolveCommercialContact();
+        $contact = $this->campaign?->commercial ?? $this->reservation->resolveCommercialContact();
         if ($contact?->email) {
             $replyTo[] = new Address($contact->email, $contact->name ?? '');
         }
@@ -63,8 +63,10 @@ class ClientCampaignStartedMail extends Mailable implements MailCommercial
     {
         $this->reservation->loadMissing(['client', 'panels', 'externalPanels']);
         $client      = $this->reservation->client;
-        $hasAccount  = $client && !empty($client->password);
-        $contact     = $this->reservation->resolveCommercialContact();
+        // Espace client : règle unique Client::hasAccount() (2026-11-23).
+        $hasAccount  = $client && $client->hasAccount();
+        // Commercial de la campagne d'abord (2026-11-23), comme CampaignStartedMail.
+        $contact     = $this->campaign?->commercial ?? $this->reservation->resolveCommercialContact();
 
         $totalPanels = $this->reservation->panels->count()
                      + $this->reservation->externalPanels->count();

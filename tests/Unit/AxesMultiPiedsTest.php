@@ -824,4 +824,35 @@ class AxesMultiPiedsTest extends TestCase
         // Un panneau ordinaire garde la règle d'avant : une seule facture.
         $this->assertCount(1, $checker->assertNotAlreadyBilled([['panel_id' => 30, 'designation' => 'P-30', 'duree_mois' => 3]], $emise, 51));
     }
+
+    /**
+     * 2026-11-23 — « 💼 Créer un devis » depuis Disponibilités : les panneaux
+     * cochés arrivent dans le devis ET se voient. Avant, la ligne était bien
+     * pré-remplie, mais la liste déroulante affichait « — » (elle attendait
+     * une référence et une adresse que seule la recherche fournit) et le
+     * libellé était masqué : la ligne paraissait vide.
+     */
+    public function test_le_devis_cree_depuis_disponibilites_montre_ses_panneaux(): void
+    {
+        foreach (['2026_07_21_150448_create_quotes_table.php', '2026_07_21_150449_create_quote_lines_table.php'] as $m) {
+            (require base_path("database/migrations/$m"))->up();
+        }
+        $admin = new \App\Models\User();
+        $admin->forceFill(['id' => 1, 'name' => 'Admin', 'role' => 'admin']);
+        $this->actingAs($admin);
+
+        $requete = \Illuminate\Http\Request::create('/admin/quotes/create', 'GET', [
+            'panel_ids' => [30], 'period_start' => '2026-12-01', 'period_end' => '2026-12-31',
+        ]);
+        $vue = app(\App\Http\Controllers\Admin\QuoteController::class)->create($requete);
+        $this->assertSame([30], array_column($vue->getData()['prefilledLines'], 'panel_id'));
+
+        $html = view('admin.quotes.partials._form', $vue->getData() + [
+            'quote' => null, 'action' => '/x', 'method' => 'POST', 'errors' => new \Illuminate\Support\ViewErrorBag(),
+        ])->render();
+        $this->assertMatchesRegularExpression('/<option value="30" selected>P-30 — /u', $html, 'la ligne montre la référence du panneau');
+        // Le script (poussé dans la pile du layout) garde le texte de l'option.
+        $this->assertStringContainsString("if (!p.reference && !p.address && !p.name) return escapeHtml(p.text || '');",
+            file_get_contents(resource_path('views/admin/quotes/partials/_form.blade.php')));
+    }
 }

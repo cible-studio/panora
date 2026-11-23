@@ -57,6 +57,8 @@ Route::prefix('devis/{token}')
         Route::get('/pdf',     [\App\Http\Controllers\PublicQuoteController::class, 'pdf'])    ->name('public.quote.pdf');
         Route::post('/accept', [\App\Http\Controllers\PublicQuoteController::class, 'accept']) ->name('public.quote.accept');
         Route::post('/refuse', [\App\Http\Controllers\PublicQuoteController::class, 'refuse']) ->name('public.quote.refuse');
+        // 2026-11-23 — demander une modification sans compte client.
+        Route::post('/modification', [\App\Http\Controllers\PublicQuoteController::class, 'requestModification'])->name('public.quote.request-modification');
     });
 
 require __DIR__ . '/auth.php';

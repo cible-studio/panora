@@ -6,19 +6,31 @@
     Variables :
       $quote     : Quote (chargé avec client, commercial, lines, services)
       $isPublic  : bool — true si vue publique (formulaires POST vers routes publiques)
+
+    Couleurs (2026-11-23) : variables CSS --qw-* sur .qw, valeurs par défaut
+    de l'espace client ci-dessous. La page du lien privé
+    (public/quote-show) les remplace par la charte de la régie.
 --}}
 @php $st = $quote->status->uiConfig(); @endphp
 
 <style>
+    .qw {
+        --qw-accent:#8b5cf6; --qw-titre:#0f172a; --qw-texte:#334155; --qw-doux:#64748b;
+        --qw-total-fond:#8b5cf6; --qw-total-texte:#fff;
+        --qw-ok:#15803d; --qw-ok-fonce:#166534; --qw-ok-bord:#86efac;
+        --qw-refus:#991b1b; --qw-refus-bord:#fca5a5; --qw-refus-doux:#fef2f2;
+        --qw-modif:#6d28d9; --qw-modif-bord:#c4b5fd; --qw-modif-doux:#f5f3ff;
+        --qw-decision-fond:#fffbeb; --qw-decision-bord:#f59e0b; --qw-decision-texte:#78350f;
+    }
     .qw-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:22px; margin-bottom:16px; }
     .qw-badge { display:inline-block; padding:4px 12px; border-radius:14px; font-size:12px; font-weight:700; }
     .qw-btn { display:inline-flex; align-items:center; gap:8px; padding:12px 22px; border-radius:8px; font-weight:700; font-size:14px; border:none; cursor:pointer; text-decoration:none; }
-    .qw-btn-accept { background:#15803d; color:#fff; }
-    .qw-btn-accept:hover { background:#166534; }
-    .qw-btn-refuse { background:#fff; color:#991b1b; border:1.5px solid #fca5a5; }
-    .qw-btn-refuse:hover { background:#fef2f2; }
-    .qw-btn-modif { background:#fff; color:#6d28d9; border:1.5px solid #c4b5fd; }
-    .qw-btn-modif:hover { background:#f5f3ff; }
+    .qw-btn-accept { background:var(--qw-ok); color:#fff; }
+    .qw-btn-accept:hover { background:var(--qw-ok-fonce); }
+    .qw-btn-refuse { background:#fff; color:var(--qw-refus); border:1.5px solid var(--qw-refus-bord); }
+    .qw-btn-refuse:hover { background:var(--qw-refus-doux); }
+    .qw-btn-modif { background:#fff; color:var(--qw-modif); border:1.5px solid var(--qw-modif-bord); }
+    .qw-btn-modif:hover { background:var(--qw-modif-doux); }
     .qw-btn-ghost { background:#fff; color:#475569; border:1.5px solid #cbd5e1; }
     .qw-btn-ghost:hover { background:#f8fafc; }
     .qw-table { width:100%; border-collapse:collapse; margin-top:10px; }
@@ -27,18 +39,18 @@
     .qw-totals td { padding:6px 10px; font-size:13.5px; }
     .qw-totals td.lbl { color:#475569; }
     .qw-totals td.val { text-align:right; font-weight:700; }
-    .qw-totals tr.grand td { background:#8b5cf6; color:#fff; font-size:16px; padding:12px; font-weight:800; }
+    .qw-totals tr.grand td { background:var(--qw-total-fond); color:var(--qw-total-texte); font-size:16px; padding:12px; font-weight:800; }
     @media (max-width: 720px) { .qw-card { padding:16px; } .qw-btn { width:100%; justify-content:center; } }
 </style>
 
-<div style="max-width:960px;margin:0 auto;padding:24px">
+<div class="qw" style="max-width:960px;margin:0 auto;padding:24px">
 
     {{-- ═══════════════════ EN-TÊTE ═══════════════════ --}}
-    <div class="qw-card" style="border-top:4px solid #8b5cf6">
+    <div class="qw-card" style="border-top:4px solid var(--qw-accent)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap">
             <div>
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-                    <span style="font-family:monospace;font-size:14px;color:#8b5cf6;font-weight:800">{{ $quote->reference }}</span>
+                    <span style="font-family:monospace;font-size:14px;color:var(--qw-accent);font-weight:800">{{ $quote->reference }}</span>
                     <span class="qw-badge" style="background:{{ $st['bg'] }};color:{{ $st['color'] }}">{{ $st['icon'] }} {{ $quote->status->label() }}</span>
                 </div>
                 <h1 style="font-size:24px;font-weight:800;color:#0f172a;margin-bottom:8px">{{ $quote->title }}</h1>
@@ -71,10 +83,10 @@
     </div>
 
     {{-- ═══════════════════ DÉCISION ═══════════════════ --}}
-    @if($quote->status === \App\Enums\QuoteStatus::ENVOYE && !$quote->isExpired())
-        <div class="qw-card" style="border-top:4px solid #f59e0b;background:#fffbeb">
-            <div style="font-size:15px;font-weight:700;color:#78350f;margin-bottom:6px">🎯 Décision attendue</div>
-            <p style="font-size:14px;color:#78350f;margin-bottom:14px">
+    @if($quote->estADecider())
+        <div class="qw-card" style="border-top:4px solid var(--qw-decision-bord);background:var(--qw-decision-fond)">
+            <div style="font-size:15px;font-weight:700;color:var(--qw-decision-texte);margin-bottom:6px">🎯 Décision attendue</div>
+            <p style="font-size:14px;color:var(--qw-decision-texte);margin-bottom:14px">
                 Consultez le détail ci-dessous puis choisissez :
             </p>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -89,9 +101,9 @@
                 </button>
             </div>
 
-            <div id="qw-accept-form" style="display:none;margin-top:16px;padding:16px;background:#fff;border-radius:8px;border:1px solid #86efac">
-                <div style="font-weight:700;color:#166534;margin-bottom:8px">Confirmer l'acceptation ?</div>
-                <p style="font-size:13px;color:#166534;margin-bottom:12px">
+            <div id="qw-accept-form" style="display:none;margin-top:16px;padding:16px;background:#fff;border-radius:8px;border:1px solid var(--qw-ok-bord)">
+                <div style="font-weight:700;color:var(--qw-ok-fonce);margin-bottom:8px">Confirmer l'acceptation ?</div>
+                <p style="font-size:13px;color:var(--qw-ok-fonce);margin-bottom:12px">
                     {{-- 2026-11-19 (choix 2a) — le devis accepté crée une option, le BC la confirme. --}}
                     En acceptant, vos emplacements sont réservés en option pendant
                     {{ (int) config('bon_de_commande.delai_jours', 30) }} jours. Transmettez ensuite votre
@@ -104,8 +116,8 @@
                 </form>
             </div>
 
-            <div id="qw-refuse-form" style="display:none;margin-top:16px;padding:16px;background:#fff;border-radius:8px;border:1px solid #fca5a5">
-                <div style="font-weight:700;color:#991b1b;margin-bottom:8px">Refuser ce devis</div>
+            <div id="qw-refuse-form" style="display:none;margin-top:16px;padding:16px;background:#fff;border-radius:8px;border:1px solid var(--qw-refus-bord)">
+                <div style="font-weight:700;color:var(--qw-refus);margin-bottom:8px">Refuser ce devis</div>
                 <form method="POST" action="{{ $isPublic ? route('public.quote.refuse', $quote->public_token) : route('client.devis.refuse', $quote) }}">
                     @csrf
                     <label style="font-size:12px;color:#475569;display:block;margin-bottom:4px">Motif (optionnel, pour aider le commercial)</label>
@@ -115,24 +127,39 @@
                 </form>
             </div>
 
-            @if(!$isPublic)
-                <div id="qw-modif-form" style="display:none;margin-top:16px;padding:16px;background:#fff;border-radius:8px;border:1px solid #c4b5fd">
-                    <div style="font-weight:700;color:#6d28d9;margin-bottom:8px">Demander une modification</div>
-                    <form method="POST" action="{{ route('client.devis.request-modification', $quote) }}">
-                        @csrf
-                        <label style="font-size:12px;color:#475569;display:block;margin-bottom:4px">Précisez ce que vous souhaitez ajuster *</label>
-                        <textarea name="reason" required rows="4" maxlength="1000" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:12px" placeholder="ex. J'aimerais retirer les panneaux de Yopougon, ajouter 2 panneaux Cocody, et négocier le prix de X..."></textarea>
-                        <button type="submit" class="qw-btn qw-btn-modif">🔁 Envoyer ma demande</button>
-                        <button type="button" onclick="this.closest('#qw-modif-form').style.display='none'" class="qw-btn qw-btn-ghost">Annuler</button>
-                    </form>
-                </div>
-            @endif
+            {{-- 2026-11-23 — aussi sur le lien privé : tous les clients le
+                 reçoivent par mail, avec ou sans compte. Avant, le bouton y
+                 était affiché mais sans formulaire (rien ne se passait). --}}
+            <div id="qw-modif-form" style="display:none;margin-top:16px;padding:16px;background:#fff;border-radius:8px;border:1px solid var(--qw-modif-bord)">
+                <div style="font-weight:700;color:var(--qw-modif);margin-bottom:8px">Demander une modification</div>
+                <form method="POST" action="{{ $isPublic ? route('public.quote.request-modification', $quote->public_token) : route('client.devis.request-modification', $quote) }}">
+                    @csrf
+                    <label style="font-size:12px;color:#475569;display:block;margin-bottom:4px">Précisez ce que vous souhaitez ajuster *</label>
+                    <textarea name="reason" required rows="4" maxlength="1000" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:12px" placeholder="ex. J'aimerais retirer les panneaux de Yopougon, ajouter 2 panneaux Cocody, et négocier le prix de X..."></textarea>
+                    <button type="submit" class="qw-btn qw-btn-modif">🔁 Envoyer ma demande</button>
+                    <button type="button" onclick="this.closest('#qw-modif-form').style.display='none'" class="qw-btn qw-btn-ghost">Annuler</button>
+                </form>
+            </div>
+        </div>
+    @endif
+
+    {{-- ═══════════════════ DEMANDE EN COURS (2026-11-23) ═══════════════════
+         Le client voit ce qu'il a demandé et que sa demande est bien partie. --}}
+    @if($quote->status === \App\Enums\QuoteStatus::EN_NEGOCIATION && $quote->decision_reason)
+        <div class="qw-card" style="border-left:4px solid var(--qw-modif-bord);background:var(--qw-modif-doux)">
+            <div style="font-weight:700;color:var(--qw-modif);margin-bottom:6px">
+                🔁 Votre demande de modification{{ $quote->decision_at ? ' du ' . $quote->decision_at->format('d/m/Y') : '' }}
+            </div>
+            <div style="color:var(--qw-texte);white-space:pre-wrap;font-size:14px">« {{ $quote->decision_reason }} »</div>
+            <div style="color:var(--qw-doux);font-size:12.5px;margin-top:8px">
+                Transmise à {{ $quote->commercial?->name ?? 'votre commercial' }}, qui vous enverra une nouvelle version du devis.
+            </div>
         </div>
     @endif
 
     {{-- ═══════════════════ MESSAGE COMMERCIAL ═══════════════════ --}}
     @if($quote->notes_client)
-        <div class="qw-card" style="border-left:4px solid #8b5cf6">
+        <div class="qw-card" style="border-left:4px solid var(--qw-accent)">
             <div style="font-weight:700;color:#0f172a;margin-bottom:6px">💬 Message de votre commercial</div>
             <div style="color:#334155;white-space:pre-wrap;font-size:14px">{{ $quote->notes_client }}</div>
         </div>

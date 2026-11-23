@@ -305,6 +305,11 @@
     $newCampaigns = $client?->campaigns()
         ->whereNull('client_first_viewed_at')
         ->count() ?? 0;
+    // Badge « Devis » (2026-11-23) : devis qui attendent la décision du
+    // client — même règle que l'encart du tableau de bord (Quote::scopeADecider).
+    $devisADecider = $client
+        ? \App\Models\Quote::where('client_id', $client->id)->aDecider()->count()
+        : 0;
 @endphp
 
 {{-- Applique le thème AVANT le rendu (anti-flash) --}}
@@ -343,6 +348,7 @@
             'label' => 'Devis',
             'route' => 'client.devis.index',
             'active'=> request()->routeIs('client.devis.*'),
+            'badge' => $devisADecider,
             'icon'  => '<path d="M9 11H5a2 2 0 0 0-2 2v7h4"/><path d="M15 11h4a2 2 0 0 1 2 2v7h-4"/><path d="M9 4h6v16H9z"/>',
         ],
         [

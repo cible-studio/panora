@@ -81,6 +81,23 @@
         </div>
     </div>
 
+    {{-- ═══════════════════ RÉPONSE DU CLIENT (2026-11-23) ═══════════════════
+         Le texte du client (demande de modification ou motif de refus)
+         n'était visible nulle part sur la fiche : seulement dans l'alerte. --}}
+    @if($quote->decision_reason && in_array($quote->status, [\App\Enums\QuoteStatus::EN_NEGOCIATION, \App\Enums\QuoteStatus::REFUSE], true))
+        @php $estModif = $quote->status === \App\Enums\QuoteStatus::EN_NEGOCIATION; @endphp
+        <div style="background:{{ $estModif ? 'rgba(139,92,246,.08)' : 'rgba(239,68,68,.07)' }};border:1px solid {{ $estModif ? 'rgba(139,92,246,.3)' : 'rgba(239,68,68,.3)' }};border-radius:12px;padding:16px 18px;margin-bottom:18px">
+            <div style="font-weight:700;color:{{ $estModif ? '#6d28d9' : '#b91c1c' }};margin-bottom:6px">
+                {{ $estModif ? '🔁 Le client demande une modification' : '❌ Motif du refus' }}
+                @if($quote->decision_at)<span style="font-weight:400;color:var(--text3);font-size:12px"> · le {{ $quote->decision_at->format('d/m/Y à H:i') }}</span>@endif
+            </div>
+            <div style="white-space:pre-wrap;color:var(--text);font-size:14px">« {{ $quote->decision_reason }} »</div>
+            @if($estModif)
+                <div style="margin-top:8px;font-size:12.5px;color:var(--text2)">Modifie le devis, puis « 📤 Envoyer au client » pour lui adresser la nouvelle version.</div>
+            @endif
+        </div>
+    @endif
+
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
         <div>
             {{-- ═══════════════════ LIGNES ═══════════════════ --}}

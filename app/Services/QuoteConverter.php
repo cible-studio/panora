@@ -176,10 +176,25 @@ class QuoteConverter
                 'status'             => ReservationStatus::EN_ATTENTE->value,
                 'start_date'         => $periodStart,
                 'end_date'           => $periodEnd,
-                'total_amount'       => $quote->total_a_payer,
+                // 2026-11-23 (règle validée) — HT NET des panneaux, après la
+                // remise du devis : la même nature de montant que toutes les
+                // autres réservations et campagnes (prix × mois, HT). Avant :
+                // le total à payer du devis (TTC + TSP + ODP/TM + services),
+                // comparé ensuite à du HT → faux « écart de facturation ».
+                // Le total à payer du devis reste affiché en rappel.
+                'total_amount'       => (int) $quote->net_ht,
                 'confirmed_at'       => null,
                 'origin'             => 'devis',
-                'notes'              => 'Créée automatiquement à partir du devis ' . $quote->reference,
+                // 2026-11-23 — la note dit QUI a accepté et par où : la
+                // réservation porte le commercial du devis comme auteur
+                // (user_id), alors que c'est le client qui l'a déclenchée.
+                'notes'              => 'Créée automatiquement à l\'acceptation du devis ' . $quote->reference
+                    . match (true) {
+                        str_starts_with((string) $decidedBy, 'public:') => ' par le client, via le lien privé du mail',
+                        str_starts_with((string) $decidedBy, 'client:') => ' par le client, depuis son espace client',
+                        default                                         => '',
+                    }
+                    . ', le ' . now()->format('d/m/Y à H:i') . '.',
             ]);
 
             // Attach panneaux avec prix négocié.
@@ -191,8 +206,18 @@ class QuoteConverter
             // devis (InvoiceCalculator::calculateLine, montant_ht_ligne).
             // source = 'externe' pour un panneau de régie : sinon la ligne
             // prenait la valeur par défaut 'interne'.
+            //
+            // 2026-11-23 (règle validée) — unit_price = prix MENSUEL NET du
+            // panneau pour ce dossier : PU × quantité × (1 − remise du devis).
+            // C'est le prix négocié réel ; tout ce qui recalcule sur la
+            // réservation (contrôle d'écart, changement de dates, facture
+            // d'une campagne modifiée) part donc du prix accepté par le client.
+            $coefRemise = 1 - max(0.0, min(100.0, (float) $quote->remise_pct)) / 100;
             foreach ($quote->lines as $line) {
-                $totalLigne = fn (int $pu) => (int) round($pu * max(1, (int) $line->quantite) * max(0, (float) $line->duree_mois));
+                $qte        = max(1, (int) $line->quantite);
+                $duree      = max(0.0, (float) $line->duree_mois);
+                $mensuelNet = fn (int $pu) => (int) round($pu * $qte * $coefRemise);
+                $totalLigne = fn (int $mensuel) => (int) round($mensuel * $duree);
                 if ($pieds = $line->idsPieds()) {
                     // Le prix de la ligne (somme des pieds, éventuellement
                     // négocié) est réparti sur ses pieds ; le reste de la
@@ -201,24 +226,26 @@ class QuoteConverter
                     $base  = intdiv((int) $line->pu_ht_mensuel, $n);
                     $reste = (int) $line->pu_ht_mensuel - $base * $n;
                     foreach ($pieds as $k => $piedId) {
-                        $pu = $base + ($k === 0 ? $reste : 0);
+                        $m = $mensuelNet($base + ($k === 0 ? $reste : 0));
                         $reservation->panels()->attach($piedId, [
-                            'unit_price'  => $pu,
-                            'total_price' => $totalLigne($pu),
+                            'unit_price'  => $m,
+                            'total_price' => $totalLigne($m),
                             'source'      => 'interne',
                         ]);
                     }
                 } elseif ($line->panel_id) {
+                    $m = $mensuelNet((int) $line->pu_ht_mensuel);
                     $reservation->panels()->attach($line->panel_id, [
-                        'unit_price'  => (int) $line->pu_ht_mensuel,
-                        'total_price' => $totalLigne((int) $line->pu_ht_mensuel),
+                        'unit_price'  => $m,
+                        'total_price' => $totalLigne($m),
                         'source'      => 'interne',
                     ]);
                 }
                 if ($line->external_panel_id) {
+                    $m = $mensuelNet((int) $line->pu_ht_mensuel);
                     $reservation->externalPanels()->attach($line->external_panel_id, [
-                        'unit_price'  => (int) $line->pu_ht_mensuel,
-                        'total_price' => $totalLigne((int) $line->pu_ht_mensuel),
+                        'unit_price'  => $m,
+                        'total_price' => $totalLigne($m),
                         'source'      => 'externe',
                     ]);
                 }

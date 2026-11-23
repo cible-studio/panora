@@ -35,8 +35,7 @@ class CampaignStartedMail extends Mailable implements MailCommercial
         // sinon créateur de la campagne. Cohérent avec les autres mails
         // client (proposition, espace client).
         $replyTo = [];
-        $contact = $this->campaign->reservation?->resolveCommercialContact()
-                ?? $this->campaign->user;
+        $contact = $this->commercial();
         if ($contact?->email) {
             $replyTo[] = new Address($contact->email, $contact->name ?? '');
         }
@@ -60,6 +59,19 @@ class CampaignStartedMail extends Mailable implements MailCommercial
         );
     }
 
+    /**
+     * Commercial présenté au client (2026-11-23) : celui de la CAMPAGNE
+     * d'abord — c'est lui qui la suit —, puis celui de la réservation,
+     * puis le créateur. Avant : la réservation d'abord, donc un autre nom
+     * que celui de la fiche campagne quand le commercial avait changé.
+     */
+    private function commercial(): ?\App\Models\User
+    {
+        return $this->campaign->commercial
+            ?? $this->campaign->reservation?->resolveCommercialContact()
+            ?? $this->campaign->user;
+    }
+
     public function content(): Content
     {
         $totalPanels = $this->campaign->panels()->count()
@@ -75,8 +87,7 @@ class CampaignStartedMail extends Mailable implements MailCommercial
                 'client'      => $this->campaign->client,
                 'totalPanels' => $totalPanels,
                 'isFuture'    => $isFuture,
-                'contact'     => $this->campaign->reservation?->resolveCommercialContact()
-                                ?? $this->campaign->user,
+                'contact'     => $this->commercial(),
             ],
         );
     }

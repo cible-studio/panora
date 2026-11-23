@@ -5,6 +5,40 @@
 
 @section('content')
 
+{{-- ══ DEVIS À DÉCIDER (2026-11-23) ══
+     Un nouveau devis n'était signalé nulle part dans l'espace client : il
+     fallait penser à ouvrir « Devis ». Même règle que le badge du menu. --}}
+@if(($devisADecider ?? collect())->isNotEmpty())
+<div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid #fab80b;border-radius:12px;padding:16px 18px;margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:700;color:var(--text)">
+            🎯 {{ $devisADecider->count() === 1 ? 'Un devis attend votre décision' : $devisADecider->count() . ' devis attendent votre décision' }}
+        </div>
+        <a href="{{ route('client.devis.index') }}" style="font-size:11px;font-weight:700;color:#e20613;text-decoration:none">Tous mes devis →</a>
+    </div>
+    <div style="display:grid;gap:8px">
+        @foreach($devisADecider->take(3) as $dv)
+            @php $jours = $dv->expires_at ? (int) now()->startOfDay()->diffInDays($dv->expires_at->copy()->startOfDay(), false) : null; @endphp
+            <a href="{{ route('client.devis.show', $dv) }}"
+               style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;text-decoration:none;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2, transparent)">
+                <div style="min-width:0">
+                    <div style="font-family:monospace;font-size:11px;font-weight:700;color:#e20613">{{ $dv->reference }}</div>
+                    <div style="font-size:13px;font-weight:600;color:var(--text)">{{ $dv->title }}</div>
+                    <div style="font-size:11px;color:var(--text3)">
+                        {{ $dv->commercial?->name ? 'De ' . $dv->commercial->name : '' }}
+                        @if($jours !== null) · {{ $jours <= 0 ? 'expire aujourd\'hui' : 'valable encore ' . $jours . ' jour' . ($jours > 1 ? 's' : '') }}@endif
+                    </div>
+                </div>
+                <div style="text-align:right">
+                    <div style="font-size:15px;font-weight:800;color:var(--text)">{{ number_format((int) $dv->total_a_payer, 0, ',', ' ') }} <span style="font-size:10px;color:var(--text3)">FCFA</span></div>
+                    <div style="font-size:11px;font-weight:700;color:#e20613">Consulter et répondre →</div>
+                </div>
+            </a>
+        @endforeach
+    </div>
+</div>
+@endif
+
 {{-- ══ STATS 4 KPI PRINCIPAUX (cliquables) ══ --}}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
     @php

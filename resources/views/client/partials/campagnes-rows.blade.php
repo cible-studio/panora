@@ -12,7 +12,7 @@
         {{ ($camp->panels_count ?? 0) + ($camp->external_panels_count ?? 0) }}
     </td>
     <td style="padding:14px 16px;font-size:13px;font-weight:700;color:#e20613;white-space:nowrap;">
-        {{ number_format($camp->total_amount ?? 0, 0, ',', ' ') }} FCFA
+        {{ number_format($camp->total_amount ?? 0, 0, ',', ' ') }} FCFA HT
     </td>
     <td style="padding:14px 16px;">
         @include('client.partials._status-badge', ['status' => $s])

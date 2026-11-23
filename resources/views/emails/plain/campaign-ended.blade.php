@@ -14,7 +14,7 @@ Récapitulatif :
 - Panneaux : {{ $campaign->total_panels }} emplacement{{ $campaign->total_panels > 1 ? 's' : '' }}
 @endif
 @if($campaign->total_amount > 0)
-- Montant  : {{ number_format((float) $campaign->total_amount, 0, ',', ' ') }} FCFA
+- Montant  : {{ number_format((float) $campaign->total_amount, 0, ',', ' ') }} FCFA HT
 @endif
 
 ──────────────────────────────────────
