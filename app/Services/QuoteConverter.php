@@ -182,8 +182,17 @@ class QuoteConverter
                 'notes'              => 'Créée automatiquement à partir du devis ' . $quote->reference,
             ]);
 
-            // Attach panneaux avec prix négocié
+            // Attach panneaux avec prix négocié.
+            // 2026-11-23 — Colonnes RÉELLES de reservation_panels : unit_price,
+            // total_price, source (+ panel_start_date). Il n'y a pas de colonne
+            // `quantity` : son écriture faisait échouer TOUTE acceptation de
+            // devis depuis le 21/07 (« Unknown column 'quantity' »).
+            // total_price = PU × quantité × durée, la formule de la ligne de
+            // devis (InvoiceCalculator::calculateLine, montant_ht_ligne).
+            // source = 'externe' pour un panneau de régie : sinon la ligne
+            // prenait la valeur par défaut 'interne'.
             foreach ($quote->lines as $line) {
+                $totalLigne = fn (int $pu) => (int) round($pu * max(1, (int) $line->quantite) * max(0, (float) $line->duree_mois));
                 if ($pieds = $line->idsPieds()) {
                     // Le prix de la ligne (somme des pieds, éventuellement
                     // négocié) est réparti sur ses pieds ; le reste de la
@@ -192,21 +201,25 @@ class QuoteConverter
                     $base  = intdiv((int) $line->pu_ht_mensuel, $n);
                     $reste = (int) $line->pu_ht_mensuel - $base * $n;
                     foreach ($pieds as $k => $piedId) {
+                        $pu = $base + ($k === 0 ? $reste : 0);
                         $reservation->panels()->attach($piedId, [
-                            'unit_price' => $base + ($k === 0 ? $reste : 0),
-                            'quantity'   => $line->quantite,
+                            'unit_price'  => $pu,
+                            'total_price' => $totalLigne($pu),
+                            'source'      => 'interne',
                         ]);
                     }
                 } elseif ($line->panel_id) {
                     $reservation->panels()->attach($line->panel_id, [
-                        'unit_price' => $line->pu_ht_mensuel,
-                        'quantity'   => $line->quantite,
+                        'unit_price'  => (int) $line->pu_ht_mensuel,
+                        'total_price' => $totalLigne((int) $line->pu_ht_mensuel),
+                        'source'      => 'interne',
                     ]);
                 }
                 if ($line->external_panel_id) {
                     $reservation->externalPanels()->attach($line->external_panel_id, [
-                        'unit_price' => $line->pu_ht_mensuel,
-                        'quantity'   => $line->quantite,
+                        'unit_price'  => (int) $line->pu_ht_mensuel,
+                        'total_price' => $totalLigne((int) $line->pu_ht_mensuel),
+                        'source'      => 'externe',
                     ]);
                 }
             }

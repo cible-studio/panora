@@ -794,3 +794,9 @@ captures avant/après sur la vraie base.
    plus rien depuis le 19/11 : il lit le TTC renvoyé par
    `QuoteController::totaux`. Côté facture, à brancher de la même façon sur
    le serveur, sans changer la règle de la facture FNE.
+
+### La réservation issue d'un devis ne garde ni `quote_id` ni `origin` (constaté 2026-11-23)
+
+`QuoteConverter` crée la réservation avec `quote_id` et `origin = 'devis'`, mais `Reservation::$fillable` ne déclare aucun des deux : la création les ignore sans erreur. Le lien entre le devis et la réservation ne tient que par `quotes.converted_reservation_id`. À corriger après avoir vérifié la vraie structure de `reservations` en prod (`SHOW CREATE TABLE`), car la colonne `origin` n'y existe peut-être pas.
+
+Trouvé en corrigeant un défaut bien plus grave : depuis le 21/07, l'acceptation d'un devis échouait toujours, car le code écrivait une colonne `quantity` absente de `reservation_panels`. Aucun devis n'avait donc jamais pu devenir une réservation. Corrigé le 23/11, avec un vrai test de conversion.

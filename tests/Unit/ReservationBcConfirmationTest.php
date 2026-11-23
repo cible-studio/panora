@@ -496,4 +496,71 @@ class ReservationBcConfirmationTest extends TestCase
         @unlink($tmp);
         $this->assertSame(0, $code, $nom . "\n" . implode("\n", $sortie));
     }
+
+    /**
+     * 2026-11-23 — Vraie conversion d'un devis accepté, sur une table
+     * reservation_panels aux colonnes réelles (pas de `quantity`). Avant,
+     * l'écriture de `quantity` faisait échouer TOUTE acceptation de devis
+     * (« Unknown column 'quantity' »), et un panneau externe était noté
+     * « interne ». Aucun test ne convertissait réellement un devis.
+     */
+    public function test_un_devis_accepte_devient_une_option_avec_ses_panneaux(): void
+    {
+        foreach (['communes', 'invoice_lines'] as $table) {
+            Schema::create($table, function (Blueprint $t) { $t->id(); $t->string('name')->nullable(); $t->timestamps(); });
+        }
+        Schema::table('reservations', function (Blueprint $t) { $t->string('origin')->nullable(); });
+        Schema::table('external_panels', function (Blueprint $t) { $t->string('availability_status')->nullable(); });
+        foreach ([
+            '2026_07_21_150448_create_quotes_table.php',
+            '2026_07_21_150449_create_quote_lines_table.php',
+            '2026_07_21_150450_create_quote_services_table.php',
+            '2026_07_21_150451_add_quote_id_to_reservations.php',
+            '2026_07_29_100000_add_campaign_dates_to_invoice_and_quote_lines.php',
+            '2026_10_29_100000_add_interlocuteur_to_campaigns_reservations_quotes.php',
+            '2026_10_30_100000_add_tva_applicable_to_quote_services.php',
+            '2026_11_12_100000_add_axes_to_quote_lines.php',
+            '2026_11_16_140000_add_remplacee_par_quote_id_to_reservations.php',
+        ] as $m) {
+            (require base_path("database/migrations/$m"))->up();
+        }
+        DB::table('external_panels')->insert(['id' => 7, 'reference' => 'EXT-7', 'status' => 'libre']);
+
+        $quote = \App\Models\Quote::create([
+            'reference' => 'DEV-TEST-CONV', 'client_id' => 1, 'commercial_user_id' => 2, 'created_by' => 2,
+            'title' => 'Essai conversion', 'status' => 'envoye', 'version' => 1, 'valid_days' => 30,
+            'remise_pct' => 0, 'tva' => 18, 'public_token' => str_repeat('c', 64),
+            'period_start' => '2026-12-01', 'period_end' => '2026-12-31', 'total_a_payer' => 317565,
+        ]);
+        $quote->lines()->create([
+            'designation' => 'P-10', 'panel_id' => 10, 'dimension_m2' => 12, 'pu_ht_mensuel' => 85000,
+            'quantite' => 1, 'duree_mois' => 2, 'odp_rate_applique' => 1000, 'tm_rate_applique' => 1000,
+        ]);
+        $quote->lines()->create([
+            'designation' => 'EXT-7', 'external_panel_id' => 7, 'dimension_m2' => 12, 'pu_ht_mensuel' => 40000,
+            'quantite' => 1, 'duree_mois' => 1, 'odp_rate_applique' => 0, 'tm_rate_applique' => 0,
+        ]);
+
+        $resultat = app(\App\Services\QuoteConverter::class)->convertFromQuote($quote->fresh(['lines', 'client']), 'client:test');
+
+        $this->assertSame('converted', $resultat['status'], 'le devis accepté doit devenir une réservation');
+        // Le lien passe par quotes.converted_reservation_id (Reservation ne
+        // déclare pas quote_id dans $fillable : dette notée le 23/11).
+        $r = DB::table('reservations')->where('id', DB::table('quotes')->where('id', $quote->id)->value('converted_reservation_id'))->first();
+        $this->assertNotNull($r, 'le devis pointe vers sa réservation');
+        $this->assertSame('en_attente', $r->status, 'choix 2a : une option, pas une réservation confirmée');
+        $this->assertSame('option', $r->type);
+        $this->assertNotNull($r->bc_attendu_jusqu_au, 'le BC est attendu');
+
+        $interne = DB::table('reservation_panels')->where('reservation_id', $r->id)->where('panel_id', 10)->first();
+        $this->assertSame(85000, (int) $interne->unit_price);
+        $this->assertSame(170000, (int) $interne->total_price, 'PU × quantité × durée, comme la ligne du devis');
+        $this->assertSame('interne', $interne->source);
+
+        $externe = DB::table('reservation_panels')->where('reservation_id', $r->id)->where('external_panel_id', 7)->first();
+        $this->assertNotNull($externe, 'le panneau de régie est rattaché');
+        $this->assertSame('externe', $externe->source, 'un panneau de régie est noté « externe »');
+        $this->assertSame(40000, (int) $externe->total_price);
+        $this->assertSame('accepte', DB::table('quotes')->where('id', $quote->id)->value('status'));
+    }
 }
