@@ -3191,9 +3191,9 @@ Le blocage ne vient donc pas des ressources. C'est un défaut de Docker, fréque
 - [x] Prévenir l'équipe de la courte coupure
 - [x] Redémarrer Docker : fait le 23/11 vers 21h (`systemctl --no-block restart docker`)
 - [x] Panora en 404 après le redémarrage, l'application redémarrait en boucle : `DB_HOST=10.0.1.7`. Une **adresse IP** de conteneur change à chaque redémarrage de Docker. Corrigé dans Coolify : `DB_HOST` et `REDIS_HOST` désignent maintenant le **nom interne** des ressources (la suite après `/database/` dans l'adresse de la page). Panora répond de nouveau.
-- [ ] panora-staging : même correction (`DB_HOST` → nom de panora-mysql-staging, Redis si utilisé), puis dev.panora-cible.com qui répond
+- [x] panora-staging : même correction, dev.panora-cible.com répond (23/11)
 - [ ] Autres variables à vérifier, prod et staging : aucune valeur du type `10.0.x.x` ne doit rester (`DB_HOST`, `REDIS_HOST`, `DB_URL`, `REDIS_URL`…)
-- [ ] Terminal du conteneur, puis `php artisan sauvegardes:rattraper --simuler` : il doit annoncer « sur backups seulement » (copie du serveur au 21/11). Le lancer ensuite pour de vrai
+- [x] `sauvegardes:rattraper` : simulation (« sur backups seulement »), puis lancé pour de vrai le 23/11 au soir. `backup:list` : les deux disques sont « Healthy » (serveur : 25 copies ; Hetzner : 19)
 - [ ] Scheduled Tasks : `schedule:run` en « Success » chaque minute
 - [ ] Service sftpgo arrêté (rouge) après le redémarrage : le relancer s'il sert
 
