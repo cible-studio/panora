@@ -3192,6 +3192,15 @@ Le blocage ne vient donc pas des ressources. C'est un défaut de Docker, fréque
 - [ ] Redémarrer Docker (`systemctl restart docker` dans le terminal du serveur), ou le serveur depuis Hetzner
 - [ ] Contrôler ensuite panora-app et panora-staging : en ligne, terminal Coolify à nouveau disponible, `docker exec` qui répond
 
+### Sauvegardes Hetzner manquantes (constaté le 23/11 au soir) — rend le redémarrage PRIORITAIRE
+La console Hetzner (bucket `panora-sauvegardes-cible/panora/`) s'arrête au **20/11 à 4h40** : aucune copie les 21, 22 et 23/11.
+- 21/11 : panne Hetzner hel1 (504 GatewayTimeout), les 3 essais ont échoué (mails reçus).
+- 22 et 23/11 : cause à établir. Soit nouvel échec d'envoi (chercher les mails « Échec de la sauvegarde » de ces jours-là), soit tâches de la nuit non lancées : le planificateur (`schedule:run`) est lancé par Coolify via `docker exec`, la commande en panne. Le baromètre envoyé le 23/11 après-midi montre que le planificateur tournait au moins à ce moment-là.
+- [ ] Coolify → panora-app → Scheduled Tasks : historique des exécutions vers 4h40 et 8h30 les 22 et 23/11 (succès ou échec ?)
+- [ ] Réessayer le terminal du conteneur (l'appli a été redéployée le 23/11) : s'il répond, rattraper tout de suite sans attendre le redémarrage
+- [ ] Après le redémarrage (ou dès que le terminal répond) : `php artisan backup:list` (copies sur le serveur), puis `php artisan backup:run --only-to-disk=backups-s3` (nouvelle copie chez Hetzner), puis vérifier le nouveau fichier dans la console Hetzner
+- Le redémarrage de Docker arrête puis relance les mêmes conteneurs, sans les recréer : rien n'est effacé. Il coupe seulement les applications quelques minutes.
+
 ## § 45 — Devis accepté, BC reçu sur une simple option, lien privé du devis, dates *(2026-11-23)*
 
 Constaté le 23/11 en testant le circuit complet sur dev, avant la formation des commerciaux :
