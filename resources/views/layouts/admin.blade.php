@@ -862,6 +862,50 @@
     </script>
     @endauth
 
+    {{-- ═══ PÉRIODES : début / fin cohérents dans le calendrier (2026-11-23) ═══
+         Règle unique pour tous les formulaires de l'admin (devis, réservations,
+         campagnes, propositions, Disponibilités) : dans le calendrier de la
+         date de FIN, les jours antérieurs au début sont grisés. Le début, lui,
+         reste libre (on peut décaler une période sans toucher d'abord à la
+         fin ; une période inversée reste signalée par chaque formulaire). Les
+         bornes déjà posées par un formulaire (ex. « pas avant aujourd'hui »)
+         sont conservées. Le contrôle serveur reste la référence. --}}
+    <script>
+    (function () {
+        const PAIRES = [['start_date', 'end_date'], ['period_start', 'period_end'], ['date_debut', 'date_fin']];
+
+        function borne(el, attr, valeur, garder) {
+            if (el.dataset[attr + 'Origine'] === undefined) {
+                el.dataset[attr + 'Origine'] = el.getAttribute(attr) || '';
+            }
+            const origine = el.dataset[attr + 'Origine'];
+            let v = valeur || origine;
+            if (valeur && origine) v = garder(valeur, origine);
+            if (v) el.setAttribute(attr, v); else el.removeAttribute(attr);
+        }
+
+        function ajuster(champ) {
+            if (!champ || champ.type !== 'date') return;
+            const portee = champ.form || document;
+            PAIRES.forEach(([nDebut, nFin]) => {
+                if (champ.name !== nDebut && champ.name !== nFin) return;
+                const debut = portee.querySelector('input[type="date"][name="' + nDebut + '"]');
+                const fin   = portee.querySelector('input[type="date"][name="' + nFin + '"]');
+                if (!debut || !fin) return;
+                // Dates ISO (aaaa-mm-jj) : la comparaison de chaînes suffit.
+                borne(fin, 'min', debut.value, (a, b) => (a > b ? a : b));
+            });
+        }
+
+        // À chaque saisie, et juste avant l'ouverture du calendrier (les
+        // valeurs posées par un script ne déclenchent pas « change »).
+        ['change', 'input', 'focusin', 'mousedown'].forEach(evt =>
+            document.addEventListener(evt, e => ajuster(e.target), true));
+        document.addEventListener('DOMContentLoaded', () =>
+            document.querySelectorAll('input[type="date"]').forEach(ajuster));
+    })();
+    </script>
+
     @stack('scripts')
 </body>
 

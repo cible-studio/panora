@@ -111,7 +111,10 @@ class DisponibiliteFermeTest extends TestCase
     {
         $resa = Reservation::findOrFail(70);
         try {
-            app(ReservationService::class)->changeStatus($resa, 'confirme');
+            // 2026-11-23 — Confirmer une option sans BC reçu exige un motif
+            // (exception de l'admin) : on le donne pour atteindre le contrôle
+            // des panneaux déjà pris, qui doit refuser quand même.
+            app(ReservationService::class)->changeStatus($resa, 'confirme', 'Exception pour le test');
             $this->fail('Confirmation acceptée sur des panneaux déjà pris.');
         } catch (BookingConflictException $e) {
             $this->assertStringContainsString('P-100 (campagne Lancement — MOOV)', $e->getMessage());

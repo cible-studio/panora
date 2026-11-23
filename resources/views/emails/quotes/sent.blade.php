@@ -77,7 +77,23 @@
     <p>
         Vous pouvez y consulter le détail complet et me faire part de votre décision :
         <strong>accepter</strong>, <strong>refuser</strong>, ou <strong>demander une modification</strong>.
+        Ce lien vous est personnel : aucune connexion n'est nécessaire.
     </p>
+
+    {{-- 2026-11-23 — Espace client : rappelé à ceux qui en ont un,
+         proposé aux autres (suivi des campagnes, réservations, devis). --}}
+    @if($hasClientAccount ?? false)
+        <p style="font-size:13px;color:#555">
+            Ce devis est aussi disponible dans votre
+            <a href="{{ $espaceClientUrl ?? url('/client/devis') }}">espace client Panora</a>,
+            avec vos campagnes, réservations et autres devis.
+        </p>
+    @else
+        <p style="font-size:13px;color:#555">
+            Vous souhaitez suivre en ligne vos campagnes, réservations et devis avec CIBLE ?
+            Demandez l'ouverture de votre <strong>espace client</strong> à votre commercial.
+        </p>
+    @endif
 
     <p style="margin-top:24px;color:{{ $ch['noir'] }}">
         Je reste à votre disposition pour tout complément d'information.<br><br>

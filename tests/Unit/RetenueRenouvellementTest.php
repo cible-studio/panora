@@ -176,7 +176,9 @@ class RetenueRenouvellementTest extends TestCase
         DB::table('reservation_panels')->insert(['reservation_id' => 70, 'panel_id' => 100]);
 
         try {
-            app(ReservationService::class)->changeStatus(Reservation::findOrFail(70), 'confirme');
+            // 2026-11-23 — Option sans BC reçu : motif obligatoire (exception
+            // de l'admin), donné pour atteindre le contrôle de la retenue.
+            app(ReservationService::class)->changeStatus(Reservation::findOrFail(70), 'confirme', 'Exception pour le test');
             $this->fail('Confirmation acceptée sur un panneau retenu pour BEM.');
         } catch (BookingConflictException $e) {
             $this->assertStringContainsString('P-100 (retenu pour le renouvellement de BEM)', $e->getMessage());
