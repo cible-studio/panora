@@ -3172,3 +3172,22 @@ L'image est **versionnée avec le code** depuis le 23/11 (`resources/signatures/
 - [ ] PDF d'un devis : cachet dans les deux cadres « Pour CIBLE SARL », lisible, qui chevauche légèrement le trait
 - [ ] Devis long (8 à 10 emplacements) : toujours 2 pages
 - [ ] Le même cachet sur le PDF de l'espace client, du lien public et de la pièce jointe du mail
+
+## § 44 — Serveur : terminal Coolify bloqué, redémarrer Docker à une heure creuse *(2026-11-23)*
+
+Constat du 23/11 : le terminal Coolify est « non disponible » sur panora-app et panora-staging. Depuis le terminal du serveur, `docker exec` répond « OCI runtime exec failed … procReady not received ». La santé des deux applications s'affiche « inconnu » dans Coolify.
+
+Le serveur, lui, va bien :
+- mémoire : 3,7 Go disponibles sur 7,7 Go ;
+- disque : 47 Go libres (35 % utilisés) ;
+- charge : 0,55.
+
+Le blocage ne vient donc pas des ressources. C'est un défaut de Docker, fréquent après une très longue période sans redémarrage (213 jours au 23/11). Panora n'en souffre pas : l'application répond, les envois planifiés partent. **Pas d'urgence.**
+
+`docker cp` fonctionne encore depuis le terminal du serveur, en dépannage.
+
+### À faire, à une heure creuse (coupe toutes les applications quelques minutes)
+- [ ] Vérifier que la sauvegarde de la nuit (4 h 40) est bien passée
+- [ ] Prévenir l'équipe de la courte coupure
+- [ ] Redémarrer Docker (`systemctl restart docker` dans le terminal du serveur), ou le serveur depuis Hetzner
+- [ ] Contrôler ensuite panora-app et panora-staging : en ligne, terminal Coolify à nouveau disponible, `docker exec` qui répond
