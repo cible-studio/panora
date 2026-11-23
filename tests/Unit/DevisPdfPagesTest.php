@@ -260,4 +260,25 @@ class DevisPdfPagesTest extends TestCase
         $this->assertStringContainsString("'Nunito-Regular.ttf'", $src);
         $this->assertStringContainsString("'Nunito-Bold.ttf'", $src);
     }
+
+    /**
+     * 2026-11-23 — Le bouton du mail de devis mène TOUJOURS au lien privé
+     * (sans connexion) ; l'espace client est rappelé ou proposé à côté.
+     */
+    public function test_le_mail_du_devis_donne_le_lien_prive_a_tous(): void
+    {
+        $mail = File::get(app_path('Mail/QuoteSentMail.php'));
+        $this->assertStringContainsString('$consultUrl = $this->quote->publicUrl();', $mail);
+        $this->assertStringNotContainsString("? url('/client/devis/'", $mail, 'plus de page de connexion derrière le bouton');
+
+        $vue = File::get(resource_path('views/emails/quotes/sent.blade.php'));
+        $this->assertStringContainsString('aucune connexion n\'est nécessaire', $vue);
+        $this->assertStringContainsString('Demandez l\'ouverture de votre <strong>espace client</strong>', $vue);
+        $php = app('blade.compiler')->compileString($vue);
+        $tmp = tempnam(sys_get_temp_dir(), 'vue') . '.php';
+        file_put_contents($tmp, $php);
+        exec('php -l ' . escapeshellarg($tmp) . ' 2>&1', $sortie, $code);
+        @unlink($tmp);
+        $this->assertSame(0, $code, implode("\n", $sortie));
+    }
 }

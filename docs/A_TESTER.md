@@ -3191,3 +3191,21 @@ Le blocage ne vient donc pas des ressources. C'est un défaut de Docker, fréque
 - [ ] Prévenir l'équipe de la courte coupure
 - [ ] Redémarrer Docker (`systemctl restart docker` dans le terminal du serveur), ou le serveur depuis Hetzner
 - [ ] Contrôler ensuite panora-app et panora-staging : en ligne, terminal Coolify à nouveau disponible, `docker exec` qui répond
+
+## § 45 — Devis accepté, BC reçu sur une simple option, lien privé du devis, dates *(2026-11-23)*
+
+Constaté le 23/11 en testant le circuit complet sur dev, avant la formation des commerciaux :
+1. **L'acceptation d'un devis échouait toujours depuis le 21/07** (« Unknown column 'quantity' ») : aucun devis n'avait jamais pu devenir une réservation. Corrigé, avec un vrai test de conversion.
+2. **Une simple option** (créée dans Disponibilités, sans proposition ni devis acceptés) **ne pouvait pas recevoir son BC** : le bouton « 📥 BC reçu » n'apparaissait pas. Seul l'admin pouvait la confirmer, sans motif et sans trace du BC. Désormais :
+   - le bouton « 📥 BC reçu » apparaît sur toute option, et le BC confirme ;
+   - toute confirmation sans BC reçu passe par « ⚠ Confirmer sans BC (exception) », admin seulement, avec motif obligatoire ; le suivi du BC s'ouvre ;
+   - la confirmation groupée saute les options sans BC reçu.
+3. **Mail du devis** : le bouton mène toujours au lien privé et sécurisé, sans connexion. Avant, un client avec un compte tombait sur la page de connexion. Le client sans compte lit qu'il peut demander l'ouverture d'un espace client ; celui qui en a un lit qu'il y retrouve ses devis. Le PDF reste joint.
+4. **Dates** : dans tous les formulaires de l'admin, les jours antérieurs au début sont grisés dans le calendrier de la date de fin.
+
+### À vérifier (dev)
+- [ ] Devis envoyé à un client de test → « Accepter le devis » sur le lien privé → réservation **En attente (option)**, « BC attendu jusqu'au … », panneaux en Option
+- [ ] Simple option créée dans Disponibilités → la fiche affiche le bloc « 📥 BC reçu » → clic → réservation **Confirmée**, panneaux Confirmés
+- [ ] Admin, simple option : le bouton est « ⚠ Confirmer sans BC (exception) », motif demandé
+- [ ] Mail du devis : le bouton ouvre le devis sans connexion ; la phrase sur l'espace client correspond au client (avec ou sans compte)
+- [ ] Devis, réservation, campagne, Disponibilités : dans le calendrier de fin, les jours avant le début sont grisés

@@ -35,18 +35,23 @@ class QuoteSentMail extends Mailable implements MailCommercial
         $filename = 'Devis-' . $this->quote->reference . '.pdf';
         $subject  = 'Devis CIBLE · ' . $this->quote->title . ' (' . $this->quote->reference . ')';
 
-        // Lien : public si le client n'a pas de compte, authentifié sinon.
+        // Lien du bouton (2026-11-23) : TOUJOURS le lien privé et sécurisé du
+        // devis (jeton de 64 caractères), qui permet d'accepter, refuser ou
+        // demander une modification sans se connecter. Avant, un client avec
+        // un compte recevait l'adresse de l'espace client, qui demande une
+        // connexion : l'interlocuteur qui reçoit le mail n'est pas forcément
+        // celui qui a le compte. Le compte est mentionné à côté du bouton.
         $hasClientAccount = \App\Models\ClientUser::where('client_id', $this->quote->client_id)
             ->where('is_active', true)->exists();
-        $consultUrl = $hasClientAccount
-            ? url('/client/devis/' . $this->quote->id)   // demandera un login
-            : $this->quote->publicUrl();
+        $consultUrl = $this->quote->publicUrl();
 
         return $this->subject($subject)
             ->view('emails.quotes.sent')
             ->with([
-                'quote'      => $this->quote,
-                'consultUrl' => $consultUrl,
+                'quote'            => $this->quote,
+                'consultUrl'       => $consultUrl,
+                'hasClientAccount' => $hasClientAccount,
+                'espaceClientUrl'  => url('/client/devis/' . $this->quote->id),
             ])
             ->attachData($pdf->output(), $filename, ['mime' => 'application/pdf'])
             ->replyTo($this->quote->commercial?->email ?: config('mail.from.address'));

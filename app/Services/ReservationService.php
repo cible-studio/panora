@@ -247,7 +247,12 @@ class ReservationService
         // enregistré). Si le BC est attendu, c'est une exception motivée.
         if ($newStatus === ReservationStatus::CONFIRME->value && $oldStatus !== ReservationStatus::CONFIRME->value) {
             $bc = app(BonDeCommandeService::class);
-            $sansBc = $bc->estEnAttente($reservation);
+            // 2026-11-23 — Toute confirmation sans BC reçu est l'exception de
+            // l'admin, motif obligatoire, même si aucune attente de BC n'était
+            // ouverte (simple option créée dans Disponibilités). Avant, une
+            // telle option se confirmait sans motif ni trace du BC. La voie
+            // normale reste « 📥 BC reçu », désormais ouverte à toute option.
+            $sansBc = !$bc->estRecu($reservation);
             if ($sansBc && trim((string) $motifSansBc) === '') {
                 throw new \InvalidArgumentException('MOTIF_SANS_BC');
             }
@@ -257,6 +262,12 @@ class ReservationService
                 auth()->id(),
                 $sansBc ? $motifSansBc : null
             );
+
+            // Le BC reste attendu : son suivi (relances, échéance signalée)
+            // continue, même si aucune attente n'était ouverte.
+            if ($sansBc && !$reservation->fresh()->bc_attendu_jusqu_au) {
+                $bc->ouvrirAttente($reservation->fresh());
+            }
 
             Log::info('reservation.status_changed', [
                 'reservation_id' => $reservation->id,

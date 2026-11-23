@@ -3018,9 +3018,19 @@ class ReservationController extends Controller
 
         $bc = app(\App\Services\BonDeCommandeService::class);
 
+        // 2026-11-23 — Une simple option (créée dans Disponibilités, sans
+        // proposition ni devis acceptés) peut recevoir son BC directement,
+        // par exemple par mail : l'attente s'ouvre à cet instant, puis le BC
+        // est enregistré, comme pour une réservation « Ferme — BC reçu ».
+        $attenteOuverteIci = false;
         if (!$reservation->bc_attendu_jusqu_au) {
-            return back()->with('error',
-                "Ce dossier n'attend pas de bon de commande (il est antérieur à cette règle).");
+            if ($reservation->status->value !== 'en_attente') {
+                return back()->with('error',
+                    "Ce dossier n'attend pas de bon de commande (il est antérieur à cette règle).");
+            }
+            $bc->ouvrirAttente($reservation);
+            $reservation->refresh();
+            $attenteOuverteIci = true;
         }
         if ($bc->estRecu($reservation)) {
             return back()->with('info', 'Le bon de commande était déjà enregistré.');
@@ -3032,11 +3042,20 @@ class ReservationController extends Controller
         $etaitEnAttente = $reservation->status->value === 'en_attente';
         $reservation->loadMissing(['panels', 'externalPanels', 'client']);
 
+        // BC refusé (panneau déjà pris) : l'attente ouverte à l'instant est
+        // refermée, l'option reste exactement comme avant.
+        $refermer = function () use ($reservation, $attenteOuverteIci) {
+            if ($attenteOuverteIci) {
+                $reservation->forceFill(['bc_attendu_jusqu_au' => null])->save();
+            }
+        };
         try {
             $bc->enregistrerReception($reservation, $data['bc_reference'] ?? null, $request->user());
         } catch (\App\Exceptions\BookingConflictException $e) {
+            $refermer();
             return back()->with('error', 'Bon de commande non enregistré : ' . $e->getMessage());
         } catch (\RuntimeException $e) {
+            $refermer();
             return back()->with('error', "Bon de commande non enregistré : un panneau n'est plus disponible sur cette période — " . $e->getMessage());
         }
         $reservation->refresh();
@@ -3332,8 +3351,9 @@ class ReservationController extends Controller
                         continue;
                     }
                     // 2026-11-19 — BC attendu : se confirme depuis sa fiche, avec un motif.
-                    if (app(\App\Services\BonDeCommandeService::class)->estEnAttente($r)) {
-                        $skipped[] = $r->reference . ' (BC attendu : confirmer depuis la fiche, avec un motif)';
+                    // 2026-11-23 — Toute option sans BC reçu, même sans attente ouverte.
+                    if (!app(\App\Services\BonDeCommandeService::class)->estRecu($r)) {
+                        $skipped[] = $r->reference . ' (BC non reçu : enregistrer le BC, ou confirmer depuis la fiche avec un motif)';
                         continue;
                     }
                     $this->reservationService->changeStatus($r, ReservationStatus::CONFIRME->value);

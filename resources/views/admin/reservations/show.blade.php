@@ -388,7 +388,9 @@
     $peutSaisirBc  = in_array($role, ['admin', 'commercial'], true);
     $peutCreerCamp = in_array($role, ['admin', 'mediaplanner'], true);
 @endphp
-@if($bcOuvert && !$reservation->campaign && in_array($reservation->status->value, ['en_attente', 'confirme'], true))
+{{-- 2026-11-23 — Aussi sur une simple option sans attente ouverte : le
+     client peut envoyer son BC directement (par mail), on l'enregistre ici. --}}
+@if(($bcOuvert || $reservation->status->value === 'en_attente') && !$reservation->campaign && in_array($reservation->status->value, ['en_attente', 'confirme'], true))
 @php
     $bcSansBc = $bcService->confirmeSansBc($reservation);
     // Nom prévu à la création (rangé dans les notes) : prérempli pour la campagne.
@@ -431,6 +433,11 @@
                     @elseif($bcSansBc)
                         Échéance : <strong>{{ \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y') }}</strong>
                         <br>Les panneaux sont bloqués. Le BC reste attendu et les relances continuent ; à l'échéance, la réservation n'est <strong>pas</strong> annulée.
+                    @elseif(!$bcOuvert)
+                        {{-- 2026-11-23 — Simple option : ni proposition ni devis acceptés. --}}
+                        Les panneaux sont tenus <strong>en option</strong>.
+                        <br>Le client vous a envoyé son bon de commande (par mail ou autrement) ? Enregistrez-le ici :
+                        il <strong>confirme la réservation</strong> et bloque ses panneaux.
                     @else
                         Échéance : <strong>{{ \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y') }}</strong>
                         @if($bcJours !== null)
@@ -656,7 +663,8 @@
             @if(in_array('confirme', \App\Models\Reservation::ALLOWED_TRANSITIONS[$reservation->status->value] ?? []) && $can['updateStatus'])
                 {{-- 2026-11-19 — BC attendu : la voie normale est « BC reçu » ;
                      l'admin garde une exception, motif obligatoire. --}}
-                @if(app(\App\Services\BonDeCommandeService::class)->estEnAttente($reservation))
+                {{-- 2026-11-23 — Toute option sans BC reçu, même sans attente ouverte. --}}
+                @if(!app(\App\Services\BonDeCommandeService::class)->estRecu($reservation))
                     <button onclick="openStatusModal('confirme_sans_bc')" class="btn btn-ghost" style="color:#b45309;border-color:rgba(245,158,11,.5)"
                             title="Exception : confirmer sans attendre le bon de commande (motif obligatoire)">
                         ⚠ Confirmer sans BC (exception)

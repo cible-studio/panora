@@ -309,4 +309,24 @@ class DevisFormulaireTest extends TestCase
     {
         return file_get_contents(base_path('resources/views/admin/quotes/partials/_form.blade.php'));
     }
+
+    /**
+     * 2026-11-23 — Une seule règle pour tout l'admin : dans le calendrier de
+     * fin, les jours antérieurs au début sont grisés (devis, réservations,
+     * campagnes, propositions, Disponibilités).
+     */
+    public function test_la_date_de_fin_ne_peut_pas_preceder_le_debut(): void
+    {
+        $layout = file_get_contents(base_path('resources/views/layouts/admin.blade.php'));
+        $this->assertStringContainsString("const PAIRES = [['start_date', 'end_date'], ['period_start', 'period_end'], ['date_debut', 'date_fin']];", $layout);
+        $this->assertStringContainsString("borne(fin, 'min', debut.value, (a, b) => (a > b ? a : b));", $layout);
+        $this->assertStringContainsString('name="period_end"', $this->formulaire(), 'le devis utilise bien la paire couverte');
+
+        $php = app('blade.compiler')->compileString($layout);
+        $tmp = tempnam(sys_get_temp_dir(), 'vue') . '.php';
+        file_put_contents($tmp, $php);
+        exec('php -l ' . escapeshellarg($tmp) . ' 2>&1', $sortie, $code);
+        @unlink($tmp);
+        $this->assertSame(0, $code, implode("\n", $sortie));
+    }
 }

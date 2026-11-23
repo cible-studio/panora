@@ -225,6 +225,61 @@ class ReservationBcConfirmationTest extends TestCase
         $this->assertCount(0, $this->bc()->aSignalerEchus(), 'une seule fois');
     }
 
+    /**
+     * 2026-11-23 — Une SIMPLE option (aucune attente de BC ouverte : ni
+     * proposition ni devis acceptés) reçoit son BC directement. Le contrôleur
+     * ouvre l'attente puis enregistre le BC : il confirme, le rival tombe.
+     */
+    public function test_une_simple_option_se_confirme_par_son_bc(): void
+    {
+        $this->assertNull(DB::table('reservations')->where('id', 2)->value('bc_attendu_jusqu_au'), 'RES-RIVAL est une simple option');
+        $koffi = User::find(3);
+        $this->actingAs($koffi);
+
+        // Ce que fait ReservationController::enregistrerBc sur une simple option.
+        $bc = $this->bc();
+        $bc->ouvrirAttente($this->resa(2));
+        $bc->enregistrerReception($this->resa(2), 'BC par mail', $koffi);
+
+        $r = DB::table('reservations')->where('id', 2)->first();
+        $this->assertSame('confirme', $r->status);
+        $this->assertSame(3, (int) $r->bc_recu_par);
+        $this->assertSame('annule', DB::table('reservations')->where('id', 1)->value('status'), 'le premier BC l\'emporte');
+
+        $ctrl = file_get_contents(base_path('app/Http/Controllers/Admin/ReservationController.php'));
+        $this->assertStringContainsString("\$bc->ouvrirAttente(\$reservation);\n            \$reservation->refresh();\n            \$attenteOuverteIci = true;", $ctrl,
+            'le contrôleur ouvre l\'attente au lieu de refuser');
+        $vue = file_get_contents(resource_path('views/admin/reservations/show.blade.php'));
+        $this->assertStringContainsString("@if((\$bcOuvert || \$reservation->status->value === 'en_attente') && !\$reservation->campaign", $vue,
+            'le bloc « 📥 BC reçu » s\'affiche aussi sur une simple option');
+        $this->assertVueCompile($vue, 'reservations/show');
+    }
+
+    /** 2026-11-23 — Confirmer une simple option sans BC : exception de l'admin, motif obligatoire, suivi du BC ouvert. */
+    public function test_confirmer_une_simple_option_sans_bc_exige_un_motif(): void
+    {
+        $this->actingAs(User::find(1));
+        $service = app(ReservationService::class);
+
+        try {
+            $service->changeStatus($this->resa(2), 'confirme');
+            $this->fail('Simple option confirmée sans motif ni BC.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame('MOTIF_SANS_BC', $e->getMessage());
+        }
+        $this->assertSame('en_attente', DB::table('reservations')->where('id', 2)->value('status'));
+
+        $service->changeStatus($this->resa(2), 'confirme', 'BC promis par la direction du client');
+        $r = DB::table('reservations')->where('id', 2)->first();
+        $this->assertSame('confirme', $r->status);
+        $this->assertSame('BC promis par la direction du client', $r->confirme_sans_bc_motif);
+        $this->assertNotNull($r->bc_attendu_jusqu_au, 'le BC reste attendu : relances et échéance signalée');
+
+        $ctrl = file_get_contents(base_path('app/Http/Controllers/Admin/ReservationController.php'));
+        $this->assertStringContainsString('(BC non reçu : enregistrer le BC, ou confirmer depuis la fiche avec un motif)', $ctrl,
+            'la confirmation groupée saute toute option sans BC reçu');
+    }
+
     /** La campagne se crée sur une réservation confirmée, avec le nom saisi. */
     public function test_creer_la_campagne_avec_son_nom(): void
     {
