@@ -3169,7 +3169,7 @@ L'image est **versionnée avec le code** depuis le 23/11 (`resources/signatures/
 - [x] ~~Déposer l'image sur le serveur~~ : plus nécessaire depuis le 23/11 (le terminal Coolify était de toute façon en panne : « procReady not received »).
 
 ### À vérifier
-- [ ] PDF d'un devis : cachet dans les deux cadres « Pour CIBLE SARL », lisible, qui chevauche légèrement le trait
+- [x] PDF d'un devis : cachet dans les deux cadres « Pour CIBLE SARL » — vu sur dev et prod le 23/11
 - [ ] Devis long (8 à 10 emplacements) : toujours 2 pages
 - [ ] Le même cachet sur le PDF de l'espace client, du lien public et de la pièce jointe du mail
 
