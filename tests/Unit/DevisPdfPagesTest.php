@@ -107,9 +107,7 @@ class DevisPdfPagesTest extends TestCase
         ], 30);
 
         $this->assertSame(7306000, $q->total_a_payer);
-        // Avec le cachet signé dans les deux cadres (2026-11-19) : une image
-        // de remplacement sur un disque privé simulé.
-        $this->poserCachet();
+        // Avec le vrai cachet signé dans les deux cadres (versionné, 2026-11-23).
         $this->assertStringContainsString('class="cachet"', view('pdf.quote', ['quote' => $q])->render());
         $this->assertSame(2, $this->pages($q), 'Un devis de 10 emplacements doit tenir sur 2 pages avec la charte et le cachet.');
     }
@@ -117,11 +115,11 @@ class DevisPdfPagesTest extends TestCase
     /**
      * Cachet et signature de la Directrice Commerciale (demande écrite du
      * 2026-11-19) : sur CHAQUE devis généré, dans les deux cadres « Pour
-     * CIBLE SARL », lu sur le disque privé et intégré en base64.
+     * CIBLE SARL », lu dans le code (versionné le 2026-11-23, aucune
+     * action sur le serveur) et intégré en base64.
      */
     public function test_le_cachet_signe_est_sur_chaque_devis(): void
     {
-        $this->poserCachet();
         $html = view('pdf.quote', ['quote' => $this->devisSimple()])->render();
 
         $this->assertSame(2, substr_count($html, '<div class="cachet"><img src="data:image/png;base64,'),
@@ -129,35 +127,29 @@ class DevisPdfPagesTest extends TestCase
         $this->assertSame(2, substr_count($html, 'trait trait-cachet'));
     }
 
-    /** Sans le fichier (poste neuf, serveur pas encore servi) : cadres vides, PDF normal. */
+    /** Sans le fichier (chemin absent) : cadres vides, PDF normal, aucune erreur. */
     public function test_sans_cachet_le_devis_se_genere_comme_avant(): void
     {
-        \Illuminate\Support\Facades\Storage::fake('local');
+        config(['devis.cachet_signature' => 'resources/signatures/absent.png']);
         $q = $this->devisSimple();
 
         $this->assertStringNotContainsString('class="cachet"', view('pdf.quote', ['quote' => $q])->render());
         $this->assertSame(2, $this->pages($q));
     }
 
-    /** Le cachet vient du disque privé, jamais d'un dossier public ni de Git. */
-    public function test_le_cachet_est_lu_sur_le_disque_prive(): void
+    /**
+     * Le cachet est versionné avec le code (2026-11-23) : il part avec
+     * chaque mise en ligne, sans dépôt sur le serveur. Il reste hors du
+     * dossier public : aucune adresse web ne le sert.
+     */
+    public function test_le_cachet_est_dans_le_code_hors_du_dossier_public(): void
     {
-        $src = File::get(resource_path('views/pdf/quote.blade.php'));
-        $this->assertStringContainsString("config('devis.cachet_signature', 'signatures/directrice.png')", $src);
-        $this->assertStringContainsString("\\Illuminate\\Support\\Facades\\Storage::disk('local')", $src);
-        $this->assertSame('signatures/directrice.png', config('devis.cachet_signature'));
-        $this->assertSame(storage_path('app/private'), config('filesystems.disks.local.root'));
-        $this->assertStringContainsString('*', File::get(storage_path('app/private/.gitignore')),
-            'storage/app/private reste hors de Git.');
-    }
-
-    private function poserCachet(): void
-    {
-        \Illuminate\Support\Facades\Storage::fake('local');
-        // Image de remplacement : le logo public, pour ne jamais dépendre du
-        // vrai cachet (absent des postes de test et hors de Git).
-        \Illuminate\Support\Facades\Storage::disk('local')
-            ->put('signatures/directrice.png', File::get(public_path('images/logol.png')));
+        $this->assertSame('resources/signatures/directrice.png', config('devis.cachet_signature'));
+        $fichier = base_path('resources/signatures/directrice.png');
+        $this->assertFileExists($fichier, 'Le cachet doit être livré avec le code.');
+        $this->assertSame('image/png', getimagesize($fichier)['mime']);
+        $this->assertFileDoesNotExist(public_path('signatures/directrice.png'));
+        $this->assertStringContainsString('base_path($cachetChemin)', File::get(resource_path('views/pdf/quote.blade.php')));
     }
 
     private function devisSimple(): Quote
