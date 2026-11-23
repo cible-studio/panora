@@ -3187,10 +3187,15 @@ Le blocage ne vient donc pas des ressources. C'est un défaut de Docker, fréque
 `docker cp` fonctionne encore depuis le terminal du serveur, en dépannage.
 
 ### À faire, à une heure creuse (coupe toutes les applications quelques minutes)
-- [ ] Vérifier que la sauvegarde de la nuit (4 h 40) est bien passée
-- [ ] Prévenir l'équipe de la courte coupure
-- [ ] Redémarrer Docker (`systemctl restart docker` dans le terminal du serveur), ou le serveur depuis Hetzner
-- [ ] Contrôler ensuite panora-app et panora-staging : en ligne, terminal Coolify à nouveau disponible, `docker exec` qui répond
+- [x] Vérifier que la sauvegarde est passée (rattrapage de 20h08 chez Hetzner)
+- [x] Prévenir l'équipe de la courte coupure
+- [x] Redémarrer Docker : fait le 23/11 vers 21h (`systemctl --no-block restart docker`)
+- [x] Panora en 404 après le redémarrage, l'application redémarrait en boucle : `DB_HOST=10.0.1.7`. Une **adresse IP** de conteneur change à chaque redémarrage de Docker. Corrigé dans Coolify : `DB_HOST` et `REDIS_HOST` désignent maintenant le **nom interne** des ressources (la suite après `/database/` dans l'adresse de la page). Panora répond de nouveau.
+- [ ] panora-staging : même correction (`DB_HOST` → nom de panora-mysql-staging, Redis si utilisé), puis dev.panora-cible.com qui répond
+- [ ] Autres variables à vérifier, prod et staging : aucune valeur du type `10.0.x.x` ne doit rester (`DB_HOST`, `REDIS_HOST`, `DB_URL`, `REDIS_URL`…)
+- [ ] Terminal du conteneur, puis `php artisan sauvegardes:rattraper --simuler` : il doit annoncer « sur backups seulement » (copie du serveur au 21/11). Le lancer ensuite pour de vrai
+- [ ] Scheduled Tasks : `schedule:run` en « Success » chaque minute
+- [ ] Service sftpgo arrêté (rouge) après le redémarrage : le relancer s'il sert
 
 ### Sauvegardes Hetzner manquantes (constaté le 23/11 au soir) — rend le redémarrage PRIORITAIRE
 La console Hetzner (bucket `panora-sauvegardes-cible/panora/`) s'arrête au **20/11 à 4h40** : aucune copie les 21, 22 et 23/11.
