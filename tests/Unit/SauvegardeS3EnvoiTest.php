@@ -33,9 +33,47 @@ class SauvegardeS3EnvoiTest extends TestCase
         return (new ReflectionMethod($adaptateur, 'createOptionsFromConfig'))->invoke($adaptateur, new Config());
     }
 
-    public function test_l_archive_part_par_deux_morceaux_a_la_fois(): void
+    /** 2026-11-23 — récidive du 21/11 : un seul morceau à la fois (2 avant). */
+    public function test_l_archive_part_un_morceau_a_la_fois(): void
     {
-        $this->assertSame(2, $this->optionsEnvoi()['concurrency']);
+        $this->assertSame(1, $this->optionsEnvoi()['concurrency']);
+    }
+
+    /**
+     * Rattrapage de l'après-midi (2026-11-23) : seuls les disques sans la
+     * copie du jour sont refaits ; un disque illisible compte comme manquant.
+     */
+    public function test_le_rattrapage_ne_refait_que_les_copies_manquantes(): void
+    {
+        $maintenant = \Carbon\Carbon::parse('2026-11-24 14:00');
+        $nuit       = \Carbon\Carbon::parse('2026-11-24 04:40');
+        $veille     = \Carbon\Carbon::parse('2026-11-23 04:40');
+        $choix      = fn (array $d) => \App\Console\Commands\RattraperSauvegarde::disquesARattraper($d, $maintenant);
+
+        $this->assertSame([], $choix(['backups' => $nuit, 'backups-s3' => $nuit]), 'tout est là');
+        $this->assertSame(['backups-s3'], $choix(['backups' => $nuit, 'backups-s3' => $veille]), 'panne Hetzner du 21/11');
+        $this->assertSame(['backups-s3'], $choix(['backups' => $nuit, 'backups-s3' => null]), 'Hetzner illisible');
+        $this->assertSame(['backups', 'backups-s3'], $choix(['backups' => $veille, 'backups-s3' => $veille]), 'nuit sans sauvegarde');
+    }
+
+    public function test_le_rattrapage_est_planifie_l_apres_midi(): void
+    {
+        $this->assertSame('14:00', config('backup.heure_rattrapage'));
+        $this->assertMatchesRegularExpression(
+            "/Schedule::command\('sauvegardes:rattraper'\)\s+->dailyAt\(config\('backup\.heure_rattrapage', '14:00'\)\)\s+->when\(fn \(\) => config\('backup\.actif'\)\)/",
+            file_get_contents(base_path('routes/console.php'))
+        );
+        $this->artisan('sauvegardes:rattraper --help')->assertSuccessful();
+    }
+
+    public function test_le_rattrapage_simule_ne_lance_rien(): void
+    {
+        Storage::fake('backups');
+        config(['backup.backup.destination.disks' => ['backups']]);
+
+        $this->artisan('sauvegardes:rattraper --simuler')
+            ->expectsOutputToContain('Simulation : sauvegarde complète à refaire.')
+            ->assertSuccessful();
     }
 
     public function test_la_sauvegarde_evite_le_creneau_sature_et_espace_ses_essais(): void

@@ -22,6 +22,11 @@ return [
     // passait dans la journée : on sort du créneau où tout le monde sauvegarde.
     'heure' => env('BACKUP_HEURE', '04:40'),
 
+    // Rattrapage de l'après-midi (2026-11-23) : si la copie de la nuit manque
+    // sur un disque (panne Hetzner du 21/11, trois essais en échec), elle est
+    // refaite à cette heure, sur ce disque seulement. Cf. RattraperSauvegarde.
+    'heure_rattrapage' => env('BACKUP_HEURE_RATTRAPAGE', '14:00'),
+
     'backup' => [
         /*
          * The name of this application. You can use this name to monitor

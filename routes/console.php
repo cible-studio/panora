@@ -236,6 +236,13 @@ Schedule::command('backup:monitor')
     ->dailyAt('08:30')
     ->when(fn () => config('backup.actif'))
     ->withoutOverlapping();
+//     14:00 rattrapage (2026-11-23) : si la copie de la nuit manque sur un
+//     disque (panne Hetzner du 21/11), elle est refaite sur ce disque.
+Schedule::command('sauvegardes:rattraper')
+    ->dailyAt(config('backup.heure_rattrapage', '14:00'))
+    ->when(fn () => config('backup.actif'))
+    ->withoutOverlapping(180)
+    ->runInBackground();
 
 // 16. Rappel trimestriel du test de restauration des sauvegardes
 //     (2026-10-07) : le 1er janvier, avril, juillet et octobre à 9h, mail
