@@ -73,12 +73,15 @@ return [
     // Durée de validité d'un devis par défaut (jours). Le commercial
     // peut ajuster au cas par cas. Config globale = point de vérité.
     'quote_valid_days_default' => (int) env('BILLING_QUOTE_VALID_DAYS', 30),
-    // Mention légale du devis (bandeau haut PDF + email).
+    // Mention légale du devis (espace client et lien public).
+    // 2026-11-23 — alignée sur la règle du bon de commande (validée le
+    // 23/11) : un devis accepté crée une OPTION, le BC la confirme.
     'quote_legal_mention'      => env(
         'BILLING_QUOTE_MENTION',
         'DEVIS COMMERCIAL — NON CONTRACTUEL AVANT SIGNATURE. Les panneaux proposés '
         . 'ne sont pas bloqués tant que ce devis n\'est pas accepté. '
-        . 'À l\'acceptation, une réservation ferme sera créée sous réserve de disponibilité.'
+        . 'À l\'acceptation, ils sont réservés en option pendant ' . (int) env('BC_DELAI_JOURS', 30)
+        . ' jours, puis bloqués à réception du bon de commande.'
     ),
 
     // ─── Services annexes proposés en un clic (2026-11-16) ───────
