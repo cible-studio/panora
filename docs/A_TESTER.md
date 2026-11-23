@@ -3202,6 +3202,9 @@ La console Hetzner (bucket `panora-sauvegardes-cible/panora/`) s'arrête au **20
 - [ ] Rappels « fin de campagne dans 3 jours » à l'équipe : sautés pendant la panne (ils visent un jour précis). Rattrapage, en essai d'abord avec `--dry-run` : `php artisan campaigns:notify-commercial-ending --days=1`, puis `--days=2`, puis `--days=3` (sans doublon : chaque envoi est mémorisé par campagne et par délai)
 - Les autres tâches se rattrapent seules au passage suivant : relances de fin de campagne (étape selon les jours restants), relances BC, activation des campagnes planifiées, alertes, nettoyage. Les rappels J+2 / J+5 des propositions envoyées du 19 au 21/11 sont perdus (jour précis), sans gravité.
 - Le redémarrage de Docker reste à faire à une heure creuse, mais n'est plus urgent : le défaut de `docker exec` peut revenir sur le nouveau conteneur.
+- Réglages du 23/11 (après redéploiement) : envoi vers Hetzner **un morceau à la fois**, et **rattrapage automatique à 14h** si la copie du jour manque sur un disque.
+  - [ ] Coolify → variables de panora-app : `BACKUP_S3_CONCURRENCE` ne doit pas exister (ou valoir 1), sinon il impose son ancienne valeur
+  - [ ] `php artisan sauvegardes:rattraper --simuler` → « Copie du jour présente partout » après une nuit normale
 - Le redémarrage de Docker arrête puis relance les mêmes conteneurs, sans les recréer : rien n'est effacé. Il coupe seulement les applications quelques minutes.
 
 ## § 45 — Devis accepté, BC reçu sur une simple option, lien privé du devis, dates *(2026-11-23)*

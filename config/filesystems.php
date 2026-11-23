@@ -69,7 +69,11 @@ return [
             // 2026-11-09 — Hetzner a répondu « GatewayTimeout » sur un morceau de
             // l'archive trois nuits de suite (7, 8 et 9/11) : moins de morceaux
             // envoyés en même temps (3 par défaut dans le SDK).
-            'options' => ['concurrency' => max(1, (int) env('BACKUP_S3_CONCURRENCE', 2))],
+            // 2026-11-23 — nouveau GatewayTimeout le 21/11 (morceaux 3 et 15) :
+            // un seul morceau à la fois, comme prévu par docs/SAUVEGARDES.md
+            // en cas de récidive. Un peu plus lent, jamais deux requêtes en
+            // parallèle vers un Hetzner déjà lent.
+            'options' => ['concurrency' => max(1, (int) env('BACKUP_S3_CONCURRENCE', 1))],
         ],
 
 
