@@ -180,6 +180,22 @@ class BarometreController extends Controller
      * quitté l'entreprise, la fiche a été corrigée → nouvelle invitation, même
      * lien personnel. Cf. BarometreService::renvoyerAuContactDeLaFiche().
      */
+    /**
+     * Fenêtre « Renvoyer » (2026-11-24) : à qui partira l'invitation, d'après
+     * la fiche telle qu'elle est À CET INSTANT (pas au chargement de la page :
+     * on corrige souvent la fiche dans un autre onglet).
+     */
+    public function apercuRenvoi(Client $client): \Illuminate\Http\JsonResponse
+    {
+        $a = $this->service->apercuRenvoi($client);
+        unset($a['destinataire']);
+
+        return response()->json($a + [
+            'client' => $client->name,
+            'fiche'  => route('admin.clients.show', $client),
+        ]);
+    }
+
     public function renvoyer(Request $request, Client $client): RedirectResponse
     {
         try {

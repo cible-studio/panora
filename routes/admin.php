@@ -721,6 +721,7 @@ Route::prefix('admin')
                 Route::post('/clients/{client}/exclure', 'exclure')->name('exclure');
                 Route::post('/clients/{client}/reintegrer', 'reintegrer')->name('reintegrer');
                 // 2026-11-24 — interlocuteur parti : renvoi au contact corrigé de la fiche.
+                Route::get('/clients/{client}/renvoi', 'apercuRenvoi')->middleware('throttle:60,1')->name('renvoi-apercu');
                 Route::post('/clients/{client}/renvoyer', 'renvoyer')->middleware('throttle:10,1')->name('renvoyer');
                 Route::post('/reponses/{reponse}/rattacher', 'rattacher')->name('rattacher');
             });
