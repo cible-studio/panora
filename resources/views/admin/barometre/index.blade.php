@@ -443,9 +443,100 @@
     </div>
 </div>
 
+{{-- Renvoyer l'invitation (2026-11-24) : la fenêtre dit à qui elle partira,
+     d'après la fiche à l'instant du clic (BarometreService::apercuRenvoi). --}}
+<div id="bm-modal-renvoi" class="modal-overlay" style="display:none">
+    <div class="modal" style="width:500px">
+        <div class="modal-header">
+            <div class="modal-title">📨 Renvoyer l'invitation · <span id="bm-renvoi-nom"></span></div>
+            <button type="button" class="modal-close" data-fermer>✕</button>
+        </div>
+        <form method="POST" action="" id="bm-renvoi-form">
+            @csrf
+            <div class="modal-body">
+                <div id="bm-renvoi-chargement" class="bm-sous" style="font-size:13px">Lecture de la fiche du client…</div>
+                <div id="bm-renvoi-contenu" style="display:none;font-size:13.5px;line-height:1.55">
+                    <div id="bm-renvoi-message"></div>
+                    <div id="bm-renvoi-ancien" class="bm-sous" style="font-size:12.5px;margin-top:10px"></div>
+                    <div id="bm-renvoi-note" class="bm-sous" style="font-size:12px;margin-top:10px"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a id="bm-renvoi-fiche" href="#" class="btn btn-ghost" style="display:none;margin-right:auto" target="_blank" rel="noopener">Ouvrir la fiche du client ↗</a>
+                <button type="button" class="btn btn-ghost" data-fermer>Annuler</button>
+                <button type="submit" class="btn btn-primary" id="bm-renvoi-ok" style="display:none">Renvoyer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 (function () {
+    // ── Renvoyer l'invitation : aperçu du destinataire ──
+    const echapper = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const personne = p => p && p.email
+        ? (p.nom ? '<strong>' + echapper(p.nom) + '</strong> (' + echapper(p.email) + ')' : '<strong>' + echapper(p.email) + '</strong>')
+        : '—';
+    async function ouvrirRenvoi(b) {
+        const m = document.getElementById('bm-modal-renvoi');
+        document.getElementById('bm-renvoi-nom').textContent = b.dataset.renvoyer;
+        document.getElementById('bm-renvoi-form').action = b.dataset.action;
+        document.getElementById('bm-renvoi-chargement').style.display = 'block';
+        document.getElementById('bm-renvoi-contenu').style.display = 'none';
+        document.getElementById('bm-renvoi-ok').style.display = 'none';
+        document.getElementById('bm-renvoi-fiche').style.display = 'none';
+        m.style.display = 'flex';
+
+        let a;
+        try {
+            const r = await fetch(b.dataset.apercu, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!r.ok) throw new Error(r.status);
+            a = await r.json();
+        } catch (err) {
+            a = { possible: false, cas: 'erreur', motif: 'La fiche du client n\'a pas pu être lue. Rechargez la page et réessayez.' };
+        }
+
+        const msg = document.getElementById('bm-renvoi-message');
+        const ancien = document.getElementById('bm-renvoi-ancien');
+        const note = document.getElementById('bm-renvoi-note');
+        const ok = document.getElementById('bm-renvoi-ok');
+        const fiche = document.getElementById('bm-renvoi-fiche');
+        ancien.innerHTML = ''; note.textContent = '';
+
+        if (a.possible) {
+            msg.innerHTML = (a.cas === 'meme_personne'
+                ? '✉ Même interlocuteur, <strong>nouvelle adresse</strong> : l\'invitation partira à '
+                : '✉ Vous allez envoyer l\'invitation à ') + personne(a.nouveau) + '.';
+            ancien.innerHTML = 'Au lieu de ' + personne(a.ancien) + ', qui l\'avait reçue.';
+            note.textContent = 'Même lien personnel. La relance suivra cette nouvelle adresse.';
+            ok.textContent = 'Renvoyer à ' + (a.nouveau.nom || a.nouveau.email);
+            ok.disabled = false;
+            ok.style.display = '';
+        } else if (a.cas === 'identique') {
+            msg.innerHTML = '⚠ La fiche donne toujours ' + personne(a.ancien) + ', la personne qui a déjà reçu l\'invitation.';
+            note.textContent = 'Corrigez d\'abord la fiche : retirez l\'ancien interlocuteur, ajoutez le nouveau et cochez-le principal. Puis cliquez de nouveau sur « Renvoyer ».';
+        } else {
+            msg.innerHTML = '⚠ ' + echapper(a.motif);
+            if (a.ancien && a.ancien.email) ancien.innerHTML = 'Invitation reçue par ' + personne(a.ancien) + '.';
+        }
+        if (!a.possible && a.fiche && ['identique', 'aucune', 'a_choisir', 'doublon'].includes(a.cas)) {
+            fiche.href = a.fiche;
+            fiche.style.display = '';
+        }
+        document.getElementById('bm-renvoi-chargement').style.display = 'none';
+        document.getElementById('bm-renvoi-contenu').style.display = 'block';
+    }
+    document.addEventListener('click', e => {
+        const b = e.target.closest('[data-renvoyer]');
+        if (b) ouvrirRenvoi(b);
+    });
+    document.getElementById('bm-renvoi-form').addEventListener('submit', () => {
+        const ok = document.getElementById('bm-renvoi-ok');
+        ok.disabled = true;
+        ok.textContent = 'Envoi…';
+    });
+
     // ── Fenêtres ──
     const ouvrir = id => { const m = document.getElementById(id); if (m) m.style.display = 'flex'; };
     const fermer = m => { m.style.display = 'none'; };

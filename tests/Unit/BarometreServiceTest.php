@@ -625,4 +625,39 @@ class BarometreServiceTest extends TestCase
         }
         $this->assertStringContainsString("route('admin.barometre.renvoyer'", file_get_contents(resource_path('views/admin/barometre/partials/lignes.blade.php')));
     }
+
+    /**
+     * Fenêtre « Renvoyer » (2026-11-24) : elle dit à qui partira
+     * l'invitation, d'après la fiche à l'instant du clic. Même règle que le
+     * renvoi (BarometreService::apercuRenvoi).
+     */
+    public function test_la_fenetre_de_renvoi_dit_a_qui_partira_l_invitation(): void
+    {
+        $s = $this->service();
+        $s->demanderInvitations(3);
+        $s->traiterDemandes();
+
+        // Fiche inchangée : même personne, renvoi impossible.
+        $a = $this->service()->apercuRenvoi(Client::find(1));
+        $this->assertSame([false, 'identique'], [$a['possible'], $a['cas']]);
+        $this->assertSame(['nom' => 'Koffi KOUADJO', 'email' => 'k.kouadjo@addoha.ci'], $a['ancien']);
+
+        // Même nom, autre adresse : « même interlocuteur, nouvelle adresse ».
+        DB::table('client_contacts')->where('client_id', 1)->update(['email' => 'koffi.kouadjo@addoha.ci']);
+        $a = $this->service()->apercuRenvoi(Client::find(1));
+        $this->assertSame([true, 'meme_personne'], [$a['possible'], $a['cas']]);
+
+        // Autre personne : « vous allez envoyer à … au lieu de … ».
+        DB::table('client_contacts')->where('client_id', 1)->update(['is_primary' => false]);
+        DB::table('client_contacts')->insert(['client_id' => 1, 'name' => 'Awa NOUVELLE', 'email' => 'a.nouvelle@addoha.ci', 'is_primary' => true]);
+        $a = $this->service()->apercuRenvoi(Client::find(1));
+        $this->assertSame([true, 'nouveau'], [$a['possible'], $a['cas']]);
+        $this->assertSame(['nom' => 'Awa NOUVELLE', 'email' => 'a.nouvelle@addoha.ci'], $a['nouveau']);
+        $this->assertSame('k.kouadjo@addoha.ci', $a['ancien']['email']);
+
+        $vue = file_get_contents(resource_path('views/admin/barometre/index.blade.php'));
+        $this->assertStringContainsString('id="bm-modal-renvoi"', $vue);
+        $this->assertStringContainsString("Vous allez envoyer l\'invitation à", $vue);
+        $this->assertStringNotContainsString('confirm(', file_get_contents(resource_path('views/admin/barometre/partials/lignes.blade.php')), "plus d'alerte du navigateur");
+    }
 }

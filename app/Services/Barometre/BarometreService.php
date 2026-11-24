@@ -528,49 +528,92 @@ class BarometreService
     }
 
     /**
+     * Aperçu du renvoi (2026-11-24) : qui a reçu l'invitation, à qui la fiche
+     * l'enverrait maintenant, et si le renvoi est possible. Source unique de
+     * la fenêtre « Renvoyer » ET du renvoi lui-même : les deux ne peuvent pas
+     * se contredire.
+     *
+     * cas : nouveau | meme_personne (même nom, autre adresse) | identique
+     *       (la fiche n'a pas changé) | aucune | a_choisir | doublon |
+     *       pas_invite | ferme
+     *
+     * @return array{possible: bool, cas: string, motif: ?string,
+     *               ancien: array{nom: ?string, email: ?string},
+     *               nouveau: ?array{nom: ?string, email: ?string},
+     *               destinataire: ?array}
+     */
+    public function apercuRenvoi(Client $client): array
+    {
+        $ligne  = $this->liste()->first(fn ($l) => (int) $l['client']->id === (int) $client->id);
+        $envoi  = $ligne['envoi'] ?? null;
+        $ancien = ['nom' => $envoi?->contact_nom, 'email' => $envoi?->email];
+        $refus  = fn (string $cas, string $motif, ?array $nouveau = null) => [
+            'possible' => false, 'cas' => $cas, 'motif' => $motif, 'ancien' => $ancien, 'nouveau' => $nouveau, 'destinataire' => null,
+        ];
+
+        try {
+            $this->verifierEnvoiOuvert();
+        } catch (\DomainException $e) {
+            return $refus('ferme', $e->getMessage());
+        }
+        if (!$ligne || !in_array($ligne['statut'], ['invite', 'ouvert'], true)) {
+            return $refus('pas_invite', "{$client->name} : seule une invitation déjà partie, sans réponse, peut être renvoyée.");
+        }
+
+        $fiche = $ligne['client'];
+        $dest  = $fiche->destinataireBarometre(
+            $this->interlocuteursDossiers([(int) $fiche->id])[(int) $fiche->id] ?? null,
+            $this->adressesEcartees()
+        );
+        $nouveau = $dest['email'] ? ['nom' => $dest['contact'], 'email' => $dest['email']] : null;
+
+        if (!$dest['email']) {
+            return $dest['source'] === 'a_choisir'
+                ? $refus('a_choisir', "{$client->name} : plusieurs interlocuteurs sur la fiche, aucun n'est principal. Cochez le principal, puis renvoyez.")
+                : $refus('aucune', "{$client->name} : la fiche ne donne aucune adresse utilisable. Ajoutez le nouvel interlocuteur, puis renvoyez.");
+        }
+        if (mb_strtolower($dest['email']) === mb_strtolower((string) $envoi->email)) {
+            return $refus('identique', "{$client->name} : la fiche donne toujours {$envoi->email}. Corrigez d'abord le contact principal sur la fiche du client, puis renvoyez.", $nouveau);
+        }
+        $autre = BarometreEnvoi::where('edition', $this->code())->where('client_id', '!=', $client->id)
+            ->whereNull('exclu_motif')->whereNotNull('invite_statut')
+            ->whereRaw('LOWER(email) = ?', [mb_strtolower($dest['email'])])->first();
+        if ($autre) {
+            return $refus('doublon', "{$dest['email']} reçoit déjà le baromètre pour " . ($autre->client?->name ?? 'un autre client') . ' : un seul mail par adresse.', $nouveau);
+        }
+
+        $memeNom = $dest['contact'] && $envoi->contact_nom
+            && mb_strtolower(trim($dest['contact'])) === mb_strtolower(trim((string) $envoi->contact_nom));
+
+        return [
+            'possible'     => true,
+            'cas'          => $memeNom ? 'meme_personne' : 'nouveau',
+            'motif'        => null,
+            'ancien'       => $ancien,
+            'nouveau'      => $nouveau,
+            'destinataire' => $dest,
+        ];
+    }
+
+    /**
      * « Renvoyer au contact de la fiche » (2026-11-24). L'adresse d'un
      * client est figée à l'invitation : quand l'interlocuteur a quitté
      * l'entreprise (réponse automatique « ne fait plus partie… »), on corrige
      * la fiche du client, puis ce bouton renvoie l'invitation — même lien
      * personnel — au contact que la fiche donne maintenant. La relance
-     * suivra la nouvelle adresse.
-     *
-     * Seulement pour une invitation déjà partie, sans réponse. Refusé si la
-     * fiche donne toujours la même adresse (rien n'a été corrigé), aucune
-     * adresse, ou l'adresse déjà invitée pour un autre client.
+     * suivra la nouvelle adresse. Règles : apercuRenvoi().
      */
     public function renvoyerAuContactDeLaFiche(Client $client, ?User $par = null): BarometreEnvoi
     {
-        $this->verifierEnvoiOuvert();
-
         return DB::transaction(function () use ($client, $par) {
-            $ligne = $this->liste()->first(fn ($l) => (int) $l['client']->id === (int) $client->id);
-            if (!$ligne || !in_array($ligne['statut'], ['invite', 'ouvert'], true)) {
-                throw new \DomainException("{$client->name} : seule une invitation déjà partie, sans réponse, peut être renvoyée.");
+            $apercu = $this->apercuRenvoi($client);
+            if (!$apercu['possible']) {
+                throw new \DomainException($apercu['motif']);
             }
 
+            $dest = $apercu['destinataire'];
             /** @var BarometreEnvoi $envoi */
-            $envoi = $ligne['envoi'];
-            $fiche = $ligne['client'];
-            $dest  = $fiche->destinataireBarometre(
-                $this->interlocuteursDossiers([(int) $fiche->id])[(int) $fiche->id] ?? null,
-                $this->adressesEcartees()
-            );
-
-            if (!$dest['email']) {
-                throw new \DomainException($dest['source'] === 'a_choisir'
-                    ? "{$client->name} : plusieurs interlocuteurs sur la fiche, aucun n'est principal. Cochez le principal, puis renvoyez."
-                    : "{$client->name} : la fiche ne donne aucune adresse utilisable. Ajoutez le nouvel interlocuteur, puis renvoyez.");
-            }
-            if (mb_strtolower($dest['email']) === mb_strtolower((string) $envoi->email)) {
-                throw new \DomainException("{$client->name} : la fiche donne toujours {$envoi->email}. Corrigez d'abord le contact principal sur la fiche du client, puis renvoyez.");
-            }
-            $autre = BarometreEnvoi::where('edition', $this->code())->where('client_id', '!=', $client->id)
-                ->whereNull('exclu_motif')->whereNotNull('invite_statut')
-                ->whereRaw('LOWER(email) = ?', [mb_strtolower($dest['email'])])->first();
-            if ($autre) {
-                throw new \DomainException("{$dest['email']} reçoit déjà le baromètre pour " . ($autre->client?->name ?? 'un autre client') . ' : un seul mail par adresse.');
-            }
+            $envoi = BarometreEnvoi::where('edition', $this->code())->where('client_id', $client->id)->firstOrFail();
 
             Log::info('barometre.renvoi_contact', [
                 'client' => $client->id, 'ancienne' => $envoi->email, 'nouvelle' => $dest['email'], 'par' => $par?->id,
