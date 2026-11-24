@@ -161,7 +161,7 @@
             </div>
         @endif
     </td>
-    <td style="vertical-align:middle;"><div style="display:flex;gap:6px;"><a href="{{ route('admin.panels.show', $panel) }}" class="btn btn-ghost btn-sm" title="Voir">👁️</a><a href="{{ route('admin.panels.edit', $panel) }}" class="btn btn-ghost btn-sm" title="Modifier">✏️</a><a href="{{ route('admin.panels.pdf', $panel) }}" class="btn btn-ghost btn-sm" title="PDF">📄</a><form method="POST" action="{{ route('admin.panels.destroy', $panel) }}" onsubmit="return confirm('Supprimer ce panneau ?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm" title="Supprimer">🗑️</button></form></div></td>
+    <td style="vertical-align:middle;"><div style="display:flex;gap:6px;"><a href="{{ route('admin.panels.show', $panel) }}" class="btn btn-ghost btn-sm" title="Voir">👁️</a><a href="{{ route('admin.panels.edit', $panel) }}" class="btn btn-ghost btn-sm" title="Modifier">✏️</a><a href="{{ route('admin.panels.pdf', $panel) }}" class="btn btn-ghost btn-sm" title="PDF">📄</a><button type="button" class="btn btn-danger btn-sm" title="Retirer du parc (démantelé, à sa date réelle)" data-demanteler="{{ $panel->reference }}" data-action="{{ route('admin.panels.destroy', $panel) }}">🗑️</button></div></td>
 </tr>
 @empty
 @if($source === 'cible' || ($externalPanels ?? collect())->isEmpty())

@@ -545,45 +545,168 @@ class TaxCalculationService
 
         $statuts ??= [CampaignStatus::ACTIF->value, CampaignStatus::TERMINE->value];
 
-        $q = \DB::table('campaign_panels')
+        // Campagnes du panneau qui touchent la période (mêmes filtres pour
+        // les panneaux encore rattachés et pour ceux qui en sont sortis).
+        $campagnes = function ($q) use ($statuts, $periodStart, $periodEnd, $campaignId, $clientId) {
+            $q->whereIn('campaigns.status', $statuts)
+                ->whereNotNull('campaigns.start_date')
+                ->whereNotNull('campaigns.end_date')
+                ->where('campaigns.start_date', '<=', $periodEnd->toDateString())
+                ->where('campaigns.end_date',   '>=', $periodStart->toDateString())
+                ->whereNull('campaigns.deleted_at');
+            if ($campaignId) $q->where('campaigns.id', $campaignId);
+            if ($clientId)   $q->where('campaigns.client_id', $clientId);
+
+            return $q;
+        };
+        $colonnes = ['campaigns.id as campaign_id', 'campaigns.name as campaign_name', 'campaigns.start_date',
+            'campaigns.end_date', 'clients.id as client_id', 'clients.name as client_name'];
+
+        $paires = []; // "campagne-panneau" => [ligne de campagne, panel_id, rattaché aujourd'hui ?]
+        $actuels = $campagnes(\DB::table('campaign_panels')
             ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
             ->leftJoin('clients', 'clients.id', '=', 'campaigns.client_id')
             ->where('campaign_panels.type', 'interne')
-            ->whereIn('campaign_panels.panel_id', $panelIds)
-            ->whereIn('campaigns.status', $statuts)
-            ->whereNotNull('campaigns.start_date')
-            ->whereNotNull('campaigns.end_date')
-            ->where('campaigns.start_date', '<=', $periodEnd->toDateString())
-            ->where('campaigns.end_date',   '>=', $periodStart->toDateString())
-            ->whereNull('campaigns.deleted_at')
-            ->select(
-                'campaign_panels.panel_id',
-                'campaigns.id as campaign_id',
-                'campaigns.name as campaign_name',
-                'campaigns.start_date',
-                'campaigns.end_date',
-                'clients.id as client_id',
-                'clients.name as client_name'
-            );
-
-        if ($campaignId) $q->where('campaigns.id', $campaignId);
-        if ($clientId)   $q->where('campaigns.client_id', $clientId);
-
-        $liste = [];
-        foreach ($q->orderBy('campaigns.start_date')->orderBy('campaigns.id')->get() as $r) {
-            // Un panneau rattaché deux fois à la même campagne ne paie
-            // qu'une fois.
-            $liste[$r->panel_id][(int) $r->campaign_id] ??= [
-                'campaign_id'    => (int) $r->campaign_id,
-                'campaign_name'  => $r->campaign_name,
-                'campaign_start' => Carbon::parse($r->start_date),
-                'campaign_end'   => Carbon::parse($r->end_date),
-                'client_id'      => $r->client_id ? (int) $r->client_id : null,
-                'client_name'    => $r->client_name,
-            ];
+            ->whereIn('campaign_panels.panel_id', $panelIds))
+            ->select(array_merge(['campaign_panels.panel_id'], $colonnes))
+            ->get();
+        foreach ($actuels as $r) {
+            $paires[$r->campaign_id . '-' . $r->panel_id] = [$r, (int) $r->panel_id, true];
         }
 
-        return array_map('array_values', $liste);
+        // ═══ Panneaux SORTIS d'une campagne — 2026-11-24 (règle validée) ═══
+        // Retirer un panneau le détache de la campagne : il disparaissait de
+        // la TM pour TOUTES les périodes, même les mois où il était affiché
+        // (YOPCAIS-01A, BNI 2026, retiré le 24/11 et démantelé le 27/07).
+        // L'historique des mouvements (depuis le 16/11) le retrouve, et la
+        // TM court jusqu'à sa date réelle de sortie.
+        $mouvements = collect();
+        if (self::historiquePresent()) {
+            $retires = $campagnes(\DB::table('campaign_panel_mouvements')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panel_mouvements.campaign_id')
+                ->leftJoin('clients', 'clients.id', '=', 'campaigns.client_id')
+                ->where('campaign_panel_mouvements.sens', \App\Models\CampaignPanelMouvement::RETRAIT)
+                ->whereIn('campaign_panel_mouvements.panel_id', $panelIds))
+                ->select(array_merge(['campaign_panel_mouvements.panel_id'], $colonnes))
+                ->distinct()
+                ->get();
+            foreach ($retires as $r) {
+                $paires[$r->campaign_id . '-' . $r->panel_id] ??= [$r, (int) $r->panel_id, false];
+            }
+
+            $champs = ['campaign_id', 'panel_id', 'sens', 'motif', 'source', 'created_at'];
+            if (self::dateEffetPresente()) $champs[] = 'effet_le';
+            $mouvements = \DB::table('campaign_panel_mouvements')
+                ->whereIn('panel_id', $panelIds)
+                ->whereIn('campaign_id', array_unique(array_map(fn ($p) => (int) $p[0]->campaign_id, $paires)) ?: [0])
+                ->orderBy('id')
+                ->get($champs)
+                ->groupBy(fn ($m) => $m->campaign_id . '-' . $m->panel_id);
+        }
+
+        // Démantèlement : la TM s'arrête aussi à la date où le mât a quitté le sol.
+        $demonteLe = Panel::withTrashed()->whereIn('id', $panelIds)->whereNotNull('deleted_at')
+            ->pluck('deleted_at', 'id');
+
+        $liste = [];
+        $ordre = collect($paires)->sortBy(fn ($p) => [$p[0]->start_date, (int) $p[0]->campaign_id]);
+        foreach ($ordre as $cle => [$r, $panelId, $rattache]) {
+            $intervalles = self::intervallesPresence(
+                Carbon::parse($r->start_date),
+                Carbon::parse($r->end_date),
+                ($mouvements[$cle] ?? collect())->map(fn ($m) => [
+                    'sens'   => $m->sens,
+                    'motif'  => $m->motif,
+                    'source' => $m->source,
+                    'date'   => Carbon::parse($m->effet_le ?? $m->created_at)->startOfDay(),
+                ])->sortBy(fn ($m) => $m['date']->timestamp)->values()->all(),
+                $rattache,
+                isset($demonteLe[$panelId]) ? Carbon::parse($demonteLe[$panelId]) : null,
+            );
+
+            foreach ($intervalles as [$debut, $fin]) {
+                if ($debut->gt($periodEnd) || $fin->lt($periodStart)) continue;
+                $liste[$panelId][] = [
+                    'campaign_id'    => (int) $r->campaign_id,
+                    'campaign_name'  => $r->campaign_name,
+                    'campaign_start' => $debut,
+                    'campaign_end'   => $fin,
+                    'client_id'      => $r->client_id ? (int) $r->client_id : null,
+                    'client_name'    => $r->client_name,
+                ];
+            }
+        }
+
+        return $liste;
+    }
+
+    /**
+     * Présence d'un panneau dans une campagne (2026-11-24, règle validée) :
+     * liste de [début, fin], bornée par les dates de la campagne et par le
+     * démantèlement du panneau.
+     *   · Sans historique : toute la campagne (s'il y est rattaché).
+     *   · Ajouté en cours de campagne : à partir de son ajout. L'ajout fait à
+     *     la création de la campagne (ou à un import) compte depuis le début.
+     *   · Retiré : jusqu'à sa date réelle de sortie (saisie au retrait,
+     *     sinon le jour du retrait). Un panneau présent avant le début de
+     *     l'historique (16/11) compte depuis le début de la campagne.
+     *
+     * @param  list<array{sens: string, motif: ?string, source: ?string, date: Carbon}> $mouvements  dans l'ordre chronologique
+     * @return list<array{0: Carbon, 1: Carbon}>
+     */
+    public static function intervallesPresence(Carbon $cDebut, Carbon $cFin, array $mouvements, bool $rattache, ?Carbon $demonteLe = null): array
+    {
+        $intervalles = [];
+        $ouvert = null;
+
+        foreach ($mouvements as $i => $m) {
+            $d = $m['date'];
+            if ($m['sens'] === \App\Models\CampaignPanelMouvement::AJOUT) {
+                if ($ouvert === null) {
+                    $depuisLeDebut = $m['motif'] === \App\Models\CampaignPanelMouvement::MOTIF_CREATION
+                        || in_array($m['source'], [\App\Models\CampaignPanelMouvement::SOURCE_CREATION, \App\Models\CampaignPanelMouvement::SOURCE_IMPORT], true);
+                    $ouvert = $depuisLeDebut ? $cDebut->copy() : $d->copy()->max($cDebut);
+                }
+            } else {
+                // Premier mouvement = un retrait : le panneau était là avant l'historique.
+                if ($ouvert === null && $i === 0) {
+                    $ouvert = $cDebut->copy();
+                }
+                if ($ouvert !== null) {
+                    $intervalles[] = [$ouvert, $d->copy()->min($cFin)];
+                    $ouvert = null;
+                }
+            }
+        }
+
+        if ($mouvements === []) {
+            if ($rattache) $intervalles[] = [$cDebut->copy(), $cFin->copy()];
+        } elseif ($ouvert !== null) {
+            $intervalles[] = [$ouvert, $cFin->copy()];
+        } elseif ($rattache) {
+            // Rattaché sans trace de son retour : présent depuis sa dernière sortie.
+            $intervalles[] = [end($mouvements)['date']->copy()->max($cDebut), $cFin->copy()];
+        }
+
+        $resultat = [];
+        foreach ($intervalles as [$debut, $fin]) {
+            if ($demonteLe) $fin = $fin->min($demonteLe->copy()->startOfDay());
+            if (!$fin->lt($debut)) $resultat[] = [$debut, $fin];
+        }
+
+        return $resultat;
+    }
+
+    /** La table de l'historique existe (migration du 16/11). */
+    private static function historiquePresent(): bool
+    {
+        return \Illuminate\Support\Facades\Schema::hasTable('campaign_panel_mouvements');
+    }
+
+    /** La colonne de la date réelle existe (migration du 24/11). */
+    private static function dateEffetPresente(): bool
+    {
+        return \Illuminate\Support\Facades\Schema::hasColumn('campaign_panel_mouvements', 'effet_le');
     }
 
     /**

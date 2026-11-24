@@ -90,6 +90,26 @@ class Panel extends Model
         });
     }
 
+    /**
+     * Démantèlement à sa date RÉELLE (2026-11-24, règle validée).
+     *
+     * Le démantèlement est un soft delete : deleted_at = le jour où le mât a
+     * quitté le sol, que lisent l'ODP (fin de l'occupation) et la TM (fin de
+     * l'affichage). Avant, la suppression posait toujours la date du clic :
+     * un panneau démantelé le 27/07 et déclaré le 24/11 payait l'ODP
+     * d'août à novembre. Un panneau déjà démantelé voit sa date corrigée.
+     */
+    public function demantelerLe(\Carbon\CarbonInterface $date): void
+    {
+        if (!$this->trashed()) {
+            $this->delete();
+        }
+
+        $fin = \Carbon\Carbon::parse($date)->endOfDay();
+        static::withTrashed()->whereKey($this->getKey())->update(['deleted_at' => $fin]);
+        $this->deleted_at = $fin;
+    }
+
     // ───────────── Relations principales ─────────────
 
     public function photos()

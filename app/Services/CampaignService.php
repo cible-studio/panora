@@ -40,7 +40,12 @@ class CampaignService
      * @param array<int,float>|null $unitPrices Override de prix par panel_id
      *        (négociation commerciale). Si null → utilise panel.monthly_rate.
      */
-    public function addPanels(Campaign $campaign, array $panelIds, ?array $unitPrices = null): array
+    /**
+     * @param \Carbon\CarbonInterface|null $entreeLe  date RÉELLE d'entrée des panneaux
+     *        (2026-11-24) : la TM d'un panneau ajouté en cours de campagne
+     *        part de là ; null = aujourd'hui.
+     */
+    public function addPanels(Campaign $campaign, array $panelIds, ?array $unitPrices = null, ?\Carbon\CarbonInterface $entreeLe = null): array
     {
         if (!in_array($campaign->status->value, self::MODIFIABLE_STATUSES)) {
             return ['ok' => false, 'error' => 'Campagne non modifiable.'];
@@ -109,7 +114,12 @@ class CampaignService
             // peut pas reconstituer la composition de la campagne à une
             // date donnée — un panneau ajouté puis retiré passerait pour
             // un panneau perdu alors qu'il n'était pas là au départ.
-            $this->mouvements->ajoutInternes($campaign, $panelIds);
+            $this->mouvements->ajoutInternes(
+                $campaign, $panelIds,
+                \App\Models\CampaignPanelMouvement::MOTIF_AJOUT_MANUEL,
+                \App\Models\CampaignPanelMouvement::SOURCE_MANUEL,
+                null, $entreeLe
+            );
 
             // FIX critique : créer les PoseTasks pour les panneaux ajoutés
             // (sans cela, le tech terrain n'est pas convoqué pour les
@@ -370,12 +380,20 @@ class CampaignService
      * @param string      $source manuel, conflit, annulation…
      * @param string|null $note   précision libre
      */
+    /**
+     * @param \Carbon\CarbonInterface|null $sortieLe   date RÉELLE de sortie (2026-11-24) :
+     *        la TM se compte jusqu'à elle ; null = aujourd'hui.
+     * @param bool $demanteler  motif « démantelé » : le panneau est aussi
+     *        démantelé à cette date (fin de l'ODP), règle validée le 24/11.
+     */
     public function removePanel(
         Campaign $campaign,
         Panel $panel,
         string $motif = \App\Models\CampaignPanelMouvement::MOTIF_AUTRE,
         string $source = \App\Models\CampaignPanelMouvement::SOURCE_MANUEL,
         ?string $note = null,
+        ?\Carbon\CarbonInterface $sortieLe = null,
+        bool $demanteler = false,
     ): array {
         if (!in_array($campaign->status->value, self::MODIFIABLE_STATUSES)) {
             return ['ok' => false, 'error' => 'Campagne non modifiable.'];
@@ -399,7 +417,7 @@ class CampaignService
             ];
         }
 
-        return DB::transaction(function () use ($campaign, $panel, $motif, $source, $note) {
+        return DB::transaction(function () use ($campaign, $panel, $motif, $source, $note, $sortieLe, $demanteler) {
             $campaign->panels()->detach($panel->id);
 
             if ($campaign->reservation_id) {
@@ -424,8 +442,14 @@ class CampaignService
             // reste pour le diagnostic technique, mais il n'est pas
             // requêtable et les fichiers de log tournent.
             $this->mouvements->retraitInternes(
-                $campaign, [$panel->id], $motif, $source, $note
+                $campaign, [$panel->id], $motif, $source, $note, $sortieLe
             );
+
+            // Panneau démantelé (2026-11-24) : il quitte aussi le parc, à la
+            // même date réelle — l'ODP s'arrête là.
+            if ($demanteler) {
+                $panel->demantelerLe($sortieLe ?? now());
+            }
 
             Log::info('campaign.panel_removed', [
                 'campaign_id'     => $campaign->id,

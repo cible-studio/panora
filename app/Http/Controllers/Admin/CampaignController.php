@@ -960,7 +960,11 @@ class CampaignController extends Controller
                 $messageAxes = AvailabilityService::messageAxesRemplaces($remplacement['axes']);
 
                 if (!empty($internalIds)) {
-                    $this->campaignService->addPanels($newCampaign, $internalIds);
+                    // Campagne dupliquée : ses panneaux y sont dès le premier
+                    // jour (2026-11-24, TM). Sans date, l'entrée prenait le
+                    // jour du clic, et une campagne datée dans le passé
+                    // perdait la TM de ses premiers mois.
+                    $this->campaignService->addPanels($newCampaign, $internalIds, null, $newCampaign->start_date);
                 }
 
                 $externalIds = $source->externalPanels()->pluck('external_panels.id')->all();
@@ -1641,7 +1645,16 @@ class CampaignController extends Controller
             // Prix négocié optionnel par panneau (clé = panel_id ou "ext_<n>")
             'unit_prices'    => 'nullable|array',
             'unit_prices.*'  => 'nullable|numeric|min:0',
+            // 2026-11-24 — date RÉELLE d'entrée : la TM d'un panneau ajouté
+            // en cours de campagne part de là. Dans les dates de la campagne.
+            'entree_le'      => ['nullable', 'date',
+                'after_or_equal:' . ($campaign->start_date?->toDateString() ?? '1970-01-01'),
+                'before_or_equal:' . ($campaign->end_date?->toDateString() ?? '2999-12-31')],
+        ], [
+            'entree_le.after_or_equal'  => 'La date d\'entrée ne peut pas précéder le début de la campagne.',
+            'entree_le.before_or_equal' => 'La date d\'entrée ne peut pas dépasser la fin de la campagne.',
         ]);
+        $entreeLe = !empty($data['entree_le']) ? \Carbon\Carbon::parse($data['entree_le']) : null;
 
         if (!in_array($campaign->status->value, ['planifie', 'actif', 'termine'])) {
             return back()->with('error',
@@ -1701,7 +1714,8 @@ class CampaignController extends Controller
             $result = $this->campaignService->addPanels(
                 $campaign,
                 $internalIds,
-                !empty($internalPrices) ? $internalPrices : null
+                !empty($internalPrices) ? $internalPrices : null,
+                $entreeLe
             );
             if (!$result['ok']) {
                 return back()->with('error', $result['error']);
@@ -1874,10 +1888,22 @@ class CampaignController extends Controller
                 \App\Models\CampaignPanelMouvement::MOTIFS_RETRAIT_MANUEL
             )],
             'note'  => 'nullable|string|max:1000',
+            // 2026-11-24 — date RÉELLE de sortie : la TM se compte jusqu'à
+            // elle. Jamais dans le futur, jamais avant le début de la campagne.
+            'sortie_le'  => ['nullable', 'date', 'before_or_equal:today',
+                'after_or_equal:' . ($campaign->start_date?->toDateString() ?? '1970-01-01')],
+            'demanteler' => 'nullable|boolean',
         ], [
             'motif.required' => 'Indiquez pourquoi ce panneau est retiré de la campagne.',
             'motif.in'       => 'Ce motif de retrait n\'existe pas.',
+            'sortie_le.before_or_equal' => 'La date de sortie ne peut pas être dans le futur.',
+            'sortie_le.after_or_equal'  => 'La date de sortie ne peut pas précéder le début de la campagne.',
         ]);
+
+        $sortieLe = !empty($data['sortie_le']) ? \Carbon\Carbon::parse($data['sortie_le']) : null;
+        // Démantèlement : seulement avec le motif « démantelé » et la case cochée.
+        $demanteler = $data['motif'] === \App\Models\CampaignPanelMouvement::MOTIF_DEMANTELE
+            && $request->boolean('demanteler');
 
         $result = $this->campaignService->removePanel(
             $campaign,
@@ -1885,6 +1911,8 @@ class CampaignController extends Controller
             $data['motif'],
             \App\Models\CampaignPanelMouvement::SOURCE_MANUEL,
             $data['note'] ?? null,
+            $sortieLe,
+            $demanteler,
         );
 
         if (!$result['ok']) {
@@ -1902,7 +1930,9 @@ class CampaignController extends Controller
             $campaign
         );
 
-        $msg = "Panneau {$panel->reference} retiré ({$motifLibelle}).";
+        $msg = "Panneau {$panel->reference} retiré ({$motifLibelle})"
+            . ($sortieLe && !$sortieLe->isToday() ? ', sorti le ' . $sortieLe->format('d/m/Y') : '')
+            . ($demanteler ? ', démantelé à cette date' : '') . '.';
 
         // Informe le MP que les poses ouvertes ont suivi — sinon il peut
         // croire qu'elles traînent encore côté technicien (feedback 2026-09-21).

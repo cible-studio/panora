@@ -3330,3 +3330,35 @@ Les montants en lettres viennent de `App\Support\MontantEnLettres`, partagé ave
 - [ ] TM seul : trimestres entre parenthèses, annonceur et dates d'affichage
 - [ ] Toutes communes : un relevé par commune, chacun sur sa page
 - [ ] Excel : plus de « categories_exclues » dans l'en-tête
+
+## § 50 — TM d'un panneau sorti d'une campagne, démantèlement daté *(2026-11-24)*
+
+Constaté sur BNI 2026 : YOPCAIS-01A, démantelé le 27/07, a été retiré de la campagne le 24/11.
+- **Sa TM de janvier à juillet avait disparu.** Retirer un panneau le détachait de la campagne, et la TM ne lisait que les rattachements actuels.
+- **L'ODP du mât (YOPCAIS-01, 2 faces) courait encore en novembre.** Le 27/07 n'était qu'une note libre, et la suppression d'un panneau prenait la date du clic.
+
+### Règles validées par écrit le 24/11
+1. **Panneau retiré :** la TM compte du début de la campagne (ou de son ajout en cours de campagne) jusqu'à sa **date réelle de sortie**. Cette date est saisie au retrait ; par défaut aujourd'hui, jamais dans le futur ni avant le début.
+2. **Motif « démantelé » :** case cochée par défaut, à décocher s'il est seulement indisponible. Le panneau **quitte le parc à cette date** : l'ODP et la TM s'arrêtent là.
+3. **YOPCAIS-01 :** le **mât entier** (faces A et B) a été démantelé le 27/07/2026.
+
+### Livré
+- **Fiche campagne → Retirer :** champ « Date réelle de sortie » et case « Le panneau est démantelé à cette date ».
+- **Liste des panneaux → 🗑 :** une fenêtre demande la « Date réelle du démantèlement », à la place de l'alerte du navigateur.
+- **Calcul :** la TM lit l'historique des panneaux (depuis le 16/11), avec les dates d'entrée et de sortie, bornées par le démantèlement. Les retraits faits avant le 16/11 n'ont pas d'historique et ne sont pas reconstitués.
+- **Fiche campagne → Ajouter un panneau :** champ « Entrée réelle ». Un panneau ajouté en cours de campagne (un remplaçant, par exemple) paie la TM à partir de là. Une campagne dupliquée compte ses panneaux dès son premier jour.
+
+### À faire en production (une fois, après le déploiement)
+Dans le terminal du conteneur de prod :
+```
+php artisan tinker --execute='$m = App\Models\CampaignPanelMouvement::where("reference", "YOPCAIS-01A")->where("sens", "retrait")->latest("id")->firstOrFail(); $m->update(["effet_le" => "2026-07-27"]); echo "Sortie de " . $m->reference . " datée du 27/07/2026", PHP_EOL;'
+php artisan tinker --execute='foreach (App\Models\Panel::withTrashed()->whereIn("reference", ["YOPCAIS-01A", "YOPCAIS-01B"])->get() as $p) { $p->demantelerLe(Carbon\Carbon::parse("2026-07-27")); echo $p->reference . " démantelé le 27/07/2026", PHP_EOL; }'
+```
+- [ ] La 2e commande affiche **deux lignes**, une par face. Sinon, vérifier les références exactes des faces.
+- [ ] **YOPCAIS-02A, le remplaçant :** il a été rattaché à BNI 2026 avant le début de l'historique. Panora le croit donc présent depuis le 01/01 et le montre en janvier. Pour dater son entrée réelle, remplacer AAAA-MM-JJ :
+```
+php artisan tinker --execute='$c = App\Models\Campaign::where("name", "BNI 2026")->firstOrFail(); $p = App\Models\Panel::where("reference", "YOPCAIS-02A")->firstOrFail(); App\Models\CampaignPanelMouvement::create(["campaign_id" => $c->id, "panel_id" => $p->id, "reference" => $p->reference, "sens" => "ajout", "motif" => "ajout_manuel", "source" => "manuel", "note" => "Remplaçant de YOPCAIS-01A, entrée datée après coup", "effet_le" => "AAAA-MM-JJ"]); echo "Entrée de YOPCAIS-02A datée", PHP_EOL;'
+```
+- [ ] Taxes → Détail, Yopougon, janvier à juillet, TM : YOPCAIS-01A apparaît pour BNI 2026 (7 mois)
+- [ ] Novembre, ODP : YOPCAIS-01 n'apparaît plus
+- [ ] Fiche campagne → Retirer un panneau : la date réelle et la case « démantelé » (avec ce motif) apparaissent
