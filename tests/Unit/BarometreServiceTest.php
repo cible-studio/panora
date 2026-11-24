@@ -589,8 +589,12 @@ class BarometreServiceTest extends TestCase
         DB::table('client_contacts')->where('client_id', 1)->update(['is_primary' => false]);
         DB::table('client_contacts')->insert(['client_id' => 1, 'name' => 'Awa NOUVELLE', 'email' => 'a.nouvelle@addoha.ci', 'is_primary' => true]);
 
+        // L'ancienne boîte avait ouvert le lien (scanner, collègue…).
+        BarometreEnvoi::where('client_id', 1)->update(['ouvert_le' => now(), 'ouvertures' => 4]);
+
         $envoi = $this->service()->renvoyerAuContactDeLaFiche(Client::find(1));
         $this->assertSame(['a.nouvelle@addoha.ci', 'Awa NOUVELLE', BarometreEnvoi::DEMANDE], [$envoi->email, $envoi->contact_nom, $envoi->invite_statut]);
+        $this->assertSame([null, 0], [$envoi->fresh()->ouvert_le, (int) $envoi->fresh()->ouvertures], "les ouvertures de l'ancienne boîte ne comptent plus");
 
         $this->assertSame(['invitations' => 1, 'relances' => 0, 'echecs' => 0], $this->service()->traiterDemandes());
         $this->assertCount($avant + 1, $this->brevo->envoyes);
