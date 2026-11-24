@@ -88,10 +88,11 @@ class TaxeDetailSelectionTest extends TestCase
     }
 
     /**
-     * PDF du détail = relevé pour la mairie (2026-11-24, maquette de
-     * l'utilisateur) : un relevé par commune, adressé au maire, période en
-     * gras (trimestres pour la TM), tableau numéroté, total à payer en
-     * chiffres et en lettres. Jamais les filtres (catégories exclues…).
+     * PDF du détail = relevé pour la mairie (2026-11-24) : un relevé par
+     * commune, période en gras (trimestres pour la TM), tableau numéroté,
+     * total à payer en chiffres et en lettres. Jamais les filtres
+     * (catégories exclues…). Le soir : retour à l'ancien design (paysage,
+     * en-tête CIBLE), mêmes informations, en grand et en gras.
      */
     private function releve(array $lignes): string
     {
@@ -130,13 +131,15 @@ class TaxeDetailSelectionTest extends TestCase
         // ni signature (demande du 24/11).
         $this->assertStringNotContainsString('Monsieur le Maire', $html);
         $this->assertStringNotContainsString('Signature', $html);
-        $this->assertStringContainsString('Régie publicitaire', $html);
+        $this->assertStringContainsString('Taxes communales', $html, 'ancien design : en-tête des documents internes');
         $this->assertStringContainsString('Abidjan, le ', $html);
         $this->assertStringContainsString('sur le territoire de la Commune de Yopougon', $html);
         $this->assertStringContainsString("Relevé des taxes d'occupation du domaine public", $html);
-        $this->assertStringContainsString('Période : du 01/11/2026 au 30/11/2026', $html);
+        $this->assertStringContainsString('<span class="val">YOPOUGON</span>', $html, 'la commune, en grand et en gras');
+        $this->assertStringContainsString('<span class="val">du 01/11/2026 au 30/11/2026</span>', $html);
         $this->assertStringContainsString('(novembre 2026)', $html);
-        $this->assertStringContainsString('Nombre de panneaux : <b>2</b>', $html);
+        $this->assertMatchesRegularExpression('#Opérateur</span>\s*<span class="val">CIBLE CI</span>#', $html);
+        $this->assertMatchesRegularExpression('#Nombre de panneaux</span>\s*<span class="val">2</span>#', $html);
         $this->assertStringContainsString('TOTAL À PAYER', $html);
         $this->assertStringContainsString('vingt-six mille (26 000) francs CFA', $html);
         $this->assertStringContainsString('Un panneau double face est compté une seule fois.', $html);
@@ -158,8 +161,7 @@ class TaxeDetailSelectionTest extends TestCase
         );
         $this->assertStringContainsString('>Annonceur<', $html);
         $this->assertStringContainsString('CLIENT ESSAI', $html);
-        $this->assertStringContainsString('01/11/2026 →<br>31/12/2026', $html);
-        $this->assertStringContainsString('class="rv-table rv-tm"', $html, 'TM : largeurs fixes, rien ne déborde');
+        $this->assertStringContainsString('01/11/2026 → 31/12/2026', $html, 'paysage : dates sur une ligne');
         $this->assertStringContainsString("nombre de mois d'affichage de chaque campagne", $html);
     }
 
@@ -191,6 +193,6 @@ class TaxeDetailSelectionTest extends TestCase
         $controleur = file_get_contents(app_path('Http/Controllers/Admin/TaxController.php'));
         $this->assertStringNotContainsString("'Catégories exclues'", $controleur, 'plus de mention sur le PDF');
         $this->assertStringNotContainsString('categories_exclues=', $controleur, "ni sur l'Excel");
-        $this->assertStringContainsString("setPaper('a4', 'portrait')", $controleur, 'relevé en portrait');
+        $this->assertStringContainsString("setPaper('a4', 'landscape')", $controleur, 'ancien design : paysage');
     }
 }
