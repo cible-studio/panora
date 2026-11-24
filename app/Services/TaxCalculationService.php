@@ -635,6 +635,28 @@ class TaxCalculationService
     }
 
     /**
+     * Trimestres couverts par une période (2026-11-24, PDF du détail des
+     * taxes) : « T4 2026 », « T1 et T2 2026 », « T1 à T4 2026 ». Les périodes
+     * de resolvePeriod() restent dans une même année.
+     */
+    public static function libelleTrimestres(Carbon $debut, Carbon $fin): string
+    {
+        $t1 = intdiv($debut->month - 1, 3) + 1;
+        $t2 = intdiv($fin->month - 1, 3) + 1;
+        $an = $fin->year;
+
+        if ($debut->year !== $fin->year) {
+            return "T{$t1} {$debut->year} à T{$t2} {$an}";
+        }
+
+        return match (true) {
+            $t1 === $t2     => "T{$t1} {$an}",
+            $t2 === $t1 + 1 => "T{$t1} et T{$t2} {$an}",
+            default         => "T{$t1} à T{$t2} {$an}",
+        };
+    }
+
+    /**
      * Agrégation des lignes pour les KPI / résumés. Évite d'avoir à
      * reparcourir la collection manuellement à chaque vue.
      *
