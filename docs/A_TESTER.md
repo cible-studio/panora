@@ -3356,7 +3356,7 @@ php artisan tinker --execute='$m = App\Models\CampaignPanelMouvement::where("ref
 php artisan tinker --execute='foreach (App\Models\Panel::withTrashed()->whereIn("reference", ["YOPCAIS-01A", "YOPCAIS-01B"])->get() as $p) { $p->demantelerLe(Carbon\Carbon::parse("2026-07-27")); echo $p->reference . " démantelé le 27/07/2026", PHP_EOL; }'
 ```
 - [x] Lancées en prod le 24/11 : sortie de YOPCAIS-01A datée du 27/07, faces YOPCAIS-01A et YOPCAIS-01B démantelées le 27/07/2026 (deux lignes affichées)
-- [ ] **YOPCAIS-02A, le remplaçant :** il a été rattaché à BNI 2026 avant le début de l'historique. Panora le croit donc présent depuis le 01/01 et le montre en janvier. Pour dater son entrée réelle, remplacer AAAA-MM-JJ :
+- [ ] **YOPCAIS-02A, le remplaçant :** il a été rattaché à BNI 2026 avant le début de l'historique. Panora le croit donc présent depuis le 01/01 et le montre en janvier. **Sa date d'affichage sera communiquée par le MP une fois l'affichage fait (24/11).** D'ici là, il compte 12 mois de TM pour BNI : ne pas envoyer à Yopougon de relevé de TM 2026 qui l'inclut. Pour dater son entrée réelle, remplacer AAAA-MM-JJ :
 ```
 php artisan tinker --execute='$c = App\Models\Campaign::where("name", "BNI 2026")->firstOrFail(); $p = App\Models\Panel::where("reference", "YOPCAIS-02A")->firstOrFail(); App\Models\CampaignPanelMouvement::create(["campaign_id" => $c->id, "panel_id" => $p->id, "reference" => $p->reference, "sens" => "ajout", "motif" => "ajout_manuel", "source" => "manuel", "note" => "Remplaçant de YOPCAIS-01A, entrée datée après coup", "effet_le" => "AAAA-MM-JJ"]); echo "Entrée de YOPCAIS-02A datée", PHP_EOL;'
 ```
