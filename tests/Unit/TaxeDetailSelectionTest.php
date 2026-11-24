@@ -152,7 +152,8 @@ class TaxeDetailSelectionTest extends TestCase
         $this->assertStringContainsString('(T4 2026)', $html, 'TM : les trimestres');
         $this->assertStringContainsString('>Annonceur<', $html);
         $this->assertStringContainsString('CLIENT ESSAI', $html);
-        $this->assertStringContainsString('01/11/2026 → 31/12/2026', $html);
+        $this->assertStringContainsString('01/11/2026 →<br>31/12/2026', $html);
+        $this->assertStringContainsString('class="rv-table rv-tm"', $html, 'TM : largeurs fixes, rien ne déborde');
         $this->assertStringContainsString("nombre de mois d'affichage de chaque campagne", $html);
     }
 
