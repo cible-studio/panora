@@ -9,7 +9,7 @@
     deux communes.
       · ODP seule : « Relevé des taxes d'occupation du domaine public ».
       · TM seule  : « Relevé de la taxe municipale » (annonceur, dates
-                    d'affichage, trimestres entre parenthèses).
+                    d'affichage, campagne ; trimestres écrits en toutes lettres).
       · Les deux  : deux tableaux (ODP puis TM), sous-totaux, un total.
     Rien sur les filtres (catégories exclues, sélection…).
 
@@ -70,6 +70,7 @@
         .rv-periode { border-top:2pt solid #111111; border-bottom:1.2pt solid #111111; padding:7pt 0 7pt; margin-bottom:12pt; }
         .rv-periode .v { font-family:{!! $ch['ff_titres'] !!}; font-size:13pt; font-weight:700; color:#111111; }
         .rv-periode .s { font-size:8.5pt; font-weight:700; color:#3d3d3d; margin-left:6pt; }
+        .rv-periode .rv-trim { font-size:10.5pt; font-weight:800; color:#111111; margin-top:4pt; }
         .rv-infos { border-collapse:collapse; margin-bottom:10pt; }
         .rv-infos td { font-size:9.5pt; color:#3d3d3d; padding:0 26pt 0 0; }
         .rv-infos b { color:#111111; font-weight:800; }
@@ -86,7 +87,7 @@
            page en portrait et coupe les références au tiret (24/11). */
         .rv-table.rv-tm { table-layout:fixed; }
         .rv-table.rv-tm th { font-size:7pt; padding:5pt 4pt; }
-        .rv-table.rv-tm td { font-size:8.5pt; padding:6pt 4pt; }
+        .rv-table.rv-tm td { font-size:8pt; padding:6pt 4pt; }
         .rv-table.rv-tm .ref { white-space:nowrap; letter-spacing:0; }
         /* Le trait épais est porté par le bloc, pas par les cellules : sur
            les cellules, il faisait une marche entre les deux cases (24/11). */
@@ -143,8 +144,15 @@
         @if($debutC && $finC)
             <div class="rv-periode">
                 <span class="v">Période : du {{ $debutC->format('d/m/Y') }} au {{ $finC->format('d/m/Y') }}</span>
-                {{-- TM : les trimestres (demande du 24/11) ; ODP : le libellé de la période. --}}
-                <span class="s">({{ $tm->isNotEmpty() ? $trimestres : $libellePeriode }})</span>
+                @if($tm->isNotEmpty())
+                    {{-- TM (demande du 24/11) : chaque trimestre écrit en toutes
+                         lettres, « Trimestre 1 : de janvier à mars 2026 ». --}}
+                    @foreach(\App\Services\TaxCalculationService::trimestresEnLettres($debutC, $finC) as $trimestre)
+                        <div class="rv-trim">{{ $trimestre }}</div>
+                    @endforeach
+                @else
+                    <span class="s">({{ $libellePeriode }})</span>
+                @endif
             </div>
         @endif
 
@@ -192,14 +200,15 @@
             <table class="rv-table rv-tm">
                 <thead>
                     <tr>
-                        <th class="c" style="width:5%">N°</th>
-                        <th style="width:15%">Panneau</th>
-                        <th style="width:18%">Annonceur</th>
-                        <th style="width:17%">Affichage</th>
-                        <th class="c" style="width:9%">Surface<br>(m²)</th>
+                        <th class="c" style="width:4%">N°</th>
+                        <th style="width:14%">Panneau</th>
+                        <th style="width:14%">Annonceur</th>
+                        <th style="width:14%">Campagne</th>
+                        <th style="width:13%">Affichage</th>
+                        <th class="c" style="width:8%">Surface<br>(m²)</th>
                         <th class="r" style="width:12%">Tarif<br>(FCFA/m²/mois)</th>
-                        <th class="c" style="width:8%">Durée<br>(mois)</th>
-                        <th class="r" style="width:16%">Montant<br>(FCFA)</th>
+                        <th class="c" style="width:7%">Durée<br>(mois)</th>
+                        <th class="r" style="width:14%">Montant<br>(FCFA)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -208,6 +217,8 @@
                             <td class="c">{{ $i + 1 }}</td>
                             <td class="ref">{{ $row['reference'] }}</td>
                             <td>{{ $row['client_name'] ?? '—' }}</td>
+                            {{-- Campagne (demande du 24/11 : « c'est important »). --}}
+                            <td>{{ $row['campaign_name'] ?? '—' }}</td>
                             <td>
                                 @if(!empty($row['campaign_start']) && !empty($row['campaign_end']))
                                     {{ \Carbon\Carbon::parse($row['campaign_start'])->format('d/m/Y') }} →<br>{{ \Carbon\Carbon::parse($row['campaign_end'])->format('d/m/Y') }}
@@ -222,7 +233,7 @@
                         </tr>
                     @endforeach
                     @if($odp->isNotEmpty())
-                        <tr class="st"><td colspan="7" class="r">Sous-total TM</td><td class="r">{{ $fmt($tm->sum('amount')) }}</td></tr>
+                        <tr class="st"><td colspan="8" class="r">Sous-total TM</td><td class="r">{{ $fmt($tm->sum('amount')) }}</td></tr>
                     @endif
                 </tbody>
             </table>
