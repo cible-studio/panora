@@ -82,7 +82,16 @@
         .rv-table .ref { font-weight:800; letter-spacing:.3pt; }
         .rv-table tr { page-break-inside:avoid; }
         .rv-table tr.st td { font-weight:700; border-bottom:none; }
-        .rv-total { width:100%; border-collapse:collapse; border-bottom:2pt solid #111111; page-break-inside:avoid; }
+        /* TM (8 colonnes) : largeurs fixes, sinon le tableau déborde de la
+           page en portrait et coupe les références au tiret (24/11). */
+        .rv-table.rv-tm { table-layout:fixed; }
+        .rv-table.rv-tm th { font-size:7pt; padding:5pt 4pt; }
+        .rv-table.rv-tm td { font-size:8.5pt; padding:6pt 4pt; }
+        .rv-table.rv-tm .ref { white-space:nowrap; letter-spacing:0; }
+        /* Le trait épais est porté par le bloc, pas par les cellules : sur
+           les cellules, il faisait une marche entre les deux cases (24/11). */
+        .rv-total-bloc { border-bottom:2pt solid #111111; page-break-inside:avoid; }
+        .rv-total { width:100%; border-collapse:collapse; page-break-inside:avoid; }
         .rv-total td { padding:8pt 6pt; font-weight:800; text-align:right; }
         .rv-total .l { font-size:10.5pt; }
         .rv-total .m { font-size:11.5pt; width:95pt; }
@@ -180,17 +189,17 @@
 
         @if($tm->isNotEmpty())
             @if($odp->isNotEmpty())<div class="rv-section">Taxe municipale (TM)</div>@endif
-            <table class="rv-table">
+            <table class="rv-table rv-tm">
                 <thead>
                     <tr>
-                        <th class="c" style="width:26pt">N°</th>
-                        <th>Panneau</th>
-                        <th>Annonceur</th>
-                        <th>Affichage</th>
-                        <th class="c">Surface (m²)</th>
-                        <th class="r">Tarif (FCFA/m²/mois)</th>
-                        <th class="c">Durée (mois)</th>
-                        <th class="r">Montant (FCFA)</th>
+                        <th class="c" style="width:5%">N°</th>
+                        <th style="width:15%">Panneau</th>
+                        <th style="width:18%">Annonceur</th>
+                        <th style="width:17%">Affichage</th>
+                        <th class="c" style="width:9%">Surface<br>(m²)</th>
+                        <th class="r" style="width:12%">Tarif<br>(FCFA/m²/mois)</th>
+                        <th class="c" style="width:8%">Durée<br>(mois)</th>
+                        <th class="r" style="width:16%">Montant<br>(FCFA)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -199,9 +208,9 @@
                             <td class="c">{{ $i + 1 }}</td>
                             <td class="ref">{{ $row['reference'] }}</td>
                             <td>{{ $row['client_name'] ?? '—' }}</td>
-                            <td style="white-space:nowrap">
+                            <td>
                                 @if(!empty($row['campaign_start']) && !empty($row['campaign_end']))
-                                    {{ \Carbon\Carbon::parse($row['campaign_start'])->format('d/m/Y') }} → {{ \Carbon\Carbon::parse($row['campaign_end'])->format('d/m/Y') }}
+                                    {{ \Carbon\Carbon::parse($row['campaign_start'])->format('d/m/Y') }} →<br>{{ \Carbon\Carbon::parse($row['campaign_end'])->format('d/m/Y') }}
                                 @else
                                     —
                                 @endif
@@ -219,12 +228,14 @@
             </table>
         @endif
 
-        <table class="rv-total">
-            <tr>
-                <td class="l">TOTAL À PAYER</td>
-                <td class="m">{{ $fmt($total) }}</td>
-            </tr>
-        </table>
+        <div class="rv-total-bloc">
+            <table class="rv-total">
+                <tr>
+                    <td class="l">TOTAL À PAYER</td>
+                    <td class="m">{{ $fmt($total) }}</td>
+                </tr>
+            </table>
+        </div>
 
         <div class="rv-arrete">
             Arrêté le présent relevé à la somme de
