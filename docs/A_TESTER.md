@@ -3291,3 +3291,18 @@ Constaté le 23/11 sur DEV-2026-009 → RES-V9RYNDNT → « CAMPAGNE FORMATION T
 - [ ] Campagne prolongée d'un mois → bandeau d'écart (HT net × 2 mois) ; la facture FNE suit la campagne (prix nets, 2 mois, services du devis)
 - [ ] Mail « démarrage de campagne » : « Montant total … FCFA HT », bonne phrase sur l'espace client, bon commercial
 - [ ] Lien public d'une réservation confirmée (/p/…) : logo CIBLE, liseré, couleurs de la charte
+
+## § 48 — Baromètre : renvoyer l'invitation au contact corrigé de la fiche *(2026-11-24)*
+
+Une invitation est partie vers un interlocuteur qui a quitté son entreprise (réponse automatique « ne fait plus partie des effectifs », transmise par Josiane le 23/11). L'adresse de chaque client est figée à l'invitation : la relance serait repartie vers la même personne.
+
+Nouveau bouton **« Renvoyer »** sur l'écran du baromètre, pour un client invité qui n'a pas répondu :
+- il prend le contact principal **actuel** de la fiche du client ;
+- il renvoie l'invitation, avec le **même lien personnel** ;
+- la relance suivra la nouvelle adresse.
+
+Refusé si la fiche donne toujours la même adresse, si elle n'en donne aucune, si plusieurs interlocuteurs sont sans principal, ou si l'adresse est déjà invitée pour un autre client.
+
+### À faire (prod)
+- [ ] Client concerné du 23/11 : sur sa fiche, retirer ou corriger l'ancien interlocuteur, ajouter le nouveau et le cocher **principal**. Puis écran Baromètre → ligne du client → « Renvoyer ». Le message vert donne l'adresse ; vérifier dans la minute que la ligne affiche l'invitation du jour
+- [ ] Chaque nouvelle réponse automatique de ce type : même traitement (fiche, puis Renvoyer)

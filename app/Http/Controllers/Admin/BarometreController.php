@@ -175,6 +175,24 @@ class BarometreController extends Controller
         return back()->with('success', "{$client->name} est retiré du baromètre ({$motif}).");
     }
 
+    /**
+     * « Renvoyer au contact de la fiche » (2026-11-24) : l'interlocuteur a
+     * quitté l'entreprise, la fiche a été corrigée → nouvelle invitation, même
+     * lien personnel. Cf. BarometreService::renvoyerAuContactDeLaFiche().
+     */
+    public function renvoyer(Request $request, Client $client): RedirectResponse
+    {
+        try {
+            $envoi = $this->service->renvoyerAuContactDeLaFiche($client, $request->user());
+        } catch (\DomainException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', "Invitation de {$client->name} renvoyée à {$envoi->email}"
+            . ($envoi->contact_nom ? " ({$envoi->contact_nom})" : '')
+            . ' : elle part dans la minute. La relance suivra cette adresse.');
+    }
+
     public function reintegrer(Client $client): RedirectResponse
     {
         $this->service->reintegrer($client);

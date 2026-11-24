@@ -563,4 +563,66 @@ class BarometreServiceTest extends TestCase
         $this->assertStringContainsString('Aucun e-mail', collect($s->aCompleter())->firstWhere('client', 'BANK')['probleme'],
             'un vrai « sans e-mail » garde son message');
     }
+
+    /**
+     * 2026-11-24 — l'interlocuteur a quitté l'entreprise (réponse
+     * automatique) : on corrige la fiche, puis « Renvoyer » envoie
+     * l'invitation au nouveau contact, avec le même lien. La relance suit.
+     */
+    public function test_renvoyer_au_contact_corrige_de_la_fiche(): void
+    {
+        $s = $this->service();
+        $s->demanderInvitations(3);
+        $s->traiterDemandes();
+        $lien = BarometreEnvoi::where('client_id', 1)->value('public_link_id');
+        $avant = count($this->brevo->envoyes);
+
+        // Fiche pas encore corrigée : refusé, rien ne bouge.
+        try {
+            $this->service()->renvoyerAuContactDeLaFiche(Client::find(1));
+            $this->fail('Renvoi accepté vers la même adresse.');
+        } catch (\DomainException $e) {
+            $this->assertStringContainsString('la fiche donne toujours k.kouadjo@addoha.ci', $e->getMessage());
+        }
+
+        // Fiche corrigée : nouveau contact principal (données fictives).
+        DB::table('client_contacts')->where('client_id', 1)->update(['is_primary' => false]);
+        DB::table('client_contacts')->insert(['client_id' => 1, 'name' => 'Awa NOUVELLE', 'email' => 'a.nouvelle@addoha.ci', 'is_primary' => true]);
+
+        $envoi = $this->service()->renvoyerAuContactDeLaFiche(Client::find(1));
+        $this->assertSame(['a.nouvelle@addoha.ci', 'Awa NOUVELLE', BarometreEnvoi::DEMANDE], [$envoi->email, $envoi->contact_nom, $envoi->invite_statut]);
+
+        $this->assertSame(['invitations' => 1, 'relances' => 0, 'echecs' => 0], $this->service()->traiterDemandes());
+        $this->assertCount($avant + 1, $this->brevo->envoyes);
+        $this->assertSame('a.nouvelle@addoha.ci', end($this->brevo->envoyes)['to'][0]['email']);
+        $this->assertSame($lien, BarometreEnvoi::where('client_id', 1)->value('public_link_id'), 'même lien personnel');
+
+        // La relance part vers la nouvelle adresse.
+        $s = $this->service();
+        $this->assertContains('ADDOHA', $s->aRelancer()->map(fn ($l) => $l['client']->name)->all());
+        $avantRelance = count($this->brevo->envoyes);
+        $s->demanderRelances($s->aRelancer()->count());
+        $s->traiterDemandes();
+        $relances = array_map(fn ($p) => $p['to'][0]['email'], array_slice($this->brevo->envoyes, $avantRelance));
+        $this->assertContains('a.nouvelle@addoha.ci', $relances);
+        $this->assertNotContains('k.kouadjo@addoha.ci', $relances, "plus rien vers l'ancienne adresse");
+    }
+
+    public function test_renvoyer_est_refuse_sans_invitation_ou_apres_reponse(): void
+    {
+        $s = $this->service();
+        $s->demanderInvitations(3);
+        $s->traiterDemandes();
+        $s->enregistrerReponse('ref-1', 'AXA');
+
+        foreach ([2 => 'AXA', 3 => 'BANK'] as $id => $nom) {
+            try {
+                $this->service()->renvoyerAuContactDeLaFiche(Client::find($id));
+                $this->fail("Renvoi accepté pour {$nom}.");
+            } catch (\DomainException $e) {
+                $this->assertStringContainsString('seule une invitation déjà partie, sans réponse', $e->getMessage(), $nom);
+            }
+        }
+        $this->assertStringContainsString("route('admin.barometre.renvoyer'", file_get_contents(resource_path('views/admin/barometre/partials/lignes.blade.php')));
+    }
 }
