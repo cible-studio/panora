@@ -160,6 +160,11 @@ class TaxeDetailSelectionTest extends TestCase
         $this->assertStringContainsString('<span class="val">du 01/10/2026 au 31/12/2026</span>', $tm);
         $this->assertStringContainsString('.tdoc-periode-bande .val { font-size:14px; font-weight:700;', $tm, 'en gras, bien visible');
 
+        // 2026-11-24 : plus de ligne Opérateur · Commune · Sélection · Panneaux ;
+        // la commune est en tête du bandeau.
+        $this->assertStringNotContainsString('<table class="tdoc-meta">', $tm);
+        $this->assertStringContainsString('<span class="val">ADJAME</span>', $tm);
+
         $odp = $rendre('odp');
         $this->assertStringContainsString('<span class="val">du 01/10/2026 au 31/12/2026</span>', $odp);
         $this->assertStringNotContainsString('<span class="val">T4 2026</span>', $odp, 'ODP : pas de trimestres');
