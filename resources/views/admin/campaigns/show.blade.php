@@ -1315,6 +1315,20 @@
                             <strong x-text="selectedPanels.length" style="color:var(--text)"></strong> panneau(x) —
                             <strong class="text-base" style="color:var(--accent)" x-text="formatEstimate()"></strong> FCFA
                         </span>
+                        {{-- 2026-11-24 (règle validée) — date RÉELLE d'entrée : la TM
+                             d'un panneau ajouté en cours de campagne part de là
+                             (ex. remplaçant posé après un démantèlement). --}}
+                        @php
+                            $entreeDefaut = now()->max($campaign->start_date ?? now())->min($campaign->end_date ?? now()->addYears(10));
+                        @endphp
+                        <label class="text-xs flex items-center gap-2" style="color:var(--text2)"
+                               title="La TM du panneau ajouté est comptée à partir de cette date.">
+                            Entrée réelle
+                            <input type="date" name="entree_le" value="{{ $entreeDefaut->toDateString() }}"
+                                   min="{{ $campaign->start_date?->toDateString() }}" max="{{ $campaign->end_date?->toDateString() }}"
+                                   class="px-2 py-1 rounded-lg border text-xs"
+                                   style="background:var(--surface);border-color:var(--border);color:var(--text)">
+                        </label>
                         <button type="submit"
                                 class="text-white font-bold px-6 py-2.5 rounded-lg text-sm"
                                 style="background:var(--accent)">
@@ -1940,6 +1954,31 @@
                         Conservé dans l'historique de la campagne, avec la date et votre nom.
                     </div>
 
+                    {{-- 2026-11-24 (règle validée) — date RÉELLE de sortie : la TM
+                         est comptée jusqu'à elle, pas jusqu'au jour du clic. --}}
+                    <label class="block text-sm font-semibold mb-1" style="color:var(--text)" for="retire-date">
+                        Date réelle de sortie
+                    </label>
+                    <input type="date" name="sortie_le" id="retire-date"
+                           value="{{ now()->toDateString() }}" max="{{ now()->toDateString() }}"
+                           min="{{ $campaign->start_date?->toDateString() }}"
+                           class="w-full px-3 py-2 rounded-xl border mb-1"
+                           style="background:var(--surface2);border-color:var(--border);color:var(--text)">
+                    <div class="text-xs mb-4" style="color:var(--text3)">
+                        La TM du panneau est comptée jusqu'à cette date. Changez-la s'il est parti avant aujourd'hui.
+                    </div>
+
+                    {{-- Motif « démantelé » : le panneau quitte aussi le parc à cette
+                         date (fin de l'ODP). Décocher s'il est seulement indisponible. --}}
+                    <label id="retire-demanteler-bloc" class="items-start gap-2 mb-4 text-sm rounded-xl border px-3 py-2"
+                           style="display:none;border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.06);color:var(--text)">
+                        <input type="checkbox" name="demanteler" value="1" id="retire-demanteler" checked style="margin-top:3px">
+                        <span>
+                            <strong>Le panneau est démantelé à cette date</strong> : il quitte le parc et l'ODP s'arrête.
+                            <span class="block text-xs" style="color:var(--text3)">Décochez s'il est seulement indisponible pour un temps.</span>
+                        </span>
+                    </label>
+
                     <label class="block text-sm font-semibold mb-1" style="color:var(--text)">
                         Précision <span style="font-weight:400;color:var(--text3)">(facultatif)</span>
                     </label>
@@ -2315,19 +2354,39 @@
     // Le motif et la note sont remis à zéro à chaque ouverture : sans
     // cela, le motif du retrait précédent resterait sélectionné et serait
     // enregistré par mégarde sur un autre panneau.
+    // 2026-11-24 — la date réelle revient à aujourd'hui et la case
+    // « démantelé » est recochée à chaque ouverture, pour la même raison.
+    let _retireExterne = false;
     function _resetRetireModal() {
         const motif = document.getElementById('retire-motif');
         const note  = document.getElementById('retire-note');
+        const date  = document.getElementById('retire-date');
+        const dem   = document.getElementById('retire-demanteler');
         if (motif) motif.value = '';
         if (note)  note.value  = '';
+        if (date)  date.value  = @json(now()->toDateString());
+        if (dem)   dem.checked = true;
+        _majDemanteler();
     }
+    // La case n'apparaît qu'avec le motif « démantelé », jamais pour un
+    // panneau de régie partenaire (il n'est pas dans notre parc).
+    function _majDemanteler() {
+        const motif = document.getElementById('retire-motif');
+        const bloc  = document.getElementById('retire-demanteler-bloc');
+        if (!bloc) return;
+        const voir = !_retireExterne && motif && motif.value === @json(\App\Models\CampaignPanelMouvement::MOTIF_DEMANTELE);
+        bloc.style.display = voir ? 'flex' : 'none';
+    }
+    document.getElementById('retire-motif')?.addEventListener('change', _majDemanteler);
     function openRetirePanel(id, ref) {
+        _retireExterne = false;
         document.getElementById('retire-ref').textContent = ref;
         document.getElementById('retire-form').action = `/admin/campaigns/{{ $campaign->id }}/panels/${id}`;
         _resetRetireModal();
         document.getElementById('modal-retire').classList.remove('hidden');
     }
     function openRetireExtPanel(id, ref) {
+        _retireExterne = true;
         document.getElementById('retire-ref').textContent = ref + ' (régie partenaire)';
         document.getElementById('retire-form').action = `/admin/campaigns/{{ $campaign->id }}/external-panels/${id}`;
         _resetRetireModal();

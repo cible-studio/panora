@@ -96,6 +96,7 @@ class CampaignPanelMouvement extends Model
     protected $fillable = [
         'campaign_id', 'panel_id', 'external_panel_id', 'reference',
         'sens', 'motif', 'note', 'source', 'user_id',
+        'effet_le', // date réelle du mouvement (2026-11-24), NULL = created_at
     ];
 
     protected $casts = [
@@ -103,6 +104,7 @@ class CampaignPanelMouvement extends Model
         'panel_id'          => 'integer',
         'external_panel_id' => 'integer',
         'user_id'           => 'integer',
+        'effet_le'          => 'date',
     ];
 
     public function campaign(): BelongsTo
@@ -124,6 +126,15 @@ class CampaignPanelMouvement extends Model
     public function auteur(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Date réelle du mouvement (2026-11-24) : celle saisie au retrait
+     * (ex. « démantelé le 27/07 »), à défaut le jour de l'enregistrement.
+     */
+    public function dateEffet(): \Carbon\Carbon
+    {
+        return ($this->effet_le ?? $this->created_at ?? now())->copy()->startOfDay();
     }
 
     /** Libellé du motif, ou le code brut si un motif inconnu a été posé. */

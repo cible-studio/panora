@@ -43,9 +43,10 @@ class MouvementsPanneaux
         string $motif = CampaignPanelMouvement::MOTIF_AJOUT_MANUEL,
         string $source = CampaignPanelMouvement::SOURCE_MANUEL,
         ?string $note = null,
+        ?\Carbon\CarbonInterface $effetLe = null, // date réelle d'entrée (2026-11-24)
     ): void {
         $this->ecrireInternes(
-            $campaign, $panelIds, CampaignPanelMouvement::AJOUT, $motif, $source, $note
+            $campaign, $panelIds, CampaignPanelMouvement::AJOUT, $motif, $source, $note, $effetLe
         );
     }
 
@@ -60,9 +61,10 @@ class MouvementsPanneaux
         string $motif,
         string $source = CampaignPanelMouvement::SOURCE_MANUEL,
         ?string $note = null,
+        ?\Carbon\CarbonInterface $effetLe = null, // date réelle de sortie (2026-11-24)
     ): void {
         $this->ecrireInternes(
-            $campaign, $panelIds, CampaignPanelMouvement::RETRAIT, $motif, $source, $note
+            $campaign, $panelIds, CampaignPanelMouvement::RETRAIT, $motif, $source, $note, $effetLe
         );
     }
 
@@ -162,6 +164,7 @@ class MouvementsPanneaux
         string $motif,
         string $source,
         ?string $note,
+        ?\Carbon\CarbonInterface $effetLe = null,
     ): void {
         $panelIds = array_values(array_unique(array_filter(array_map('intval', $panelIds))));
         if (!$panelIds) {
@@ -188,7 +191,10 @@ class MouvementsPanneaux
                     [
                         'panel_id'  => $id,
                         'reference' => $references[$id] ?? null,
-                    ]
+                    ],
+                    // Date réelle (2026-11-24) : seulement quand elle est
+                    // donnée, pour ne rien changer aux autres écritures.
+                    $effetLe ? ['effet_le' => $effetLe->toDateString()] : []
                 );
             }
 

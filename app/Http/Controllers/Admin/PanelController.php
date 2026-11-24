@@ -719,23 +719,33 @@ class PanelController extends Controller
     }
 
     // ── SUPPRIMER ──
-    public function destroy(Panel $panel)
+    public function destroy(Request $request, Panel $panel)
     {
         $panelRef = $panel->reference;
-        
-        $panel->delete();
-        
+
+        // 2026-11-24 (règle validée) — date RÉELLE du démantèlement : l'ODP
+        // et la TM s'arrêtent à elle. Avant : toujours la date du clic, donc
+        // des mois d'ODP en trop pour un panneau démonté puis déclaré tard.
+        $data = $request->validate([
+            'demantele_le' => 'nullable|date|before_or_equal:today',
+        ], [
+            'demantele_le.before_or_equal' => 'La date de démantèlement ne peut pas être dans le futur.',
+        ]);
+        $le = !empty($data['demantele_le']) ? \Carbon\Carbon::parse($data['demantele_le']) : now();
+
+        $panel->demantelerLe($le);
+
         // Alerte suppression panneau
         AlertService::create(
             'panneau',
             'danger',
-            '🗑 Panneau supprimé — ' . $panelRef,
-            auth()->user()->name . ' a supprimé le panneau ' . $panelRef . '.',
+            '🗑 Panneau retiré du parc — ' . $panelRef,
+            auth()->user()->name . ' a retiré le panneau ' . $panelRef . ' du parc (démantelé le ' . $le->format('d/m/Y') . ').',
             null
         );
-        
+
         return redirect()->route('admin.panels.index')
-            ->with('success', 'Panneau supprimé !');
+            ->with('success', "Panneau {$panelRef} retiré du parc, démantelé le " . $le->format('d/m/Y') . '.');
     }
 
     // ── CHANGER STATUT ──

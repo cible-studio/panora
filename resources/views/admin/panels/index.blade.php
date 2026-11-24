@@ -313,6 +313,48 @@
          lignes restent non cliquables. --}}
     @include('admin.partials.ligne-cliquable')
 
+    {{-- Retirer un panneau du parc (2026-11-24, règle validée) : on donne la
+         date RÉELLE du démantèlement. L'ODP et la TM s'arrêtent à cette date.
+         Avant : une alerte du navigateur, et toujours la date du clic. --}}
+    <div id="modal-demanteler" class="modal-overlay" style="display:none"
+         onclick="if (event.target === this) this.style.display = 'none'">
+        <div class="modal" style="width:460px">
+            <div class="modal-header">
+                <div class="modal-title">🗑 Retirer <span id="dem-ref"></span> du parc</div>
+                <button type="button" class="modal-close" onclick="document.getElementById('modal-demanteler').style.display = 'none'">✕</button>
+            </div>
+            <form method="POST" action="" id="dem-form">
+                @csrf @method('DELETE')
+                <div class="modal-body">
+                    <p style="font-size:12.5px;color:var(--text2);margin:0 0 14px;line-height:1.5">
+                        Le panneau est démantelé à cette date : l'ODP et la TM s'arrêtent là.
+                        Il reste lisible dans l'historique et les anciens documents.
+                    </p>
+                    <label for="dem-date" style="display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px">Date réelle du démantèlement</label>
+                    <input type="date" name="demantele_le" id="dem-date" required
+                           value="{{ now()->toDateString() }}" max="{{ now()->toDateString() }}"
+                           style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)">
+                    <div style="font-size:11.5px;color:var(--text3);margin-top:4px">Changez-la si le panneau a été démonté avant aujourd'hui.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal-demanteler').style.display = 'none'">Annuler</button>
+                    <button type="submit" class="btn btn-danger">Retirer du parc</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        // Délégué au document : couvre aussi les lignes rechargées en AJAX.
+        document.addEventListener('click', function (e) {
+            var b = e.target.closest('[data-demanteler]');
+            if (!b) return;
+            document.getElementById('dem-ref').textContent = b.dataset.demanteler;
+            document.getElementById('dem-form').action = b.dataset.action;
+            document.getElementById('dem-date').value = @json(now()->toDateString());
+            document.getElementById('modal-demanteler').style.display = 'flex';
+        });
+    </script>
+
     @push('scripts')
         <script>
             // Menu « Export PDF » (2026-10-28) : la barre d'actions du haut coupe ce
