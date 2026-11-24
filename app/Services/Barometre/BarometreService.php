@@ -617,6 +617,7 @@ class BarometreService
 
             Log::info('barometre.renvoi_contact', [
                 'client' => $client->id, 'ancienne' => $envoi->email, 'nouvelle' => $dest['email'], 'par' => $par?->id,
+                'ouvertures_anciennes' => (int) $envoi->ouvertures,
             ]);
 
             $envoi->forceFill([
@@ -629,6 +630,11 @@ class BarometreService
                 // La relance repartira vers la nouvelle adresse.
                 'relance_statut'    => null,
                 'erreur'            => null,
+                // Les ouvertures comptées jusqu'ici venaient de l'ancienne
+                // boîte (2026-11-24 : « A ouvert le lien » s'affichait pour le
+                // nouveau contact). On ne compte plus que les siennes.
+                'ouvert_le'         => null,
+                'ouvertures'        => 0,
             ])->save();
             $this->liste = null;
 
