@@ -87,94 +87,98 @@ class TaxeDetailSelectionTest extends TestCase
         $this->assertSame(0, $code, implode("\n", $sortie));
     }
 
-    /** 2026-11-18 : PDF de l'ODP seule, sans Client / Campagne / Période. */
-    public function test_le_pdf_de_l_odp_seule_n_a_ni_client_ni_campagne_ni_periode(): void
+    /**
+     * PDF du détail = relevé pour la mairie (2026-11-24, maquette de
+     * l'utilisateur) : un relevé par commune, adressé au maire, période en
+     * gras (trimestres pour la TM), tableau numéroté, total à payer en
+     * chiffres et en lettres. Jamais les filtres (catégories exclues…).
+     */
+    private function releve(array $lignes): string
     {
-        $p = \Illuminate\Support\Carbon::create(2026, 11, 1);
-        $ligne = fn ($type, $montant) => [
-            'commune' => 'ADJAME', 'commune_id' => 1, 'panel_id' => 2, 'reference' => 'ADJ-002', 'name' => 'Route du Zoo',
-            'dimensions' => '12m²', 'surface' => 12, 'type' => $type, 'statut' => 'occupe', 'client_name' => 'ECKO',
-            'campaign_name' => 'BIDC', 'campaign_id' => 20, 'campaign_start' => $p, 'campaign_end' => $p->copy()->endOfMonth(),
-            'period_start' => $p, 'period_end' => $p->copy()->endOfMonth(), 'months' => 1, 'unit' => 'mois',
-            'rate' => 1000, 'rate_applied' => 1000, 'amount' => $montant,
-        ];
-        $rendre = function (array $lignes) {
-            $lines = collect($lignes);
+        $lines = collect($lignes);
 
-            return view('pdf.taxes-details', [
-                'lines' => $lines, 'totals' => app(TaxCalculationService::class)->summarize($lines),
-                'periodLabel' => 'Novembre 2026', 'filterSummary' => '', 'filterMeta' => [],
-            ])->render();
-        };
-
-        $odp = $rendre([$ligne('odp', 12000)]);
-        $this->assertStringNotContainsString('>Client<', $odp);
-        $this->assertStringNotContainsString('>Campagne<', $odp);
-        // En-têtes du tableau des lignes seulement (le bloc du haut affiche aussi la période du filtre).
-        $entetes = fn (string $html) => substr($html, strpos($html, 'tdoc-details">'), strpos($html, '</thead>') - strpos($html, 'tdoc-details">'));
-        $this->assertStringNotContainsString('Période', $entetes($odp), 'colonne Période retirée');
-        $this->assertStringContainsString('Période', $entetes($rendre([$ligne('tm', 12000)])), 'PDF TM : colonne gardée');
-        $this->assertStringNotContainsString('ECKO', $odp);
-        $this->assertStringContainsString('colspan="4" class="right">TOTAL GÉNÉRAL', $odp);
-
-        $mixte = $rendre([$ligne('odp', 12000), $ligne('tm', 12000)]);
-        $this->assertStringContainsString('>Client<', $mixte, 'PDF mixte : inchangé');
-        $this->assertStringContainsString('>Campagne<', $mixte);
-        $this->assertStringContainsString('colspan="7" class="right">TOTAL GÉNÉRAL', $mixte);
-
-        // Mise en page pour la DG (18/11) : note gardée d'un bloc et juste.
-        $this->assertStringContainsString('class="tdoc-note tdoc-details-fin"', $odp);
-        $this->assertStringContainsString('.tdoc-details tr.tdoc-total { page-break-before:avoid; }', $odp, 'TOTAL jamais seul en haut de page');
-        $this->assertStringContainsString('en maintenance sont inclus', $odp, 'la note disait « exclus » : faux depuis le 13/11');
-        $this->assertStringNotContainsString('TM = tarif', $odp, 'PDF ODP : la note ne parle que de l\'ODP');
+        // Texte décodé : Blade écrit l'apostrophe « &#039; ».
+        return html_entity_decode(view('pdf.taxes-details', [
+            'lines' => $lines, 'totals' => app(TaxCalculationService::class)->summarize($lines),
+            'periodLabel' => 'Novembre 2026', 'filterSummary' => '', 'filterMeta' => [],
+            'periodeDebut' => \Illuminate\Support\Carbon::create(2026, 11, 1), 'periodeFin' => \Illuminate\Support\Carbon::create(2026, 11, 30),
+        ])->render(), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
-    /**
-     * 2026-11-24 (demande de l'utilisateur) : période en gras, bien visible
-     * (TM : trimestres + dates ; ODP : dates) ; les catégories exclues
-     * (chevalets…) ne sont plus jamais écrites sur le PDF ni l'Excel.
-     */
-    public function test_la_periode_en_gras_et_aucune_categorie_exclue_sur_le_pdf(): void
+    private function ligneReleve(string $commune, string $ref, int $panel, string $type, int $m2, ?string $client = null): array
     {
-        $p = \Illuminate\Support\Carbon::create(2026, 10, 1);
-        $fin = \Illuminate\Support\Carbon::create(2026, 12, 31);
-        $ligne = fn ($type) => [
-            'commune' => 'ADJAME', 'commune_id' => 1, 'panel_id' => 2, 'reference' => 'ADJ-002', 'name' => 'Route du Zoo',
-            'dimensions' => '12m²', 'surface' => 12, 'type' => $type, 'statut' => 'occupe', 'client_name' => 'CLIENT ESSAI',
-            'campaign_name' => 'ESSAI', 'campaign_id' => 20, 'campaign_start' => $p, 'campaign_end' => $fin,
-            'period_start' => $p, 'period_end' => $fin, 'months' => 3, 'unit' => 'mois',
-            'rate' => 1000, 'rate_applied' => 1000, 'amount' => 36000,
+        $p = \Illuminate\Support\Carbon::create(2026, 11, 1);
+
+        return [
+            'commune' => $commune, 'commune_id' => 1, 'panel_id' => $panel, 'reference' => $ref, 'name' => 'Essai',
+            'dimensions' => $m2 . 'm²', 'surface' => $m2, 'type' => $type, 'statut' => 'occupe', 'client_name' => $client,
+            'campaign_name' => $client ? 'Campagne essai' : null, 'campaign_id' => $client ? 20 : null,
+            'campaign_start' => $client ? $p : null, 'campaign_end' => $client ? $p->copy()->addMonths(2)->subDay() : null,
+            'period_start' => $p, 'period_end' => $p->copy()->endOfMonth(), 'months' => 1, 'unit' => 'mois',
+            'rate' => 1000, 'rate_applied' => 1000, 'amount' => 1000 * $m2,
         ];
-        $rendre = function (string $type) use ($ligne, $p, $fin) {
-            $lines = collect([$ligne($type)]);
+    }
 
-            return view('pdf.taxes-details', [
-                'lines' => $lines, 'totals' => app(TaxCalculationService::class)->summarize($lines),
-                'periodLabel' => 'T4 2026', 'filterSummary' => '', 'filterMeta' => [],
-                'periodeDebut' => $p, 'periodeFin' => $fin,
-            ])->render();
-        };
+    public function test_le_releve_odp_suit_la_maquette(): void
+    {
+        $html = $this->releve([
+            $this->ligneReleve('YOPOUGON', 'YOP-CH001', 1, 'odp', 6),
+            $this->ligneReleve('YOPOUGON', 'YOP-CH002', 2, 'odp', 20),
+        ]);
 
-        $tm = $rendre('tm');
-        $this->assertStringContainsString('<span class="val">T4 2026</span>', $tm);
-        $this->assertStringContainsString('<span class="val">du 01/10/2026 au 31/12/2026</span>', $tm);
-        $this->assertStringContainsString('.tdoc-periode-bande .val { font-size:14px; font-weight:700;', $tm, 'en gras, bien visible');
+        $this->assertStringContainsString('Monsieur le Maire', $html);
+        $this->assertStringContainsString('de la Commune de Yopougon', $html);
+        $this->assertStringContainsString("Relevé des taxes d'occupation du domaine public", $html);
+        $this->assertStringContainsString('Période : du 01/11/2026 au 30/11/2026', $html);
+        $this->assertStringContainsString('(novembre 2026)', $html);
+        $this->assertStringContainsString('Nombre de panneaux : <b>2</b>', $html);
+        $this->assertStringContainsString('TOTAL À PAYER', $html);
+        $this->assertStringContainsString('vingt-six mille (26 000) francs CFA', $html);
+        $this->assertStringContainsString('Un panneau double face est compté une seule fois.', $html);
+        $this->assertStringNotContainsString('>Annonceur<', $html, 'ODP : pas de colonne annonceur');
+        $this->assertStringNotContainsString('exclu', mb_strtolower(strip_tags($html)), 'aucune mention des catégories exclues');
+    }
 
-        // 2026-11-24 : plus de ligne Opérateur · Commune · Sélection · Panneaux ;
-        // la commune est en tête du bandeau.
-        $this->assertStringNotContainsString('<table class="tdoc-meta">', $tm);
-        $this->assertStringContainsString('<span class="val">ADJAME</span>', $tm);
+    public function test_le_releve_tm_donne_les_trimestres_et_l_annonceur(): void
+    {
+        $html = $this->releve([$this->ligneReleve('YOPOUGON', 'YOP-CH002', 2, 'tm', 20, 'CLIENT ESSAI')]);
 
-        $odp = $rendre('odp');
-        $this->assertStringContainsString('<span class="val">du 01/10/2026 au 31/12/2026</span>', $odp);
-        $this->assertStringNotContainsString('<span class="val">T4 2026</span>', $odp, 'ODP : pas de trimestres');
+        $this->assertStringContainsString('Relevé de la taxe municipale', $html);
+        $this->assertStringContainsString('(T4 2026)', $html, 'TM : les trimestres');
+        $this->assertStringContainsString('>Annonceur<', $html);
+        $this->assertStringContainsString('CLIENT ESSAI', $html);
+        $this->assertStringContainsString('01/11/2026 → 31/12/2026', $html);
+        $this->assertStringContainsString("nombre de mois d'affichage de chaque campagne", $html);
+    }
 
-        $this->assertSame('T4 2026', TaxCalculationService::libelleTrimestres($p, $fin));
+    public function test_un_releve_par_commune_et_deux_tableaux_si_odp_et_tm(): void
+    {
+        $html = $this->releve([
+            $this->ligneReleve('ADJAME', 'ADJ-002', 4, 'odp', 12),
+            $this->ligneReleve('ADJAME', 'ADJ-002', 4, 'tm', 12, 'CLIENT ESSAI'),
+            $this->ligneReleve('YOPOUGON', 'YOP-CH001', 1, 'odp', 6),
+        ]);
+
+        $this->assertStringContainsString("de la Commune d'Adjame", $html, "« d' » devant une voyelle");
+        $this->assertStringContainsString('de la Commune de Yopougon', $html);
+        $this->assertSame(1, substr_count($html, 'class="rv rv-saut"'), 'la seconde commune commence une nouvelle page');
+        $this->assertStringContainsString('Sous-total ODP', $html);
+        $this->assertStringContainsString('Sous-total TM', $html);
+        $this->assertStringContainsString('vingt-quatre mille (24 000) francs CFA', $html);
+        $this->assertStringContainsString('six mille (6 000) francs CFA', $html);
+    }
+
+    public function test_montant_en_lettres_et_categories_jamais_ecrites(): void
+    {
+        $this->assertSame('deux cent mille', \App\Support\MontantEnLettres::en(200000));
+        $this->assertSame('quatre-vingt mille', \App\Support\MontantEnLettres::en(80000));
+        $this->assertSame('soixante et onze', \App\Support\MontantEnLettres::en(71));
+        $this->assertSame('un million deux cent cinquante mille cinq cents', \App\Support\MontantEnLettres::en(1250500));
         $this->assertSame('T1 et T2 2026', TaxCalculationService::libelleTrimestres(\Illuminate\Support\Carbon::create(2026, 2, 1), \Illuminate\Support\Carbon::create(2026, 6, 30)));
-        $this->assertSame('T1 à T4 2026', TaxCalculationService::libelleTrimestres(\Illuminate\Support\Carbon::create(2026, 1, 1), \Illuminate\Support\Carbon::create(2026, 12, 31)));
 
         $controleur = file_get_contents(app_path('Http/Controllers/Admin/TaxController.php'));
         $this->assertStringNotContainsString("'Catégories exclues'", $controleur, 'plus de mention sur le PDF');
         $this->assertStringNotContainsString('categories_exclues=', $controleur, "ni sur l'Excel");
+        $this->assertStringContainsString("setPaper('a4', 'portrait')", $controleur, 'relevé en portrait');
     }
 }

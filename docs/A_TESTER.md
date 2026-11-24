@@ -3307,15 +3307,26 @@ Refusé si la fiche donne toujours la même adresse, si elle n'en donne aucune, 
 - [ ] Client concerné du 23/11 : sur sa fiche, retirer ou corriger l'ancien interlocuteur, ajouter le nouveau et le cocher **principal**. Puis écran Baromètre → ligne du client → « Renvoyer ». Le message vert donne l'adresse ; vérifier dans la minute que la ligne affiche l'invitation du jour
 - [ ] Chaque nouvelle réponse automatique de ce type : même traitement (fiche, puis Renvoyer)
 
-## § 49 — PDF du détail des taxes : période en gras, plus de catégories exclues *(2026-11-24)*
+## § 49 — PDF du détail des taxes = relevé pour la mairie *(2026-11-24)*
 
-Demande de l'utilisateur :
-- **Catégories exclues** (chevalets…) : plus aucune mention sur le PDF ni sur l'Excel. Le filtre s'applique toujours aux lignes.
-- **Bandeau en gras** sous le titre :
-  - TM et PDF mixte : **trimestre(s)** couverts (« T4 2026 », « T1 et T2 2026 ») et **période** « du … au … » ;
-  - ODP seule : la **période** seulement.
+Selon la maquette de l'utilisateur, le PDF de l'écran Taxes → Détail par panneau est un **relevé adressé au maire**, en portrait, avec **un relevé par commune** (nouvelle page à chaque commune) :
+- **En-tête :** régie et adresse, « À l'attention de Monsieur le Maire de la Commune de … », « Abidjan, le … » ;
+- **Titre selon la taxe :**
+  - ODP : « Relevé des taxes d'occupation du domaine public » ;
+  - TM : « Relevé de la taxe municipale » ;
+  - les deux : « Relevé des taxes communales », avec deux tableaux et leurs sous-totaux ;
+- **Période en gras** « du … au … », puis entre parenthèses les **trimestres** pour la TM, le mois ou la période pour l'ODP ;
+- **Tableau numéroté :**
+  - colonnes Panneau, Surface, Tarif, Durée et Montant ;
+  - en plus pour la TM : Annonceur et dates d'affichage ;
+- **Total à payer** et **« Arrêté le présent relevé à la somme de … francs CFA »**, en lettres ;
+- **Base de calcul** en bas ;
+- **Plus aucune mention des catégories exclues** (chevalets…), ni sur l'Excel.
+
+Les montants en lettres viennent de `App\Support\MontantEnLettres`, partagé avec le devis. Au passage, « deux cent mille » et « quatre-vingt mille » sont corrigés (avant : « deux cents mille »).
 
 ### À vérifier (prod)
-- [ ] Taxes → Détail par panneau, chevalets exclus, PDF : aucune mention des catégories exclues ; bandeau « Trimestre · Période » en gras
-- [ ] Même chose avec le filtre ODP seul : bandeau « Période » seul
-- [ ] Excel du même écran : plus de « categories_exclues » dans l'en-tête
+- [ ] Taxes → Détail par panneau, une commune, ODP seul, PDF : identique à la maquette
+- [ ] TM seul : trimestres entre parenthèses, annonceur et dates d'affichage
+- [ ] Toutes communes : un relevé par commune, chacun sur sa page
+- [ ] Excel : plus de « categories_exclues » dans l'en-tête

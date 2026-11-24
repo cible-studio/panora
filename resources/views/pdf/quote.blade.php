@@ -183,41 +183,9 @@
     $servicesTvaAmount = $quote->tvaServices();
     $servicesTtcTot    = $servicesHtTot + $servicesTvaAmount;
 
-    // Somme en toutes lettres (français, jusqu'aux millions)
-    $montantEnLettres = function (int $n): string {
-        if ($n === 0) return 'zéro';
-        $units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
-                  'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize',
-                  'dix-sept', 'dix-huit', 'dix-neuf'];
-        $tens  = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante',
-                  'soixante', 'quatre-vingt', 'quatre-vingt'];
-        $sub999 = function (int $n) use (&$sub999, $units, $tens): string {
-            if ($n < 20) return $units[$n];
-            if ($n < 100) {
-                $t = intdiv($n, 10); $u = $n % 10;
-                if ($t === 7 || $t === 9) return $tens[$t] . '-' . $units[10 + $u];
-                if ($t === 8 && $u === 0) return 'quatre-vingts';
-                $sep = ($u === 1 && $t !== 8) ? ' et ' : '-';
-                return $tens[$t] . ($u ? $sep . $units[$u] : '');
-            }
-            $c = intdiv($n, 100); $r = $n % 100;
-            $prefix = $c === 1 ? 'cent' : $units[$c] . ' cent' . ($r === 0 ? 's' : '');
-            return $prefix . ($r ? ' ' . $sub999($r) : '');
-        };
-        $out = '';
-        if ($n >= 1_000_000) {
-            $m = intdiv($n, 1_000_000);
-            $out .= ($m === 1 ? 'un million' : $sub999($m) . ' millions') . ' ';
-            $n %= 1_000_000;
-        }
-        if ($n >= 1000) {
-            $k = intdiv($n, 1000);
-            $out .= ($k === 1 ? 'mille' : $sub999($k) . ' mille') . ' ';
-            $n %= 1000;
-        }
-        if ($n > 0) $out .= $sub999($n);
-        return trim($out);
-    };
+    // Somme en toutes lettres : source unique App\Support\MontantEnLettres
+    // (2026-11-24, partagée avec le relevé des taxes pour la mairie).
+    $montantEnLettres = fn (int $n): string => \App\Support\MontantEnLettres::en($n);
 
     $dateEmission = ($quote->sent_at ?: $quote->created_at)?->format('d/m/Y');
     // Remise (2026-11-19) : HT brut des lignes (`amount`) et taux, affichés
