@@ -47,6 +47,16 @@
                     <button type="submit" class="bm-lien remettre">Remettre</button>
                 </form>
             @elseif($l['statut'] !== 'repondu')
+                {{-- 2026-11-24 — interlocuteur parti (« ne fait plus partie… ») :
+                     corriger la fiche, puis renvoyer au contact qu'elle donne. --}}
+                @if(in_array($l['statut'], ['invite', 'ouvert'], true))
+                    <form method="POST" action="{{ route('admin.barometre.renvoyer', $l['client']) }}" style="display:inline"
+                          onsubmit="return confirm({{ json_encode('Renvoyer l\'invitation de ' . $l['client']->name . ' au contact principal de sa fiche ?' . "\n\n" . 'Corrigez d\'abord la fiche du client si l\'interlocuteur a changé : sinon, le renvoi sera refusé.') }});">
+                        @csrf
+                        <button type="submit" class="bm-lien"
+                                title="L'interlocuteur a changé ? Corrigez la fiche du client, puis renvoyez l'invitation (même lien) au contact qu'elle donne. La relance suivra la nouvelle adresse.">Renvoyer</button>
+                    </form>
+                @endif
                 <button type="button" class="bm-lien" data-exclure="{{ $l['client']->name }}"
                         data-action="{{ route('admin.barometre.exclure', $l['client']) }}">Retirer</button>
             @endif
