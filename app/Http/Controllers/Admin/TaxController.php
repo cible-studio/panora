@@ -335,10 +335,9 @@ class TaxController extends Controller
             $filterMeta[]  = ['label' => 'Lumipub', 'value' => 'Pieds des axes inclus (une ligne par mât)'];
             $filterParts[] = 'lumipub=inclus';
         }
-        if ($cats = $this->excludedCategoryNames($filters)) {
-            $filterMeta[]  = ['label' => 'Catégories exclues', 'value' => $cats];
-            $filterParts[] = "categories_exclues={$cats}";
-        }
+        // 2026-11-24 (demande de l'utilisateur) : les catégories exclues
+        // (chevalets…) ne sont plus jamais écrites sur le document. Le filtre
+        // s'applique toujours aux lignes ; seule sa mention disparaît.
         if (!empty($filters['type'])) {
             $typeLabels = ['tm' => 'Taxe Municipale (TM)', 'odp' => 'Occupation Domaine Public (ODP)'];
             $filterMeta[]  = ['label' => 'Nature',   'value' => $typeLabels[$filters['type']] ?? strtoupper($filters['type'])];
@@ -350,8 +349,12 @@ class TaxController extends Controller
         }
         $filterSummary = implode(' · ', $filterParts);
 
+        // 2026-11-24 — Dates de début et de fin, et trimestres couverts, en
+        // gras en tête du PDF. Mêmes bornes que le calcul des lignes.
+        [$periodeDebut, $periodeFin] = $calc->resolvePeriod($periodType, $periodValue, $year, $periodEndValue);
+
         $pdf = Pdf::loadView('pdf.taxes-details', compact(
-            'lines', 'totals', 'periodLabel', 'filterSummary', 'filterMeta'
+            'lines', 'totals', 'periodLabel', 'filterSummary', 'filterMeta', 'periodeDebut', 'periodeFin'
         ))->setPaper('a4', 'landscape');
 
         // 2026-09-23 — Le MP peut renommer le fichier avant de lancer le
@@ -397,7 +400,7 @@ class TaxController extends Controller
         if (!empty($filters['type']))        $parts[] = 'type=' . strtoupper($filters['type']);
         if (!empty($filters['exclure_maintenance'])) $parts[] = 'maintenance=exclue';
         if (!empty($filters['inclure_lumipub']))     $parts[] = 'lumipub=inclus';
-        if ($cats = $this->excludedCategoryNames($filters)) $parts[] = "categories_exclues={$cats}";
+        // 2026-11-24 : catégories exclues jamais écrites (cf. detailsPdf).
         if ($selection) $parts[] = "selection={$selection}";
         $filterSummary = implode(' · ', $parts);
 

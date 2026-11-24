@@ -128,4 +128,48 @@ class TaxeDetailSelectionTest extends TestCase
         $this->assertStringContainsString('en maintenance sont inclus', $odp, 'la note disait « exclus » : faux depuis le 13/11');
         $this->assertStringNotContainsString('TM = tarif', $odp, 'PDF ODP : la note ne parle que de l\'ODP');
     }
+
+    /**
+     * 2026-11-24 (demande de l'utilisateur) : période en gras, bien visible
+     * (TM : trimestres + dates ; ODP : dates) ; les catégories exclues
+     * (chevalets…) ne sont plus jamais écrites sur le PDF ni l'Excel.
+     */
+    public function test_la_periode_en_gras_et_aucune_categorie_exclue_sur_le_pdf(): void
+    {
+        $p = \Illuminate\Support\Carbon::create(2026, 10, 1);
+        $fin = \Illuminate\Support\Carbon::create(2026, 12, 31);
+        $ligne = fn ($type) => [
+            'commune' => 'ADJAME', 'commune_id' => 1, 'panel_id' => 2, 'reference' => 'ADJ-002', 'name' => 'Route du Zoo',
+            'dimensions' => '12m²', 'surface' => 12, 'type' => $type, 'statut' => 'occupe', 'client_name' => 'CLIENT ESSAI',
+            'campaign_name' => 'ESSAI', 'campaign_id' => 20, 'campaign_start' => $p, 'campaign_end' => $fin,
+            'period_start' => $p, 'period_end' => $fin, 'months' => 3, 'unit' => 'mois',
+            'rate' => 1000, 'rate_applied' => 1000, 'amount' => 36000,
+        ];
+        $rendre = function (string $type) use ($ligne, $p, $fin) {
+            $lines = collect([$ligne($type)]);
+
+            return view('pdf.taxes-details', [
+                'lines' => $lines, 'totals' => app(TaxCalculationService::class)->summarize($lines),
+                'periodLabel' => 'T4 2026', 'filterSummary' => '', 'filterMeta' => [],
+                'periodeDebut' => $p, 'periodeFin' => $fin,
+            ])->render();
+        };
+
+        $tm = $rendre('tm');
+        $this->assertStringContainsString('<span class="val">T4 2026</span>', $tm);
+        $this->assertStringContainsString('<span class="val">du 01/10/2026 au 31/12/2026</span>', $tm);
+        $this->assertStringContainsString('.tdoc-periode-bande .val { font-size:14px; font-weight:700;', $tm, 'en gras, bien visible');
+
+        $odp = $rendre('odp');
+        $this->assertStringContainsString('<span class="val">du 01/10/2026 au 31/12/2026</span>', $odp);
+        $this->assertStringNotContainsString('<span class="val">T4 2026</span>', $odp, 'ODP : pas de trimestres');
+
+        $this->assertSame('T4 2026', TaxCalculationService::libelleTrimestres($p, $fin));
+        $this->assertSame('T1 et T2 2026', TaxCalculationService::libelleTrimestres(\Illuminate\Support\Carbon::create(2026, 2, 1), \Illuminate\Support\Carbon::create(2026, 6, 30)));
+        $this->assertSame('T1 à T4 2026', TaxCalculationService::libelleTrimestres(\Illuminate\Support\Carbon::create(2026, 1, 1), \Illuminate\Support\Carbon::create(2026, 12, 31)));
+
+        $controleur = file_get_contents(app_path('Http/Controllers/Admin/TaxController.php'));
+        $this->assertStringNotContainsString("'Catégories exclues'", $controleur, 'plus de mention sur le PDF');
+        $this->assertStringNotContainsString('categories_exclues=', $controleur, "ni sur l'Excel");
+    }
 }

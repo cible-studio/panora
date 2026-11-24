@@ -21,6 +21,11 @@
         .tdoc-details .tdoc-total .tdoc-amount span { display:inline; font-size:11px; margin-left:4px; }
         .tdoc-note.tdoc-details-fin { page-break-inside:avoid; margin-top:10px; padding:5px 0 5px 3mm; font-size:8.5px; line-height:1.45; }
         .tdoc-details .tdoc-periode { white-space:nowrap; }
+        /* 2026-11-24 — période en gras, bien visible (trimestres pour la TM). */
+        .tdoc-periode-bande { width:100%; border-collapse:collapse; margin:2px 0 12px; }
+        .tdoc-periode-bande td { padding:7px 14px 8px 0; vertical-align:bottom; }
+        .tdoc-periode-bande .lbl { display:block; font-size:7.5px; letter-spacing:.8px; text-transform:uppercase; color:#535353; margin-bottom:2px; }
+        .tdoc-periode-bande .val { font-size:14px; font-weight:700; color:#111111; white-space:nowrap; }
     </style>
 </head>
 <body>
@@ -30,13 +35,49 @@
     'docPeriod' => $periodLabel,
 ])
 
-{{-- Métadonnées du document : opérateur, période, filtres actifs
-     (commune / client / campagne / nature) puis volumétrie. --}}
+@php
+    // 2026-11-18 (demande de l'utilisateur) : PDF de l'ODP seule → sans les
+    // colonnes Client, Campagne et Période : l'ODP taxe le mât planté, pas
+    // une campagne. Vaut pour le filtre « ODP seul » comme pour une
+    // sélection qui ne contient que de l'ODP. TM et PDF mixte : inchangés.
+    $odpSeule = $lines->isNotEmpty() && $lines->every(fn ($l) => $l['type'] === 'odp');
+    $nbColonnes = $odpSeule ? 5 : 8;
+
+    // 2026-11-24 (demande de l'utilisateur) : période en gras, bien visible.
+    // TM (et PDF mixte) : trimestres + dates de début et de fin ; ODP seule :
+    // dates seulement. Bornes = celles du calcul (TaxController via
+    // TaxCalculationService::resolvePeriod), sinon celles des lignes.
+    $periodeDebut = $periodeDebut ?? $lines->min('period_start');
+    $periodeFin   = $periodeFin ?? $lines->max('period_end');
+    $trimestres   = ($periodeDebut && $periodeFin)
+        ? \App\Services\TaxCalculationService::libelleTrimestres(\Carbon\Carbon::parse($periodeDebut), \Carbon\Carbon::parse($periodeFin))
+        : null;
+@endphp
+
+@if($periodeDebut && $periodeFin)
+<table class="tdoc-periode-bande">
+    <tr>
+        @unless($odpSeule)
+            <td>
+                <span class="lbl">{{ (str_contains($trimestres, ' et ') || str_contains($trimestres, ' à ')) ? 'Trimestres' : 'Trimestre' }}</span>
+                <span class="val">{{ $trimestres }}</span>
+            </td>
+        @endunless
+        <td>
+            <span class="lbl">Période</span>
+            <span class="val">du {{ \Carbon\Carbon::parse($periodeDebut)->format('d/m/Y') }} au {{ \Carbon\Carbon::parse($periodeFin)->format('d/m/Y') }}</span>
+        </td>
+    </tr>
+</table>
+@endif
+
+{{-- Métadonnées du document : opérateur, filtres actifs (commune / client /
+     campagne / nature) puis volumétrie. La période est dans le bandeau
+     ci-dessus (2026-11-24). --}}
 @php
     $metaCols = array_merge(
         [
             ['label' => 'Opérateur', 'value' => $operatorName ?? 'CIBLE CI'],
-            ['label' => 'Période',   'value' => $periodLabel, 'accent' => true],
         ],
         collect($filterMeta ?? [])
             ->map(fn ($r) => ['label' => $r['label'], 'value' => $r['value'], 'small' => mb_strlen($r['value']) > 22])
@@ -51,14 +92,6 @@
     );
 @endphp
 @include('pdf.partials.tax-doc-meta', ['metaCols' => $metaCols])
-@php
-    // 2026-11-18 (demande de l'utilisateur) : PDF de l'ODP seule → sans les
-    // colonnes Client, Campagne et Période : l'ODP taxe le mât planté, pas
-    // une campagne. Vaut pour le filtre « ODP seul » comme pour une
-    // sélection qui ne contient que de l'ODP. TM et PDF mixte : inchangés.
-    $odpSeule = $lines->isNotEmpty() && $lines->every(fn ($l) => $l['type'] === 'odp');
-    $nbColonnes = $odpSeule ? 5 : 8;
-@endphp
 
 <table class="tdoc-table tdoc-details">
     <thead>
