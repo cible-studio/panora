@@ -3309,26 +3309,32 @@ Refusé si la fiche donne toujours la même adresse, si elle n'en donne aucune, 
 
 ## § 49 — PDF du détail des taxes = relevé pour la mairie *(2026-11-24)*
 
-Le PDF de l'écran Taxes → Détail par panneau reproduit le **PDF modèle de l'utilisateur** (Releve-ODP-Yopougon-novembre-2026.pdf), en portrait, avec **un relevé par commune** (nouvelle page à chaque commune). Le **bloc « À l'attention de Monsieur le Maire… » et la signature sont retirés**, à sa demande. Polices de la charte (Poppins, Nunito), tailles et graisses du modèle :
-- **En-tête :** « CIBLE CI · Régie publicitaire » et adresse, puis « Abidjan, le … » à droite ;
+Le PDF de l'écran Taxes → Détail par panneau est un **relevé par commune** (nouvelle page à chaque commune). Le **bloc « À l'attention de Monsieur le Maire… » et la signature sont retirés**, à sa demande.
+
+**24/11 au soir : retour à l'ancien design**, à sa demande : A4 paysage, en-tête CIBLE des documents internes, tableau à filets fins, pied de page de la charte. Les informations du relevé sont toutes gardées, et ce qui était en gras reste en grand et en gras :
+- **En-tête :** « Taxes communales », puis le titre selon la taxe, la phrase « … sur le territoire de la Commune de … » et « Abidjan, le … » ;
 - **Titre selon la taxe :**
   - ODP : « Relevé des taxes d'occupation du domaine public » ;
   - TM : « Relevé de la taxe municipale » ;
   - les deux : « Relevé des taxes communales », avec deux tableaux et leurs sous-totaux ;
-- **Période en gras** « du … au … », puis entre parenthèses les **trimestres** pour la TM, le mois ou la période pour l'ODP ;
+- **Bandeau en gras :**
+  - Commune ;
+  - Période « du … au … » ;
+  - pour la TM, les trimestres en toutes lettres (« Trimestre 1 : de janvier à mars 2026 ») ; pour l'ODP, le mois ou la période ;
+  - Opérateur ;
+  - Nombre de panneaux ;
 - **Tableau numéroté :**
   - colonnes Panneau, Surface, Tarif, Durée et Montant ;
-  - en plus pour la TM : Annonceur et dates d'affichage ;
+  - en plus pour la TM : Annonceur, Campagne et dates d'affichage ;
 - **Total à payer** et **« Arrêté le présent relevé à la somme de … francs CFA »**, en lettres ;
 - **Base de calcul** en bas ;
-- **Pied de page sur une ligne :** régie · adresse · téléphone fixe · e-mail · site ;
 - **Plus aucune mention des catégories exclues** (chevalets…), ni sur l'Excel.
 
 Les montants en lettres viennent de `App\Support\MontantEnLettres`, partagé avec le devis. Au passage, « deux cent mille » et « quatre-vingt mille » sont corrigés (avant : « deux cents mille »).
 
 ### À vérifier (prod)
-- [ ] Taxes → Détail par panneau, une commune, ODP seul, PDF : identique à la maquette
-- [ ] TM seul : trimestres entre parenthèses, annonceur et dates d'affichage
+- [ ] Taxes → Détail par panneau, une commune, ODP seul, PDF : ancien design en paysage, bandeau Commune / Période / Opérateur / Nombre de panneaux en gras
+- [ ] TM seul : trimestres en toutes lettres dans le bandeau ; annonceur, campagne et dates d'affichage dans le tableau
 - [ ] Toutes communes : un relevé par commune, chacun sur sa page
 - [ ] Excel : plus de « categories_exclues » dans l'en-tête
 

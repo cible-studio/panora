@@ -355,7 +355,7 @@ class TaxController extends Controller
 
         $pdf = Pdf::loadView('pdf.taxes-details', compact(
             'lines', 'totals', 'periodLabel', 'filterSummary', 'filterMeta', 'periodeDebut', 'periodeFin'
-        ))->setPaper('a4', 'portrait'); // relevé pour la mairie (2026-11-24) : portrait
+        ))->setPaper('a4', 'landscape'); // relevé, ancien design en paysage (24/11 soir)
 
         // 2026-09-23 — Le MP peut renommer le fichier avant de lancer le
         // téléchargement (même mécanique que les PDF de disponibilités).

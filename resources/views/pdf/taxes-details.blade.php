@@ -1,37 +1,32 @@
 {{--
-    Relevé des taxes communales pour la mairie — PDF du « Détail par panneau »
+    Relevé des taxes communales — PDF du « Détail par panneau »
     (TaxController::detailsPdf).
 
-    2026-11-24 : reproduit le PDF modèle fourni par l'utilisateur
-    (Releve-ODP-Yopougon-novembre-2026.pdf) — tailles, graisses et
-    espacements — SANS le bloc « À l'attention de Monsieur le Maire… » ni la
-    signature (demande explicite). Un relevé par commune, saut de page entre
-    deux communes.
+    2026-11-24 (soir, demande de l'utilisateur) : retour à l'ANCIEN DESIGN
+    (A4 paysage, en-tête CIBLE des documents internes, tableau à filets fins,
+    pied de page de la charte), avec TOUTES les informations du relevé du
+    jour, et en grand et en gras ce qui l'était : titre selon la taxe,
+    commune, période, trimestres en toutes lettres, opérateur, nombre de
+    panneaux, références, total à payer, somme en lettres.
+    Toujours sans « À l'attention de Monsieur le Maire… » ni signature, et
+    sans rien sur les filtres (catégories exclues, sélection…).
+
+    Un relevé par commune, saut de page entre deux communes.
       · ODP seule : « Relevé des taxes d'occupation du domaine public ».
-      · TM seule  : « Relevé de la taxe municipale » (annonceur, dates
-                    d'affichage, campagne ; trimestres écrits en toutes lettres).
+      · TM seule  : « Relevé de la taxe municipale » (annonceur, campagne,
+                    dates d'affichage ; trimestres en toutes lettres).
       · Les deux  : deux tableaux (ODP puis TM), sous-totaux, un total.
-    Rien sur les filtres (catégories exclues, sélection…).
 
     Variables : $lines, $totals, $periodLabel, $periodeDebut, $periodeFin
     (bornes de TaxCalculationService::resolvePeriod, sinon celles des lignes).
 --}}
 @php
-    $ch        = \App\Support\PdfCharte::data();
-    $coord     = (array) ($ch['coordonnees'] ?? []);
     $operateur = $operatorName ?? config('app.operator_name', 'CIBLE CI');
-    $adresse   = array_values(array_filter(array_map('trim', explode('·', (string) ($coord['adresse'] ?? '')))));
-    // Pied de page du modèle : le numéro fixe seulement (dernier de la liste).
-    $telephones = array_values(array_filter(array_map('trim', explode('·', (string) ($coord['telephones'] ?? '')))));
-    $pied = implode(' · ', array_filter([
-        $operateur, ...$adresse, end($telephones) ?: null, $coord['email'] ?? null, $coord['site'] ?? null,
-    ]));
 
     $periodeDebut = $periodeDebut ?? $lines->min('period_start');
     $periodeFin   = $periodeFin ?? $lines->max('period_end');
     $debutC = $periodeDebut ? \Carbon\Carbon::parse($periodeDebut) : null;
     $finC   = $periodeFin ? \Carbon\Carbon::parse($periodeFin) : null;
-    $trimestres = ($debutC && $finC) ? \App\Services\TaxCalculationService::libelleTrimestres($debutC, $finC) : null;
     // « novembre 2026 », « janvier → mars 2026 », « année 2026 » ; « T4 2026 » tel quel.
     $libellePeriode = preg_match('/^T\d/', (string) $periodLabel) ? $periodLabel : mb_strtolower((string) $periodLabel);
     $dateDoc = now()->locale('fr')->translatedFormat('j F Y');
@@ -49,62 +44,47 @@
 <head>
     <meta charset="UTF-8">
     <title>Relevé des taxes — {{ $periodLabel }}</title>
-    <style>@page { size: A4 portrait; margin: 16mm 18mm 18mm 18mm !important; }</style>
-    @include('pdf.partials.charte-styles')
+
+    {{-- Style partagé avec pdf/taxes-report.blade.php — cf. le partial pour
+         la charte. Marges identiques dans les deux vues (les offsets du
+         footer fixe en dépendent) ; seule l'orientation diffère. --}}
+    <style>@page { size: A4 landscape; margin: 12mm 14mm 20mm 14mm !important; }</style>
+    @include('pdf.partials.tax-doc-styles')
+    @php $chR = $charte ?? \App\Support\PdfCharte::data(); @endphp
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:{!! $ch['ff_texte'] !!}; font-size:10pt; color:#111111; }
         .rv-saut { page-break-before: always; }
-        .lisere { width:100%; border-collapse:collapse; margin-bottom:12pt; }
-        .lisere td { height:3.5pt; padding:0; }
-        .rv-tete { width:100%; border-collapse:collapse; }
-        .rv-tete td { vertical-align:top; padding:0; }
-        .rv-tete img { height:36pt; display:block; }
-        .rv-regie { text-align:right; font-size:8pt; color:#3d3d3d; }
-        .rv-regie div { line-height:9pt; margin:0; padding:0; }
-        .rv-regie .nom { font-size:9pt; font-weight:800; color:#111111; }
-        .rv-filet { height:1pt; background:#111111; margin:9pt 0 12pt; }
-        .rv-date { text-align:right; font-size:10.5pt; margin-bottom:22pt; }
-        .rv-titre { font-family:{!! $ch['ff_titres'] !!}; font-size:15pt; font-weight:700; color:#111111; text-transform:uppercase; }
-        .rv-soustitre { font-size:10pt; color:#3d3d3d; margin:3pt 0 14pt; }
-        .rv-periode { border-top:2pt solid #111111; border-bottom:1.2pt solid #111111; padding:7pt 0 7pt; margin-bottom:12pt; }
-        .rv-periode .v { font-family:{!! $ch['ff_titres'] !!}; font-size:13pt; font-weight:700; color:#111111; }
-        .rv-periode .s { font-size:8.5pt; font-weight:700; color:#3d3d3d; margin-left:6pt; }
-        .rv-periode .rv-trim { font-size:10.5pt; font-weight:800; color:#111111; margin-top:4pt; }
-        .rv-infos { border-collapse:collapse; margin-bottom:10pt; }
-        .rv-infos td { font-size:9.5pt; color:#3d3d3d; padding:0 26pt 0 0; }
-        .rv-infos b { color:#111111; font-weight:800; }
-        .rv-section { font-family:{!! $ch['ff_titres'] !!}; font-size:10.5pt; font-weight:700; margin:12pt 0 2pt; color:#111111; }
-        .rv-table { width:100%; border-collapse:collapse; }
-        .rv-table th { font-size:8pt; font-weight:800; text-transform:uppercase; color:#2b2b2b; text-align:left; padding:6pt 6pt; border-bottom:0.8pt solid #111111; }
-        .rv-table td { font-size:10pt; padding:7pt 6pt; border-bottom:0.5pt solid #d6d6d6; vertical-align:top; }
-        .rv-table .r { text-align:right; }
-        .rv-table .c { text-align:center; }
-        .rv-table .ref { font-weight:800; letter-spacing:.3pt; }
-        .rv-table tr { page-break-inside:avoid; }
-        .rv-table tr.st td { font-weight:700; border-bottom:none; }
-        /* TM (8 colonnes) : largeurs fixes, sinon le tableau déborde de la
-           page en portrait et coupe les références au tiret (24/11). */
-        .rv-table.rv-tm { table-layout:fixed; }
-        .rv-table.rv-tm th { font-size:7pt; padding:5pt 4pt; }
-        .rv-table.rv-tm td { font-size:8pt; padding:6pt 4pt; }
-        .rv-table.rv-tm .ref { white-space:nowrap; letter-spacing:0; }
-        /* Le trait épais est porté par le bloc, pas par les cellules : sur
-           les cellules, il faisait une marche entre les deux cases (24/11). */
-        .rv-total-bloc { border-bottom:2pt solid #111111; page-break-inside:avoid; }
-        .rv-total { width:100%; border-collapse:collapse; page-break-inside:avoid; }
-        .rv-total td { padding:8pt 6pt; font-weight:800; text-align:right; }
-        .rv-total .l { font-size:10.5pt; }
-        .rv-total .m { font-size:11.5pt; width:95pt; }
-        .rv-arrete { font-size:10pt; margin-top:15pt; page-break-inside:avoid; }
-        .rv-base { font-size:8.5pt; color:#3d3d3d; margin-top:9pt; line-height:1.45; }
-        .rv-pied { position:fixed; left:0; right:0; bottom:-10mm; border-top:0.5pt solid #cfcfcf; padding-top:5pt;
-                   font-size:7pt; color:#555555; white-space:nowrap; }
+
+        /* Bandeau : commune, période, trimestres, opérateur, panneaux — en
+           grand et en gras (ancien bandeau de la période, 2026-11-24). */
+        .rv-bande { width:100%; border-collapse:collapse; margin:2px 0 14px; }
+        .rv-bande td { padding:7px 22px 8px 0; vertical-align:top; }
+        .rv-bande .lbl { display:block; font-size:7.5px; letter-spacing:.8px; text-transform:uppercase; color:{{ $chR['texte_doux'] }}; margin-bottom:3px; }
+        .rv-bande .val { font-size:15px; font-weight:800; color:{{ $chR['noir'] }}; white-space:nowrap; }
+        .rv-bande .val-s { font-size:11px; font-weight:700; color:{{ $chR['texte_doux'] }}; white-space:nowrap; }
+        .rv-bande .rv-trim { font-size:12.5px; font-weight:800; color:{{ $chR['noir'] }}; white-space:nowrap; line-height:1.45; }
+
+        /* Tableau (ancien design, lignes serrées, références en gras). */
+        /* Largeurs fixes (en %) : les colonnes ne se répartissent plus au
+           hasard (campagne coupée, montant trop large). */
+        .tdoc-details { table-layout:fixed; }
+        .tdoc-details tbody td { padding-top:6px; padding-bottom:6px; font-size:11.5px; }
+        .tdoc-details tr { page-break-inside:avoid; }
+        .tdoc-details .tdoc-ref { font-weight:800; white-space:nowrap; }
+        .tdoc-details .c { text-align:center; }
+        .tdoc-details .nowrap { white-space:nowrap; }
+        .tdoc-details .tdoc-group td { font-size:10px; }
+        .tdoc-details tr.st td { font-weight:800; }
+        .tdoc-details tr.tdoc-total { page-break-before:avoid; } /* jamais seul en haut de page */
+        .tdoc-details .tdoc-total td { padding-top:10px; padding-bottom:10px; font-size:15px; font-weight:800; }
+        .tdoc-details .tdoc-total .tdoc-amount { font-size:18px; font-weight:800; }
+        .tdoc-details .tdoc-total .tdoc-amount span { display:inline; font-size:12px; margin-left:4px; }
+
+        .rv-arrete { font-size:12px; margin-top:14px; page-break-inside:avoid; color:{{ $chR['noir'] }}; }
+        .rv-arrete b { font-weight:800; }
+        .tdoc-note.tdoc-details-fin { page-break-inside:avoid; margin-top:10px; padding:5px 0 5px 3mm; font-size:9px; line-height:1.45; }
     </style>
 </head>
 <body>
-
-<div class="rv-pied">{{ $pied }}</div>
 
 @foreach($parCommune as $commune => $lignesCommune)
     @php
@@ -117,153 +97,157 @@
             $odp->isEmpty() => ['Relevé de la taxe municipale', 'Affichages publicitaires sur le territoire de la Commune ' . $deCommune($commune)],
             default         => ['Relevé des taxes communales', 'Occupation du domaine public et affichages publicitaires — Commune ' . $deCommune($commune)],
         };
+        $mixte = $odp->isNotEmpty() && $tm->isNotEmpty();
     @endphp
     <div class="{{ $loop->first ? 'rv' : 'rv rv-saut' }}">
-        <table class="lisere"><tr>
-            @foreach($ch['lisere'] as $couleur)<td style="background:{{ $couleur }}"></td>@endforeach
-        </tr></table>
 
-        <table class="rv-tete">
+        @include('pdf.partials.doc-entete', [
+            'docKicker'   => 'Taxes communales',
+            'docTitle'    => $titre,
+            'docSubtitle' => $sousTitre,
+            'docMeta'     => ['Abidjan, le ' . $dateDoc],
+        ])
+
+        <table class="rv-bande">
             <tr>
-                <td>@if(!empty($logoCibleLight))<img src="{{ $logoCibleLight }}" alt="{{ $ch['nom'] }}">@endif</td>
-                <td class="rv-regie">
-                    <div class="nom">{{ $operateur }}</div>
-                    {{-- Mention du modèle validé par l'utilisateur (24/11). --}}
-                    <div>Régie publicitaire</div>
-                    @foreach($adresse as $ligneAdresse)<div>{{ $ligneAdresse }}{{ $loop->last ? ' – Côte d\'Ivoire' : '' }}</div>@endforeach
+                <td>
+                    <span class="lbl">Commune</span>
+                    <span class="val">{{ mb_strtoupper($commune) }}</span>
                 </td>
-            </tr>
-        </table>
-        <div class="rv-filet"></div>
-
-        <div class="rv-date">Abidjan, le {{ $dateDoc }}</div>
-
-        <div class="rv-titre">{{ $titre }}</div>
-        <div class="rv-soustitre">{{ $sousTitre }}</div>
-
-        @if($debutC && $finC)
-            <div class="rv-periode">
-                <span class="v">Période : du {{ $debutC->format('d/m/Y') }} au {{ $finC->format('d/m/Y') }}</span>
-                @if($tm->isNotEmpty())
-                    {{-- TM (demande du 24/11) : chaque trimestre écrit en toutes
-                         lettres, « Trimestre 1 : de janvier à mars 2026 ». --}}
-                    @foreach(\App\Services\TaxCalculationService::trimestresEnLettres($debutC, $finC) as $trimestre)
-                        <div class="rv-trim">{{ $trimestre }}</div>
-                    @endforeach
-                @else
-                    <span class="s">({{ $libellePeriode }})</span>
+                @if($debutC && $finC)
+                    <td>
+                        <span class="lbl">Période</span>
+                        <span class="val">du {{ $debutC->format('d/m/Y') }} au {{ $finC->format('d/m/Y') }}</span>
+                        @if($tm->isEmpty())<br><span class="val-s">({{ $libellePeriode }})</span>@endif
+                    </td>
+                    @if($tm->isNotEmpty())
+                        {{-- TM (demande du 24/11) : chaque trimestre écrit en toutes
+                             lettres, « Trimestre 1 : de janvier à mars 2026 ». --}}
+                        @php $trimestres = \App\Services\TaxCalculationService::trimestresEnLettres($debutC, $finC); @endphp
+                        <td>
+                            <span class="lbl">{{ count($trimestres) > 1 ? 'Trimestres' : 'Trimestre' }}</span>
+                            @foreach($trimestres as $trimestre)
+                                <div class="rv-trim">{{ $trimestre }}</div>
+                            @endforeach
+                        </td>
+                    @endif
                 @endif
-            </div>
-        @endif
-
-        <table class="rv-infos">
-            <tr>
-                <td>Opérateur : <b>{{ $operateur }}</b></td>
-                <td>Commune : <b>{{ $nomCommune($commune) }}</b></td>
-                <td>Nombre de panneaux : <b>{{ $nbPanneaux }}</b></td>
+                <td>
+                    <span class="lbl">Opérateur</span>
+                    <span class="val">{{ $operateur }}</span>
+                </td>
+                <td>
+                    <span class="lbl">Nombre de panneaux</span>
+                    <span class="val">{{ $nbPanneaux }}</span>
+                </td>
             </tr>
         </table>
 
         @if($odp->isNotEmpty())
-            @if($tm->isNotEmpty())<div class="rv-section">Occupation du domaine public (ODP)</div>@endif
-            <table class="rv-table">
+            <table class="tdoc-table tdoc-details">
                 <thead>
                     <tr>
-                        <th class="c" style="width:26pt">N°</th>
-                        <th>Panneau</th>
-                        <th class="c">Surface (m²)</th>
-                        <th class="r">Tarif (FCFA/m²/mois)</th>
-                        <th class="c">Durée (mois)</th>
-                        <th class="r">Montant (FCFA)</th>
+                        <th class="c" style="width:5%;">N°</th>
+                        <th style="width:33%;">Panneau</th>
+                        <th class="c" style="width:14%;">Surface (m²)</th>
+                        <th class="right" style="width:18%;">Tarif (FCFA/m²/mois)</th>
+                        <th class="c" style="width:13%;">Durée (mois)</th>
+                        <th class="right" style="width:17%;">Montant (FCFA)</th>
                     </tr>
                 </thead>
                 <tbody>
+                    @if($mixte)<tr class="tdoc-group"><td colspan="6">Occupation du domaine public (ODP)</td></tr>@endif
                     @foreach($odp as $i => $row)
                         <tr>
                             <td class="c">{{ $i + 1 }}</td>
-                            <td class="ref">{{ $row['reference'] }}</td>
+                            <td class="mono tdoc-ref">{{ $row['reference'] }}</td>
                             <td class="c">{{ $fmtM2($row['surface']) }}</td>
-                            <td class="r">{{ $fmt($row['rate_applied'] ?? $row['rate']) }}</td>
+                            <td class="right mono">{{ $fmt($row['rate_applied'] ?? $row['rate']) }}</td>
                             <td class="c">{{ $row['months'] }}</td>
-                            <td class="r">{{ $fmt($row['amount']) }}</td>
+                            <td class="right mono"><strong>{{ $fmt($row['amount']) }}</strong></td>
                         </tr>
                     @endforeach
-                    @if($tm->isNotEmpty())
-                        <tr class="st"><td colspan="5" class="r">Sous-total ODP</td><td class="r">{{ $fmt($odp->sum('amount')) }}</td></tr>
+                    @if($mixte)
+                        <tr class="st"><td colspan="5" class="right">Sous-total ODP</td><td class="right mono">{{ $fmt($odp->sum('amount')) }}</td></tr>
+                    @else
+                        <tr class="tdoc-total">
+                            <td colspan="5" class="right">TOTAL À PAYER</td>
+                            <td class="tdoc-amount mono">{{ $fmt($total) }}<span>FCFA</span></td>
+                        </tr>
                     @endif
                 </tbody>
             </table>
         @endif
 
         @if($tm->isNotEmpty())
-            @if($odp->isNotEmpty())<div class="rv-section">Taxe municipale (TM)</div>@endif
-            <table class="rv-table rv-tm">
+            <table class="tdoc-table tdoc-details" @if($mixte) style="margin-top:12px;" @endif>
                 <thead>
                     <tr>
-                        <th class="c" style="width:4%">N°</th>
-                        <th style="width:14%">Panneau</th>
-                        <th style="width:14%">Annonceur</th>
-                        <th style="width:14%">Campagne</th>
-                        <th style="width:13%">Affichage</th>
-                        <th class="c" style="width:8%">Surface<br>(m²)</th>
-                        <th class="r" style="width:12%">Tarif<br>(FCFA/m²/mois)</th>
-                        <th class="c" style="width:7%">Durée<br>(mois)</th>
-                        <th class="r" style="width:14%">Montant<br>(FCFA)</th>
+                        <th class="c" style="width:4%;">N°</th>
+                        <th style="width:11%;">Panneau</th>
+                        <th style="width:17%;">Annonceur</th>
+                        <th style="width:18%;">Campagne</th>
+                        <th style="width:16%;">Affichage</th>
+                        <th class="c" style="width:7%;">Surface<br>(m²)</th>
+                        <th class="right" style="width:10%;">Tarif<br>(FCFA/m²/mois)</th>
+                        <th class="c" style="width:6%;">Durée<br>(mois)</th>
+                        <th class="right" style="width:11%;">Montant<br>(FCFA)</th>
                     </tr>
                 </thead>
                 <tbody>
+                    @if($mixte)<tr class="tdoc-group"><td colspan="9">Taxe municipale (TM)</td></tr>@endif
                     @foreach($tm as $i => $row)
                         <tr>
                             <td class="c">{{ $i + 1 }}</td>
-                            <td class="ref">{{ $row['reference'] }}</td>
+                            <td class="mono tdoc-ref">{{ $row['reference'] }}</td>
                             <td>{{ $row['client_name'] ?? '—' }}</td>
                             {{-- Campagne (demande du 24/11 : « c'est important »). --}}
                             <td>{{ $row['campaign_name'] ?? '—' }}</td>
-                            <td>
+                            <td class="nowrap">
                                 @if(!empty($row['campaign_start']) && !empty($row['campaign_end']))
-                                    {{ \Carbon\Carbon::parse($row['campaign_start'])->format('d/m/Y') }} →<br>{{ \Carbon\Carbon::parse($row['campaign_end'])->format('d/m/Y') }}
+                                    {{ \Carbon\Carbon::parse($row['campaign_start'])->format('d/m/Y') }} → {{ \Carbon\Carbon::parse($row['campaign_end'])->format('d/m/Y') }}
                                 @else
                                     —
                                 @endif
                             </td>
                             <td class="c">{{ $fmtM2($row['surface']) }}</td>
-                            <td class="r">{{ $fmt($row['rate_applied'] ?? $row['rate']) }}</td>
+                            <td class="right mono">{{ $fmt($row['rate_applied'] ?? $row['rate']) }}</td>
                             <td class="c">{{ $row['months'] }}</td>
-                            <td class="r">{{ $fmt($row['amount']) }}</td>
+                            <td class="right mono"><strong>{{ $fmt($row['amount']) }}</strong></td>
                         </tr>
                     @endforeach
-                    @if($odp->isNotEmpty())
-                        <tr class="st"><td colspan="8" class="r">Sous-total TM</td><td class="r">{{ $fmt($tm->sum('amount')) }}</td></tr>
+                    @if($mixte)
+                        <tr class="st"><td colspan="8" class="right">Sous-total TM</td><td class="right mono">{{ $fmt($tm->sum('amount')) }}</td></tr>
                     @endif
+                    {{-- Montant sur deux colonnes : « 3 096 000 FCFA » tient sur une ligne. --}}
+                    <tr class="tdoc-total">
+                        <td colspan="7" class="right">TOTAL À PAYER</td>
+                        <td colspan="2" class="tdoc-amount mono">{{ $fmt($total) }}<span>FCFA</span></td>
+                    </tr>
                 </tbody>
             </table>
         @endif
-
-        <div class="rv-total-bloc">
-            <table class="rv-total">
-                <tr>
-                    <td class="l">TOTAL À PAYER</td>
-                    <td class="m">{{ $fmt($total) }}</td>
-                </tr>
-            </table>
-        </div>
 
         <div class="rv-arrete">
             Arrêté le présent relevé à la somme de
             <b>{{ \App\Support\MontantEnLettres::en((int) round($total)) }} ({{ $fmt($total) }}) francs CFA</b>.
         </div>
 
-        <div class="rv-base">
+        <div class="tdoc-note tdoc-details-fin">
             @if($odp->isNotEmpty())
-                Base de calcul{{ $tm->isNotEmpty() ? " de l'ODP" : '' }} : tarif communal × surface (m²) × nombre de mois d'occupation. Un panneau double face est compté une seule fois.
+                ■ Base de calcul{{ $mixte ? " de l'ODP" : '' }} : <b>tarif communal × surface (m²) × nombre de mois d'occupation.</b> Un panneau double face est compté une seule fois.
             @endif
             @if($tm->isNotEmpty())
-                @if($odp->isNotEmpty())<br>@endif
-                Base de calcul{{ $odp->isNotEmpty() ? ' de la TM' : '' }} : tarif communal × surface (m²) × nombre de mois d'affichage de chaque campagne.
+                @if($mixte)<br>@endif
+                ■ Base de calcul{{ $mixte ? ' de la TM' : '' }} : <b>tarif communal × surface (m²) × nombre de mois d'affichage de chaque campagne.</b>
             @endif
         </div>
     </div>
 @endforeach
+
+@include('pdf.partials.tax-doc-footer', [
+    'footerHint' => 'Tarif × Surface (m²) × Nombre de mois',
+])
 
 </body>
 </html>
