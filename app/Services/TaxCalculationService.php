@@ -562,17 +562,41 @@ class TaxCalculationService
         $colonnes = ['campaigns.id as campaign_id', 'campaigns.name as campaign_name', 'campaigns.start_date',
             'campaigns.end_date', 'clients.id as client_id', 'clients.name as client_name'];
 
-        $paires = []; // "campagne-panneau" => [ligne de campagne, panel_id, rattaché aujourd'hui ?]
+        // ═══ Campagne tenue par la LIGNE d'un axe — 2026-11-24 (règle validée) ═══
+        // Les contrats signés avant le découpage en pieds tiennent la ligne de
+        // l'axe. Le 13/11, seules les campagnes en cours sont passées sur les
+        // pieds (axes:decouper-campagnes) ; les terminées (KOTON, VOODOO à
+        // Cocody) sont restées sur la ligne. Or la ligne d'axe n'est jamais
+        // taxée (Panel::scopeAvecTaxesAutomatiques) : leur TM n'était plus
+        // comptée nulle part. Règle : une campagne qui tient la ligne d'un axe
+        // compte pour la TM de CHACUN de ses pieds, sur ses dates, comme une
+        // campagne découpée. Un pied rattaché lui-même l'emporte (compté une fois).
+        $piedsParAxe = [];
+        foreach (app(\App\Services\Axes\AxeService::class)->axeParPied($panelIds) as $pied => $axe) {
+            $piedsParAxe[(int) $axe][] = (int) $pied;
+        }
+        $idsLus = array_values(array_unique(array_merge($panelIds, array_keys($piedsParAxe))));
+
+        // "campagne-panneau" => [ligne de campagne, panel_id, rattaché aujourd'hui ?, clé de son historique]
+        $paires = [];
+        $retenir = function (iterable $lignes, bool $rattache, bool $lignesDAxe) use (&$paires, $piedsParAxe) {
+            foreach ($lignes as $r) {
+                $source = (int) $r->panel_id;
+                if (isset($piedsParAxe[$source]) !== $lignesDAxe) continue;
+                foreach ($piedsParAxe[$source] ?? [$source] as $panelId) {
+                    $paires[$r->campaign_id . '-' . $panelId] ??= [$r, $panelId, $rattache, $r->campaign_id . '-' . $source];
+                }
+            }
+        };
+
         $actuels = $campagnes(\DB::table('campaign_panels')
             ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
             ->leftJoin('clients', 'clients.id', '=', 'campaigns.client_id')
             ->where('campaign_panels.type', 'interne')
-            ->whereIn('campaign_panels.panel_id', $panelIds))
+            ->whereIn('campaign_panels.panel_id', $idsLus))
             ->select(array_merge(['campaign_panels.panel_id'], $colonnes))
             ->get();
-        foreach ($actuels as $r) {
-            $paires[$r->campaign_id . '-' . $r->panel_id] = [$r, (int) $r->panel_id, true];
-        }
+        $retenir($actuels, true, false);
 
         // ═══ Panneaux SORTIS d'une campagne — 2026-11-24 (règle validée) ═══
         // Retirer un panneau le détache de la campagne : il disparaissait de
@@ -581,23 +605,28 @@ class TaxCalculationService
         // L'historique des mouvements (depuis le 16/11) le retrouve, et la
         // TM court jusqu'à sa date réelle de sortie.
         $mouvements = collect();
+        $retires = collect();
         if (self::historiquePresent()) {
             $retires = $campagnes(\DB::table('campaign_panel_mouvements')
                 ->join('campaigns', 'campaigns.id', '=', 'campaign_panel_mouvements.campaign_id')
                 ->leftJoin('clients', 'clients.id', '=', 'campaigns.client_id')
                 ->where('campaign_panel_mouvements.sens', \App\Models\CampaignPanelMouvement::RETRAIT)
-                ->whereIn('campaign_panel_mouvements.panel_id', $panelIds))
+                ->whereIn('campaign_panel_mouvements.panel_id', $idsLus))
                 ->select(array_merge(['campaign_panel_mouvements.panel_id'], $colonnes))
                 ->distinct()
                 ->get();
-            foreach ($retires as $r) {
-                $paires[$r->campaign_id . '-' . $r->panel_id] ??= [$r, (int) $r->panel_id, false];
-            }
+            $retenir($retires, false, false);
+        }
 
+        // Lignes d'axe en dernier : le pied rattaché lui-même garde la main.
+        $retenir($actuels, true, true);
+        $retenir($retires, false, true);
+
+        if (self::historiquePresent()) {
             $champs = ['campaign_id', 'panel_id', 'sens', 'motif', 'source', 'created_at'];
             if (self::dateEffetPresente()) $champs[] = 'effet_le';
             $mouvements = \DB::table('campaign_panel_mouvements')
-                ->whereIn('panel_id', $panelIds)
+                ->whereIn('panel_id', $idsLus)
                 ->whereIn('campaign_id', array_unique(array_map(fn ($p) => (int) $p[0]->campaign_id, $paires)) ?: [0])
                 ->orderBy('id')
                 ->get($champs)
@@ -610,11 +639,12 @@ class TaxCalculationService
 
         $liste = [];
         $ordre = collect($paires)->sortBy(fn ($p) => [$p[0]->start_date, (int) $p[0]->campaign_id]);
-        foreach ($ordre as $cle => [$r, $panelId, $rattache]) {
+        foreach ($ordre as [$r, $panelId, $rattache, $cleHistorique]) {
+            // Pied d'un axe tenu par la campagne : l'historique est celui de la ligne d'axe.
             $intervalles = self::intervallesPresence(
                 Carbon::parse($r->start_date),
                 Carbon::parse($r->end_date),
-                ($mouvements[$cle] ?? collect())->map(fn ($m) => [
+                ($mouvements[$cleHistorique] ?? collect())->map(fn ($m) => [
                     'sens'   => $m->sens,
                     'motif'  => $m->motif,
                     'source' => $m->source,

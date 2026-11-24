@@ -3369,3 +3369,33 @@ php artisan tinker --execute='$c = App\Models\Campaign::where("name", "BNI 2026"
 - [ ] Taxes → Détail, Yopougon, janvier à juillet, TM : YOPCAIS-01A apparaît pour BNI 2026 (7 mois)
 - [ ] Novembre, ODP : YOPCAIS-01 n'apparaît plus
 - [ ] Fiche campagne → Retirer un panneau : la date réelle et la case « démantelé » (avec ce motif) apparaissent
+
+## § 51 — TM des campagnes tenues par la ligne d'un axe Lumipub *(2026-11-24)*
+
+Constaté à Cocody : Taxes → Détail, TM, par trimestre, case « Lumipub (pieds des axes) » cochée. **Seul BEM sortait.** Les campagnes de VOODOO et de KOTON sur les Lumipub 3 m² n'apparaissaient pas.
+
+**Cause :** les contrats signés avant le découpage des axes tiennent la **ligne de l'axe**, pas ses pieds. Le 13/11, `axes:decouper-campagnes` n'a passé sur les pieds que les campagnes en cours (BEM, MOOV, LADILI). Les campagnes terminées sont restées sur la ligne, et la ligne d'axe n'est jamais taxée : leur TM n'était comptée nulle part. Sonde en prod du 24/11 :
+
+| Campagne | Période | Axes |
+|---|---|---|
+| #50 KOTON (Lup) | 01/04 → 30/06/2026 | CDYPUB-09, CDYLUP-10 |
+| #19 VOODOO – MANSA BANK | 18/05 → 18/06/2026 | CDYLUP-002, -005, -006 |
+| #72 KOTON – SOLDES & CHIC A PETIT PRIX | 01/08 → 31/10/2026 | CDYPUB-09, CDYLUP-10 |
+
+**Règle validée le 24/11 :** une campagne qui tient la ligne d'un axe compte pour la TM de **chacun de ses pieds**, sur ses dates de campagne. Le calcul est le même que pour BEM : surface du pied × ses faces (9 m²) × tarif TM × mois de campagne.
+- Aucune donnée modifiée : les campagnes, leurs poses et leurs piges restent telles quelles.
+- Un pied rattaché lui-même à la campagne n'est compté qu'une fois.
+- La ligne d'axe n'est toujours jamais taxée.
+- Corrigé à la source (`TaxCalculationService::buildCampaignAssignmentsList`) : tous les écrans de taxes, PDF, Excel, suivi des mairies et synthèse mensuelle suivent.
+
+### À vérifier (prod)
+- [ ] Chacun des 5 axes a bien ses pieds. Un axe sans pieds ne donnerait toujours rien. Commande qui ne fait que lire :
+```sh
+php artisan tinker --execute='foreach (["CDYPUB-09","CDYLUP-10","CDYLUP-002","CDYLUP-005","CDYLUP-006"] as $ref) { $a = App\Models\Panel::where("reference", $ref)->first(); echo $ref, " : ", $a ? App\Models\Panel::where("axe_id", $a->id)->count() . " pieds, " . ($a->faces_par_pied ?: "?") . " faces" : "introuvable", PHP_EOL; }'
+```
+- [ ] Après déploiement, la TM des pieds de Cocody en T2, par campagne :
+```sh
+php artisan tinker --execute='app(App\Services\TaxCalculationService::class)->generateLines("trimestriel", 2, 2026, ["inclure_lumipub" => true, "type" => "tm", "commune_id" => App\Models\Commune::where("name", "COCODY")->value("id")])->where("est_pied", true)->groupBy("campaign_name")->each(fn ($l, $c) => print($c . " : " . $l->count() . " pieds, " . number_format($l->sum("amount"), 0, ",", " ") . " FCFA" . PHP_EOL));'
+```
+- [ ] Taxes → Détail, Cocody, TM, T2 2026, Lumipub coché : KOTON (Lup) et VOODOO – MANSA BANK apparaissent à côté de BEM
+- [ ] T3 et T4 : KOTON – SOLDES (août à octobre)
