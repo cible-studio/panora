@@ -3389,13 +3389,13 @@ Constaté à Cocody : Taxes → Détail, TM, par trimestre, case « Lumipub (pie
 - Corrigé à la source (`TaxCalculationService::buildCampaignAssignmentsList`) : tous les écrans de taxes, PDF, Excel, suivi des mairies et synthèse mensuelle suivent.
 
 ### À vérifier (prod)
-- [ ] Chacun des 5 axes a bien ses pieds. Un axe sans pieds ne donnerait toujours rien. Commande qui ne fait que lire :
+- [x] Chacun des 5 axes a bien ses pieds. Un axe sans pieds ne donnerait toujours rien. **Vu le 24/11 : CDYPUB-09 10 pieds, CDYLUP-10 2, CDYLUP-002 6, CDYLUP-005 4, CDYLUP-006 10, tous à 3 faces.** Commande qui ne fait que lire :
 ```sh
 php artisan tinker --execute='foreach (["CDYPUB-09","CDYLUP-10","CDYLUP-002","CDYLUP-005","CDYLUP-006"] as $ref) { $a = App\Models\Panel::where("reference", $ref)->first(); echo $ref, " : ", $a ? App\Models\Panel::where("axe_id", $a->id)->count() . " pieds, " . ($a->faces_par_pied ?: "?") . " faces" : "introuvable", PHP_EOL; }'
 ```
-- [ ] Après déploiement, la TM des pieds de Cocody en T2, par campagne :
+- [x] Après déploiement, la TM des pieds de Cocody en T2, par campagne. **Vu le 24/11 : BEM 28 pieds, 756 000 ; KOTON (Lup) 12 pieds, 324 000 ; VOODOO – MANSA BANK 20 pieds, 180 000 FCFA** (1 mois : la campagne va du 18/05 au 18/06, et la TM compte les mois entamés de date à date) :
 ```sh
 php artisan tinker --execute='app(App\Services\TaxCalculationService::class)->generateLines("trimestriel", 2, 2026, ["inclure_lumipub" => true, "type" => "tm", "commune_id" => App\Models\Commune::where("name", "COCODY")->value("id")])->where("est_pied", true)->groupBy("campaign_name")->each(fn ($l, $c) => print($c . " : " . $l->count() . " pieds, " . number_format($l->sum("amount"), 0, ",", " ") . " FCFA" . PHP_EOL));'
 ```
 - [ ] Taxes → Détail, Cocody, TM, T2 2026, Lumipub coché : KOTON (Lup) et VOODOO – MANSA BANK apparaissent à côté de BEM
-- [ ] T3 et T4 : KOTON – SOLDES (août à octobre)
+- [ ] T3 et T4 : KOTON – SOLDES, 12 pieds ; attendu 216 000 FCFA en T3 (août, septembre) et 108 000 en T4 (octobre), au tarif de 1 000 FCFA/m²/mois
