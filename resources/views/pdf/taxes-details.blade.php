@@ -52,11 +52,29 @@
     $trimestres   = ($periodeDebut && $periodeFin)
         ? \App\Services\TaxCalculationService::libelleTrimestres(\Carbon\Carbon::parse($periodeDebut), \Carbon\Carbon::parse($periodeFin))
         : null;
+
+    // 2026-11-24 (demande de l'utilisateur) : la ligne Opérateur · Commune ·
+    // Sélection · Panneaux est retirée ; la COMMUNE passe en tête du bandeau.
+    // Une commune : son nom. Plusieurs : leurs noms (jusqu'à 3), sinon leur
+    // nombre ; le tableau les sépare de toute façon par commune.
+    $communes = $lines->pluck('commune')->filter()->unique()->values();
+    $libelleCommunes = match (true) {
+        $communes->count() === 1 => $communes->first(),
+        $communes->count() <= 3  => $communes->implode(', '),
+        default                  => $communes->count() . ' communes',
+    };
+    $maintenanceExclue = collect($filterMeta ?? [])->contains(fn ($r) => ($r['label'] ?? null) === 'Maintenance');
 @endphp
 
 @if($periodeDebut && $periodeFin)
 <table class="tdoc-periode-bande">
     <tr>
+        @if($communes->isNotEmpty())
+            <td>
+                <span class="lbl">{{ $communes->count() > 1 ? 'Communes' : 'Commune' }}</span>
+                <span class="val">{{ mb_strtoupper($libelleCommunes) }}</span>
+            </td>
+        @endif
         @unless($odpSeule)
             <td>
                 <span class="lbl">{{ (str_contains($trimestres, ' et ') || str_contains($trimestres, ' à ')) ? 'Trimestres' : 'Trimestre' }}</span>
@@ -71,27 +89,9 @@
 </table>
 @endif
 
-{{-- Métadonnées du document : opérateur, filtres actifs (commune / client /
-     campagne / nature) puis volumétrie. La période est dans le bandeau
-     ci-dessus (2026-11-24). --}}
-@php
-    $metaCols = array_merge(
-        [
-            ['label' => 'Opérateur', 'value' => $operatorName ?? 'CIBLE CI'],
-        ],
-        collect($filterMeta ?? [])
-            ->map(fn ($r) => ['label' => $r['label'], 'value' => $r['value'], 'small' => mb_strlen($r['value']) > 22])
-            ->all(),
-        [[
-            'label' => 'Panneaux',
-            'small' => true,
-            'value' => $totals['panels_count'] . ' panneau' . ($totals['panels_count'] > 1 ? 'x' : '')
-                     . ' · ' . $totals['lines_count'] . ' ligne' . ($totals['lines_count'] > 1 ? 's' : '')
-                     . ' de facturation',
-        ]]
-    );
-@endphp
-@include('pdf.partials.tax-doc-meta', ['metaCols' => $metaCols])
+{{-- 2026-11-24 (demande de l'utilisateur) : plus de ligne Opérateur ·
+     Commune · Sélection · Panneaux sous le bandeau. La commune est dans le
+     bandeau, l'opérateur dans l'en-tête, le volume dans le total. --}}
 
 <table class="tdoc-table tdoc-details">
     <thead>
@@ -178,7 +178,7 @@
     {{-- 2026-11-18 — Corrigé : depuis le 13/11 les panneaux en maintenance
          sont INCLUS par défaut (l'ODP court tant que le mât est planté) ;
          l'ancienne phrase disait l'inverse. --}}
-    Les panneaux en maintenance sont inclus, sauf mention contraire dans les filtres ci-dessus.<br>
+    {{ $maintenanceExclue ? 'Les panneaux en maintenance ne sont pas comptés.' : 'Les panneaux en maintenance sont inclus.' }}<br>
     Les tarifs appliqués reflètent l'<b>historique tarifaire</b> de chaque commune à la date de la période —
     document fiable pour les contrôles administratifs.
 </div>
