@@ -1,16 +1,17 @@
 {{--
-    Relevé des taxes communales pour la mairie (2026-11-24, maquette de
-    l'utilisateur) — PDF du « Détail par panneau » (TaxController::detailsPdf).
+    Relevé des taxes communales pour la mairie — PDF du « Détail par panneau »
+    (TaxController::detailsPdf).
 
-    Un relevé par commune (saut de page entre deux communes), adressé au
-    maire : en-tête de la régie, destinataire, titre selon la taxe, période
-    en gras, tableau numéroté, total à payer, somme en toutes lettres, base de
-    calcul.
+    2026-11-24 : reproduit le PDF modèle fourni par l'utilisateur
+    (Releve-ODP-Yopougon-novembre-2026.pdf) — tailles, graisses et
+    espacements — SANS le bloc « À l'attention de Monsieur le Maire… » ni la
+    signature (demande explicite). Un relevé par commune, saut de page entre
+    deux communes.
       · ODP seule : « Relevé des taxes d'occupation du domaine public ».
-      · TM seule  : « Relevé de la taxe municipale », avec l'annonceur et les
-                    dates d'affichage de chaque campagne, et les trimestres.
+      · TM seule  : « Relevé de la taxe municipale » (annonceur, dates
+                    d'affichage, trimestres entre parenthèses).
       · Les deux  : deux tableaux (ODP puis TM), sous-totaux, un total.
-    Rien sur les filtres (catégories exclues, sélection…) : demande du 24/11.
+    Rien sur les filtres (catégories exclues, sélection…).
 
     Variables : $lines, $totals, $periodLabel, $periodeDebut, $periodeFin
     (bornes de TaxCalculationService::resolvePeriod, sinon celles des lignes).
@@ -20,6 +21,11 @@
     $coord     = (array) ($ch['coordonnees'] ?? []);
     $operateur = $operatorName ?? config('app.operator_name', 'CIBLE CI');
     $adresse   = array_values(array_filter(array_map('trim', explode('·', (string) ($coord['adresse'] ?? '')))));
+    // Pied de page du modèle : le numéro fixe seulement (dernier de la liste).
+    $telephones = array_values(array_filter(array_map('trim', explode('·', (string) ($coord['telephones'] ?? '')))));
+    $pied = implode(' · ', array_filter([
+        $operateur, ...$adresse, end($telephones) ?: null, $coord['email'] ?? null, $coord['site'] ?? null,
+    ]));
 
     $periodeDebut = $periodeDebut ?? $lines->min('period_start');
     $periodeFin   = $periodeFin ?? $lines->max('period_end');
@@ -43,45 +49,52 @@
 <head>
     <meta charset="UTF-8">
     <title>Relevé des taxes — {{ $periodLabel }}</title>
-    <style>@page { size: A4 portrait; margin: 12mm 14mm 20mm 14mm !important; }</style>
-    @include('pdf.partials.tax-doc-styles')
+    <style>@page { size: A4 portrait; margin: 16mm 18mm 18mm 18mm !important; }</style>
+    @include('pdf.partials.charte-styles')
     <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:{!! $ch['ff_texte'] !!}; font-size:10pt; color:#111111; }
         .rv-saut { page-break-before: always; }
-        .rv-tete { width:100%; border-collapse:collapse; margin-top:8px; }
+        .lisere { width:100%; border-collapse:collapse; margin-bottom:12pt; }
+        .lisere td { height:3.5pt; padding:0; }
+        .rv-tete { width:100%; border-collapse:collapse; }
         .rv-tete td { vertical-align:top; padding:0; }
-        .rv-tete img { height:34px; display:block; }
-        .rv-regie { text-align:right; font-size:9.5px; line-height:1.35; color:{{ $ch['texte_doux'] }}; }
-        .rv-regie strong { font-size:11px; color:{{ $ch['noir'] }}; }
-        .rv-filet { height:0.8pt; background:{{ $ch['noir'] }}; margin:10px 0 14px; }
-        .rv-dest { width:100%; border-collapse:collapse; margin-bottom:16px; }
-        .rv-dest td { vertical-align:top; padding:0; font-size:11px; line-height:1.35; }
-        .rv-dest .petit { font-size:9px; color:{{ $ch['texte_pale'] }}; }
-        .rv-dest .date { text-align:right; font-size:11px; }
-        .rv-titre { font-family:{!! $ch['ff_titres'] !!}; font-size:15px; font-weight:700; letter-spacing:.3px; color:{{ $ch['noir'] }}; text-transform:uppercase; }
-        .rv-soustitre { font-size:10px; color:{{ $ch['texte_doux'] }}; margin:2px 0 12px; }
-        .rv-periode { border-top:1.2pt solid {{ $ch['noir'] }}; border-bottom:0.6pt solid {{ $ch['noir'] }}; padding:8px 0 7px; margin-bottom:9px; }
-        .rv-periode .v { font-family:{!! $ch['ff_titres'] !!}; font-size:14px; font-weight:700; color:{{ $ch['noir'] }}; }
-        .rv-periode .s { font-size:9.5px; color:{{ $ch['texte_doux'] }}; margin-left:6px; }
-        .rv-infos { border-collapse:collapse; margin-bottom:8px; }
-        .rv-infos td { font-size:9.5px; color:{{ $ch['texte_doux'] }}; padding:0 26px 0 0; }
-        .rv-infos b { color:{{ $ch['noir'] }}; }
-        .rv-section { font-family:{!! $ch['ff_titres'] !!}; font-size:10.5px; font-weight:700; margin:12px 0 2px; color:{{ $ch['noir'] }}; }
-        .rv-table { width:100%; border-collapse:collapse; margin-bottom:4px; }
-        .rv-table th { font-size:7.5px; letter-spacing:.5px; text-transform:uppercase; color:{{ $ch['texte_doux'] }}; text-align:left; padding:7px 6px; border-bottom:0.6pt solid {{ $ch['noir'] }}; font-weight:700; }
-        .rv-table td { font-size:9.5px; padding:6px 6px; border-bottom:0.4pt solid {{ $ch['gris'] }}; vertical-align:top; }
-        .rv-table th.r, .rv-table td.r { text-align:right; }
-        .rv-table th.c, .rv-table td.c { text-align:center; }
-        .rv-table .ref { font-family:{!! $ch['ff_titres'] !!}; font-weight:700; }
-        .rv-table .n { color:{{ $ch['texte_pale'] }}; width:18px; }
+        .rv-tete img { height:36pt; display:block; }
+        .rv-regie { text-align:right; font-size:8pt; color:#3d3d3d; }
+        .rv-regie div { line-height:9pt; margin:0; padding:0; }
+        .rv-regie .nom { font-size:9pt; font-weight:800; color:#111111; }
+        .rv-filet { height:1pt; background:#111111; margin:9pt 0 12pt; }
+        .rv-date { text-align:right; font-size:10.5pt; margin-bottom:22pt; }
+        .rv-titre { font-family:{!! $ch['ff_titres'] !!}; font-size:15pt; font-weight:700; color:#111111; text-transform:uppercase; }
+        .rv-soustitre { font-size:10pt; color:#3d3d3d; margin:3pt 0 14pt; }
+        .rv-periode { border-top:2pt solid #111111; border-bottom:1.2pt solid #111111; padding:7pt 0 7pt; margin-bottom:12pt; }
+        .rv-periode .v { font-family:{!! $ch['ff_titres'] !!}; font-size:13pt; font-weight:700; color:#111111; }
+        .rv-periode .s { font-size:8.5pt; font-weight:700; color:#3d3d3d; margin-left:6pt; }
+        .rv-infos { border-collapse:collapse; margin-bottom:10pt; }
+        .rv-infos td { font-size:9.5pt; color:#3d3d3d; padding:0 26pt 0 0; }
+        .rv-infos b { color:#111111; font-weight:800; }
+        .rv-section { font-family:{!! $ch['ff_titres'] !!}; font-size:10.5pt; font-weight:700; margin:12pt 0 2pt; color:#111111; }
+        .rv-table { width:100%; border-collapse:collapse; }
+        .rv-table th { font-size:8pt; font-weight:800; text-transform:uppercase; color:#2b2b2b; text-align:left; padding:6pt 6pt; border-bottom:0.8pt solid #111111; }
+        .rv-table td { font-size:10pt; padding:7pt 6pt; border-bottom:0.5pt solid #d6d6d6; vertical-align:top; }
+        .rv-table .r { text-align:right; }
+        .rv-table .c { text-align:center; }
+        .rv-table .ref { font-weight:800; letter-spacing:.3pt; }
         .rv-table tr { page-break-inside:avoid; }
         .rv-table tr.st td { font-weight:700; border-bottom:none; }
-        .rv-total { width:100%; border-collapse:collapse; border-top:1.2pt solid {{ $ch['noir'] }}; border-bottom:1.2pt solid {{ $ch['noir'] }}; margin-top:6px; page-break-inside:avoid; }
-        .rv-total td { padding:8px 6px; font-family:{!! $ch['ff_titres'] !!}; font-weight:700; font-size:12px; text-align:right; }
-        .rv-arrete { font-size:10.5px; margin-top:12px; page-break-inside:avoid; }
-        .rv-base { font-size:8.5px; color:{{ $ch['texte_doux'] }}; margin-top:8px; line-height:1.5; }
+        .rv-total { width:100%; border-collapse:collapse; border-bottom:2pt solid #111111; page-break-inside:avoid; }
+        .rv-total td { padding:8pt 6pt; font-weight:800; text-align:right; }
+        .rv-total .l { font-size:10.5pt; }
+        .rv-total .m { font-size:11.5pt; width:95pt; }
+        .rv-arrete { font-size:10pt; margin-top:15pt; page-break-inside:avoid; }
+        .rv-base { font-size:8.5pt; color:#3d3d3d; margin-top:9pt; line-height:1.45; }
+        .rv-pied { position:fixed; left:0; right:0; bottom:-10mm; border-top:0.5pt solid #cfcfcf; padding-top:5pt;
+                   font-size:7pt; color:#555555; white-space:nowrap; }
     </style>
 </head>
 <body>
+
+<div class="rv-pied">{{ $pied }}</div>
 
 @foreach($parCommune as $commune => $lignesCommune)
     @php
@@ -96,30 +109,24 @@
         };
     @endphp
     <div class="{{ $loop->first ? 'rv' : 'rv rv-saut' }}">
-        @include('pdf.partials.charte-lisere')
+        <table class="lisere"><tr>
+            @foreach($ch['lisere'] as $couleur)<td style="background:{{ $couleur }}"></td>@endforeach
+        </tr></table>
 
         <table class="rv-tete">
             <tr>
                 <td>@if(!empty($logoCibleLight))<img src="{{ $logoCibleLight }}" alt="{{ $ch['nom'] }}">@endif</td>
                 <td class="rv-regie">
-                    <strong>{{ $operateur }}</strong><br>
-                    {{ $coord['metier'] ?? '' }}
-                    @foreach($adresse as $ligneAdresse)<br>{{ $ligneAdresse }}{{ $loop->last ? ' – Côte d\'Ivoire' : '' }}@endforeach
+                    <div class="nom">{{ $operateur }}</div>
+                    {{-- Mention du modèle validé par l'utilisateur (24/11). --}}
+                    <div>Régie publicitaire</div>
+                    @foreach($adresse as $ligneAdresse)<div>{{ $ligneAdresse }}{{ $loop->last ? ' – Côte d\'Ivoire' : '' }}</div>@endforeach
                 </td>
             </tr>
         </table>
         <div class="rv-filet"></div>
 
-        <table class="rv-dest">
-            <tr>
-                <td>
-                    <span class="petit">À l'attention de</span><br>
-                    <strong>Monsieur le Maire</strong><br>
-                    <strong>de la Commune {{ $deCommune($commune) }}</strong>
-                </td>
-                <td class="date">Abidjan, le {{ $dateDoc }}</td>
-            </tr>
-        </table>
+        <div class="rv-date">Abidjan, le {{ $dateDoc }}</div>
 
         <div class="rv-titre">{{ $titre }}</div>
         <div class="rv-soustitre">{{ $sousTitre }}</div>
@@ -145,7 +152,7 @@
             <table class="rv-table">
                 <thead>
                     <tr>
-                        <th class="n">N°</th>
+                        <th class="c" style="width:26pt">N°</th>
                         <th>Panneau</th>
                         <th class="c">Surface (m²)</th>
                         <th class="r">Tarif (FCFA/m²/mois)</th>
@@ -156,7 +163,7 @@
                 <tbody>
                     @foreach($odp as $i => $row)
                         <tr>
-                            <td class="n">{{ $i + 1 }}</td>
+                            <td class="c">{{ $i + 1 }}</td>
                             <td class="ref">{{ $row['reference'] }}</td>
                             <td class="c">{{ $fmtM2($row['surface']) }}</td>
                             <td class="r">{{ $fmt($row['rate_applied'] ?? $row['rate']) }}</td>
@@ -176,7 +183,7 @@
             <table class="rv-table">
                 <thead>
                     <tr>
-                        <th class="n">N°</th>
+                        <th class="c" style="width:26pt">N°</th>
                         <th>Panneau</th>
                         <th>Annonceur</th>
                         <th>Affichage</th>
@@ -189,7 +196,7 @@
                 <tbody>
                     @foreach($tm as $i => $row)
                         <tr>
-                            <td class="n">{{ $i + 1 }}</td>
+                            <td class="c">{{ $i + 1 }}</td>
                             <td class="ref">{{ $row['reference'] }}</td>
                             <td>{{ $row['client_name'] ?? '—' }}</td>
                             <td style="white-space:nowrap">
@@ -214,8 +221,8 @@
 
         <table class="rv-total">
             <tr>
-                <td>TOTAL À PAYER</td>
-                <td style="width:110px">{{ $fmt($total) }}</td>
+                <td class="l">TOTAL À PAYER</td>
+                <td class="m">{{ $fmt($total) }}</td>
             </tr>
         </table>
 
@@ -235,8 +242,6 @@
         </div>
     </div>
 @endforeach
-
-@include('pdf.partials.charte-footer')
 
 </body>
 </html>

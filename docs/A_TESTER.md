@@ -3309,8 +3309,8 @@ Refusé si la fiche donne toujours la même adresse, si elle n'en donne aucune, 
 
 ## § 49 — PDF du détail des taxes = relevé pour la mairie *(2026-11-24)*
 
-Selon la maquette de l'utilisateur, le PDF de l'écran Taxes → Détail par panneau est un **relevé adressé au maire**, en portrait, avec **un relevé par commune** (nouvelle page à chaque commune) :
-- **En-tête :** régie et adresse, « À l'attention de Monsieur le Maire de la Commune de … », « Abidjan, le … » ;
+Le PDF de l'écran Taxes → Détail par panneau reproduit le **PDF modèle de l'utilisateur** (Releve-ODP-Yopougon-novembre-2026.pdf), en portrait, avec **un relevé par commune** (nouvelle page à chaque commune). Le **bloc « À l'attention de Monsieur le Maire… » et la signature sont retirés**, à sa demande. Polices de la charte (Poppins, Nunito), tailles et graisses du modèle :
+- **En-tête :** « CIBLE CI · Régie publicitaire » et adresse, puis « Abidjan, le … » à droite ;
 - **Titre selon la taxe :**
   - ODP : « Relevé des taxes d'occupation du domaine public » ;
   - TM : « Relevé de la taxe municipale » ;
@@ -3321,6 +3321,7 @@ Selon la maquette de l'utilisateur, le PDF de l'écran Taxes → Détail par pan
   - en plus pour la TM : Annonceur et dates d'affichage ;
 - **Total à payer** et **« Arrêté le présent relevé à la somme de … francs CFA »**, en lettres ;
 - **Base de calcul** en bas ;
+- **Pied de page sur une ligne :** régie · adresse · téléphone fixe · e-mail · site ;
 - **Plus aucune mention des catégories exclues** (chevalets…), ni sur l'Excel.
 
 Les montants en lettres viennent de `App\Support\MontantEnLettres`, partagé avec le devis. Au passage, « deux cent mille » et « quatre-vingt mille » sont corrigés (avant : « deux cents mille »).
