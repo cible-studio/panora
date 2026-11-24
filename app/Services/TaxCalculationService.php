@@ -780,6 +780,37 @@ class TaxCalculationService
     }
 
     /**
+     * Trimestres d'une période, écrits en toutes lettres (2026-11-24, relevé
+     * de TM pour la mairie) : « Trimestre 1 : de janvier à mars 2026 »,
+     * « Trimestre 2 : d'avril à juin 2026 ». Un trimestre entamé seulement
+     * donne ses mois couverts (« Trimestre 4 : novembre 2026 »).
+     *
+     * @return list<string>
+     */
+    public static function trimestresEnLettres(Carbon $debut, Carbon $fin): array
+    {
+        $mois = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août',
+            'septembre', 'octobre', 'novembre', 'décembre'];
+        $de = fn (string $m) => preg_match('/^[aeiouéè]/u', $m) ? "d'{$m}" : "de {$m}";
+
+        $lignes = [];
+        $curseur = $debut->copy()->startOfMonth();
+        while ($curseur->lte($fin)) {
+            $t = intdiv($curseur->month - 1, 3) + 1;
+            $finTrimestre = $curseur->copy()->month($t * 3)->endOfMonth();
+            $dernier = $finTrimestre->lt($fin) ? $finTrimestre : $fin->copy();
+            $m1 = $mois[$curseur->month - 1];
+            $m2 = $mois[$dernier->month - 1];
+            $lignes[] = "Trimestre {$t} : " . ($curseur->month === $dernier->month
+                ? "{$m1} {$dernier->year}"
+                : $de($m1) . " à {$m2} {$dernier->year}");
+            $curseur = $finTrimestre->copy()->addDay()->startOfMonth();
+        }
+
+        return $lignes;
+    }
+
+    /**
      * Agrégation des lignes pour les KPI / résumés. Évite d'avoir à
      * reparcourir la collection manuellement à chaque vue.
      *

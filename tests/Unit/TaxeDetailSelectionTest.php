@@ -149,7 +149,13 @@ class TaxeDetailSelectionTest extends TestCase
         $html = $this->releve([$this->ligneReleve('YOPOUGON', 'YOP-CH002', 2, 'tm', 20, 'CLIENT ESSAI')]);
 
         $this->assertStringContainsString('Relevé de la taxe municipale', $html);
-        $this->assertStringContainsString('(T4 2026)', $html, 'TM : les trimestres');
+        $this->assertStringContainsString('<div class="rv-trim">Trimestre 4 : novembre 2026</div>', $html, 'TM : trimestres en toutes lettres');
+        $this->assertStringContainsString('>Campagne<', $html, 'TM : la campagne');
+        $this->assertStringContainsString('Campagne essai', $html);
+        $this->assertSame(
+            ['Trimestre 1 : de janvier à mars 2026', "Trimestre 2 : d'avril à juin 2026"],
+            TaxCalculationService::trimestresEnLettres(\Illuminate\Support\Carbon::create(2026, 1, 1), \Illuminate\Support\Carbon::create(2026, 6, 30))
+        );
         $this->assertStringContainsString('>Annonceur<', $html);
         $this->assertStringContainsString('CLIENT ESSAI', $html);
         $this->assertStringContainsString('01/11/2026 →<br>31/12/2026', $html);
