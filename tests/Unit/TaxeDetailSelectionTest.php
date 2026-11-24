@@ -126,8 +126,13 @@ class TaxeDetailSelectionTest extends TestCase
             $this->ligneReleve('YOPOUGON', 'YOP-CH002', 2, 'odp', 20),
         ]);
 
-        $this->assertStringContainsString('Monsieur le Maire', $html);
-        $this->assertStringContainsString('de la Commune de Yopougon', $html);
+        // Modèle de l'utilisateur, sans « À l'attention de Monsieur le Maire… »
+        // ni signature (demande du 24/11).
+        $this->assertStringNotContainsString('Monsieur le Maire', $html);
+        $this->assertStringNotContainsString('Signature', $html);
+        $this->assertStringContainsString('Régie publicitaire', $html);
+        $this->assertStringContainsString('Abidjan, le ', $html);
+        $this->assertStringContainsString('sur le territoire de la Commune de Yopougon', $html);
         $this->assertStringContainsString("Relevé des taxes d'occupation du domaine public", $html);
         $this->assertStringContainsString('Période : du 01/11/2026 au 30/11/2026', $html);
         $this->assertStringContainsString('(novembre 2026)', $html);
@@ -159,8 +164,8 @@ class TaxeDetailSelectionTest extends TestCase
             $this->ligneReleve('YOPOUGON', 'YOP-CH001', 1, 'odp', 6),
         ]);
 
-        $this->assertStringContainsString("de la Commune d'Adjame", $html, "« d' » devant une voyelle");
-        $this->assertStringContainsString('de la Commune de Yopougon', $html);
+        $this->assertStringContainsString("Commune d'Adjame", $html, "« d' » devant une voyelle");
+        $this->assertStringContainsString('Commune de Yopougon', $html);
         $this->assertSame(1, substr_count($html, 'class="rv rv-saut"'), 'la seconde commune commence une nouvelle page');
         $this->assertStringContainsString('Sous-total ODP', $html);
         $this->assertStringContainsString('Sous-total TM', $html);
