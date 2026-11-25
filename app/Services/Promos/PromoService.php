@@ -26,16 +26,19 @@ class PromoService
     }
 
     /**
-     * Lien « mailto: » de la réponse préremplie, avec le format choisi.
+     * Lien « mailto: » de la réponse préremplie, avec le format choisi, et
+     * les adresses en copie (PROMO_COPIE, 25/11) déjà remplies.
      * Espaces en %20 (pas « + ») : les messageries l'exigent.
      */
     public function lienReponse(array $promo, ?string $format = null): string
     {
         $libelle = $format ? ($promo['formats'][$format]['libelle'] ?? '') : '';
         $message = str_replace(':format', $libelle, (string) ($promo['message'] ?? ''));
+        $copie   = array_values(array_filter((array) ($promo['copie'] ?? []), fn ($a) => filter_var($a, FILTER_VALIDATE_EMAIL)));
 
-        return 'mailto:' . $promo['email']
-            . '?subject=' . rawurlencode((string) $promo['sujet'])
+        return 'mailto:' . $promo['email'] . '?'
+            . ($copie ? 'cc=' . implode(',', $copie) . '&' : '')
+            . 'subject=' . rawurlencode((string) $promo['sujet'])
             . '&body=' . rawurlencode($message);
     }
 

@@ -41,6 +41,19 @@ class PromoPageTest extends TestCase
         $this->assertSame(16, strlen($clic->visiteur), "empreinte courte, pas l'adresse IP");
     }
 
+    /** PROMO_COPIE (25/11) : les adresses en copie sont déjà remplies dans le mail prérempli. */
+    public function test_les_adresses_en_copie(): void
+    {
+        config(['promos.interieur-35.copie' => ['premier@exemple.ci', 'pas-une-adresse', 'second@exemple.ci']]);
+
+        $html = html_entity_decode($this->withHeader('User-Agent', self::NAVIGATEUR)->get('/offre/interieur-35/12m2')->getContent(), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $this->assertStringContainsString('mailto:commercial@cible-ci.com?cc=premier@exemple.ci,second@exemple.ci&subject=', $html, 'une adresse invalide est écartée');
+        $this->assertSame(4, substr_count($html, '?cc=premier@exemple.ci,second@exemple.ci&'), 'le bouton et les trois formats');
+
+        config(['promos.interieur-35.copie' => []]);
+        $this->assertStringNotContainsString('cc=', app(PromoService::class)->lienReponse(config('promos.interieur-35')));
+    }
+
     public function test_sans_format_et_format_inconnu(): void
     {
         $this->withHeader('User-Agent', self::NAVIGATEUR)->get('/offre/interieur-35')->assertOk();
