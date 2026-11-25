@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<!--
+  Mail de promotion « -35 % sur nos panneaux à l'intérieur du pays »
+  (affiches de la direction, docs/emails clients/panneau interieur, 25/11/2026).
+  Campagne Brevo envoyée à la main, liste « Clients ».
+
+  Même habillage que la promo Black Friday du 18/11 (promo-black-friday-2026.html).
+  À coller tel quel dans Brevo → Campagnes → Créer → E-mail → contenu en code HTML.
+  Images servies par Panora (https://panora-cible.com/images/cible/promos/…)
+  une fois main déployé :
+    · interieur-35-2026.jpg : l'affiche (celle dont le numéro est net, panneau 12 m²) ;
+    · interieur-35-2026-50m2 / -12m2 / -6m2.jpg : gros plans des trois affiches.
+  L'affiche, chaque format et le bouton ouvrent un mail de réponse prérempli
+  vers commercial@ (le format est déjà écrit quand on clique sur une photo) :
+  Brevo compte chaque clic, client par client, et montre quel format intéresse.
+  Numéro de la promo : 07 69 30 46 02 (celui des affiches), avec lien d'appel.
+  Objet à saisir dans Brevo : « En ce moment : -35 % sur nos panneaux à
+  l'intérieur du pays ! »
+  Attributs Brevo utilisés : contact.CONTACT, unsubscribe. (Écrits ici sans accolades.)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<title>En ce moment : -35 % sur nos panneaux à l'intérieur du pays !</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F4F4F2;">
+<div style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">50 m², 12 m² ou 6 m² : la puissance d'un réseau national au service de votre visibilité.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F4F2;">
+<tr><td align="center" style="padding:24px 12px;">
+<!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px; margin:0 auto; background-color:#FFFFFF; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:23px; color:#111111;">
+
+<!-- Liseré aux 5 couleurs -->
+<tr><td style="padding:0; font-size:0; line-height:0;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td width="20%" height="5" style="height:5px; background-color:#E20613; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="20%" height="5" style="height:5px; background-color:#FAB80B; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="20%" height="5" style="height:5px; background-color:#3AA835; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="20%" height="5" style="height:5px; background-color:#3F7FC0; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="20%" height="5" style="height:5px; background-color:#81358A; font-size:0; line-height:0;">&nbsp;</td>
+  </tr></table>
+</td></tr>
+
+<tr><td align="center" style="padding:26px 28px 6px 28px; font-size:12px; line-height:18px; font-weight:bold; letter-spacing:2px; color:#E20613; text-align:center;">
+  EN CE MOMENT CHEZ CIBLE
+</td></tr>
+
+<tr><td align="center" style="padding:0 28px 18px 28px; font-size:24px; line-height:31px; font-weight:bold; color:#111111; text-align:center;">
+  <span style="color:#E20613;">-35&nbsp;%</span> SUR NOS PANNEAUX<br>À L'INTÉRIEUR DU PAYS&nbsp;!
+</td></tr>
+
+<tr><td style="padding:0 28px 14px 28px;">
+  Bonjour {{ contact.CONTACT | default : "Madame, Monsieur" }},
+</td></tr>
+
+<tr><td style="padding:0 28px 22px 28px;">
+  Et si votre marque se faisait voir <strong>au-delà d'Abidjan</strong>&nbsp;? En ce moment, CIBLE vous offre <strong>35&nbsp;% de réduction</strong> sur ses panneaux à l'intérieur du pays, en <strong>50&nbsp;m², 12&nbsp;m² ou 6&nbsp;m²</strong>.
+</td></tr>
+
+<!-- Affiche, cliquable vers une réponse préremplie -->
+<tr><td style="padding:0 28px 24px 28px;">
+  <a href="mailto:commercial@cible-ci.com?subject=Offre%20-35%20%25%20%E2%80%94%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays&amp;body=Bonjour%2C%0A%0AJe%20suis%20int%C3%A9ress%C3%A9(e)%20par%20l'offre%20de%2035%20%25%20de%20r%C3%A9duction%20sur%20vos%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays.%0A%0AFormat%20souhait%C3%A9%20(50%20m%C2%B2%2C%2012%20m%C2%B2%20ou%206%20m%C2%B2)%20%3A%20%0AVille(s)%20%3A%20%0AP%C3%A9riode%20%3A%20%0A%0A" target="_blank" style="text-decoration:none;">
+    <img src="https://panora-cible.com/images/cible/promos/interieur-35-2026.jpg" width="544" alt="En ce moment, 35 % de réduction sur nos panneaux à l'intérieur du pays. Contactez-nous au 07 69 30 46 02 pour réserver vos 50 m², 12 m² ou 6 m²." border="0" style="display:block; width:100%; max-width:544px; height:auto; border:0; border-radius:6px; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#555555;">
+  </a>
+</td></tr>
+
+<!-- Les trois formats : chaque photo ouvre la réponse avec son format -->
+<tr><td align="center" style="padding:0 28px 10px 28px; font-size:12px; line-height:18px; font-weight:bold; letter-spacing:2px; color:#555555; text-align:center;">
+  CHOISISSEZ VOTRE FORMAT
+</td></tr>
+<tr><td style="padding:0 24px 24px 24px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td width="33%" valign="top" align="center" style="padding:0 4px; text-align:center;">
+      <a href="mailto:commercial@cible-ci.com?subject=Offre%20-35%20%25%20%E2%80%94%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays&amp;body=Bonjour%2C%0A%0AJe%20suis%20int%C3%A9ress%C3%A9(e)%20par%20l'offre%20de%2035%20%25%20de%20r%C3%A9duction%20sur%20vos%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays.%0A%0AFormat%20souhait%C3%A9%20(50%20m%C2%B2%2C%2012%20m%C2%B2%20ou%206%20m%C2%B2)%20%3A%2050%20m%C2%B2%0AVille(s)%20%3A%20%0AP%C3%A9riode%20%3A%20%0A%0A" target="_blank" style="text-decoration:none; color:#111111;">
+        <img src="https://panora-cible.com/images/cible/promos/interieur-35-2026-50m2.jpg" width="168" alt="Panneau grand format 50 m² CIBLE" border="0" style="display:block; width:100%; max-width:168px; height:auto; border:0; border-radius:4px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#555555;">
+        <span style="display:block; padding-top:8px; font-size:17px; line-height:22px; font-weight:bold; color:#E20613;">50&nbsp;m²</span>
+        <span style="display:block; font-size:12px; line-height:17px; color:#555555;">Grand format, en bord de route</span>
+      </a>
+    </td>
+    <td width="33%" valign="top" align="center" style="padding:0 4px; text-align:center;">
+      <a href="mailto:commercial@cible-ci.com?subject=Offre%20-35%20%25%20%E2%80%94%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays&amp;body=Bonjour%2C%0A%0AJe%20suis%20int%C3%A9ress%C3%A9(e)%20par%20l'offre%20de%2035%20%25%20de%20r%C3%A9duction%20sur%20vos%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays.%0A%0AFormat%20souhait%C3%A9%20(50%20m%C2%B2%2C%2012%20m%C2%B2%20ou%206%20m%C2%B2)%20%3A%2012%20m%C2%B2%0AVille(s)%20%3A%20%0AP%C3%A9riode%20%3A%20%0A%0A" target="_blank" style="text-decoration:none; color:#111111;">
+        <img src="https://panora-cible.com/images/cible/promos/interieur-35-2026-12m2.jpg" width="168" alt="Panneau 12 m² CIBLE" border="0" style="display:block; width:100%; max-width:168px; height:auto; border:0; border-radius:4px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#555555;">
+        <span style="display:block; padding-top:8px; font-size:17px; line-height:22px; font-weight:bold; color:#E20613;">12&nbsp;m²</span>
+        <span style="display:block; font-size:12px; line-height:17px; color:#555555;">Au cœur de la ville</span>
+      </a>
+    </td>
+    <td width="33%" valign="top" align="center" style="padding:0 4px; text-align:center;">
+      <a href="mailto:commercial@cible-ci.com?subject=Offre%20-35%20%25%20%E2%80%94%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays&amp;body=Bonjour%2C%0A%0AJe%20suis%20int%C3%A9ress%C3%A9(e)%20par%20l'offre%20de%2035%20%25%20de%20r%C3%A9duction%20sur%20vos%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays.%0A%0AFormat%20souhait%C3%A9%20(50%20m%C2%B2%2C%2012%20m%C2%B2%20ou%206%20m%C2%B2)%20%3A%206%20m%C2%B2%0AVille(s)%20%3A%20%0AP%C3%A9riode%20%3A%20%0A%0A" target="_blank" style="text-decoration:none; color:#111111;">
+        <img src="https://panora-cible.com/images/cible/promos/interieur-35-2026-6m2.jpg" width="168" alt="Panneau 6 m² CIBLE" border="0" style="display:block; width:100%; max-width:168px; height:auto; border:0; border-radius:4px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#555555;">
+        <span style="display:block; padding-top:8px; font-size:17px; line-height:22px; font-weight:bold; color:#E20613;">6&nbsp;m²</span>
+        <span style="display:block; font-size:12px; line-height:17px; color:#555555;">Au plus près des passants</span>
+      </a>
+    </td>
+  </tr>
+  </table>
+</td></tr>
+
+<!-- L'essentiel -->
+<tr><td style="padding:0 28px 22px 28px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:14px; line-height:20px;">
+  <tr>
+    <td width="40%" valign="top" style="padding:10px 8px 10px 0; border-top:1px solid #E6E6E6; color:#555555;">&#128205; Où</td>
+    <td valign="top" style="padding:10px 0; border-top:1px solid #E6E6E6;"><strong>Nos panneaux à l'intérieur du pays</strong></td>
+  </tr>
+  <tr>
+    <td valign="top" style="padding:10px 8px 10px 0; border-top:1px solid #E6E6E6; color:#555555;">&#128208; Formats</td>
+    <td valign="top" style="padding:10px 0; border-top:1px solid #E6E6E6;"><strong>50&nbsp;m², 12&nbsp;m² ou 6&nbsp;m²</strong></td>
+  </tr>
+  <tr>
+    <td valign="top" style="padding:10px 8px 10px 0; border-top:1px solid #E6E6E6; color:#555555;">&#128176; Offre</td>
+    <td valign="top" style="padding:10px 0; border-top:1px solid #E6E6E6;"><strong style="color:#E20613;">-35&nbsp;% de réduction</strong></td>
+  </tr>
+  <tr>
+    <td valign="top" style="padding:10px 8px 10px 0; border-top:1px solid #E6E6E6; border-bottom:1px solid #E6E6E6; color:#555555;">&#128222; Réservation</td>
+    <td valign="top" style="padding:10px 0; border-top:1px solid #E6E6E6; border-bottom:1px solid #E6E6E6;"><a href="tel:+2250769304602" style="color:#111111; text-decoration:none;"><strong>07&nbsp;69&nbsp;30&nbsp;46&nbsp;02</strong></a></td>
+  </tr>
+  </table>
+</td></tr>
+
+<tr><td align="center" style="padding:0 28px 22px 28px; font-size:17px; line-height:24px; font-weight:bold; text-align:center;">
+  La puissance d'un <span style="color:#E20613;">réseau national</span><br>au service de votre <span style="color:#E20613;">visibilité</span>.
+</td></tr>
+
+<!-- Bouton : réponse préremplie (clic suivi dans Brevo) -->
+<tr><td align="center" style="padding:0 28px 26px 28px;">
+  <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+  <tr><td align="center" bgcolor="#E20613" style="border-radius:6px; background-color:#E20613;">
+    <a href="mailto:commercial@cible-ci.com?subject=Offre%20-35%20%25%20%E2%80%94%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays&amp;body=Bonjour%2C%0A%0AJe%20suis%20int%C3%A9ress%C3%A9(e)%20par%20l'offre%20de%2035%20%25%20de%20r%C3%A9duction%20sur%20vos%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays.%0A%0AFormat%20souhait%C3%A9%20(50%20m%C2%B2%2C%2012%20m%C2%B2%20ou%206%20m%C2%B2)%20%3A%20%0AVille(s)%20%3A%20%0AP%C3%A9riode%20%3A%20%0A%0A" target="_blank" style="display:inline-block; padding:14px 28px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:20px; font-weight:bold; color:#FFFFFF; text-decoration:none; border-radius:6px;">Je réserve mon panneau</a>
+  </td></tr>
+  </table>
+</td></tr>
+
+<tr><td align="center" style="padding:0 28px 8px 28px; font-size:17px; line-height:24px; font-weight:bold; text-align:center;">
+  Intéressé(e)&nbsp;? Ne laissez pas passer cette offre&nbsp;!
+</td></tr>
+<tr><td align="center" style="padding:0 28px 22px 28px; text-align:center;">
+  Répondez directement à cet email ou contactez-nous au<br>
+  <a href="tel:+2250769304602" style="color:#111111; text-decoration:none;"><strong>07&nbsp;69&nbsp;30&nbsp;46&nbsp;02</strong></a> pour réserver vos panneaux.<br>
+  Notre équipe vous confirme les disponibilités <strong>sous 1&nbsp;heure ouvrée</strong>.
+</td></tr>
+
+<!-- Signature -->
+<tr><td align="center" style="padding:0 28px 26px 28px; text-align:center;">
+  <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 10px auto;"><tr>
+    <td width="12" height="3" style="width:12px; height:3px; background-color:#E20613; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="12" height="3" style="width:12px; height:3px; background-color:#FAB80B; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="12" height="3" style="width:12px; height:3px; background-color:#3AA835; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="12" height="3" style="width:12px; height:3px; background-color:#3F7FC0; font-size:0; line-height:0;">&nbsp;</td>
+    <td width="12" height="3" style="width:12px; height:3px; background-color:#81358A; font-size:0; line-height:0;">&nbsp;</td>
+  </tr></table>
+  <strong>CIBLE</strong> – <em>Vous visez juste.</em><br>
+  <span style="font-size:13px; line-height:20px; color:#555555;">
+    Régie &amp; Studio Créatif · Côte d'Ivoire · depuis 1994<br>
+    +225&nbsp;07&nbsp;98&nbsp;49&nbsp;66&nbsp;74 · +225&nbsp;07&nbsp;00&nbsp;78&nbsp;06&nbsp;27 · +225&nbsp;27&nbsp;22&nbsp;20&nbsp;80&nbsp;08<br>
+    commercial@cible-ci.com · cible-ci.com
+  </span>
+</td></tr>
+
+<!-- Pied : désinscription obligatoire -->
+<tr><td align="center" style="border-top:1px solid #E6E6E6; padding:14px 28px 18px 28px; font-size:12px; line-height:18px; color:#777777; text-align:center;">
+  Vous recevez ce mail en tant que client de CIBLE.
+  <a href="{{ unsubscribe }}" style="color:#777777; text-decoration:underline;">Se désinscrire</a>
+</td></tr>
+
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr>
+</table>
+</body>
+</html>
