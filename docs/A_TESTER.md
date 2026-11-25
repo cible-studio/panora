@@ -3399,3 +3399,18 @@ php artisan tinker --execute='app(App\Services\TaxCalculationService::class)->ge
 ```
 - [ ] Taxes → Détail, Cocody, TM, T2 2026, Lumipub coché : KOTON (Lup) et VOODOO – MANSA BANK apparaissent à côté de BEM
 - [ ] T3 et T4 : KOTON – SOLDES, 12 pieds ; attendu 216 000 FCFA en T3 (août, septembre) et 108 000 en T4 (octobre), au tarif de 1 000 FCFA/m²/mois
+
+## § 52 — Page d'arrivée des mails de promotion, qui compte les clics *(2026-11-25)*
+
+Les liens « mailto: » d'un mail ne sont pas comptés par Brevo : 0 clic au Black Friday. Désormais, les liens d'un mail de promotion mènent à une page Panora : `https://panora-cible.com/offre/{code}`, et `/{format}` pour un format précis.
+- **Brevo compte chaque clic**, client par client et lien par lien, donc par format.
+- **Panora le compte aussi** (table `promo_clics`). Les robots et les filtres de sécurité des messageries sont comptés à part, et les vérifications de lien (HEAD) ne comptent pas. L'adresse IP n'est pas gardée : seule une empreinte courte sert à compter les visiteurs distincts.
+- **La page** reprend l'affiche, le format choisi et les trois formats. Elle tente d'ouvrir toute seule le mail prérempli vers commercial@ (format déjà écrit), avec un bouton « Écrire au service commercial » si le navigateur l'empêche, et l'appel au 07 69 30 46 02.
+- Une nouvelle promo = une entrée dans `config/promos.php` ; `'active' => false` affiche « Cette offre est terminée ».
+- Premier usage : `docs/diffusion/promo-interieur-35-2026.html`, dont tous les liens sont passés sur la page.
+
+### À vérifier (prod)
+- [ ] La table est créée au déploiement (migration jouée au démarrage du conteneur)
+- [ ] Ouvrir https://panora-cible.com/offre/interieur-35/50m2 sur un téléphone : la page s'affiche et la messagerie s'ouvre avec « Format souhaité : 50 m² »
+- [ ] Recoller le mail dans Brevo, s'envoyer un test et cliquer sur une photo : la page du bon format s'ouvre
+- [ ] Après l'envoi : `php artisan promos:clics interieur-35` (clics par format et par jour), et le rapport Brevo de la campagne (clics par lien)

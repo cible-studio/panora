@@ -10,9 +10,12 @@
   une fois main déployé :
     · interieur-35-2026.jpg : l'affiche (celle dont le numéro est net, panneau 12 m²) ;
     · interieur-35-2026-50m2 / -12m2 / -6m2.jpg : gros plans des trois affiches.
-  L'affiche, chaque format et le bouton ouvrent un mail de réponse prérempli
-  vers commercial@ (le format est déjà écrit quand on clique sur une photo) :
-  Brevo compte chaque clic, client par client, et montre quel format intéresse.
+  L'affiche, chaque format et le bouton mènent à la page Panora de l'offre
+  (https://panora-cible.com/offre/interieur-35[/50m2|/12m2|/6m2]) : Brevo
+  compte chaque clic, client par client et lien par lien, donc par format,
+  et Panora aussi (php artisan promos:clics). La page ouvre ensuite le mail de
+  réponse prérempli vers commercial@, format déjà écrit, et propose l'appel.
+  (25/11 : remplace les liens « mailto: » directs, que Brevo ne compte pas.)
   Numéro de la promo : 07 69 30 46 02 (celui des affiches), avec lien d'appel.
   Objet à saisir dans Brevo : « En ce moment : -35 % sur nos panneaux à
   l'intérieur du pays ! »
@@ -62,7 +65,7 @@
 
 <!-- Affiche, cliquable vers une réponse préremplie -->
 <tr><td style="padding:0 28px 24px 28px;">
-  <a href="mailto:commercial@cible-ci.com?subject=Offre%20-35%20%25%20%E2%80%94%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays&amp;body=Bonjour%2C%0A%0AJe%20suis%20int%C3%A9ress%C3%A9(e)%20par%20l'offre%20de%2035%20%25%20de%20r%C3%A9duction%20sur%20vos%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays.%0A%0AFormat%20souhait%C3%A9%20(50%20m%C2%B2%2C%2012%20m%C2%B2%20ou%206%20m%C2%B2)%20%3A%20%0AVille(s)%20%3A%20%0AP%C3%A9riode%20%3A%20%0A%0A" target="_blank" style="text-decoration:none;">
+  <a href="https://panora-cible.com/offre/interieur-35" target="_blank" style="text-decoration:none;">
     <img src="https://panora-cible.com/images/cible/promos/interieur-35-2026.jpg" width="544" alt="En ce moment, 35 % de réduction sur nos panneaux à l'intérieur du pays. Contactez-nous au 07 69 30 46 02 pour réserver vos 50 m², 12 m² ou 6 m²." border="0" style="display:block; width:100%; max-width:544px; height:auto; border:0; border-radius:6px; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#555555;">
   </a>
 </td></tr>
@@ -75,21 +78,21 @@
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   <tr>
     <td width="33%" valign="top" align="center" style="padding:0 4px; text-align:center;">
-      <a href="mailto:commercial@cible-ci.com?subject=Offre%20-35%20%25%20%E2%80%94%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays&amp;body=Bonjour%2C%0A%0AJe%20suis%20int%C3%A9ress%C3%A9(e)%20par%20l'offre%20de%2035%20%25%20de%20r%C3%A9duction%20sur%20vos%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays.%0A%0AFormat%20souhait%C3%A9%20(50%20m%C2%B2%2C%2012%20m%C2%B2%20ou%206%20m%C2%B2)%20%3A%2050%20m%C2%B2%0AVille(s)%20%3A%20%0AP%C3%A9riode%20%3A%20%0A%0A" target="_blank" style="text-decoration:none; color:#111111;">
+      <a href="https://panora-cible.com/offre/interieur-35/50m2" target="_blank" style="text-decoration:none; color:#111111;">
         <img src="https://panora-cible.com/images/cible/promos/interieur-35-2026-50m2.jpg" width="168" alt="Panneau grand format 50 m² CIBLE" border="0" style="display:block; width:100%; max-width:168px; height:auto; border:0; border-radius:4px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#555555;">
         <span style="display:block; padding-top:8px; font-size:17px; line-height:22px; font-weight:bold; color:#E20613;">50&nbsp;m²</span>
         <span style="display:block; font-size:12px; line-height:17px; color:#555555;">Grand format, en bord de route</span>
       </a>
     </td>
     <td width="33%" valign="top" align="center" style="padding:0 4px; text-align:center;">
-      <a href="mailto:commercial@cible-ci.com?subject=Offre%20-35%20%25%20%E2%80%94%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays&amp;body=Bonjour%2C%0A%0AJe%20suis%20int%C3%A9ress%C3%A9(e)%20par%20l'offre%20de%2035%20%25%20de%20r%C3%A9duction%20sur%20vos%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays.%0A%0AFormat%20souhait%C3%A9%20(50%20m%C2%B2%2C%2012%20m%C2%B2%20ou%206%20m%C2%B2)%20%3A%2012%20m%C2%B2%0AVille(s)%20%3A%20%0AP%C3%A9riode%20%3A%20%0A%0A" target="_blank" style="text-decoration:none; color:#111111;">
+      <a href="https://panora-cible.com/offre/interieur-35/12m2" target="_blank" style="text-decoration:none; color:#111111;">
         <img src="https://panora-cible.com/images/cible/promos/interieur-35-2026-12m2.jpg" width="168" alt="Panneau 12 m² CIBLE" border="0" style="display:block; width:100%; max-width:168px; height:auto; border:0; border-radius:4px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#555555;">
         <span style="display:block; padding-top:8px; font-size:17px; line-height:22px; font-weight:bold; color:#E20613;">12&nbsp;m²</span>
         <span style="display:block; font-size:12px; line-height:17px; color:#555555;">Au cœur de la ville</span>
       </a>
     </td>
     <td width="33%" valign="top" align="center" style="padding:0 4px; text-align:center;">
-      <a href="mailto:commercial@cible-ci.com?subject=Offre%20-35%20%25%20%E2%80%94%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays&amp;body=Bonjour%2C%0A%0AJe%20suis%20int%C3%A9ress%C3%A9(e)%20par%20l'offre%20de%2035%20%25%20de%20r%C3%A9duction%20sur%20vos%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays.%0A%0AFormat%20souhait%C3%A9%20(50%20m%C2%B2%2C%2012%20m%C2%B2%20ou%206%20m%C2%B2)%20%3A%206%20m%C2%B2%0AVille(s)%20%3A%20%0AP%C3%A9riode%20%3A%20%0A%0A" target="_blank" style="text-decoration:none; color:#111111;">
+      <a href="https://panora-cible.com/offre/interieur-35/6m2" target="_blank" style="text-decoration:none; color:#111111;">
         <img src="https://panora-cible.com/images/cible/promos/interieur-35-2026-6m2.jpg" width="168" alt="Panneau 6 m² CIBLE" border="0" style="display:block; width:100%; max-width:168px; height:auto; border:0; border-radius:4px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#555555;">
         <span style="display:block; padding-top:8px; font-size:17px; line-height:22px; font-weight:bold; color:#E20613;">6&nbsp;m²</span>
         <span style="display:block; font-size:12px; line-height:17px; color:#555555;">Au plus près des passants</span>
@@ -129,7 +132,7 @@
 <tr><td align="center" style="padding:0 28px 26px 28px;">
   <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
   <tr><td align="center" bgcolor="#E20613" style="border-radius:6px; background-color:#E20613;">
-    <a href="mailto:commercial@cible-ci.com?subject=Offre%20-35%20%25%20%E2%80%94%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays&amp;body=Bonjour%2C%0A%0AJe%20suis%20int%C3%A9ress%C3%A9(e)%20par%20l'offre%20de%2035%20%25%20de%20r%C3%A9duction%20sur%20vos%20panneaux%20%C3%A0%20l'int%C3%A9rieur%20du%20pays.%0A%0AFormat%20souhait%C3%A9%20(50%20m%C2%B2%2C%2012%20m%C2%B2%20ou%206%20m%C2%B2)%20%3A%20%0AVille(s)%20%3A%20%0AP%C3%A9riode%20%3A%20%0A%0A" target="_blank" style="display:inline-block; padding:14px 28px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:20px; font-weight:bold; color:#FFFFFF; text-decoration:none; border-radius:6px;">Je réserve mon panneau</a>
+    <a href="https://panora-cible.com/offre/interieur-35" target="_blank" style="display:inline-block; padding:14px 28px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:20px; font-weight:bold; color:#FFFFFF; text-decoration:none; border-radius:6px;">Je réserve mon panneau</a>
   </td></tr>
   </table>
 </td></tr>
