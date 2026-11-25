@@ -232,7 +232,13 @@ class DevisDisponibilitePeriodeTest extends TestCase
 
         $this->assertStringContainsString('verdictSelection(', $src,
             "La règle ne doit jamais être recopiée dans le contrôleur.");
-        $this->assertStringContainsString('getPanelAvailabilityData(', $src);
+        // 2026-11-25 — « le premier BC gagne » : le devis passe par
+        // disponibilitePourDevis(), qui relit getPanelAvailabilityData().
+        $this->assertStringContainsString('disponibilitePourDevis(', $src);
+        $this->assertStringNotContainsString('getPanelAvailabilityData(', $src,
+            'Le devis ne doit plus lire la disponibilité brute (les options y bloquent).');
+        $service = file_get_contents(__DIR__ . '/../../app/Services/AvailabilityService.php');
+        $this->assertMatchesRegularExpression('/function disponibilitePourDevis\(.*?getPanelAvailabilityData\(/s', $service);
         $this->assertStringContainsString('refuserPanneauxOccupes', $src,
             "Garde-fou serveur : l'UI seule ne suffit pas.");
     }

@@ -78,11 +78,13 @@
     @endif
 
     @if($isAccepted)
+        {{-- 2026-11-25 — Règle du BC (19/11) : l'acceptation tient les
+             panneaux en option ; c'est le bon de commande qui confirme. --}}
         <h2>Prochaines étapes</h2>
         <ul class="steps">
-            <li>La réservation a été automatiquement marquée comme <strong>confirmée</strong>.</li>
-            <li>Vous pouvez créer la <strong>campagne</strong> depuis la fiche réservation.</li>
-            <li>Pensez à préparer la <strong>facturation</strong> et le planning de pose.</li>
+            <li>Les panneaux sont tenus <strong>en option</strong>{{ $bcEcheance ? " jusqu'au {$bcEcheance}" : '' }} : le bon de commande du client est attendu.</li>
+            <li>Récupérez le bon de commande, puis cliquez sur <strong>« 📥 BC reçu »</strong> sur la fiche réservation : elle sera confirmée et ses panneaux bloqués.</li>
+            <li>Le média planner créera ensuite la <strong>campagne</strong>. Sans bon de commande à l'échéance, les panneaux repartent au catalogue.</li>
         </ul>
     @else
         <h2>Que faire ensuite</h2>

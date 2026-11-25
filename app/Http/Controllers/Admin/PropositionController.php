@@ -20,25 +20,12 @@ class PropositionController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function index(Request $request)
     {
-        $query = Reservation::with(['client', 'user'])
-            ->whereNotNull('proposition_token')
-            ->withCount('panels');
-
-        // RBAC : un commercial ne voit que ses propres propositions.
-        if (auth()->user()?->role?->value === 'commercial') {
-            $query->forCommercialUser(auth()->id());
-        }
-
-        if ($request->status)
-            $query->where('status', $request->status);
-        if ($request->search)
-            $query->where(fn($q) =>
-                $q->where('reference', 'like', "%{$request->search}%")
-                  ->orWhereHas('client', fn($q) => $q->where('name', 'like', "%{$request->search}%"))
-            );
-
-        $propositions = $query->orderByDesc('proposition_sent_at')->paginate(20)->withQueryString();
-        return view('admin.propositions.index', compact('propositions'));
+        // 2026-11-25 — La vue admin.propositions.index date d'un ancien modèle
+        // « Proposition » (statut, creator, routes create/edit/destroy qui
+        // n'existent plus) : elle plantait dès la première ligne. Une
+        // proposition est une réservation en option : on renvoie vers leur
+        // liste, qui fait foi. Page hors menu ; l'adresse reste valable.
+        return redirect()->route('admin.reservations.index');
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -817,8 +804,10 @@ class PropositionController extends Controller
     }
 
     /**
-     * Notifie par mail le commercial qui a créé la proposition.
-     * Si pas de user_id sur la réservation → fallback : tous les admins actifs.
+     * Notifie par mail le commercial du dossier : le commercial assigné,
+     * à défaut le créateur (2026-11-25 : avant, toujours le créateur, alors
+     * que le changement de dates et les relances du BC prévenaient déjà le
+     * commercial assigné). Sans adresse → fallback : tous les admins actifs.
      * Échec d'envoi silencieux (le client a déjà fait sa décision, on ne casse rien).
      */
     private function notifyDecision(\App\Models\Reservation $reservation, string $decision, ?string $reason = null, ?string $campaignName = null, ?string $reasonCode = null): void
@@ -826,11 +815,12 @@ class PropositionController extends Controller
         $mailer = app(\App\Services\NotificationMailer::class);
 
         $recipients = [];
-        if ($reservation->user?->email && filter_var($reservation->user->email, FILTER_VALIDATE_EMAIL)) {
-            $recipients[] = $reservation->user->email;
+        $commercial = $reservation->resolveCommercialContact();
+        if ($commercial?->email && filter_var($commercial->email, FILTER_VALIDATE_EMAIL)) {
+            $recipients[] = $commercial->email;
         }
 
-        // Fallback : si le créateur n'existe plus / pas d'email, on prévient les admins
+        // Fallback : si le commercial n'existe plus / pas d'email, on prévient les admins
         if (empty($recipients)) {
             $recipients = \App\Models\User::query()
                 ->where('is_active', true)

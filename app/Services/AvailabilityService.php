@@ -210,6 +210,9 @@ class AvailabilityService
         ReservationStatus::CONFIRME->value,
     ];
 
+    /** Statut bloquant affiché quand plusieurs occupations se chevauchent (le plus fort gagne). */
+    private const PRIORITE_BLOCAGE = ['confirme' => 5, 'actif' => 5, 'renouvellement' => 4, 'pause' => 3, 'en_attente' => 2, 'planifie' => 2];
+
     // ── 1. Vérifier UN panneau ────────────────────────────────────
     public function isPanelAvailable(
         int    $panelId,
@@ -307,6 +310,66 @@ class AvailabilityService
     public static function optionsConcurrentes(Collection $carte): Collection
     {
         return $carte->filter(fn ($c) => ($c->blocking_status ?? null) === 'en_attente');
+    }
+
+    /**
+     * Disponibilité vue par un DEVIS (2026-11-25), au format de
+     * getPanelAvailabilityData(). Même règle que les disponibilités : « le
+     * premier BC gagne ». Une simple option d'un autre dossier ne bloque pas
+     * le panneau ; elle est rendue dans 'options' pour l'avertissement.
+     * Bloquent toujours : réservation confirmée, campagne, retenue pour le
+     * renouvellement d'un autre client.
+     *
+     * Avant, le devis refusait un panneau en option alors que les
+     * disponibilités le laissaient choisir et que l'acceptation du devis
+     * (QuoteConverter) ne refuse que les panneaux pris fermement.
+     *
+     * @param  ?int  $excludeReservationId  l'option que ce devis remplace
+     *                                      (renouvellement) : ni bloquante, ni signalée
+     */
+    public function disponibilitePourDevis(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $clientId = null,
+        ?int   $excludeReservationId = null
+    ): Collection {
+        return $this->getPanelAvailabilityData($panelIds, $startDate, $endDate, $excludeReservationId, true, null, $clientId)
+            ->map(fn (array $a) => self::optionsNonBloquantes($a));
+    }
+
+    /**
+     * Une entrée de getPanelAvailabilityData() relue avec « le premier BC
+     * gagne » : les options (réservations en attente) sortent du blocage et
+     * passent dans 'options'. Ce qui reste bloquant garde sa date de libération.
+     */
+    public static function optionsNonBloquantes(array $a): array
+    {
+        $estOption = fn (array $o) => ($o['source'] ?? null) === 'reservation'
+            && ($o['status'] ?? null) === ReservationStatus::EN_ATTENTE->value;
+
+        $occupations = collect($a['occupations'] ?? []);
+        $options     = $occupations->filter($estOption)->values();
+        if ($options->isEmpty()) {
+            return $a + ['options' => []];
+        }
+
+        $fermes = $occupations->reject($estOption);
+        if ($fermes->isEmpty()) {
+            return array_merge($a, [
+                'available'       => true,
+                'release_date'    => null,
+                'blocking_status' => null,
+                'options'         => $options->all(),
+            ]);
+        }
+
+        // Toujours pris fermement : libre à la fin du dernier engagement ferme.
+        return array_merge($a, [
+            'release_date'    => $fermes->map(fn ($o) => \Carbon\Carbon::createFromFormat('d/m/Y', $o['end_date'])->toDateString())->max(),
+            'blocking_status' => $fermes->sortByDesc(fn ($o) => self::PRIORITE_BLOCAGE[$o['status']] ?? 0)->first()['status'] ?? null,
+            'options'         => $options->all(),
+        ]);
     }
 
     /** Panneaux pris FERMEMENT parmi $panelIds (ids) — pour créer ou étendre une option. */
@@ -1712,9 +1775,8 @@ class AvailabilityService
             // Statut bloquant = priorité confirme (résa) / actif (campagne) > pause
             // > retenue d'un renouvellement > en_attente / planifie.
             $releaseDate = $occupations->max('end_date_raw');
-            $priority = ['confirme' => 5, 'actif' => 5, 'renouvellement' => 4, 'pause' => 3, 'en_attente' => 2, 'planifie' => 2];
             $blockingStatus = $occupations
-                ->sortByDesc(fn($o) => $priority[$o['status']] ?? 0)
+                ->sortByDesc(fn($o) => self::PRIORITE_BLOCAGE[$o['status']] ?? 0)
                 ->first()['status'] ?? null;
 
             return [$id => [

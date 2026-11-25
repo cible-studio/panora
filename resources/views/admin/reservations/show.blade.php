@@ -319,11 +319,18 @@
                         {{ $reservation->campaign->name }} →
                     </a>
                 @elseif($reservation->status->value === 'confirme' && app(\App\Services\BonDeCommandeService::class)->peutCreerCampagne($reservation))
-                    <a href="{{ route('admin.campaigns.create', ['reservation_id' => $reservation->id]) }}"
-                    class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--green);
-                            border-color:rgba(34,197,94,0.3);">
-                        + Créer une campagne
-                    </a>
+                    {{-- 2026-11-25 — Seuls le MP et l'admin créent une campagne
+                         (CampaignPolicy::create) : le commercial voyait un bouton
+                         qui menait à « accès refusé ». --}}
+                    @can('create', \App\Models\Campaign::class)
+                        <a href="{{ route('admin.campaigns.create', ['reservation_id' => $reservation->id]) }}"
+                        class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--green);
+                                border-color:rgba(34,197,94,0.3);">
+                            + Créer une campagne
+                        </a>
+                    @else
+                        <span class="text-sm" style="color:var(--text3)">Créée par le média planner</span>
+                    @endcan
                 @else
                     <span class="text-sm" style="color:var(--text3)">
                         {{ $reservation->bc_attendu_jusqu_au && !$reservation->bc_recu_at ? 'Disponible après réception du bon de commande' : 'Disponible après confirmation' }}

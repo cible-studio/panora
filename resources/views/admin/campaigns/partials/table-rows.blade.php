@@ -5,9 +5,12 @@
     <td colspan="10" class="empty-state">
         <div>📋</div>
         <div>Aucune campagne trouvée.</div>
+        {{-- 2026-11-25 — MP et admin seulement (CampaignPolicy::create). --}}
+        @can('create', \App\Models\Campaign::class)
         <div class="empty-action">
             <a href="{{ route('admin.campaigns.create') }}">+ Créer une campagne</a>
         </div>
+        @endcan
     </td>
 </tr>
 @endforelse

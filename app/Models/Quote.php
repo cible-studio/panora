@@ -150,24 +150,41 @@ class Quote extends Model implements Auditable
         return (int) round($htTaxable * ((float) $this->tva) / 100);
     }
 
-    /** Peut-il être modifié ? (brouillon ou en négociation) */
+    /**
+     * Peut-il être modifié ? Brouillon, en négociation, ou accepté avec un
+     * conflit (2026-11-25) : un panneau a été pris fermement avant
+     * l'acceptation, aucune réservation n'a été créée. Avant, ce devis ne
+     * pouvait que se dupliquer sous un autre numéro ; le commercial remplace
+     * maintenant les panneaux pris et renvoie la version suivante.
+     */
     public function isEditable(): bool
     {
-        return in_array($this->status, [
-            QuoteStatus::BROUILLON,
-            QuoteStatus::EN_NEGOCIATION,
-        ], true);
+        return in_array($this->status, self::STATUTS_RETRAVAILLABLES, true);
     }
 
-    /** Peut-il être envoyé au client ? */
+    /** Peut-il être envoyé au client ? Mêmes statuts que la modification. */
     public function isSendable(): bool
     {
-        return in_array($this->status, [
-            QuoteStatus::BROUILLON,
-            QuoteStatus::EN_NEGOCIATION,
-        ], true)
+        return in_array($this->status, self::STATUTS_RETRAVAILLABLES, true)
         && $this->lines->count() > 0;
     }
+
+    /**
+     * Sa validité peut-elle être prolongée ? Envoyé (le client n'a pas
+     * encore répondu) ou en négociation (2026-11-25 : la balle est dans
+     * notre camp, le devis ne doit pas expirer pendant qu'on le reprend).
+     */
+    public function peutEtreProlonge(): bool
+    {
+        return in_array($this->status, [QuoteStatus::ENVOYE, QuoteStatus::EN_NEGOCIATION], true);
+    }
+
+    /** Statuts où le commercial reprend le devis puis le renvoie (2026-11-25). */
+    public const STATUTS_RETRAVAILLABLES = [
+        QuoteStatus::BROUILLON,
+        QuoteStatus::EN_NEGOCIATION,
+        QuoteStatus::ACCEPTE_AVEC_CONFLIT,
+    ];
 
     /** Peut-il être converti en réservation ferme ? */
     public function isConvertible(): bool

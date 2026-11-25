@@ -15,8 +15,9 @@ use Illuminate\Queue\SerializesModels;
  * Email envoyé au commercial / admin qui a créé une proposition lorsque
  * le client la valide ou la refuse depuis l'espace public.
  *
- * Destinataire : $reservation->user (le créateur de la proposition).
- * Si pas d'utilisateur lié, fallback sur tous les admins (à gérer côté caller).
+ * Destinataire : le commercial du dossier, Reservation::resolveCommercialContact()
+ * (assigné, sinon créateur — 2026-11-25). Sans adresse, fallback sur tous
+ * les admins (à gérer côté caller).
  */
 class PropositionDecisionMail extends Mailable implements ShouldQueue, MailCommercial
 {
@@ -100,6 +101,11 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue, MailComme
                 'campaign'     => $campaign,
                 'campaignName' => $this->campaignName ?? $campaign?->name,
                 'campaignLink' => $campaign ? route('admin.campaigns.show', $campaign) : null,
+                // 2026-11-25 — Acceptation = option en attente du bon de
+                // commande (règle du 19/11) : le mail donne l'échéance.
+                'bcEcheance'   => $this->reservation->bc_attendu_jusqu_au
+                    ? \Carbon\Carbon::parse($this->reservation->bc_attendu_jusqu_au)->format('d/m/Y')
+                    : null,
             ],
         );
     }

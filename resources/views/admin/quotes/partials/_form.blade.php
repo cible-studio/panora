@@ -106,7 +106,15 @@
          client n'a pas accepté : un devis ne bloque rien, la libérer
          maintenant rouvrirait le réseau à un autre client. Elle est
          annulée à l'acceptation, pour qu'il ne reste qu'un dossier. --}}
-    @php $optionRemplacee = $isEdit ? null : ($preselect['remplace_reservation_id'] ?? null); @endphp
+    @php
+        $optionRemplacee = $isEdit ? null : ($preselect['remplace_reservation_id'] ?? null);
+        // 2026-11-25 — Transmise à la recherche de panneaux, en création
+        // comme en modification : l'option remplacée n'est pas « un autre
+        // dossier » et ne doit pas s'afficher EN OPTION.
+        $idOptionRemplacee = $isEdit
+            ? \App\Models\Reservation::where('remplacee_par_quote_id', $quote->id)->value('id')
+            : ($optionRemplacee ?: null);
+    @endphp
     @if($optionRemplacee)
         @php $resaRemplacee = \App\Models\Reservation::find($optionRemplacee); @endphp
         @if($resaRemplacee)
@@ -732,6 +740,7 @@
     .panel-result .pr-badge-sans_periode { background:#e2e8f0; color:#334155; }
     .panel-result .pr-sub { font-size:11.5px; color:var(--text3, #64748b); }
     .panel-result .pr-occ { font-size:11px; color:#b91c1c; margin-top:2px; font-weight:600; }
+    .panel-result .pr-occ-option { color:#92400e; }
     .panel-result .pr-meta { font-size:11px; color:var(--text3, #64748b); margin-top:2px; }
     .panel-result .pr-meta strong { color:var(--accent, #e8a020); }
 
@@ -929,6 +938,9 @@
 window.QuoteForm = (function() {
     const communes  = @json($communes->map(fn($c) => ['id'=>$c->id,'name'=>$c->name])->values());
     const searchUrl = @json(route('admin.quotes.search-panels'));
+    // Devis de renouvellement (2026-11-25) : l'option qu'il remplace n'est
+    // pas « un autre dossier » — le serveur l'ignore quand on la lui donne.
+    const optionRemplaceeId = () => @json($idOptionRemplacee ?? null) || '';
     let lineIdx     = {{ count($lines) }};
     let serviceIdx  = {{ count($services) }};
 
@@ -1012,6 +1024,7 @@ window.QuoteForm = (function() {
             params.set('period_start', p.start);
             params.set('period_end', p.end);
             params.set('client_id', document.getElementById('quote-client')?.value || '');
+            params.set('remplace_reservation_id', optionRemplaceeId());
             const r = await fetch(searchUrl + '?' + params.toString(), {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             });
@@ -1037,12 +1050,23 @@ window.QuoteForm = (function() {
         const zone = row.querySelector('.ql-panel-alerte');
         if (!zone) return;
         if (!info || info.selectable !== false) {
-            // Cas « libre dès le … » : on le dit, sans bloquer.
+            // Cas « libre dès le … » et « en option ailleurs » (2026-11-25) :
+            // on le dit, sans bloquer.
+            const avis = [];
             if (info && info.display_status === 'libre_des') {
+                avis.push((info.reference || 'Ce panneau')
+                    + ' n\'est libre qu\'à partir du ' + (info.libre_le_fr || '—') + '.');
+            }
+            if (info && info.en_option) {
+                const o = (info.options || [])[0];
+                avis.push((info.reference || 'Ce panneau') + ' est déjà en option pour un autre dossier'
+                    + (o && o.client_name ? ' (' + o.client_name + ')' : '')
+                    + ' : le premier bon de commande reçu l\'emporte.');
+            }
+            if (avis.length) {
                 zone.className = 'ql-panel-alerte est-info';
                 zone.style.display = 'block';
-                zone.textContent = 'ℹ ' + (info.reference || 'Ce panneau')
-                    + ' n\'est libre qu\'à partir du ' + (info.libre_le_fr || '—') + '.';
+                zone.textContent = 'ℹ ' + avis.join(' ');
                 return;
             }
             zone.style.display = 'none';
@@ -1111,15 +1135,22 @@ window.QuoteForm = (function() {
                 maintenance:  'MAINTENANCE',
                 sans_periode: 'SAISIS LES DATES',
             };
-            const badge = ds
+            // 2026-11-25 — « Le premier BC gagne » : un panneau en simple
+            // option pour un autre dossier reste choisissable, signalé.
+            const badge = (ds
                 ? `<span class="pr-badge pr-badge-${escapeHtml(ds)}">${escapeHtml(libelles[ds] || ds)}</span>`
-                : '';
+                : '')
+                + (p.en_option ? ' <span class="pr-badge pr-badge-option">EN OPTION</span>' : '');
 
             // Par qui, et jusqu'à quand — c'est ce qui permet au commercial
             // de décider sans ouvrir la fiche du panneau.
             const occ = (p.occupations || [])[0];
             const occTxt = (ds === 'occupe' || ds === 'libre_des') && occ
                 ? `${occ.client_name || '—'} · ${occ.start_date} → ${occ.end_date}`
+                : '';
+            const opt = (p.options || [])[0];
+            const optTxt = p.en_option && opt
+                ? `En option : ${opt.client_name || '—'} · ${opt.start_date} → ${opt.end_date} — le 1er BC l'emporte`
                 : '';
 
             const metaParts = [commune, m2, tarif];
@@ -1132,6 +1163,7 @@ window.QuoteForm = (function() {
                     <div class="pr-head">${escapeHtml(p.reference || '—')} ${badge}</div>
                     <div class="pr-sub">${escapeHtml(addr)}</div>
                     ${occTxt ? '<div class="pr-occ">🔒 ' + escapeHtml(occTxt) + '</div>' : ''}
+                    ${optTxt ? '<div class="pr-occ pr-occ-option">⏳ ' + escapeHtml(optTxt) + '</div>' : ''}
                     <div class="pr-meta">${meta ? '<strong>' + meta + '</strong>' : ''}</div>
                 </div>
             `);
@@ -1174,6 +1206,7 @@ window.QuoteForm = (function() {
                         period_start: p.start,
                         period_end:   p.end,
                         client_id:    document.getElementById('quote-client')?.value || '',
+                        remplace_reservation_id: optionRemplaceeId(),
                     };
                 },
                 processResults: data => ({
@@ -1323,12 +1356,14 @@ window.QuoteForm = (function() {
             const libre = x.selectable !== false;
             const note  = libre
                 ? (x.display_status === 'libre_des' ? ' — libre le ' + (x.libre_le_fr || '') : '')
+                    // 2026-11-25 — en option ailleurs : choisissable, le 1er BC l'emporte.
+                    + (x.en_option ? ' — en option pour un autre dossier (le 1er BC l\'emporte)' : '')
                 : ' — occupé' + (x.libre_le_fr ? ", libre le " + x.libre_le_fr : '');
             return `<label title="${echapperPied((x.reference || '') + note)}"`
                 + ` style="display:inline-flex;align-items:center;gap:4px;cursor:${libre ? 'pointer' : 'not-allowed'};opacity:${libre ? '1' : '.5'};">`
                 + `<input type="checkbox" class="ql-pied" name="lines[${idx}][pieds][]" value="${Number(x.id)}"`
                 + ` data-rate="${Number(x.monthly_rate) || 0}"${libre ? ' checked' : ' disabled'}>`
-                + ` Pied ${echapperPied(x.numero)}${libre ? '' : ' 🔒'}</label>`;
+                + ` Pied ${echapperPied(x.numero)}${libre ? (x.en_option ? ' ⏳' : '') : ' 🔒'}</label>`;
         }).join('');
         bloc.querySelectorAll('.ql-odp, .ql-tm').forEach(inp => { if (inp.value === '') inp.value = '0'; });
         bloc.style.display = 'block';

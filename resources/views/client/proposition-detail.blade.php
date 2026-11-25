@@ -570,7 +570,8 @@
         </div>
 
         <div style="background:rgba(250,184,11,.08);border:1px solid rgba(250,184,11,.2);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:#fab80b;">
-            Cette action est définitive — elle déclenche la création de votre campagne.
+            {{-- 2026-11-25 — Règle du BC : la confirmation réserve en option. --}}
+            Vos emplacements vous seront réservés en option : c'est votre bon de commande qui les bloque définitivement et lance la campagne.
         </div>
         {{-- target="_blank" : depuis l'espace client (authentifié), on
              ouvre la page de confirmation dans un NOUVEL ONGLET pour

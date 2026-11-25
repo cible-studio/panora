@@ -362,6 +362,9 @@ class QuoteController extends Controller
         // Le client du devis : son propre renouvellement confirmé ne doit
         // pas le bloquer (même règle que réservation et campagne).
         $clientId = $request->integer('client_id') ?: null;
+        // Devis de renouvellement (2026-11-25) : l'option qu'il remplace
+        // n'est ni bloquante ni signalée — c'est le même dossier.
+        $optionRemplacee = $this->optionRemplaceeRecevable($request->integer('remplace_reservation_id') ?: null, $clientId);
 
         // Colonnes réelles dans Panora : adresse (fr), format_id (belongsTo PanelFormat).
         // Surface m² = format.surface (colonne calculée) OU format.width * format.height.
@@ -426,12 +429,13 @@ class QuoteController extends Controller
                 ->merge($piedsParAxe->flatten(1)->pluck('id'))
                 ->filter()->unique()->values()->all();
             if ($idsDispo) {
-                $dispo = app(\App\Services\AvailabilityService::class)->getPanelAvailabilityData(
+                // 2026-11-25 — « Le premier BC gagne », comme dans les
+                // disponibilités : une simple option d'un autre dossier
+                // ne bloque plus, elle est signalée (badge EN OPTION).
+                $dispo = app(\App\Services\AvailabilityService::class)->disponibilitePourDevis(
                     $idsDispo, $periodStart, $periodEnd,
-                    null,      // pas de réservation à exclure
-                    true,      // inclure les blocages de campagne directe
-                    null,
-                    $clientId  // son propre renouvellement ne bloque pas
+                    $clientId,        // son propre renouvellement ne bloque pas
+                    $optionRemplacee
                 );
             }
         }
@@ -439,7 +443,7 @@ class QuoteController extends Controller
         // Verdict d'un panneau : quoi afficher + a-t-on le droit de le
         // choisir. La règle vit dans AvailabilityService::verdictSelection().
         $verdict = function ($panelId, $rawStatus) use ($dispo, $hasPeriod, $periodEnd) {
-            $a = $dispo->get($panelId, ['available' => true, 'release_date' => null, 'occupations' => []]);
+            $a = $dispo->get($panelId, ['available' => true, 'release_date' => null, 'occupations' => [], 'options' => []]);
             $v = \App\Services\AvailabilityService::verdictSelection(
                 is_object($rawStatus) ? ($rawStatus->value ?? null) : $rawStatus,
                 $hasPeriod,
@@ -451,6 +455,9 @@ class QuoteController extends Controller
                 ? \Carbon\Carbon::parse($v['libre_le'])->format('d/m/Y')
                 : null;
             $v['occupations'] = array_slice($a['occupations'] ?? [], 0, 3);
+            // Choisissable, mais déjà en option ailleurs : le premier BC l'emporte.
+            $v['options']     = array_slice($a['options'] ?? [], 0, 3);
+            $v['en_option']   = $v['selectable'] && !empty($a['options']);
             return $v;
         };
 
@@ -472,6 +479,7 @@ class QuoteController extends Controller
                         'selectable'     => $v['selectable'],
                         'display_status' => $v['display_status'],
                         'libre_le_fr'    => $v['libre_le_fr'],
+                        'en_option'      => $v['en_option'],
                     ];
                 })->values()->all();
 
@@ -500,6 +508,8 @@ class QuoteController extends Controller
                     'libre_le_fr'    => $vAxe['libre_le_fr'],
                     'pieds_total'    => count($piedsPayload),
                     'pieds_libres'   => count($libres),
+                    'en_option'      => collect($libres)->contains(fn ($x) => $x['en_option']),
+                    'options'        => $vAxe['options'],
                     'occupations'    => $vAxe['occupations'],
                     'pieds'          => $piedsPayload,
                 ];
@@ -548,6 +558,9 @@ class QuoteController extends Controller
                     'selectable'     => $v['selectable'],
                     'libre_le_fr'    => $v['libre_le_fr'],
                     'occupations'    => $v['occupations'],
+                    // 2026-11-25 — en option pour un autre dossier (choisissable).
+                    'en_option'      => $v['en_option'],
+                    'options'        => $v['options'],
                 ];
             })->values(),
         ]);
@@ -615,7 +628,9 @@ class QuoteController extends Controller
         $data = $this->validateQuotePayload($request, $quote);
 
         return DB::transaction(function () use ($quote, $data, $builder) {
-            $wasSentBefore = $quote->status === QuoteStatus::EN_NEGOCIATION;
+            // Déjà parti chez le client : en négociation, ou accepté avec un
+            // conflit à résoudre (2026-11-25) → la version suivante.
+            $wasSentBefore = in_array($quote->status, [QuoteStatus::EN_NEGOCIATION, QuoteStatus::ACCEPTE_AVEC_CONFLIT], true);
 
             $quote->update([
                 'client_id'      => $data['client_id'],
@@ -723,6 +738,8 @@ class QuoteController extends Controller
     public function extend(Request $request, Quote $quote)
     {
         $this->authorize('extend', $quote);
+        // L'admin passe la policy (before()) : le statut reste exigé pour tous.
+        abort_unless($quote->peutEtreProlonge(), 403, 'Seul un devis envoyé ou en négociation se prolonge.');
 
         $data = $request->validate([
             'additional_days' => 'required|integer|min:1|max:180',
@@ -928,6 +945,11 @@ class QuoteController extends Controller
      * Refuse les panneaux occupés sur la période du devis, parmi ceux qui
      * n'y étaient pas déjà. Source de vérité : AvailabilityService — la
      * règle n'est pas recopiée ici.
+     *
+     * 2026-11-25 — « Le premier BC gagne », comme dans les disponibilités
+     * (validé par l'utilisateur) : un panneau en simple option pour un autre
+     * dossier n'est plus refusé, il est signalé. Seul un engagement ferme
+     * refuse. L'option que ce devis remplace (renouvellement) est ignorée.
      */
     protected function refuserPanneauxOccupes(array $data, ?Quote $quote): void
     {
@@ -954,14 +976,18 @@ class QuoteController extends Controller
         }
         if (!$nouveaux) return;
 
-        $dispo = app(\App\Services\AvailabilityService::class)->getPanelAvailabilityData(
+        $clientId = (int) ($data['client_id'] ?? 0) ?: null;   // son propre renouvellement ne bloque pas
+        $dispo = app(\App\Services\AvailabilityService::class)->disponibilitePourDevis(
             array_values(array_unique($nouveaux)),
             \Carbon\Carbon::parse($debut)->toDateString(),
             \Carbon\Carbon::parse($fin)->toDateString(),
-            null,
-            true,                                     // blocages de campagne directe inclus
-            null,
-            (int) ($data['client_id'] ?? 0) ?: null   // son propre renouvellement ne bloque pas
+            $clientId,
+            $this->optionRemplaceeRecevable(
+                $quote
+                    ? \App\Models\Reservation::where('remplacee_par_quote_id', $quote->id)->value('id')
+                    : ($data['remplace_reservation_id'] ?? null),
+                $clientId
+            )
         );
 
         // Référence ET statut : un panneau en maintenance doit être refusé
@@ -969,6 +995,7 @@ class QuoteController extends Controller
         $infos = \App\Models\Panel::whereIn('id', array_values($nouveaux))
             ->get(['id', 'reference', 'status'])->keyBy('id');
         $erreurs = [];
+        $enOption = [];
 
         foreach ($nouveaux as $cle => $pid) {
             $a = $dispo->get($pid, ['available' => true, 'release_date' => null]);
@@ -980,7 +1007,12 @@ class QuoteController extends Controller
                 $a['release_date'] ?? null,
                 \Carbon\Carbon::parse($fin)->toDateString()
             );
-            if ($v['selectable']) continue;
+            if ($v['selectable']) {
+                if (!empty($a['options'])) {
+                    $enOption[] = $panneau?->reference ?? ('Panneau #' . $pid);
+                }
+                continue;
+            }
 
             $ref   = $panneau?->reference ?? ('Panneau #' . $pid);
             $champ = 'lines.' . explode(':', (string) $cle)[0] . '.panel_id';
@@ -994,6 +1026,28 @@ class QuoteController extends Controller
         if ($erreurs) {
             throw \Illuminate\Validation\ValidationException::withMessages($erreurs);
         }
+
+        // Même avertissement que les disponibilités (confirmerSelection).
+        if ($enOption) {
+            session()->flash('warning',
+                'Déjà en option pour d\'autres dossiers : ' . implode(', ', array_unique($enOption))
+                . '. Le premier bon de commande reçu l\'emporte.');
+        }
+    }
+
+    /**
+     * L'option qu'un devis de renouvellement remplace, si elle appartient
+     * bien au client du devis (2026-11-25). Un identifiant trafiqué ne doit
+     * pas permettre d'ignorer la réservation d'un tiers.
+     */
+    private function optionRemplaceeRecevable($reservationId, ?int $clientId): ?int
+    {
+        if (!$reservationId || !$clientId) {
+            return null;
+        }
+        $option = \App\Models\Reservation::find((int) $reservationId);
+
+        return $option && (int) $option->client_id === $clientId ? (int) $option->id : null;
     }
 
     /**

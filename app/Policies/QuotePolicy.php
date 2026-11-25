@@ -117,12 +117,14 @@ class QuotePolicy
     }
 
     /**
-     * Prolonger la validité (nouveau expires_at = now + valid_days).
-     * Autorisé pour devis envoyé pas encore décidé (non expiré, non refusé, non accepté).
+     * Prolonger la validité (nouveau expires_at = ancien + N jours).
+     * Autorisé pour un devis envoyé pas encore décidé, ou en négociation
+     * (2026-11-25 : c'est alors à nous de répondre, il ne doit pas expirer
+     * faute de temps). Cf. Quote::peutEtreProlonge().
      */
     public function extend(User $user, Quote $quote): bool
     {
-        if ($quote->status !== QuoteStatus::ENVOYE) return false;
+        if (!$quote->peutEtreProlonge()) return false;
         if ($user->role === UserRole::COMMERCIAL) {
             return $quote->belongsToCommercialUser((int) $user->id);
         }

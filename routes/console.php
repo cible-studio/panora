@@ -39,8 +39,12 @@ Schedule::command('campaigns:sync-expired')->dailyAt('01:30');
 
 Schedule::command('propositions:expire')->everyFifteenMinutes();
 
-// Rappels J+2 et J+5 aux clients dont la proposition est en attente
-Schedule::command('propositions:send-rappels')->dailyAt('09:00');
+// Rappels J+2 et J+5 aux clients dont la proposition est en attente :
+// 2026-11-25 — retiré du planning. Il doublait propositions:send-reminders
+// (plus bas, même heure) : le client recevait deux « Rappel — votre
+// proposition … expire bientôt » le même matin. On garde send-reminders,
+// qui mémorise chaque envoi et ne relance pas à J+2 un client qui a déjà
+// ouvert le lien. La commande reste disponible à la main.
 
 // 4. Génération automatique des alertes
 //    Tous les jours à 07h00
