@@ -21,13 +21,25 @@ class PromoController extends Controller
             $format = null;
         }
 
-        $promos->compter($code, $format, $request);
+        $jeton = $promos->compter($code, $format, $request);
 
         return response()->view('public.promo', [
             'promo'   => $promo,
             'format'  => $format,
+            'jeton'   => $jeton,
             'reponse' => $promos->lienReponse($promo, $format),
             'parFormat' => collect($promo['formats'])->map(fn ($f, $cle) => $f + ['reponse' => $promos->lienReponse($promo, $cle)])->all(),
         ])->header('X-Robots-Tag', 'noindex');
+    }
+
+    /**
+     * La page s'est affichée dans un navigateur (appel de son script) : le
+     * clic vient d'un client, pas d'un filtre qui vérifie les liens (25/11).
+     */
+    public function vu(Request $request, PromoService $promos)
+    {
+        $promos->confirmer((string) $request->input('jeton', ''));
+
+        return response()->noContent();
     }
 }

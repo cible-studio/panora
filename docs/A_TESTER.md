@@ -3409,6 +3409,11 @@ Les liens « mailto: » d'un mail ne sont pas comptés par Brevo : 0 clic au Bla
 - Une nouvelle promo = une entrée dans `config/promos.php` ; `'active' => false` affiche « Cette offre est terminée ».
 - Premier usage : `docs/diffusion/promo-interieur-35-2026.html`, dont tous les liens sont passés sur la page.
 
+- **Compteur fiabilisé (25/11, après l'envoi)** : les 14 ouvertures d'après l'envoi avaient toutes eu lieu entre 11h13 et 11h15, plusieurs liens à la même seconde. C'étaient les filtres de sécurité des messageries, pas des clients. Désormais un clic ne compte que si :
+  - la page s'est affichée dans un navigateur (son script le confirme, avec un jeton signé valable 30 min) ;
+  - le visiteur n'a pas ouvert plusieurs liens différents en moins de 2 secondes.
+
+  `promos:clics` dit combien de clics sont écartés et pourquoi. Les clics d'avant ce contrôle n'ont pas la confirmation : seule la règle des rafales s'applique à eux.
 - **Copies (25/11)** : `PROMO_COPIE` (Coolify, adresses séparées par des virgules) met des adresses en copie (Cc) du mail prérempli. Les deux adresses demandées le 25/11 sont nominatives : elles sont dans Coolify, pas dans le code.
 
 ### À vérifier (prod)
@@ -3417,3 +3422,5 @@ Les liens « mailto: » d'un mail ne sont pas comptés par Brevo : 0 clic au Bla
 - [x] Ouvrir https://panora-cible.com/offre/interieur-35/50m2 sur un téléphone : la page s'affiche et la messagerie s'ouvre avec « Format souhaité : 50 m² », les deux adresses en copie
 - [x] Recoller le mail dans Brevo, s'envoyer un test et cliquer sur une photo : la page du bon format s'ouvre. **Mail envoyé aux clients le 25/11.**
 - [ ] Après l'envoi : `php artisan promos:clics interieur-35` (clics par format et par jour), et le rapport Brevo de la campagne (clics par lien)
+- [ ] Après le déploiement : `promos:clics interieur-35` affiche « Non comptés : … en rafale » pour les filtres du 25/11 ; ouvrir la page depuis un téléphone, puis relancer la commande 1 minute plus tard : un clic de client en plus
+- [ ] Rapport Brevo : désactiver « Ouvertures automatisées et clics inclus » avant la capture du lundi

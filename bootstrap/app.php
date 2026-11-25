@@ -58,6 +58,10 @@ return Application::configure(basePath: dirname(__DIR__))
             // Script du questionnaire Google du baromètre (2026-11-17) :
             // authentifié par le jeton secret de l'en-tête Authorization.
             'api/barometre/*',
+            // Confirmation d'affichage de la page d'une promo (2026-11-25) :
+            // protégée par son jeton signé ; sans exemption, un navigateur
+            // de messagerie qui refuse les cookies perdrait le clic du client.
+            'offre-vu',
             // Désinscription (2026-10-21) : Gmail / Yahoo l'appellent en un
             // clic, sans jeton CSRF. Authentifiée par la signature du lien.
             'desinscription/*',

@@ -78,6 +78,21 @@
     @endif
 </div>
 
+@if(!empty($jeton))
+<script>
+    // 25/11 : la page s'est affichée dans un navigateur, donc un client l'a
+    // ouverte. Les filtres de sécurité qui testent les liens sans rien
+    // afficher ne passent pas ici : leurs clics restent hors du bilan.
+    (function () {
+        var donnees = new FormData();
+        donnees.append('jeton', @json($jeton));
+        var url = @json(route('promo.vu'));
+        if (!(navigator.sendBeacon && navigator.sendBeacon(url, donnees))) {
+            fetch(url, { method: 'POST', body: donnees, keepalive: true, credentials: 'same-origin' }).catch(function () {});
+        }
+    })();
+</script>
+@endif
 @if($promo['active'] ?? true)
 <script>
     // Ouvre la réponse préremplie, comme le faisait l'ancien lien du mail.
