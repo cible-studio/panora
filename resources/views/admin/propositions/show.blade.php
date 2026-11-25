@@ -962,9 +962,13 @@
                 </div>
             @else
                 <h3>Votre décision</h3>
+                {{-- 2026-11-25 — Aligné sur la règle du BC : confirmer réserve en
+                     option, le bon de commande bloque et lance la campagne. --}}
                 <p>
-                    Confirmez pour attribuer les emplacements et créer votre campagne, ou refusez si la
-                    proposition ne convient pas. Notre équipe reste à votre disposition.
+                    Confirmez pour réserver ces emplacements en option pendant
+                    {{ (int) config('bon_de_commande.delai_jours', 30) }} jours, le temps de nous transmettre
+                    votre bon de commande. Refusez si la proposition ne convient pas.
+                    Notre équipe reste à votre disposition.
                 </p>
 
                 <div class="cta-buttons">

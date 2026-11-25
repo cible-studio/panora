@@ -30,6 +30,26 @@
                 <button type="submit" class="btn btn-primary btn-sm keep-label" title="Envoyer le devis au client">📤 <span class="btn-label">Envoyer au client</span></button>
             </form>
         @endcan
+        {{-- 2026-11-25 — La prolongation existait sans bouton. Petite fenêtre
+             (pas d'alerte du navigateur) : nombre de jours, puis Prolonger. --}}
+        @if($quote->peutEtreProlonge())
+        @can('extend', $quote)
+            <details class="devis-prolonger" style="position:relative;display:inline-block">
+                <summary class="btn btn-ghost btn-sm" title="Prolonger la validité du devis" style="list-style:none;cursor:pointer">⏳ <span class="btn-label">Prolonger</span></summary>
+                <form method="POST" action="{{ route('admin.quotes.extend', $quote) }}"
+                      style="position:absolute;right:0;top:calc(100% + 6px);z-index:60;width:250px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.15)">
+                    @csrf
+                    <label for="prolonger-jours" style="display:block;font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:6px">Prolonger de combien de jours ?</label>
+                    <input id="prolonger-jours" type="number" name="additional_days" value="15" min="1" max="180" required
+                           style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)">
+                    <div style="font-size:11.5px;color:var(--text3);margin:6px 0 10px">
+                        Expire aujourd'hui le {{ $quote->expires_at?->format('d/m/Y') ?? '—' }}. Le client garde le même lien.
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm" style="width:100%">Prolonger</button>
+                </form>
+            </details>
+        @endcan
+        @endif
         @can('duplicate', $quote)
             <form method="POST" action="{{ route('admin.quotes.duplicate', $quote) }}" style="display:inline">
                 @csrf
@@ -70,7 +90,8 @@
             <div style="text-align:right">
                 <div style="font-size:32px;font-weight:800;color:var(--text)">{{ number_format($quote->total_a_payer, 0, ',', ' ') }} <span style="font-size:14px;color:var(--text3)">FCFA</span></div>
                 <div style="font-size:12px;color:var(--text3)">Total à payer TTC + taxes</div>
-                @if($quote->status === \App\Enums\QuoteStatus::ENVOYE && $quote->expires_at)
+                {{-- 2026-11-25 — en négociation aussi : le devis expire à cette date. --}}
+                @if(in_array($quote->status, [\App\Enums\QuoteStatus::ENVOYE, \App\Enums\QuoteStatus::EN_NEGOCIATION], true) && $quote->expires_at)
                     @php $daysLeft = (int) now()->diffInDays($quote->expires_at, false); @endphp
                     <div style="margin-top:10px;padding:8px 12px;background:{{ $daysLeft < 3 ? 'rgba(180,83,9,.10)' : 'rgba(59,130,246,.08)' }};border-radius:8px;font-size:12px">
                         <strong>Expire le {{ $quote->expires_at->format('d/m/Y') }}</strong>
@@ -95,6 +116,20 @@
             @if($estModif)
                 <div style="margin-top:8px;font-size:12.5px;color:var(--text2)">Modifie le devis, puis « 📤 Envoyer au client » pour lui adresser la nouvelle version.</div>
             @endif
+        </div>
+    @endif
+
+    {{-- 2026-11-25 — Accepté, mais un panneau a été pris fermement entre-
+         temps : aucune réservation n'a été créée. Le devis se reprend et se
+         renvoie (avant : seul « Dupliquer » restait, sous un autre numéro). --}}
+    @if($quote->status === \App\Enums\QuoteStatus::ACCEPTE_AVEC_CONFLIT)
+        <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);border-radius:12px;padding:16px 18px;margin-bottom:18px">
+            <div style="font-weight:700;color:#b45309;margin-bottom:6px">
+                ⚠️ Le client a accepté, mais des panneaux ont été pris entre-temps
+                @if($quote->decision_at)<span style="font-weight:400;color:var(--text3);font-size:12px"> · le {{ $quote->decision_at->format('d/m/Y à H:i') }}</span>@endif
+            </div>
+            <div style="font-size:13px;color:var(--text)">Aucune réservation n'a été créée : ces panneaux sont déjà réservés fermement pour un autre client.</div>
+            <div style="margin-top:8px;font-size:12.5px;color:var(--text2)">Appelle le client, puis « ✏️ Modifier » pour remplacer les panneaux indisponibles, et « 📤 Envoyer au client » : il recevra la nouvelle version à accepter.</div>
         </div>
     @endif
 

@@ -54,7 +54,8 @@ class HandleQuoteExpiry extends Command
                 '⏰ Devis expire dans 3 jours — ' . $quote->reference,
                 'Le devis ' . $quote->reference . ' pour ' . ($quote->client?->name ?? '—')
                     . ' expire le ' . $quote->expires_at->format('d/m/Y')
-                    . '. Pense à relancer le client.',
+                    // 2026-11-25 — le bouton « ⏳ Prolonger » existe désormais sur la fiche.
+                    . '. Pense à relancer le client, ou prolonge sa validité (« ⏳ Prolonger » sur la fiche).',
                 $quote,
                 [
                     'user_id'     => $quote->commercial_user_id,

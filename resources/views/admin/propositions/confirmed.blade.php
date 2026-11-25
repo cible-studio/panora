@@ -289,10 +289,18 @@
         {{-- Next steps --}}
         <div class="next">
             <div class="next-title">Prochaines étapes</div>
+            {{-- 2026-11-25 — Règle du BC (19/11) : la confirmation réserve en
+                 option ; aucun mail ne part avant le bon de commande. --}}
+            @php
+                $bcEcheance = $reservation->bc_attendu_jusqu_au
+                    ? \Carbon\Carbon::parse($reservation->bc_attendu_jusqu_au)->format('d/m/Y')
+                    : null;
+            @endphp
             <ul>
-                <li>Vous recevrez un email récapitulatif sous peu.</li>
-                <li>Notre équipe vous contactera pour le calendrier de pose.</li>
-                <li>La facturation sera émise selon les conditions convenues.</li>
+                <li>Vos emplacements vous sont réservés en option{{ $bcEcheance ? " jusqu'au {$bcEcheance}" : '' }}.</li>
+                <li>Transmettez votre bon de commande à votre commercial{{ $bcEcheance ? ' avant cette date' : '' }} : il bloque définitivement vos emplacements.</li>
+                <li>Vous recevrez un email de confirmation dès que votre bon de commande sera enregistré.</li>
+                <li>Notre équipe vous contactera ensuite pour le calendrier de pose.</li>
             </ul>
         </div>
 

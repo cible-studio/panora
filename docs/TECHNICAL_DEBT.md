@@ -7,6 +7,26 @@ en crée ou clôt une.
 
 ## Ouvertes
 
+### Devis : « Archiver » existe sans bouton, et fausserait les chiffres (constaté 2026-11-25)
+
+La route `admin.quotes.archive` et `QuotePolicy::archive` (devis refusé,
+expiré ou accepté) existent, mais aucun écran n'y mène. Le bouton n'a pas
+été ajouté le 25/11 : un devis archivé change de statut et sortirait des
+« devis envoyés », des « acceptés » et du taux de transformation des
+commerciaux (`DashboardController` l. 255-269, KPI de la liste des devis),
+et la liste des devis ne masque pas les archivés. À reprendre si l'on veut
+ranger les devis : garder le statut d'origine (colonne `archived_at` à
+part), puis masquer les archivés de la liste par défaut.
+
+### `propositions:send-rappels` hors planning, code conservé (2026-11-25)
+
+Il doublait `propositions:send-reminders` (deux rappels le même matin). Le
+second est le seul planifié. `SendPropositionRappels` et
+`PropositionRappelMail` restent (règle n° 3) : à supprimer quand on sera sûr
+de ne plus en avoir besoin. Même chose pour la vue
+`admin/propositions/index.blade.php`, d'un ancien modèle « Proposition » :
+plus affichée, `/admin/propositions` renvoie vers les réservations.
+
 ### `TaxAutoService` ignore les tarifs datés et le tarif éclairé (constaté 2026-11-18)
 
 L'ancienne génération automatique des taxes (`TaxController::previewAuto` /

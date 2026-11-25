@@ -34,9 +34,9 @@ Motif du refus :
 @endif
 
 @if($isAccepted)Prochaines étapes :
-- La réservation est marquée comme confirmée.
-- Vous pouvez créer la campagne associée depuis la fiche.
-- Préparez la facturation et le planning de pose.
+- Les panneaux sont tenus en option{{ !empty($bcEcheance) ? " jusqu'au {$bcEcheance}" : '' }} : le bon de commande du client est attendu.
+- Récupérez le bon de commande, puis cliquez sur « 📥 BC reçu » sur la fiche réservation : elle sera confirmée et ses panneaux bloqués.
+- Le média planner créera ensuite la campagne. Sans bon de commande à l'échéance, les panneaux repartent au catalogue.
 @else Que faire ensuite :
 - Contactez le client pour comprendre et proposer des alternatives.
 - Les panneaux ont été automatiquement libérés.

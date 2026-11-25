@@ -139,7 +139,9 @@ class QuoteConverter
                     '⚠️ Conflit conversion devis — ' . $quote->reference,
                     'Le client a accepté le devis ' . $quote->reference
                     . ' mais ' . count($unavailable) . ' panneau(x) ne sont plus disponibles.'
-                    . ' Le commercial ' . ($quote->commercial?->name ?? '—') . ' doit ajuster manuellement.',
+                    // 2026-11-25 — le devis en conflit se modifie et se renvoie.
+                    . ' Le commercial ' . ($quote->commercial?->name ?? '—') . ' doit modifier le devis'
+                    . ' (remplacer les panneaux pris) puis le renvoyer au client.',
                     $quote,
                     [
                         'user_id' => $quote->commercial_user_id,

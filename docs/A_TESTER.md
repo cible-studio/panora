@@ -3424,3 +3424,25 @@ Les liens « mailto: » d'un mail ne sont pas comptés par Brevo : 0 clic au Bla
 - [ ] Après l'envoi : `php artisan promos:clics interieur-35` (clics par format et par jour), et le rapport Brevo de la campagne (clics par lien)
 - [ ] Après le déploiement : `promos:clics interieur-35` affiche « Non comptés : … en rafale » pour les filtres du 25/11 ; ouvrir la page depuis un téléphone, puis relancer la commande 1 minute plus tard : un clic de client en plus
 - [ ] Rapport Brevo : désactiver « Ouvertures automatisées et clics inclus » avant la capture du lundi
+
+## § 53 — Parcours devis → réservation : incohérences corrigées *(2026-11-25)*
+
+Relevées en préparant la vidéo de formation des commerciaux ; corrections validées par l'utilisateur (« ok pour tout ce qui est recommandé »). Tests : `tests/Unit/CoherenceDevisPropositionsTest.php`. Vérifié sur une copie MySQL (panora_essai) : recherche du devis, fiche réservation vue par une commerciale et par le MP, ancienne liste des propositions, rendu du mail au commercial.
+
+- **Textes de la proposition** : confirmer réserve en **option** jusqu'à l'échéance du bon de commande (page du client, page après confirmation, espace client, mail au commercial). Plus de « créer votre campagne » ni d'« email récapitulatif » à la confirmation.
+- **« Créer une campagne »** : seulement pour le MP et l'admin (fiche réservation, liste des réservations, liste vide des campagnes). La commerciale lit « Créée par le média planner ».
+- **Devis et panneau en option ailleurs** : comme dans les disponibilités, « le premier BC gagne ». Le panneau reste choisissable, avec un badge **EN OPTION** et un avertissement à l'enregistrement. Un panneau pris fermement (réservation confirmée, campagne) reste refusé. Source : `AvailabilityService::disponibilitePourDevis()`.
+- **Devis de renouvellement** : l'option automatique que le devis remplace ne compte ni comme occupée ni comme « autre dossier ».
+- **Mail « Proposition acceptée »** : au commercial assigné (avant : au créateur de la réservation).
+- **Rappels de proposition** : un seul (`propositions:send-reminders`). `propositions:send-rappels` est retiré du planning ; il envoyait un deuxième rappel le même matin.
+- **Devis « Accepté (conflit à résoudre) »** : il se modifie (version suivante) et se renvoie, avec une aide en haut de la fiche. Avant, seul « Dupliquer » restait.
+- **`/admin/propositions`** : renvoie vers la liste des réservations. L'ancienne page plantait.
+- **« ⏳ Prolonger »** sur la fiche d'un devis envoyé **ou en négociation** (avant : la fonction existait sans bouton). La date d'expiration s'affiche aussi en négociation.
+- **« Archiver » : pas de bouton** (voir TECHNICAL_DEBT) : un devis archivé sortirait des chiffres « devis envoyés » et du taux de transformation des commerciaux.
+
+### À vérifier (prod)
+- [ ] Commerciale : fiche d'une réservation confirmée → plus de « + Créer une campagne », mais « Créée par le média planner » ; le MP voit toujours le bouton
+- [ ] Nouveau devis sur un panneau en option pour un autre client : badge EN OPTION, enregistrement accepté avec l'avertissement « Le premier bon de commande reçu l'emporte »
+- [ ] Renouvellement → « 🧾 Générer le devis » → « Créer le devis » : enregistré sans « occupé »
+- [ ] Devis envoyé : bouton « ⏳ Prolonger », nouvelle date d'expiration affichée
+- [ ] Le lendemain matin : un client avec une proposition envoyée il y a 2 jours ne reçoit qu'un rappel

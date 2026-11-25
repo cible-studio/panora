@@ -87,7 +87,8 @@
         <a href="{{ route('admin.campaigns.show', $res->campaign) }}" class="campaign-link">
             📁 {{ $res->campaign->name }}
         </a>
-        @elseif($res->status->value === 'confirme')
+        @elseif($res->status->value === 'confirme' && auth()->user()?->can('create', \App\Models\Campaign::class))
+        {{-- 2026-11-25 — MP et admin seulement (CampaignPolicy::create). --}}
         <a href="{{ route('admin.campaigns.create', ['reservation_id' => $res->id]) }}" class="create-campaign">
             + Créer
         </a>
