@@ -3413,7 +3413,7 @@ Les liens « mailto: » d'un mail ne sont pas comptés par Brevo : 0 clic au Bla
 
 ### À vérifier (prod)
 - [ ] La table est créée au déploiement (migration jouée au démarrage du conteneur)
-- [ ] Coolify (prod) : variable `PROMO_COPIE` posée avec les deux adresses, puis Redeploy
+- [x] Coolify (prod) : variable `PROMO_COPIE` posée avec les deux adresses, puis Redeploy. **Vu le 25/11 : la page en prod met bien les deux adresses en copie ; affiche et 3 photos servies ; offre inconnue → 404.** Cloudflare masque les adresses de la page et le navigateur les rétablit : le lien décodé garde la copie et le texte prérempli.
 - [ ] Ouvrir https://panora-cible.com/offre/interieur-35/50m2 sur un téléphone : la page s'affiche et la messagerie s'ouvre avec « Format souhaité : 50 m² », les deux adresses en copie
 - [ ] Recoller le mail dans Brevo, s'envoyer un test et cliquer sur une photo : la page du bon format s'ouvre
 - [ ] Après l'envoi : `php artisan promos:clics interieur-35` (clics par format et par jour), et le rapport Brevo de la campagne (clics par lien)
