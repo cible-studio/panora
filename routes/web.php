@@ -54,6 +54,10 @@ Route::get('/offre/{code}/{format?}', [\App\Http\Controllers\PromoController::cl
     ->middleware(['throttle:30,1'])
     ->where(['code' => '[a-z0-9-]{1,60}', 'format' => '[a-z0-9]{1,20}'])
     ->name('promo.show');
+// La page confirme qu'elle s'est affichée : un client, pas un filtre (25/11).
+Route::post('/offre-vu', [\App\Http\Controllers\PromoController::class, 'vu'])
+    ->middleware(['throttle:30,1'])
+    ->name('promo.vu');
 
 // ── Devis publics — clients SANS COMPTE (lien reçu par email) ────
 // Token 256 bits + throttle 20/min/IP. Cf. PublicQuoteController pour
