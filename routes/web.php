@@ -96,6 +96,15 @@ Route::get('/p/{token}', [\App\Http\Controllers\PublicLinkController::class, 'sh
     ->where('token', '[a-f0-9]{64}')
     ->name('public-link.show');
 
+// ── Promotions envoyées par mail — page d'arrivée (2026-11-25) ────
+// Le lien du mail mène ici plutôt qu'à un « mailto: » : Brevo compte alors
+// le clic (client par client, lien par lien) et Panora aussi. La page
+// ouvre la réponse préremplie. Cf. PromoService, config/promos.php.
+Route::get('/offre/{code}/{format?}', [\App\Http\Controllers\PromoController::class, 'show'])
+    ->middleware(['throttle:30,1'])
+    ->where(['code' => '[a-z0-9-]{1,60}', 'format' => '[a-z0-9]{1,20}'])
+    ->name('promo.show');
+
 // ── Devis publics — clients SANS COMPTE (lien reçu par email) ────
 // Token 256 bits + throttle 20/min/IP. Cf. PublicQuoteController pour
 // les contrôles (statut envoyé, non expiré, non archivé).
