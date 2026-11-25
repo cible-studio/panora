@@ -153,6 +153,18 @@ class Reservation extends Model
                 ->diffInDays($this->end_date->copy()->startOfDay());
     }
 
+    /**
+     * Nombre de jours AFFICHÉ (2026-11-25) : durationInDays(), au moins 1.
+     * Source unique des écrans et des mails (fiche réservation, page et
+     * mail de la proposition, espace client). Avant, le mail de proposition
+     * utilisait une variable qui n'existait plus depuis le 25/06 : il ne
+     * pouvait plus partir.
+     */
+    public function nombreJours(): int
+    {
+        return max(1, $this->durationInDays());
+    }
+
     public function billableMonths(): float
     {
         // RÈGLE PATRONNE v2 2026-06-25 — délègue à Campaign::computeBillableMonths

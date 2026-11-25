@@ -43,7 +43,7 @@ Public : les commerciaux, surtout les nouveaux. Voix : Henri. Durée visée : 7 
 
 *S'il demande une modification, le devis passe En négociation. Ouvrez-le, cliquez sur Modifier, ajustez, puis renvoyez-le : le client reçoit la nouvelle version. S'il refuse, le devis passe Refusé, avec le motif qu'il a donné.*
 
-*S'il accepte, Panora crée aussitôt une réservation en option à votre nom, avec les panneaux et les prix du devis. Les panneaux sont tenus trente jours, le temps de recevoir le bon de commande. Si, entre-temps, un panneau a été réservé ferme pour un autre client, Panora vous prévient : appelez le client, puis dupliquez le devis pour lui proposer d'autres emplacements.*
+*S'il accepte, Panora crée aussitôt une réservation en option à votre nom, avec les panneaux et les prix du devis. Les panneaux sont tenus trente jours, le temps de recevoir le bon de commande. Si, entre-temps, un panneau a été réservé ferme pour un autre client, Panora vous prévient : appelez le client, modifiez le devis pour remplacer les panneaux pris, puis renvoyez-le.*
 
 ## 5. Du devis accepté à la réservation ferme (≈ 1 min 15)
 

@@ -241,8 +241,7 @@ class ClientDashboardController extends Controller
         // Durée réelle de la campagne, pour affichage cohérent partout :
         //   - $days        : nombre de jours
         //   - $monthsLabel : libellé court "0,5" ou "1" ou "2,5"
-        $days = (int) abs($reservation->start_date->copy()->startOfDay()
-            ->diffInDays($reservation->end_date->copy()->startOfDay()));
+        $days = $reservation->nombreJours();   // source unique (2026-11-25)
         $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
 
         return view('client.proposition-detail', compact(

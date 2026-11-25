@@ -245,7 +245,9 @@
                     → {{ $reservation->end_date->format('d/m/Y') }}
                 </div>
                 <div class="text-xs mt-0.5" style="color:var(--text2)">
-                    {{ $reservation->start_date->diffInDays($reservation->end_date) }} jours
+                    {{-- 2026-11-25 — source unique Reservation::nombreJours(). --}}
+                    @php $nbJours = $reservation->nombreJours(); @endphp
+                    {{ $nbJours }} jour{{ $nbJours > 1 ? 's' : '' }}
                 </div>
             </div>
             <div>
