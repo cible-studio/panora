@@ -3409,8 +3409,11 @@ Les liens « mailto: » d'un mail ne sont pas comptés par Brevo : 0 clic au Bla
 - Une nouvelle promo = une entrée dans `config/promos.php` ; `'active' => false` affiche « Cette offre est terminée ».
 - Premier usage : `docs/diffusion/promo-interieur-35-2026.html`, dont tous les liens sont passés sur la page.
 
+- **Copies (25/11)** : `PROMO_COPIE` (Coolify, adresses séparées par des virgules) met des adresses en copie (Cc) du mail prérempli. Les deux adresses demandées le 25/11 sont nominatives : elles sont dans Coolify, pas dans le code.
+
 ### À vérifier (prod)
 - [ ] La table est créée au déploiement (migration jouée au démarrage du conteneur)
-- [ ] Ouvrir https://panora-cible.com/offre/interieur-35/50m2 sur un téléphone : la page s'affiche et la messagerie s'ouvre avec « Format souhaité : 50 m² »
+- [ ] Coolify (prod) : variable `PROMO_COPIE` posée avec les deux adresses, puis Redeploy
+- [ ] Ouvrir https://panora-cible.com/offre/interieur-35/50m2 sur un téléphone : la page s'affiche et la messagerie s'ouvre avec « Format souhaité : 50 m² », les deux adresses en copie
 - [ ] Recoller le mail dans Brevo, s'envoyer un test et cliquer sur une photo : la page du bon format s'ouvre
 - [ ] Après l'envoi : `php artisan promos:clics interieur-35` (clics par format et par jour), et le rapport Brevo de la campagne (clics par lien)

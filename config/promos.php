@@ -14,7 +14,13 @@
 | Une nouvelle promotion = une entrée ici (images dans
 | public/images/cible/promos/). 'active' => false : la page dit que l'offre
 | est terminée et renvoie vers le service commercial.
+|
+| PROMO_COPIE (serveur, 25/11) : adresses mises en copie (Cc) du mail
+| prérempli, séparées par des virgules. Des adresses nominatives : elles
+| vivent dans Coolify, jamais dans le code. Vide = pas de copie.
 */
+
+$copie = array_values(array_filter(array_map('trim', explode(',', (string) env('PROMO_COPIE', '')))));
 
 return [
     'interieur-35' => [
@@ -31,6 +37,7 @@ return [
         ],
         'telephone' => '07 69 30 46 02',
         'email'     => 'commercial@cible-ci.com',
+        'copie'     => $copie,
         'sujet'     => "Offre -35 % — panneaux à l'intérieur du pays",
         // « :format » est remplacé par le format choisi (vide sinon).
         'message'   => "Bonjour,\n\nJe suis intéressé(e) par l'offre de 35 % de réduction sur vos panneaux à l'intérieur du pays.\n\nFormat souhaité (50 m², 12 m² ou 6 m²) : :format\nVille(s) : \nPériode : \n\n",
