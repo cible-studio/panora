@@ -2485,8 +2485,7 @@ class ReservationController extends Controller
             $reservation->start_date->format('Y-m-d'),
             $reservation->end_date->format('Y-m-d')
         );
-        $days = (int) abs($reservation->start_date->copy()->startOfDay()
-            ->diffInDays($reservation->end_date->copy()->startOfDay()));
+        $days = $reservation->nombreJours();   // affichage seulement — source unique (2026-11-25)
 
         $unifiedPanels = collect();
 

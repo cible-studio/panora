@@ -16,6 +16,9 @@
         \Carbon\Carbon::parse($reservation->end_date)
     );
     $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
+    // 2026-11-25 — manquait depuis le 25/06 : le mail ne pouvait plus partir
+    // (aperçu en erreur, bouton Envoyer grisé). Source : Reservation::nombreJours().
+    $totalDays   = $reservation->nombreJours();
 
     // ── Montant total : total_amount fait foi.
     //    NULL = pas encore fixé → on calcule à partir des panneaux.

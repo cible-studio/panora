@@ -3439,6 +3439,7 @@ Relevées en préparant la vidéo de formation des commerciaux ; corrections val
 - **`/admin/propositions`** : renvoie vers la liste des réservations. L'ancienne page plantait.
 - **« ⏳ Prolonger »** sur la fiche d'un devis envoyé **ou en négociation** (avant : la fonction existait sans bouton). La date d'expiration s'affiche aussi en négociation.
 - **« Archiver » : pas de bouton** (voir TECHNICAL_DEBT) : un devis archivé sortirait des chiffres « devis envoyés » et du taux de transformation des commerciaux.
+- **Mail de proposition réparé** (trouvé pendant le tournage) : depuis le 25/06, ses deux vues utilisaient `$totalDays` sans le définir. L'aperçu affichait « L'aperçu n'a pas pu être préparé », le bouton Envoyer restait grisé et aucune proposition ne partait. Le nombre de jours affiché vient désormais de `Reservation::nombreJours()` (au moins 1), aux 6 endroits qui le calculaient. Tests : `PropositionMailRenduTest`.
 
 ### À vérifier (prod)
 - [ ] Commerciale : fiche d'une réservation confirmée → plus de « + Créer une campagne », mais « Créée par le média planner » ; le MP voit toujours le bouton
@@ -3446,3 +3447,4 @@ Relevées en préparant la vidéo de formation des commerciaux ; corrections val
 - [ ] Renouvellement → « 🧾 Générer le devis » → « Créer le devis » : enregistré sans « occupé »
 - [ ] Devis envoyé : bouton « ⏳ Prolonger », nouvelle date d'expiration affichée
 - [ ] Le lendemain matin : un client avec une proposition envoyée il y a 2 jours ne reçoit qu'un rappel
+- [ ] Réservation en option → « 📧 Envoyer la proposition » : l'aperçu s'affiche (durée en jours), l'envoi part, le client reçoit le lien
