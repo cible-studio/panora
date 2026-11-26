@@ -3448,3 +3448,12 @@ Relevées en préparant la vidéo de formation des commerciaux ; corrections val
 - [ ] Devis envoyé : bouton « ⏳ Prolonger », nouvelle date d'expiration affichée
 - [ ] Le lendemain matin : un client avec une proposition envoyée il y a 2 jours ne reçoit qu'un rappel
 - [ ] Réservation en option → « 📧 Envoyer la proposition » : l'aperçu s'affiche (durée en jours), l'envoi part, le client reçoit le lien
+
+## § 54 — Ajouter un panneau à une campagne : erreur 500 depuis le 24/11 *(2026-11-26)*
+
+`CampaignService::addPanels()` utilisait `$entreeLe` (date d'entrée du panneau, ajoutée le 24/11) sans le recevoir dans sa fonction interne. Résultat : une erreur 500 à chaque **ajout de panneau** à une campagne, à la **duplication** et à **« 🔁 Renouveler la campagne »**. Corrigé, reproduit puis vérifié sur une copie MySQL (develop 15714fba, main 55329312). Test : `AjoutPanneauCampagneTest`.
+
+### À vérifier (prod, après redéploiement)
+- [ ] Campagne en cours → « + Ajouter un panneau » : le panneau est ajouté, sa pose est créée, l'historique montre la date d'entrée
+- [ ] Campagne → « 🔁 Renouveler » : la copie se crée avec ses panneaux
+- [ ] Si un MP a vu une erreur 500 depuis le 24/11 en ajoutant un panneau : refaire l'ajout (rien n'a été enregistré, l'opération avait été annulée)
