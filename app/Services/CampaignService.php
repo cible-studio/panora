@@ -59,7 +59,10 @@ class CampaignService
             return ['ok' => false, 'error' => "Ces panneaux sont déjà dans la campagne : {$refs}"];
         }
 
-        return DB::transaction(function () use ($campaign, $panelIds, $unitPrices) {
+        // 2026-11-26 — $entreeLe manquait ici depuis le 24/11 : « Undefined
+        // variable », donc erreur 500 à chaque ajout de panneau, duplication
+        // ou « Renouveler la campagne ».
+        return DB::transaction(function () use ($campaign, $panelIds, $unitPrices, $entreeLe) {
             // Verrou pessimiste sur les panels
             Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
 
