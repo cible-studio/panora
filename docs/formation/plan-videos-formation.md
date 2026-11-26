@@ -48,6 +48,8 @@ La finance est coupée en deux vidéos : facturation et taxes sont deux métiers
 
 ### Incohérences à corriger avant le tournage (finance)
 
+> **État au 26/11 :** recommandations validées (« ok pour tout ce qui est recommandé » ; point 6 : 1 000 F partout ; point 5 : date d'émission côté facture, mois par mois côté mairie). Points 1 à 24 **corrigés** ; le 25 (manuel) viendra après la vidéo. Détail et vérifications : `docs/A_TESTER.md` § 55.
+
 Chaque point a une **recommandation**. Les points marqués ⚠ changent une règle de calcul ou de droits : ils demandent ton accord écrit, comme toujours.
 
 **Montants faux ou différents selon l'écran — prioritaires**

@@ -60,7 +60,8 @@ class PaymentService
         }
 
         // Garde stricte (cahier §5 livrables : "total encaissé ≤ total facturé")
-        // Tolérance de 1 FCFA pour arrondis. Au-delà : forcer émission d'avoir.
+        // Tolérance de 1 FCFA pour arrondis. Au-delà : bloqué, l'admin tranche
+        // (l'avoir n'existe pas encore dans Panora — 2026-11-26).
         $totalDue   = (int) ($invoice->total_a_payer ?: $invoice->amount_ttc ?: 0);
         $newTotal   = (int) $invoice->paidAmount() + $montant;
         if ($totalDue > 0 && $newTotal > $totalDue + 1) {
@@ -70,7 +71,7 @@ class PaymentService
                 . number_format($montant, 0, ',', ' ') . ' FCFA porterait le total encaissé à '
                 . number_format($newTotal, 0, ',', ' ') . ' FCFA, soit '
                 . number_format($depassement, 0, ',', ' ') . ' FCFA au-dessus du total facturé. '
-                . 'Si c\'est un trop-perçu réel, émets un avoir au lieu d\'ajouter ce versement.'
+                . 'Si c\'est un trop-perçu réel, n\'ajoutez pas ce versement : signalez-le à l\'admin, qui décidera du remboursement ou de la correction de la facture.'
             );
         }
 

@@ -16,9 +16,10 @@ use Illuminate\Queue\SerializesModels;
  * Rappel courtois envoyé au client avant qu'une échéance de paiement
  * n'arrive à terme (cf. mission B — capture user).
  *
- * Typiquement déclenché à J-7 par le job finance:check-due-dates.
- * Idempotence : la commande positionne reminded_at sur l'échéance pour
- * éviter le double-envoi (cf. CheckDueDates::touchReminder).
+ * Déclenché à J-7 par invoices:alerts (2026-11-26, système unique).
+ * Idempotence : une ligne invoice_alerts par étape et par canal.
+ * Sans échéancier, $schedule est l'échéance par défaut (non enregistrée) :
+ * « Solde », reste à payer, date d'émission + 30 jours.
  */
 class InvoiceScheduleReminderMail extends Mailable implements MailCommercial
 {

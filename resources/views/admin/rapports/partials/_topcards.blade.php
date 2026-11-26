@@ -25,7 +25,9 @@
          Note : la card "Rapport taxes" a été retirée de ce hub — le
          rapport reste accessible depuis le module Taxes lui-même
          (admin/taxes : boutons "📊 Rapport" sur index + historique). --}}
-    @if(auth()->user()?->role?->value !== 'commercial')
+    {{-- 2026-11-26 — admin + MP seulement (le comptable voyait la carte
+         et tombait sur « accès refusé »). --}}
+    @if(\App\Http\Controllers\Admin\RapportController::peut('occupation'))
     <a href="{{ route('admin.rapports.annulations') }}"
        data-route-base="{{ route('admin.rapports.annulations') }}"
        style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-left:4px solid #ef4444;border-radius:12px;text-decoration:none;transition:transform .15s,border-color .15s,box-shadow .15s"

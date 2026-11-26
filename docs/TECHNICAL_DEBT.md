@@ -57,13 +57,35 @@ factures liées en `brouillon` ou `envoyee` seulement. Une facture
 annulée ; une `partiellement_payee` aussi (là, un versement a eu lieu :
 avoir ou remboursement). Règle métier à faire trancher avant d'y toucher.
 
-### PDF de la liste des factures : montants des lignes en `amount_ttc` (constaté 2026-10-30)
+### ~~PDF de la liste des factures : montants des lignes en `amount_ttc`~~ — CLOS le 2026-11-26
 
-`pdf/invoices-list` affiche et totalise `amount_ttc`, pas
-`Invoice::montantTotal()` (`total_a_payer`, repli `amount_ttc`) qu'utilisent
-Finance et la liste. « Total TTC » peut donc différer du total à payer
-quand ODP / TM sont refacturés. La tuile « Encaissé » a été alignée le
-2026-10-30, pas les montants des lignes. À valider avant de changer.
+Lignes et total en « Total à payer » (`Invoice::montantTotal()`), comme
+Finance et la liste (validé avec les corrections finance, A_TESTER § 55).
+
+### Anciennes relances de factures hors planning, code conservé (2026-11-26)
+
+`finance:check-due-dates` (`CheckDueDates`) et `invoices:send-reminders`
+(`SendUnpaidInvoiceReminders`) ne sont plus planifiées : `invoices:alerts`
+est le système unique (J-7, J+7, J+15, J+30). Les lancer à la main
+doublerait les mails au client. `InvoiceScheduleAlertNotification` n'est
+plus utilisée (ses alertes « in-app » n'étaient affichées nulle part).
+Règle n° 3 : code conservé, à supprimer quand on sera sûr de ne plus en
+avoir besoin.
+
+### Facturation rapide de la liste des campagnes (constaté 2026-11-26)
+
+`campaigns/{id}/billing-quick` (`CampaignController::billingQuick`) crée
+une facture sans lignes ni taxes et change son statut à la main. Route
+ouverte à l'admin et au MP, alors que le MP n'a plus accès aux factures
+(02/11) ; le commercial et le comptable voient le bouton dans la liste des
+campagnes mais reçoivent « accès refusé ». Le numéro passe désormais par
+`Invoice::creerAvecNumero`. À trancher : réserver à l'admin, ou retirer.
+
+### Ancienne page « Taxes — historique » (2026-11-26)
+
+`TaxController::historique` renvoie vers le Suivi des mairies (hors appel
+AJAX) ; son code, la vue `admin/taxes/historique.blade.php` et la vue
+manquante `admin.taxes.show` (la route `taxes/{id}` redirige) restent.
 
 ### `Client::$fillable` ne correspond pas à la table (constaté 2026-10-30)
 

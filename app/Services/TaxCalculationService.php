@@ -95,6 +95,29 @@ class TaxCalculationService
             ]]
         );
 
+        // 2026-11-26 — Côté mairies, MOIS PAR MOIS (règle confirmée le 26/11) :
+        // chaque mois prend le tarif en vigueur ce mois-là, comme le Suivi des
+        // mairies (12 appels mensuels). On ne découpe que les communes dont le
+        // tarif CHANGE pendant la période : pour toutes les autres, le calcul
+        // reste exactement celui d'avant.
+        $moisDeLaPeriode = $this->moisDeLaPeriode($periodStart, $periodEnd);
+        $tarifsMensuels  = [];   // commune_id → 'normal'|'eclaire' → [tarifs du mois i]
+        if (count($moisDeLaPeriode) > 1) {
+            $communesQuiChangent = \App\Models\CommuneTaxRateHistory::query()
+                ->where('effective_from', '>', $periodStart->toDateString())
+                ->where('effective_from', '<=', $periodEnd->toDateString())
+                ->distinct()->pluck('commune_id');
+            foreach ($communesQuiChangent as $cid) {
+                if (!isset($communes[$cid])) continue;
+                foreach (['normal' => false, 'eclaire' => true] as $cle => $eclaire) {
+                    $tarifsMensuels[$cid][$cle] = array_map(
+                        fn ($m) => $communes[$cid]->ratesAt($m[0], $eclaire),
+                        $moisDeLaPeriode
+                    );
+                }
+            }
+        }
+
         // Charge panneaux avec leur commune, format, dimensions.
         // ═══ Panneaux démantelés — prorata (2026-11-13) ═══
         // Le démantèlement est modélisé par le soft delete : deleted_at = la
@@ -208,6 +231,12 @@ class TaxCalculationService
                 if ($filterType && $filterType !== $type) continue;
 
                 $unitRate = (float) ($rates[$type] ?? 0);
+                // 2026-11-26 — TM : base nationale (config billing.tm_default,
+                // 1 000 F/m²/mois) quand la commune n'a pas de tarif TM, comme
+                // sur les factures (règle confirmée le 26/11 ; avant : 0).
+                if ($type === self::TYPE_TM && $unitRate <= 0) {
+                    $unitRate = self::tmParDefaut();
+                }
                 if ($unitRate <= 0) continue; // pas tarif → ligne ignorée
 
                 // TM : une ligne par campagne (2026-11-16). ODP : une ligne
@@ -297,6 +326,26 @@ class TaxCalculationService
 
                 if ($lineMonths === 0) continue;
                 $amount = round($rateApplied * $surface * $lineMonths, 2);
+
+                // Tarif qui change pendant la période : chaque mois à son tarif.
+                $cleTarif = $panel->is_lit ? 'eclaire' : 'normal';
+                if (isset($tarifsMensuels[$commune->id][$cleTarif])) {
+                    $somme = 0.0;
+                    $moisComptes = 0;
+                    foreach ($moisDeLaPeriode as $i => [$debutMois, $finMois]) {
+                        $tarifMois = (float) ($tarifsMensuels[$commune->id][$cleTarif][$i][$type] ?? 0);
+                        if ($type === self::TYPE_TM && $tarifMois <= 0) {
+                            $tarifMois = self::tmParDefaut();
+                        }
+                        $n = $this->moisDeLaLigneDans($type, $occurrence, $panel, $debutMois, $finMois, $months);
+                        $somme += $tarifMois * $surface * $n;
+                        $moisComptes += $n;
+                    }
+                    if ($moisComptes > 0) {
+                        $amount      = round($somme, 2);
+                        $rateApplied = $somme / ($surface * $moisComptes);   // tarif moyen, pour l'affichage
+                    }
+                }
 
                 $lines->push([
                     'commune'        => $commune->name,
@@ -937,6 +986,7 @@ class TaxCalculationService
         $total = 0.0;
         foreach ($this->panneauxPourCalcul($commune) as $panel) {
             $rate = (float) ($commune->ratesAt($debut, (bool) $panel->is_lit)['tm'] ?? 0); // éclairé : 2026-11-18
+            if ($rate <= 0) $rate = self::tmParDefaut();   // base nationale (2026-11-26)
             if ($rate <= 0) continue;
             // Surface taxable = une face × nombre de faces (2026-11-13).
             $surface = (float) ($panel->format?->surface ?? 0)
@@ -1101,5 +1151,45 @@ class TaxCalculationService
             // seulement (2026-11-13) — cf. Panel::scopeAvecTaxesAutomatiques.
             ->avecTaxesAutomatiques($inclureLumipub)
             ->get();
+    }
+
+    /** Tarif TM national par défaut (config billing.tm_default), 2026-11-26. */
+    public static function tmParDefaut(): float
+    {
+        return (float) config('billing.tm_default', 1000);
+    }
+
+    /**
+     * Les mois civils couverts par la période, bornés à la période :
+     * [[début, fin], …] (2026-11-26, calcul mois par mois).
+     *
+     * @return list<array{0: \Carbon\Carbon, 1: \Carbon\Carbon}>
+     */
+    private function moisDeLaPeriode(\Carbon\Carbon $debut, \Carbon\Carbon $fin): array
+    {
+        $mois = [];
+        $curseur = $debut->copy()->startOfMonth();
+        while ($curseur->lte($fin)) {
+            $mois[] = [
+                $curseur->copy()->max($debut)->startOfDay(),
+                $curseur->copy()->endOfMonth()->min($fin)->endOfDay(),
+            ];
+            $curseur->addMonthNoOverflow()->startOfMonth();
+        }
+
+        return $mois;
+    }
+
+    /** Mois d'une ligne comptés dans une sous-période (mêmes règles que generateLines). */
+    private function moisDeLaLigneDans(string $type, array $occurrence, $panel, \Carbon\Carbon $debut, \Carbon\Carbon $fin, int $moisParDefaut): int
+    {
+        if ($type === self::TYPE_TM && !empty($occurrence['campaign_start']) && !empty($occurrence['campaign_end'])) {
+            return $this->period->moisTMCommencantDansPeriode($occurrence['campaign_start'], $occurrence['campaign_end'], $debut, $fin);
+        }
+        if ($type === self::TYPE_ODP) {
+            return $this->period->moisODPDansPeriode($panel->odp_start_date ?? $debut, $panel->deleted_at, $debut, $fin);
+        }
+
+        return 1;   // garde-fou « TM sans dates » : un mois par mois de période
     }
 }

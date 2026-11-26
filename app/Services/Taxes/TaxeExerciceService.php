@@ -395,8 +395,10 @@ class TaxeExerciceService
     }
 
     /**
-     * Statut lu par les écrans qui ont leurs propres libellés
-     * (page Taxes : paye / partiel / non_paye / aucun).
+     * Statut lu par les écrans qui ont leurs propres filtres
+     * (page Taxes : paye / partiel / non_paye / aucun, et a_saisir pendant
+     * l'année de reprise — 2026-11-26). Lui passer statutAffiche(), pas le
+     * statut brut. Les libellés affichés restent ceux de LIBELLES_STATUT.
      */
     public static function statutPageTaxes(string $statut): string
     {

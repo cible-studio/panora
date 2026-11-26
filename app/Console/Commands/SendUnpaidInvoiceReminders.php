@@ -11,6 +11,11 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 /**
+ * ⚠ 2026-11-26 — RETIRÉE DU PLANNING. Les relances J+7, J+15, J+30 partent
+ * désormais de invoices:alerts (système unique, calé sur l'échéance et non
+ * sur la date d'émission). Ne pas lancer à la main : le client recevrait
+ * deux relances.
+ *
  * Envoie des relances automatiques pour les factures impayées.
  *
  * Cadence (depuis issued_at) :

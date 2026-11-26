@@ -118,6 +118,67 @@ class Invoice extends Model implements Auditable
         'annulee'             => 'Annulée',
     ];
 
+    /**
+     * Libellés du statut de PAIEMENT dérivé (paymentStatus), 2026-11-26 —
+     * source unique des exports (avant : codes bruts « non_payee » affichés).
+     */
+    public const PAYMENT_STATUS_LABELS = [
+        'soldee'    => 'Soldée',
+        'partielle' => 'Paiement partiel',
+        'non_payee' => 'Non soldée',
+        'en_retard' => 'En retard',
+        'annulee'   => 'Annulée',
+    ];
+
+    public static function paymentStatusLabel(?string $status): string
+    {
+        return self::PAYMENT_STATUS_LABELS[$status] ?? ucfirst(str_replace('_', ' ', (string) $status));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // NUMÉROTATION (2026-11-26, point 21 validé) — SOURCE UNIQUE
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Prochain numéro de facture de l'année : plus grand numéro déjà
+     * attribué + 1 (format config billing.reference_format, FAC-2026-001).
+     * Un numéro n'est jamais réattribué, même après une suppression.
+     *
+     * Avant, quatre endroits comptaient les factures de l'année : deux
+     * créations rapprochées, ou une facture supprimée, donnaient un doublon.
+     * Les avoirs (credit_note_format, AV-…) ont leur propre suite.
+     */
+    public static function prochaineReference(int $annee): string
+    {
+        $format  = (string) config('billing.reference_format', 'FAC-%s-%03d');
+        // Partie fixe avant le compteur : « FAC-2026- ».
+        $prefixe = sprintf(preg_split('/%0?\d*d/', $format, 2)[0], $annee);
+
+        $dernier = static::query()
+            ->where('reference', 'like', $prefixe . '%')
+            ->pluck('reference')
+            ->map(fn ($r) => (int) preg_replace('/\D.*$/s', '', substr((string) $r, strlen($prefixe))))
+            ->max() ?? 0;
+
+        return sprintf($format, $annee, $dernier + 1);
+    }
+
+    /**
+     * Crée une facture sous verrou : le numéro est calculé puis la facture
+     * enregistrée sans qu'une autre création s'intercale (les tables sont en
+     * MyISAM : pas de verrou de ligne, d'où un verrou applicatif).
+     * $creer reçoit le numéro et crée la facture ; son retour est renvoyé.
+     *
+     * @template T
+     * @param  \Closure(string): T  $creer
+     * @return T
+     */
+    public static function creerAvecNumero(int $annee, \Closure $creer): mixed
+    {
+        return \Illuminate\Support\Facades\Cache::lock('factures:numerotation', 60)
+            ->block(20, fn () => $creer(self::prochaineReference($annee)));
+    }
+
     /** Helper statique — utilisable dans toutes les vues / services. */
     public static function statusLabel(?string $status): string
     {
@@ -162,15 +223,19 @@ class Invoice extends Model implements Auditable
     }
 
     /** Transitions manuelles autorisées (user action). */
+    // 2026-11-26 (point 20) — alignée sur les boutons de la fiche facture.
+    // Avant, « 🔒 Valider et figer » depuis un brouillon était refusé
+    // (brouillon → validee absent), et la table annonçait des passages sans
+    // bouton (partielle / en retard → litige, litige → payée).
     public const MANUAL_TRANSITIONS = [
-        'brouillon'           => ['generee', 'annulee'],
+        'brouillon'           => ['generee', 'validee', 'envoyee', 'payee', 'annulee'],
         'generee'             => ['brouillon', 'validee', 'annulee'],
         'validee'             => ['envoyee', 'litige', 'annulee', 'brouillon'],
-        'envoyee'             => ['litige', 'annulee', 'brouillon'],
-        'partiellement_payee' => ['litige', 'brouillon'],
+        'envoyee'             => ['payee', 'litige', 'annulee', 'brouillon'],
+        'partiellement_payee' => ['annulee', 'brouillon'],
         'payee'               => ['brouillon'], // rebascule possible si erreur
-        'en_retard'           => ['litige', 'brouillon'],
-        'litige'              => ['envoyee', 'partiellement_payee', 'payee', 'annulee'],
+        'en_retard'           => ['annulee', 'brouillon'],
+        'litige'              => ['envoyee', 'annulee', 'brouillon'],
         'annulee'             => ['brouillon'],
     ];
 
@@ -266,6 +331,98 @@ class Invoice extends Model implements Auditable
     public function schedules()
     {
         return $this->hasMany(InvoiceSchedule::class)->orderBy('due_date');
+    }
+
+    /**
+     * Totaux tels qu'ils s'affichent (2026-11-26) — SOURCE UNIQUE de la page
+     * de la facture, du PDF FNE, du mail au client et de la page publique.
+     *
+     * Modèle DGI (celui du PDF) : la TVA et le TOTAL TTC comprennent les
+     * services annexes ; l'ODP, la TM et la TSP forment les « autres taxes ».
+     * Tout part des montants enregistrés par InvoiceCalculator. Le TTC des
+     * services n'étant pas stocké, il est déduit du total à payer : les
+     * lignes affichées retombent ainsi toujours sur ce total, au franc près.
+     *
+     * Avant, la page recalculait les services sans la quantité et appliquait
+     * la TVA à tous (y compris « HT strict »), et le mail annonçait le TTC
+     * des panneaux à la place du total à payer.
+     *
+     * @return array<string, int|float>
+     */
+    /**
+     * Communes des lignes sans tarif TM à la date d'émission (2026-11-26) :
+     * la base nationale (1 000 F/m²/mois) leur a été appliquée. Sert à
+     * l'avertissement « tarif TM à renseigner » de la facture et du formulaire.
+     *
+     * @param  iterable<array{commune_id?: mixed, panel_id?: mixed}>|null  $lignes  saisie du formulaire, sinon les lignes enregistrées
+     * @return list<string>
+     */
+    public static function communesSansTarifTm(iterable $lignes, \DateTimeInterface|string|null $emission): array
+    {
+        $date = $emission ?: now();
+        $noms = [];
+        foreach ($lignes as $l) {
+            $l = is_array($l) ? $l : $l->toArray();
+            if (empty($l['commune_id'])) continue;
+            $commune = Commune::find($l['commune_id']);
+            if (!$commune) continue;
+            $eclaire = !empty($l['panel_id']) && (bool) Panel::whereKey((int) $l['panel_id'])->value('is_lit');
+            if ((float) ($commune->ratesAt($date, $eclaire)['tm'] ?? 0) <= 0) {
+                $noms[$commune->id] = $commune->name;
+            }
+        }
+
+        return array_values($noms);
+    }
+
+    public function totauxAffiches(): array
+    {
+        $services = $this->relationLoaded('services') ? $this->services : $this->services()->get();
+        if ($services->isNotEmpty()) {
+            $htAvecTva = (int) $services->filter(fn ($s) => (bool) $s->tva_applicable)->sum(fn ($s) => $s->montantHt());
+            $htSansTva = (int) $services->reject(fn ($s) => (bool) $s->tva_applicable)->sum(fn ($s) => $s->montantHt());
+        } else {
+            // Factures d'avant les services libres : deux champs, soumis à TVA.
+            $htAvecTva = (int) $this->services_impression + (int) $this->services_pose_depose;
+            $htSansTva = 0;
+        }
+        $servicesHt = $htAvecTva + $htSansTva;
+        $tauxTva    = (float) $this->tva;
+
+        $ttcPanneaux = (int) $this->amount_ttc;
+        $autres      = (int) $this->tsp_amount + (int) $this->tm_total + (int) $this->odp_total;
+        $total       = (int) $this->total_a_payer;
+
+        $servicesTtc = $total > 0
+            ? max(0, $total - $ttcPanneaux - $autres)
+            : (int) round($htAvecTva * (1 + $tauxTva / 100)) + $htSansTva;
+        if ($total <= 0) {
+            $total = $ttcPanneaux + $autres + $servicesTtc;
+        }
+
+        $htBrut = (int) $this->amount;
+        $netHt  = (int) ($this->net_ht ?: $htBrut);
+
+        return [
+            'ht_brut'              => $htBrut,
+            'remise_pct'           => (float) $this->remise_pct,
+            'remise'               => max(0, $htBrut - $netHt),
+            'net_ht'               => $netHt,
+            'services_ht'          => $servicesHt,
+            'services_ht_avec_tva' => $htAvecTva,
+            'services_ht_sans_tva' => $htSansTva,
+            'services_ttc'         => $servicesTtc,
+            'taux_tva'             => $tauxTva,
+            'tva_panneaux'         => (int) $this->tva_amount,
+            'tva_services'         => max(0, $servicesTtc - $servicesHt),
+            'tva'                  => (int) $this->tva_amount + max(0, $servicesTtc - $servicesHt),
+            'ttc'                  => $ttcPanneaux + $servicesTtc,
+            'tsp'                  => (int) $this->tsp_amount,
+            'tm'                   => (int) $this->tm_total,
+            'odp'                  => (int) $this->odp_total,
+            'autres_taxes'         => $autres,
+            'total_a_payer'        => $total,
+        ];
     }
 
     /**
@@ -446,28 +603,50 @@ class Invoice extends Model implements Auditable
     }
 
     /**
-     * Facture en retard : au moins une échéance prévisionnelle
-     * dépassée non payée ET la facture n'est ni soldée ni annulée.
+     * Statuts où le montant est réclamable au client (2026-11-26) : la
+     * facture est partie, n'est ni soldée, ni annulée, ni en litige.
+     * Seules ces factures peuvent être « en retard » et être relancées.
+     */
+    public const STATUTS_RECLAMABLES = ['envoyee', 'partiellement_payee', 'en_retard'];
+
+    /**
+     * Échéance de la facture (2026-11-26) — SOURCE UNIQUE, règle validée
+     * le 26/11 : la plus ancienne échéance non soldée de l'échéancier ; sans
+     * échéancier, la date d'émission + le délai de paiement (30 jours, cf.
+     * config billing.delai_paiement_jours). Null : échéancier entièrement soldé,
+     * ou facture sans date.
      *
-     * Si pas d'échéancier configuré, on ne se base PAS sur issued_at
-     * (le délai de paiement standard est dans notes_client, pas une
-     * date stricte) — l'admin doit configurer un échéancier pour
-     * activer le suivi recouvrement.
+     * Avant, quatre définitions coexistaient (statut, échéancier seul, date
+     * d'émission seule…) : une facture sans échéancier n'était jamais en retard.
+     */
+    public function echeance(): ?\Carbon\Carbon
+    {
+        $schedules = $this->relationLoaded('schedules') ? $this->schedules : $this->schedules()->get();
+        if ($schedules->isNotEmpty()) {
+            $prochaine = $schedules->whereNull('paid_at')->sortBy('due_date')->first();
+
+            return $prochaine?->due_date?->copy()->startOfDay();
+        }
+
+        $base = $this->issued_at ?? $this->created_at;
+
+        return $base
+            ? \Carbon\Carbon::parse($base)->startOfDay()->addDays((int) config('billing.delai_paiement_jours', 30))
+            : null;
+    }
+
+    /**
+     * En retard (2026-11-26, définition unique) : facture réclamable dont
+     * l'échéance est dépassée et dont il reste quelque chose à payer.
      */
     public function isOverdue(): bool
     {
-        if (in_array($this->status, ['annulee', 'brouillon'])) return false;
+        if (!in_array($this->status, self::STATUTS_RECLAMABLES, true)) return false;
         if ($this->remainingAmount() <= 0.01) return false;
 
-        $schedules = $this->relationLoaded('schedules')
-            ? $this->schedules
-            : $this->schedules()->get();
+        $echeance = $this->echeance();
 
-        return $schedules
-            ->whereNull('paid_at')
-            ->contains(fn($s) =>
-                $s->due_date && $s->due_date->startOfDay()->lt(now()->startOfDay())
-            );
+        return $echeance !== null && $echeance->lt(now()->startOfDay());
     }
 
     /**

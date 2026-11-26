@@ -3457,3 +3457,39 @@ Relevées en préparant la vidéo de formation des commerciaux ; corrections val
 - [ ] Campagne en cours → « + Ajouter un panneau » : le panneau est ajouté, sa pose est créée, l'historique montre la date d'entrée
 - [ ] Campagne → « 🔁 Renouveler » : la copie se crée avec ses panneaux
 - [ ] Si un MP a vu une erreur 500 depuis le 24/11 en ajoutant un panneau : refaire l'ajout (rien n'a été enregistré, l'opération avait été annulée)
+
+## § 55 — Facturation, relances, taxes : corrections avant la vidéo des comptables *(2026-11-26)*
+
+Les 24 points relevés pour la vidéo « Facturer et encaisser » ont été corrigés (liste et décisions : `docs/formation/plan-videos-formation.md`, section 3 ; validés « ok pour tout ce qui est recommandé », TM sans tarif = 1 000 F partout, tarif à la date d'émission). Tests : `FinanceFormationComptableTest`, `TaxeExerciceServiceTest` (2 tests ajoutés). Vérifié sur une copie MySQL (panora_essai) avec les comptes fictifs : génération de deux factures, numéros, fiche vue par le comptable et par une commerciale, validation, envoi, récapitulatif du formulaire, formulaire de relance, Rapports, Taxes, anciennes adresses, relances automatiques, centre d'alertes.
+
+**Ce qui change pour les utilisateurs**
+- **Montants identiques partout** : fiche, PDF, mail, page publique, export Excel (colonnes TSP, TM, ODP, total à payer, payé, reste), liste PDF. Le mail annonce le total à payer et, en relance, le reste à payer.
+- **Formulaire de facture** : le récapitulatif est calculé par le serveur (mêmes règles qu'à l'enregistrement, tarifs à la date d'émission, dates de campagne gardées). Les quantités des services ne retombent plus à 1. Le **numéro n'est plus saisi** : Panora l'attribue à l'enregistrement (plus grand numéro de l'année + 1, sous verrou).
+- **« En retard »** : une seule définition. Échéance de l'échéancier, sinon émission + 30 jours, et reste à payer. Tableaux de bord, Finance, liste et exports la suivent.
+- **Relances automatiques : un seul système** (`invoices:alerts`, 07h00). Client : rappel J-7, relances J+7, J+15, J+30 tant qu'il reste à payer ; rien si la facture est soldée, annulée ou en litige. Comptable, admins et commercial du dossier : une alerte à chaque étape dans le centre d'alertes. `finance:check-due-dates` et `invoices:send-reminders` sont retirés du planning. Une étape manquée de plus de 7 jours n'est pas rattrapée.
+- **Mails « comptable »** (taxes du trimestre, synthèse mensuelle) : aux comptables, plus aux seuls admins.
+- **Boutons selon les droits** : le comptable ne voit plus « Annuler », « Retour brouillon », « Réactiver », « Modifier » sur une facture verrouillée, ni le bouton Rapport des taxes, ni le lien « Réglages ». Le commercial consulte ses factures mais ne crée, ne modifie ni n'envoie plus (boutons masqués, droits corrigés).
+- **Rapports du comptable** : tous les onglets sauf « Insights » ; export Zones & Communes ouvert ; exports direction et occupation masqués.
+- **Fiche facture** : frise en 5 étapes, astuces exactes, « 🔒 Valider et figer » depuis un brouillon fonctionne (il était refusé), message d'envoi fidèle (« aucun mail : le client n'a pas d'adresse »), plus de mention d'avoir (« contactez l'admin »).
+- **PDF d'un brouillon** : filigrane BROUILLON.
+- **Taxes** : tarif mois par mois quand il change en cours d'année ; TM sans tarif = 1 000 F avec un badge « à renseigner » ; statut de la page Taxes = celui du Suivi des mairies ; `/admin/taxes/{id}` et l'ancienne page « historique » renvoient vers les bonnes pages.
+
+### À faire au déploiement (prod)
+- [ ] **Avant la première nuit** : `php artisan invoices:alerts --dry-run` et lire ce qui partirait. Deux effets attendus au premier passage : des factures **passent « En retard »** (celles sans échéancier, émises il y a plus de 30 jours, non soldées : la règle unique les compte désormais) ; seules les relances dont la date tombe dans les 7 derniers jours partent, les plus anciennes sont notées sans envoi.
+- [ ] Le lendemain : centre d'alertes du comptable → les alertes « Relance J+… » apparaissent ; un client relancé a reçu « 🔔 Rappel N — Facture … impayée » avec le reste à payer
+- [ ] Une facture en litige ou soldée ne reçoit plus rien (table `invoice_alerts` : lignes « skipped » avec la raison)
+
+### À vérifier (prod)
+- [ ] Nouvelle facture : le numéro affiché est le suivant de l'année ; deux factures créées coup sur coup ont deux numéros différents
+- [ ] Modifier une facture issue d'une campagne : le récapitulatif ne bouge pas tant qu'on ne change rien (dates de campagne gardées)
+- [ ] Compte comptable : fiche d'une facture envoyée → ni « Annuler », ni « Retour brouillon » ; Rapports → pas d'« Insights », export Zones & Communes téléchargeable
+- [ ] Compte commercial : liste des factures sans « Nouvelle facture », fiche sans « Envoyer » ni « Marquer soldée »
+- [ ] PDF d'un brouillon : le filigrane BROUILLON est lisible et ne cache pas les montants (contrôlé seulement dans le fichier, pas à l'œil)
+- [ ] Taxes 2026 : une mairie « ✍ Réclamé à saisir » dans le Suivi s'affiche de même sur la page Taxes
+- [ ] Enregistrer une relance en choisissant une facture : la colonne Facture de l'historique est remplie ; le filtre WhatsApp existe
+
+### Reste ouvert
+- **Facturation rapide de la liste des campagnes** (`campaigns/{id}/billing-quick`) : route ouverte à l'admin et au **MP**, alors que le MP n'a plus accès aux factures depuis le 02/11 ; le commercial et le comptable voient le bouton mais reçoivent « accès refusé ». Le numéro passe désormais par la règle unique. Décision à prendre : réserver à l'admin, ou retirer.
+- **Litige sur une facture partiellement payée ou en retard** : la table des transitions suit les boutons actuels, qui ne le proposent pas. À ajouter si le besoin existe.
+- **Avoir** : à chiffrer comme chantier à part.
+- **Manuel comptable** (`docs/manuels/03-comptable.md`) : à réécrire à partir du texte de la vidéo.

@@ -921,6 +921,11 @@ Route::prefix('admin')
             Route::get('invoices/lookup/panels', [InvoiceController::class, 'lookupPanels'])
                 ->name('invoices.lookup.panels');
 
+            // Récapitulatif en direct du formulaire (2026-11-26) : le SERVEUR
+            // calcule, comme pour le devis. Avant, le JavaScript recopiait les
+            // formules (tarifs du jour, sans les dates de campagne).
+            Route::post('invoices/totaux', [InvoiceController::class, 'totaux'])->name('invoices.totaux');
+
             Route::get('invoices/create', [InvoiceController::class, 'create'])->name('invoices.create');
             Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
 
@@ -1738,7 +1743,7 @@ Route::prefix('admin')
         // ── ADMIN uniquement : dashboard complet + synthèse exécutive ──
         // Contiennent le CA stratégique entreprise / EBITDA / synthèse
         // direction : hors périmètre MP.
-        Route::middleware('role:admin')->group(function () {
+        Route::middleware(RapportController::middlewareAcces('direction'))->group(function () {
             Route::get('/rapports/export/excel', [RapportController::class, 'exportExcel'])
                 ->name('rapports.export.excel');
             Route::get('/rapports/export/pdf', [RapportController::class, 'exportPdf'])
@@ -1752,7 +1757,7 @@ Route::prefix('admin')
         // sont limités aux données opérationnelles (occupation, stats
         // par commune, panneau × campagne) — pas de CA stratégique
         // entreprise ni de KPI direction.
-        Route::middleware('role:admin,mediaplanner')->group(function () {
+        Route::middleware(RapportController::middlewareAcces('occupation'))->group(function () {
             // Liste panneaux + taux d'occupation (onglet "Performance panneaux")
             Route::get('/rapports/export/panneaux-occupation-excel', [RapportController::class, 'exportPanelsOccupationExcel'])
                 ->name('rapports.export.panels-occupation-excel');
@@ -1763,7 +1768,11 @@ Route::prefix('admin')
                 ->name('rapports.export.occupation-details-excel');
             Route::get('/rapports/export/occupation-details-pdf', [RapportController::class, 'exportOccupationDetailsPdf'])
                 ->name('rapports.export.occupation-details-pdf');
-            // Onglet "Zones & Communes" (stats par commune : occupés, taux, CA)
+        });
+
+        // Onglet "Zones & Communes" (stats par commune : occupés, taux, CA).
+        // 2026-11-26 — ouvert aussi au comptable (point 16 validé).
+        Route::middleware(RapportController::middlewareAcces('zones'))->group(function () {
             Route::get('/rapports/export/zones-communes-excel', [RapportController::class, 'exportZonesCommunesExcel'])
                 ->name('rapports.export.zones-communes-excel');
             Route::get('/rapports/export/zones-communes-pdf', [RapportController::class, 'exportZonesCommunesPdf'])

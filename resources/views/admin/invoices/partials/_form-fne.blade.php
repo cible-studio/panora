@@ -4,7 +4,7 @@
       $invoice    : Invoice|null (null = create)
       $clients    : Collection<Client>
       $campaigns  : Collection<Campaign>
-      $reference  : string (auto-générée pour create, sinon = invoice->reference)
+      $reference  : string (numéro proposé pour create — affiché, attribué à l'enregistrement)
       $preselect  : ['client_id'=>?, 'campaign_id'=>?] (utilisé en create)
       $isEdit     : bool
       $action     : string (URL submit)
@@ -56,6 +56,11 @@
                             // enlèverait le panel_id sur les lignes existantes).
                             'panel_id'            => $l->panel_id ?? null,
                             'external_panel_id'   => $l->external_panel_id ?? null,
+                            // 2026-11-26 — dates de campagne de la ligne, renvoyées telles
+                            // quelles : sans elles, ODP et TM étaient recalculées sur le
+                            // nombre de mois à chaque modification.
+                            'campaign_start'      => $l->campaign_start?->toDateString(),
+                            'campaign_end'        => $l->campaign_end?->toDateString(),
                             'taxes_a_la_main'     => $l->panel_id && in_array($l->panel_id, $idsTaxesMain),
                         ])->all()
                     : [
@@ -122,11 +127,16 @@
                 <div class="fne-section-body">
                     <div class="form-2col">
                         <div class="mfg">
-                            <label>Référence <span style="color:var(--red)">*</span></label>
-                            <input type="text" name="reference"
-                                   value="{{ old('reference', $reference ?? ($invoice->reference ?? '')) }}"
-                                   {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
-                                   class="{{ $errors->has('reference') ? 'error' : '' }}" required>
+                            {{-- 2026-11-26 (point 21) — le numéro n'est plus saisi :
+                                 Panora l'attribue à l'enregistrement, sans trou ni
+                                 doublon (Invoice::creerAvecNumero). --}}
+                            <label>Numéro de facture</label>
+                            <input type="text" value="{{ $isEdit ? $invoice->reference : ($reference ?? '') }}" readonly
+                                   style="font-family:monospace;font-weight:700;background:var(--surface2);cursor:default"
+                                   aria-describedby="aide-numero-facture">
+                            <div id="aide-numero-facture" style="font-size:11px;color:var(--text3);margin-top:4px">
+                                {{ $isEdit ? 'Attribué à la création, ne change plus.' : 'Attribué automatiquement à l\'enregistrement (numéro indicatif).' }}
+                            </div>
                         </div>
                         <div class="mfg">
                             <label>Date d'émission <span style="color:var(--red)">*</span></label>
@@ -222,6 +232,8 @@
                                 <input type="hidden" name="lines[{{ $i }}][panel_id]" class="line-panel-id" value="{{ $l['panel_id'] ?? '' }}">
                                 <input type="hidden" class="line-eclaire" value="{{ !empty($l['panel_id']) && in_array((int) $l['panel_id'], $idsEclaires, true) ? 1 : '' }}">
                                 <input type="hidden" name="lines[{{ $i }}][external_panel_id]" class="line-external-panel-id" value="{{ $l['external_panel_id'] ?? '' }}">
+                                <input type="hidden" name="lines[{{ $i }}][campaign_start]" class="line-campaign-start" value="{{ $l['campaign_start'] ?? '' }}">
+                                <input type="hidden" name="lines[{{ $i }}][campaign_end]" class="line-campaign-end" value="{{ $l['campaign_end'] ?? '' }}">
                                 {{-- Axe Lumipub (2026-11-12) : ODP et TM saisies par le
                                      comptable, jamais calculées. Visible sur les lignes
                                      d'axe seulement ; vide ailleurs = calcul automatique. --}}
@@ -368,6 +380,10 @@
         $existingServices = $isEdit && $invoice->services
             ? $invoice->services->map(fn($s) => [
                 'label'          => $s->label,
+                // 2026-11-26 — la quantité manquait : à l'enregistrement,
+                // chaque service retombait à 1 et le total baissait sans
+                // prévenir (même correctif que le devis le 19/11).
+                'quantite'       => max(1, (int) ($s->quantite ?? 1)),
                 'prix_ht'        => (float) $s->prix_ht,
                 'tva_applicable' => (bool) $s->tva_applicable,
               ])->all()
@@ -519,8 +535,9 @@
         </div>{{-- /.fne-main --}}
 
         {{-- ═══ SIDEBAR : RÉCAPITULATIF FNE STICKY ═══
-             Calcul live (JS recompute) — l'utilisateur voit les totaux
-             se mettre à jour pendant qu'il saisit. Reste visible quand
+             Calcul live par le SERVEUR (route invoices.totaux, 2026-11-26) —
+             l'utilisateur voit les totaux se mettre à jour pendant qu'il
+             saisit, avec les règles de l'enregistrement. Reste visible quand
              il scrolle dans les lignes ou les services.
         ═══════════════════════════════════════════════════════════ --}}
         <aside class="fne-aside">
@@ -601,6 +618,8 @@
                     <span class="lbl">💰 TOTAL À PAYER</span>
                     <span class="val" id="rec-total">0 FCFA</span>
                 </div>
+                {{-- 2026-11-26 — Commune sans tarif TM : base nationale appliquée. --}}
+                <div id="rec-tm-manquant" style="display:none;margin-top:10px;padding:8px 10px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);color:#92400e;font-size:11.5px;line-height:1.45"></div>
             </div>
 
             {{-- Actions sticky en bas de sidebar --}}
@@ -2023,58 +2042,21 @@
         return (v === '' || v == null) ? TSP_DEFAULT : Math.max(0, parseFloat(v) || 0);
     }
 
+    // 2026-11-26 — Récapitulatif calculé par le SERVEUR (route invoices.totaux),
+    // comme pour le devis. Avant, ce script recopiait les formules : tarifs du
+    // jour au lieu de la date d'émission, et sans les dates de campagne d'une
+    // ligne — l'aperçu pouvait différer de la facture enregistrée.
+    // Ici, on ne fait plus que relire la saisie et afficher ce que rend le serveur.
+    const TOTAUX_URL = @json(route('admin.invoices.totaux'));
+    let demandeTotaux = 0;
+    let minuteurTotaux = null;
+
     function recompute() {
-        const TVA = currentTva();
-        const TSP = currentTsp();
-
-        let htBrut = 0, totalTm = 0, totalOdp = 0;
-        tbody.querySelectorAll('.line-row').forEach(row => {
-            const pu  = parseFloat(row.querySelector('.line-pu')?.value)   || 0;
-            const qte = parseInt(  row.querySelector('.line-qte')?.value)  || 0;
-            const mois= parseFloat(row.querySelector('.line-mois')?.value) || 0;
-            const m2  = parseFloat(row.querySelector('.line-m2')?.value)   || 0;
-            const sel = row.querySelector('.line-commune');
-            const opt = sel?.selectedOptions?.[0];
-            // Panneau éclairé (2026-11-18) : même choix que le serveur.
-            const lit = row.querySelector('.line-eclaire')?.value === '1';
-            const odp = parseFloat(lit ? opt?.dataset.odpEclaire : opt?.dataset.odp) || 0;
-            const tm  = parseFloat(lit ? opt?.dataset.tmEclaire : opt?.dataset.tm)  || TM_DEFAULT;
-            const lineHt = pu * qte * mois;
-            htBrut    += lineHt;
-
-            // Axe Lumipub (2026-11-12) : montants saisis par le comptable,
-            // jamais calculés (le serveur applique la même règle).
-            if (row.querySelector('.line-taxes-flag')?.value === '1') {
-                totalOdp += parseFloat(row.querySelector('.line-odp-main')?.value) || 0;
-                totalTm  += parseFloat(row.querySelector('.line-tm-main')?.value)  || 0;
-            } else {
-                totalOdp  += odp * m2 * qte * mois;
-                totalTm   += tm  * m2 * qte * mois;
-            }
-
-            const cell = row.querySelector('.line-total');
-            if (cell) cell.textContent = fmt(lineHt);
-        });
-
-        const remise   = parseFloat(document.getElementById('remise_pct').value) || 0;
-
-        // ── Services annexes libres (N lignes) ──
-        // 2026-06-22 — En + du calcul du total, on construit aussi le détail
-        // pour le récap (1 ligne par service avec son label et son TTC).
-        // 2026-08-03 — Chaque service porte tva_applicable ; si décoché,
-        // prix_ht = TTC direct (pas de TVA re-appliquée).
-        let svcHt = 0, svcTtc = 0;
-        const svcDetailRows = [];
+        // Pur affichage : l'interrupteur TVA / HT de chaque service.
         document.querySelectorAll('#services-tbody .service-row').forEach(row => {
-            const prix  = parseFloat(row.querySelector('.svc-prix')?.value) || 0;
-            const label = (row.querySelector('.svc-label')?.value || '').trim();
-            const chk   = row.querySelector('.svc-tva-applicable');
+            const chk = row.querySelector('.svc-tva-applicable');
             const tvaAppl = chk ? chk.checked : true;
             row.dataset.tvaApplicable = tvaAppl ? '1' : '0';
-
-            // Sync visuel du toggle switch : la classe is-on / is-off
-            // pilote la couleur (vert/gris) et la position du curseur.
-            // Le texte affiché change entre "TVA" et "HT" (2026-08-03bis).
             const toggle = row.querySelector('.svc-tva-toggle');
             if (toggle) {
                 toggle.classList.toggle('is-on', tvaAppl);
@@ -2082,78 +2064,113 @@
                 const txt = toggle.querySelector('.svc-tva-text');
                 if (txt) txt.textContent = tvaAppl ? 'TVA' : 'HT';
             }
+        });
+        clearTimeout(minuteurTotaux);
+        minuteurTotaux = setTimeout(chargerTotaux, 250);
+    }
 
-            // Quantité (2026-11-16) : le montant de la ligne vaut prix
-            // unitaire × quantité. Vide ou absente = 1, donc une facture
-            // saisie avant ce champ garde exactement son total.
-            const qteSvc = Math.max(1, parseInt(row.querySelector('.svc-qte')?.value, 10) || 1);
-            const svcHtLine = prix * qteSvc;
+    // Clé d'une ligne dans la requête : « lines[KEY][...] » / « services[KEY][...] ».
+    function cleDe(row, prefixe) {
+        const champ = row.querySelector(`[name^="${prefixe}["]`);
+        const m = champ ? champ.name.match(new RegExp('^' + prefixe + '\\[([^\\]]+)\\]')) : null;
+        return m ? m[1] : null;
+    }
 
-            svcHt += svcHtLine;
-            const svcTtcLine = tvaAppl ? svcHtLine * (1 + TVA/100) : svcHtLine;
-            svcTtc += svcTtcLine;
-            const ttcCell = row.querySelector('.svc-ttc');
-            if (ttcCell) {
-                ttcCell.textContent = prix > 0 ? fmt(svcTtcLine) : '—';
-                ttcCell.title = (qteSvc > 1 ? qteSvc + ' × ' + fmt(prix) + ' = ' + fmt(svcHtLine) + ' HT · ' : '')
-                    + (tvaAppl
-                        ? 'HT ' + fmt(svcHtLine) + ' + TVA ' + TVA + '%'
-                        : 'HT strict (TVA non applicable)');
-            }
-            if (prix > 0) {
-                svcDetailRows.push({
-                    label: label || '(sans libellé)',
-                    qte:   qteSvc,
-                    ttc:   svcTtcLine,
-                    tvaAppl: tvaAppl,
-                });
-            }
+    async function chargerTotaux() {
+        const form = document.getElementById('form-fne');
+        if (!form) return;
+        const mien = ++demandeTotaux;
+        const donnees = new FormData(form);
+        donnees.delete('_method'); // le formulaire de modification envoie PUT
+        try {
+            const r = await fetch(TOTAUX_URL, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: donnees,
+            });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const d = await r.json();
+            // Une réponse dépassée par une plus récente est ignorée.
+            if (mien !== demandeTotaux) return;
+            afficherTotaux(d);
+        } catch (e) {
+            console.warn('Récapitulatif indisponible :', e.message);
+        }
+    }
+
+    function afficherTotaux(d) {
+        const t = d.totaux || {};
+        const TVA = t.tva ?? currentTva();
+        const TSP = currentTsp();
+
+        // Total HT de chaque ligne, tel que le serveur le calcule.
+        tbody.querySelectorAll('.line-row').forEach(row => {
+            const cle = cleDe(row, 'lines');
+            const cell = row.querySelector('.line-total');
+            if (cell) cell.textContent = fmt((d.lignes && d.lignes[cle]) ? d.lignes[cle].ht : 0);
         });
 
-        const netHt    = htBrut * (1 - remise/100);
-        const tvaAmt   = netHt * TVA / 100;
-        const tspAmt   = netHt * TSP / 100;
-        const ttc      = netHt + tvaAmt;
-        const total    = ttc + tspAmt + totalTm + totalOdp + svcTtc;
+        // Services : TTC de chaque ligne et détail du récapitulatif.
+        const svcDetailRows = [];
+        document.querySelectorAll('#services-tbody .service-row').forEach(row => {
+            const cle = cleDe(row, 'services');
+            const svc = (d.services && d.services[cle]) || null;
+            const prix = parseFloat(row.querySelector('.svc-prix')?.value) || 0;
+            const qteSvc = Math.max(1, parseInt(row.querySelector('.svc-qte')?.value, 10) || 1);
+            const tvaAppl = row.dataset.tvaApplicable !== '0';
+            const label = (row.querySelector('.svc-label')?.value || '').trim();
+            const ttcCell = row.querySelector('.svc-ttc');
+            if (ttcCell) {
+                ttcCell.textContent = svc ? fmt(svc.ttc) : '—';
+                ttcCell.title = svc
+                    ? (qteSvc > 1 ? qteSvc + ' × ' + fmt(prix) + ' = ' + fmt(svc.ht) + ' HT · ' : '')
+                        + (tvaAppl ? 'HT ' + fmt(svc.ht) + ' + TVA ' + TVA + '%' : 'HT strict (TVA non applicable)')
+                    : '';
+            }
+            if (svc) svcDetailRows.push({ label: label || '(sans libellé)', qte: qteSvc, ttc: svc.ttc, tvaAppl: tvaAppl });
+        });
 
         const svcSub = document.getElementById('services-subtotal');
-        if (svcSub) svcSub.textContent = svcHt > 0 ? fmt(svcTtc) + ' FCFA' : '0 FCFA';
+        if (svcSub) svcSub.textContent = fmt(t.services_ttc_total || 0);
 
-        document.getElementById('rec-brut').textContent   = fmt(htBrut);
-        document.getElementById('rec-remise').textContent = '− ' + fmt(htBrut * remise / 100);
-        document.getElementById('rec-netht').textContent  = fmt(netHt);
-        document.getElementById('rec-tva').textContent    = fmt(tvaAmt);
-        document.getElementById('rec-ttc').textContent    = fmt(ttc);
-        document.getElementById('rec-tsp').textContent    = fmt(tspAmt);
-        document.getElementById('rec-tm').textContent     = fmt(totalTm);
-        document.getElementById('rec-odp').textContent    = fmt(totalOdp);
-        document.getElementById('rec-svc').textContent    = fmt(svcTtc);
-        // 2026-10-30 : le HT aussi, comme sur le récapitulatif du devis.
+        document.getElementById('rec-brut').textContent   = fmt(t.amount || 0);
+        document.getElementById('rec-remise').textContent = '− ' + fmt((t.amount || 0) - (t.net_ht || 0));
+        document.getElementById('rec-netht').textContent  = fmt(t.net_ht || 0);
+        document.getElementById('rec-tva').textContent    = fmt(t.tva_amount || 0);
+        document.getElementById('rec-ttc').textContent    = fmt(t.amount_ttc || 0);
+        document.getElementById('rec-tsp').textContent    = fmt(t.tsp_amount || 0);
+        document.getElementById('rec-tm').textContent     = fmt(t.tm_total || 0);
+        document.getElementById('rec-odp').textContent    = fmt(t.odp_total || 0);
+        document.getElementById('rec-svc').textContent    = fmt(t.services_ttc_total || 0);
         const svcHtEl = document.getElementById('rec-svc-ht');
-        if (svcHtEl) svcHtEl.textContent = fmt(svcHt);
-        document.getElementById('rec-total').textContent  = fmt(total);
+        if (svcHtEl) svcHtEl.textContent = fmt(t.services_ht_total || 0);
+        document.getElementById('rec-total').textContent  = fmt(t.total_a_payer || 0);
 
-        // Rafraîchit aussi les libellés TVA/TSP dans le récap (le user
-        // peut changer ces taux ; sinon le libellé reste figé à 18/3 %).
+        const tmManquant = document.getElementById('rec-tm-manquant');
+        if (tmManquant) {
+            const noms = d.tm_manquant || [];
+            tmManquant.style.display = noms.length ? 'block' : 'none';
+            tmManquant.textContent = noms.length
+                ? '⚠ Tarif TM manquant pour ' + noms.join(', ') + ' : la base nationale de ' + fmt(TM_DEFAULT) + '/m²/mois est appliquée. Renseigne le tarif dans « Tarifs communes ».'
+                : '';
+        }
+
         const fmtRate = r => r.toString().replace('.', ',');
         const tvaLbl = document.querySelector('#rec-tva')?.parentElement?.querySelector('.lbl');
         if (tvaLbl) tvaLbl.textContent = 'TVA (' + fmtRate(TVA) + ' %)';
         const tspLbl = document.querySelector('#rec-tsp')?.parentElement?.querySelector('.lbl');
         if (tspLbl) tspLbl.textContent = 'TSP (' + fmtRate(TSP) + ' %)';
 
-        // 2026-06-22 — Détail des services dans le récap (1 ligne par service).
-        // Si aucun service : message en italique. Sinon : liste avec label + TTC.
-        // 2026-08-03 : petit badge "HT" quand tva_applicable=false pour
-        // signaler visuellement les services facturés hors TVA.
         const svcDetailEl = document.getElementById('rec-svc-detail');
         if (svcDetailEl) {
             if (svcDetailRows.length === 0) {
                 svcDetailEl.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">Aucun service ajouté</div>';
             } else {
+                const echapper = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
                 svcDetailEl.innerHTML = svcDetailRows.map(s => `
                     <div class="fne-recap-row fne-recap-small" style="padding:1px 0">
-                        <span class="lbl" style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%" title="${s.label.replace(/"/g, '&quot;')}">
-                            ${s.label}${s.qte > 1 ? ` <span style="color:var(--text3);font-size:10px">× ${s.qte}</span>` : ''}${s.tvaAppl ? '' : ' <span style="background:rgba(59,130,246,.12);color:#1d4ed8;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;margin-left:3px">HT</span>'}
+                        <span class="lbl" style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%" title="${echapper(s.label)}">
+                            ${echapper(s.label)}${s.qte > 1 ? ` <span style="color:var(--text3);font-size:10px">× ${s.qte}</span>` : ''}${s.tvaAppl ? '' : ' <span style="background:rgba(59,130,246,.12);color:#1d4ed8;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;margin-left:3px">HT</span>'}
                         </span>
                         <span class="val" style="font-size:11px;font-weight:600">${fmt(s.ttc)}</span>
                     </div>
@@ -2448,6 +2465,9 @@
     ['remise_pct', 'tva_rate', 'tsp_rate'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', recompute);
     });
+    // 2026-11-26 — La date d'émission fixe les tarifs communaux : le
+    // récapitulatif (calculé par le serveur) doit suivre son changement.
+    document.querySelector('#form-fne input[name="issued_at"]')?.addEventListener('change', recompute);
     // Services annexes existants : binding initial sur les .svc-prix
     // ET sur la checkbox .svc-tva-applicable (2026-08-03).
     document.querySelectorAll('#services-tbody .svc-prix').forEach(el => {

@@ -22,7 +22,8 @@
          Apparaît pour tous les statuts SAUF "annulé" : on laisse l'admin
          juger pour les autres cas (refusée, en attente, terminée). Le
          controller préremplit campagne + client si présents. --}}
-    @if($reservation->status !== \App\Enums\ReservationStatus::ANNULE)
+    {{-- 2026-11-26 — seulement pour qui peut facturer (admin, comptable). --}}
+    @if($reservation->status !== \App\Enums\ReservationStatus::ANNULE && auth()->user()?->can('create', \App\Models\Invoice::class))
         <a href="{{ route('admin.reservations.create-invoice', $reservation) }}"
            class="btn btn-primary text-sm keep-label"
            title="Ouvrir le formulaire de facturation avec les infos de cette réservation préremplies">

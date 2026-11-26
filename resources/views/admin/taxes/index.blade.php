@@ -6,9 +6,14 @@
        class="btn btn-primary btn-sm keep-label" title="Détail par panneau (justification commune par commune)">
         🔍 <span class="btn-label">Détail par panneau</span>
     </a>
+    {{-- 2026-11-26 — le rapport des taxes est réservé à l'admin et au MP
+         (route rapports.taxes, role:admin,mediaplanner) : le comptable
+         voyait un bouton qui menait à « accès refusé ». --}}
+    @if(in_array(auth()->user()?->role?->value, ['admin', 'mediaplanner'], true))
     <a href="{{ route('admin.rapports.taxes') }}" class="btn btn-ghost btn-sm" title="Rapport agrégé matrice mois × commune">
         📊 <span class="btn-label">Rapport</span>
     </a>
+    @endif
     {{-- 2026-11-16 — Les règlements se tiennent dans le Suivi des mairies
          (une ligne par versement, jamais écrasée). L'ancien « Historique »
          (table legacy `taxes`) et son PDF quittent l'écran ; leurs routes
@@ -296,6 +301,7 @@
 .tax-status-partiel  { background: rgba(232,160,32,.12); color: #c2570d; }
 .tax-status-paye     { background: rgba(34,197,94,.12); color: #15803d; }
 .tax-status-aucun    { background: var(--surface2); color: var(--text3); }
+.tax-status-a_saisir { background: rgba(232,160,32,.12); color: #c2570d; }
 
 .tax-attestation-badge {
     display: inline-block; padding: 1px 7px;
@@ -620,14 +626,18 @@ window.TaxModule = (function () {
         });
     }
 
-    function statusPill(statut) {
+    // 2026-11-26 — le libellé est celui du Suivi des mairies (source) ;
+    // la liste ci-dessous ne sert que de repli.
+    function statusPill(statut, libelle, aide) {
         const labels = {
             paye:     '✓ Payé',
             partiel:  '◐ Partiel',
             non_paye: '⏳ Non payé',
             aucun:    '— Aucun',
+            a_saisir: '✍ Réclamé à saisir',
         };
-        return `<span class="tax-status-pill tax-status-${statut}">${labels[statut] || statut}</span>`;
+        const titre = aide ? ` title="${String(aide).replace(/"/g, '&quot;')}"` : '';
+        return `<span class="tax-status-pill tax-status-${statut}"${titre}>${libelle || labels[statut] || statut}</span>`;
     }
 
     function renderTable(communes) {
@@ -675,7 +685,7 @@ window.TaxModule = (function () {
                              (Suivi des mairies, arriérés compris). Il n'existe plus
                              de statut « de la période » : un règlement se rattache
                              à un exercice, pas à un mois. --}}
-                        ${statusPill(c.statut_year)}
+                        ${statusPill(c.statut_year, c.statut_libelle, c.statut_aide)}
                         <div style="font-size:9px;color:var(--text3);margin-top:2px">exercice ${currentPeriodYear}</div>
                         ${attestationBadge}
                         ${c.paid_at ? `<div style="font-size:9px;color:var(--text3);margin-top:3px;">dernier versement ${c.paid_at}</div>` : ''}

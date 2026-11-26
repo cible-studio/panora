@@ -423,6 +423,16 @@ class TaxController extends Controller
      */
     public function historique(Request $request)
     {
+        // 2026-11-26 (point 23 validé) — l'ancienne page « Taxes — historique »
+        // renvoie au Suivi des mairies, qui tient les règlements depuis le
+        // 16/11. Avant, elle restait ouverte et montrait d'anciens statuts
+        // qui contredisaient le suivi. (Code ci-dessous conservé, inutilisé.)
+        if (!$request->ajax() && !$request->input('ajax')) {
+            return redirect()
+                ->route('admin.taxes.suivi.index', array_filter(['exercice' => $request->input('year')]))
+                ->with('info', 'Les règlements aux mairies se suivent désormais ici, dans le Suivi des mairies.');
+        }
+
         $query = Tax::with('commune');
 
         if ($request->filled('commune_id')) $query->where('commune_id', $request->commune_id);
@@ -586,8 +596,12 @@ class TaxController extends Controller
 
     public function show(Tax $tax)
     {
-        $tax->load('commune');
-        return view('admin.taxes.show', compact('tax'));
+        // 2026-11-26 (point 23 validé) — la vue admin.taxes.show n'existe
+        // pas : /admin/taxes/{id} finissait en erreur 500. Retour à la page
+        // Taxes, sur l'année de l'écriture.
+        return redirect()
+            ->route('admin.taxes.index', array_filter(['year' => $tax->year]))
+            ->with('info', 'Cette écriture n\'a pas de page à elle : voici la page Taxes de son année.');
     }
 
     public function edit(Tax $tax)
@@ -807,10 +821,14 @@ class TaxController extends Controller
             // avec la facturation qui utilise ratesAt(issued_at).
             $rates   = $commune->ratesAt($rateDate);
             $odpRate = (float) ($rates['odp'] ?? 0);
-            // 2026-11-16 — Tarif TM affiché tel qu'il est : le calcul vient de
-            // generateLines(), qui n'applique aucun tarif par défaut à une
-            // commune sans tarif TM (afficher 1 000 aurait contredit la TM 0).
+            // 2026-11-26 — Sans tarif TM, la base nationale s'applique
+            // (generateLines() aussi, règle confirmée le 26/11) : on l'affiche,
+            // avec un repère « par défaut » pour que le tarif soit renseigné.
             $tmRate  = (float) ($rates['tm'] ?? 0);
+            $tmParDefaut = $tmRate <= 0;
+            if ($tmParDefaut) {
+                $tmRate = \App\Services\TaxCalculationService::tmParDefaut();
+            }
             // 2026-11-18 — Tarif des panneaux éclairés, affiché s'il diffère
             // (le calcul, lui, vient de generateLines(), panneau par panneau).
             $ratesEclaire   = $commune->ratesAt($rateDate, true);
@@ -858,9 +876,18 @@ class TaxController extends Controller
             $ex   = $exercicesSuivis->get($commune->id);
             $regl = $reglementsAnnee->get($commune->id, collect());
             $totalPaye = (float) ($ex['total_paye'] ?? 0);
-            $statutEx  = $ex
-                ? \App\Services\Taxes\TaxeExerciceService::statutPageTaxes($ex['statut'])
+            // 2026-11-26 (point 24 validé) — même statut que le Suivi des
+            // mairies, qui est la source : statutAffiche() applique la règle
+            // de l'année de reprise (« ✍ Réclamé à saisir »). Avant, la page
+            // lisait le statut brut : une mairie « à saisir » dans le suivi
+            // s'affichait « ✓ Payé » ici dès qu'un versement existait.
+            $statutSuivi = $ex ? \App\Services\Taxes\TaxeExerciceService::statutAffiche($ex) : null;
+            $statutEx  = $statutSuivi
+                ? \App\Services\Taxes\TaxeExerciceService::statutPageTaxes($statutSuivi)
                 : 'aucun';
+            $libelleSuivi = $statutSuivi
+                ? (\App\Services\Taxes\TaxeExerciceService::LIBELLES_STATUT[$statutSuivi] ?? null)
+                : null;
             $dernier = $regl->max('paid_at');
 
             return [
@@ -893,6 +920,9 @@ class TaxController extends Controller
                 // pour le JS et les filtres KPI existants.
                 'statut'         => $statutEx,
                 'statut_year'    => $statutEx,
+                // Libellé et explication du Suivi des mairies (même texte).
+                'statut_libelle' => $libelleSuivi[1] ?? null,
+                'statut_aide'    => $libelleSuivi[2] ?? null,
                 'total_paye_year'      => $totalPaye,
                 'total_theorique_year' => (float) ($ex['total_du'] ?? 0),
                 'total_du_exercice'    => (float) ($ex['total_du'] ?? 0),

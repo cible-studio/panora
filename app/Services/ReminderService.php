@@ -122,14 +122,8 @@ class ReminderService
     /** Libellé canal humain. */
     public static function canalLabel(string $canal): string
     {
-        return match ($canal) {
-            'telephone' => '📞 Téléphone',
-            'email'     => '📧 Email',
-            'whatsapp'  => '💬 WhatsApp',
-            'visite'    => '🚶 Visite',
-            'courrier'  => '✉ Courrier',
-            default     => '📝 Autre',
-        };
+        // 2026-11-26 — même libellé partout (formulaire, historique, PDF).
+        return Relance::CANAUX[$canal] ?? Relance::CANAUX['autre'];
     }
 
     /** Libellé résultat (outcome) humain. */

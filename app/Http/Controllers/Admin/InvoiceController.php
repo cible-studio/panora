@@ -59,12 +59,19 @@ class InvoiceController extends Controller
         $payStatusFilter = $request->input('pay_status');
         // Alias 'overdue' (legacy) → 'en_retard'
         if ($payStatusFilter === 'overdue') $payStatusFilter = 'en_retard';
-        $invoices = $query->latest()->paginate(15)->withQueryString();
+        // 2026-11-26 — Filtré AVANT la pagination : avant, seule la page de 15
+        // affichée était filtrée (pages vides, compteur faux). Le statut de
+        // paiement étant dérivé (versements, échéance), on retient les ids
+        // correspondants sur toute la sélection, puis on pagine.
         if (in_array($payStatusFilter, ['non_payee', 'partielle', 'soldee', 'en_retard'], true)) {
-            $invoices->setCollection($invoices->getCollection()->filter(function ($inv) use ($payStatusFilter) {
-                return $inv->paymentStatus() === $payStatusFilter;
-            })->values());
+            $ids = (clone $query)
+                ->setEagerLoads(['payments' => fn ($p) => $p, 'schedules' => fn ($e) => $e])
+                ->get()
+                ->filter(fn ($inv) => $inv->paymentStatus() === $payStatusFilter)
+                ->pluck('id');
+            $query->whereIn('invoices.id', $ids);
         }
+        $invoices = $query->latest()->paginate(15)->withQueryString();
 
         // Liste des clients : si commercial, on ne propose dans le filtre
         // que les clients pour lesquels il a au moins une facture (sinon
@@ -141,11 +148,9 @@ class InvoiceController extends Controller
         $clients   = Client::orderBy('name')->get();
         $campaigns = Campaign::with('client:id,name')->orderBy('name')->get();
 
-        // Générer référence automatique
-        $reference = 'FAC-' . date('Y') . '-' . str_pad(
-            Invoice::whereYear('created_at', date('Y'))->count() + 1,
-            3, '0', STR_PAD_LEFT
-        );
+        // Numéro PROPOSÉ (affiché, non modifiable) : le vrai est attribué à
+        // l'enregistrement, sous verrou (Invoice::creerAvecNumero, 2026-11-26).
+        $reference = Invoice::prochaineReference((int) now()->year);
 
         // Préselection depuis querystring (ex: bouton "Facturer" sur la fiche
         // campagne admin → /admin/invoices/create?campaign_id=42). Le JS du
@@ -411,7 +416,7 @@ class InvoiceController extends Controller
             // Client supprimé (soft delete) refusé à la création (2026-10-30).
             'client_id'                    => ['required', \Illuminate\Validation\Rule::exists('clients', 'id')->whereNull('deleted_at')],
             'campaign_id'                  => 'nullable|exists:campaigns,id',
-            'reference'                    => 'required|unique:invoices,reference',
+            // 2026-11-26 — le numéro n'est plus saisi : Panora l'attribue.
             'issued_at'                    => 'required|date',
             'notes_client'                 => 'nullable|string|max:2000',
             'remise_pct'                   => 'nullable|numeric|min:0|max:100',
@@ -448,6 +453,9 @@ class InvoiceController extends Controller
             // (saisie en tag Select2 sans panneau matché).
             'lines.*.panel_id'             => 'nullable|exists:panels,id',
             'lines.*.external_panel_id'    => 'nullable|exists:external_panels,id',
+            // Dates de campagne de la ligne (2026-11-26) : reprises à la modification.
+            'lines.*.campaign_start'       => 'nullable|date',
+            'lines.*.campaign_end'         => 'nullable|date',
         ], [
             'client_id.exists'      => 'Ce client est introuvable ou a été supprimé.',
             'lines.required'        => 'Au moins une ligne de facturation est requise.',
@@ -484,7 +492,10 @@ class InvoiceController extends Controller
 
         $issuedAt = \Carbon\Carbon::parse($data['issued_at']);
 
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request, $clientId, $issuedAt, $calculator) {
+        // 2026-11-26 (point 21) — numéro attribué ici, sous verrou, dans la
+        // suite de l'année d'émission (comme la génération depuis campagne).
+        return Invoice::creerAvecNumero((int) $issuedAt->year, fn (string $reference) =>
+            \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request, $clientId, $issuedAt, $calculator, $reference) {
             // commercial_user_id : on dérive depuis la campagne si liée,
             // sinon depuis l'utilisateur courant (cas saisie manuelle d'une
             // facture non rattachée à une campagne — rare mais possible).
@@ -507,7 +518,7 @@ class InvoiceController extends Controller
                 : null;
 
             $invoice = Invoice::create([
-                'reference'            => $data['reference'],
+                'reference'            => $reference,
                 'client_id'            => $clientId,
                 'campaign_id'          => $data['campaign_id'] ?? null,
                 'commercial_user_id'   => $commercialUserId,
@@ -532,7 +543,7 @@ class InvoiceController extends Controller
 
             return redirect()->route('admin.invoices.show', $invoice)
                 ->with('success', "Facture {$invoice->reference} créée — {$invoice->lines->count()} ligne(s), total " . number_format($invoice->total_a_payer, 0, ',', ' ') . ' FCFA.');
-        });
+        }));
     }
 
     /**
@@ -577,58 +588,132 @@ class InvoiceController extends Controller
         $issuedDate = $issuedAt->toDateString();
         $orderIdx = 0;
         foreach ($linesInput as $l) {
-            $commune = \App\Models\Commune::find($l['commune_id']);
-            // Panneau éclairé (2026-11-18) : ligne liée à un panneau éclairé →
-            // tarif « éclairé ». Ligne sans panneau : non éclairé (validé le 18/11).
-            $eclaire = !empty($l['panel_id']) && (bool) \App\Models\Panel::whereKey((int) $l['panel_id'])->value('is_lit');
-            $rates = $commune?->ratesAt($issuedDate, $eclaire) ?? ['odp' => 0, 'tm' => 1000];
-
-            // Overrides ODP/TM par ligne (2026-08-03) : montant FCFA final.
-            // Chaîne vide OU absente = NULL (calcul auto), 0 explicite = 0.
-            $odpOverride = (isset($l['odp_amount_override']) && $l['odp_amount_override'] !== '' && $l['odp_amount_override'] !== null)
-                ? (int) round((float) $l['odp_amount_override'])
-                : null;
-            $tmOverride  = (isset($l['tm_amount_override']) && $l['tm_amount_override'] !== '' && $l['tm_amount_override'] !== null)
-                ? (int) round((float) $l['tm_amount_override'])
-                : null;
-
-            // Axe Lumipub (2026-11-12) : ODP et TM jamais calculées, 0 tant
-            // que le comptable n'a rien saisi. Garantie serveur : vaut même
-            // si l'écran n'envoie pas les deux cases.
-            if (!empty($l['panel_id'])
-                && \App\Models\Panel::withTrashed()->find((int) $l['panel_id'])?->taxesSaisiesALaMain()) {
-                $odpOverride ??= 0;
-                $tmOverride  ??= 0;
-            }
-
-            $lineData = [
-                'designation'           => $l['designation'],
-                'commune_id'            => $commune?->id,
-                'snapshot_commune_name' => $commune?->name,
-                'dimension_m2'          => (float) $l['dimension_m2'],
-                'pu_ht_mensuel'         => (float) $l['pu_ht_mensuel'],
-                'quantite'              => (int) $l['quantite'],
-                'duree_mois'            => (float) $l['duree_mois'],
-                'odp_rate_applique'     => (float) $rates['odp'],
-                'tm_rate_applique'      => (float) $rates['tm'],
-                'odp_amount_override'   => $odpOverride,
-                'tm_amount_override'    => $tmOverride,
-                'order_index'           => $orderIdx++,
-                // Bug 3a (2026-07-16) : lien vers le panneau physique
-                // (interne ou externe). Permet la validation d'unicité
-                // et la traçabilité complète (fiche panneau → factures).
-                'panel_id'              => !empty($l['panel_id'])          ? (int) $l['panel_id']          : null,
-                'external_panel_id'     => !empty($l['external_panel_id']) ? (int) $l['external_panel_id'] : null,
-            ];
-
-            // Pré-calcul des totaux ligne (montant_ht, odp, tm). Le
-            // calculator lit odp_amount_override / tm_amount_override
-            // et court-circuite le calcul auto si nécessaire.
-            $calc = $calculator->calculateLine($lineData);
-            $lineData = array_merge($lineData, $calc);
-
+            $lineData = $this->donneesLigne($l, $issuedDate, $calculator);
+            $lineData['order_index'] = $orderIdx++;
             $invoice->lines()->create($lineData);
         }
+    }
+
+    /**
+     * Une ligne de facture prête à enregistrer, montants calculés (2026-11-26) —
+     * SOURCE UNIQUE de l'enregistrement (syncLines) et du récapitulatif en
+     * direct du formulaire (totaux). Taux communaux figés à la date
+     * d'émission (CLAUDE.md, confirmé le 26/11).
+     *
+     * Les dates de campagne d'une ligne (posées par la génération depuis une
+     * campagne) sont reprises telles quelles : avant, la modification les
+     * perdait et l'ODP / la TM étaient recalculées sur le nombre de mois.
+     */
+    protected function donneesLigne(array $l, string $issuedDate, \App\Services\InvoiceCalculator $calculator): array
+    {
+        $commune = !empty($l['commune_id']) ? \App\Models\Commune::find($l['commune_id']) : null;
+        // Panneau éclairé (2026-11-18) : ligne liée à un panneau éclairé →
+        // tarif « éclairé ». Ligne sans panneau : non éclairé (validé le 18/11).
+        $eclaire = !empty($l['panel_id']) && (bool) \App\Models\Panel::whereKey((int) $l['panel_id'])->value('is_lit');
+        $rates = $commune?->ratesAt($issuedDate, $eclaire)
+            ?? ['odp' => 0, 'tm' => (float) config('billing.tm_default', 1000)];
+
+        // Overrides ODP/TM par ligne (2026-08-03) : montant FCFA final.
+        // Chaîne vide OU absente = NULL (calcul auto), 0 explicite = 0.
+        $odpOverride = (isset($l['odp_amount_override']) && $l['odp_amount_override'] !== '' && $l['odp_amount_override'] !== null)
+            ? (int) round((float) $l['odp_amount_override'])
+            : null;
+        $tmOverride  = (isset($l['tm_amount_override']) && $l['tm_amount_override'] !== '' && $l['tm_amount_override'] !== null)
+            ? (int) round((float) $l['tm_amount_override'])
+            : null;
+
+        // Axe Lumipub (2026-11-12) : ODP et TM jamais calculées, 0 tant
+        // que le comptable n'a rien saisi. Garantie serveur : vaut même
+        // si l'écran n'envoie pas les deux cases.
+        if (!empty($l['panel_id'])
+            && \App\Models\Panel::withTrashed()->find((int) $l['panel_id'])?->taxesSaisiesALaMain()) {
+            $odpOverride ??= 0;
+            $tmOverride  ??= 0;
+        }
+
+        $lineData = [
+            'designation'           => $l['designation'] ?? '',
+            'commune_id'            => $commune?->id,
+            'snapshot_commune_name' => $commune?->name,
+            'dimension_m2'          => (float) ($l['dimension_m2'] ?? 0),
+            'pu_ht_mensuel'         => (float) ($l['pu_ht_mensuel'] ?? 0),
+            'quantite'              => (int) ($l['quantite'] ?? 1),
+            'duree_mois'            => (float) ($l['duree_mois'] ?? 1),
+            'campaign_start'        => !empty($l['campaign_start']) ? $l['campaign_start'] : null,
+            'campaign_end'          => !empty($l['campaign_end'])   ? $l['campaign_end']   : null,
+            'odp_rate_applique'     => (float) $rates['odp'],
+            'tm_rate_applique'      => (float) $rates['tm'],
+            'odp_amount_override'   => $odpOverride,
+            'tm_amount_override'    => $tmOverride,
+            // Bug 3a (2026-07-16) : lien vers le panneau physique
+            // (interne ou externe). Permet la validation d'unicité
+            // et la traçabilité complète (fiche panneau → factures).
+            'panel_id'              => !empty($l['panel_id'])          ? (int) $l['panel_id']          : null,
+            'external_panel_id'     => !empty($l['external_panel_id']) ? (int) $l['external_panel_id'] : null,
+        ];
+
+        // Pré-calcul des totaux ligne (montant_ht, odp, tm). Le
+        // calculator lit odp_amount_override / tm_amount_override
+        // et court-circuite le calcul auto si nécessaire.
+        return array_merge($lineData, $calculator->calculateLine($lineData));
+    }
+
+    /**
+     * Récapitulatif en direct du formulaire de facture (2026-11-26).
+     * Le serveur calcule avec les mêmes règles qu'à l'enregistrement
+     * (donneesLigne + InvoiceCalculator) ; rien n'est enregistré. Avant, le
+     * JavaScript recopiait les formules avec les tarifs du jour et sans les
+     * dates de campagne : l'aperçu pouvait différer de la facture.
+     */
+    public function totaux(Request $request, \App\Services\InvoiceCalculator $calculator): \Illuminate\Http\JsonResponse
+    {
+        $this->authorize('create', Invoice::class);
+
+        $emission = $request->input('issued_at')
+            ? \Carbon\Carbon::parse($request->input('issued_at'))->toDateString()
+            : now()->toDateString();
+
+        $lignes = [];
+        $parLigne = [];
+        foreach ((array) $request->input('lines', []) as $cle => $l) {
+            if (!is_array($l)) continue;
+            $ligne = $this->donneesLigne($l, $emission, $calculator);
+            $lignes[] = $ligne;
+            $parLigne[$cle] = ['ht' => $ligne['montant_ht_ligne'], 'odp' => $ligne['odp_ligne'], 'tm' => $ligne['tm_ligne']];
+        }
+
+        $services = [];
+        $parService = [];
+        $tauxTva = ($request->input('tva_rate') !== null && $request->input('tva_rate') !== '')
+            ? max(0.0, (float) $request->input('tva_rate'))
+            : (float) config('billing.tva_rate', 18);
+        foreach ((array) $request->input('services', []) as $cle => $s) {
+            if (!is_array($s)) continue;
+            $service = new \App\Models\InvoiceService([
+                'label'          => trim((string) ($s['label'] ?? '')),
+                'quantite'       => max(1, (int) ($s['quantite'] ?? 1)),
+                'prix_ht'        => (float) ($s['prix_ht'] ?? 0),
+                'tva_applicable' => filter_var($s['tva_applicable'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            ]);
+            if ($service->prix_ht <= 0) continue;
+            $services[] = $service->only(['label', 'quantite', 'prix_ht', 'tva_applicable']);
+            $parService[$cle] = ['ht' => $service->montantHt(), 'ttc' => $service->montantTtc($tauxTva)];
+        }
+
+        $totaux = $calculator->calculateInvoice($lignes, [
+            'remise_pct' => (float) $request->input('remise_pct', 0),
+            'tva_rate'   => $request->input('tva_rate'),
+            'tsp_rate'   => $request->input('tsp_rate'),
+            'services'   => $services,
+        ]);
+
+        return response()->json([
+            'totaux'      => $totaux,
+            'lignes'      => $parLigne,
+            'services'    => $parService,
+            // Communes sans tarif TM : base nationale appliquée (avertissement).
+            'tm_manquant' => Invoice::communesSansTarifTm((array) $request->input('lines', []), $emission),
+        ]);
     }
 
     /**
@@ -824,7 +909,7 @@ class InvoiceController extends Controller
         $data = $request->validate([
             'client_id'                    => 'required|exists:clients,id',
             'campaign_id'                  => 'nullable|exists:campaigns,id',
-            'reference'                    => 'required|unique:invoices,reference,' . $invoice->id,
+            // 2026-11-26 — le numéro attribué à la création ne change plus.
             'issued_at'                    => 'required|date',
             'notes_client'                 => 'nullable|string|max:2000',
             'remise_pct'                   => 'nullable|numeric|min:0|max:100',
@@ -855,6 +940,9 @@ class InvoiceController extends Controller
             // Bug 3a — panel_id / external_panel_id transmis pour validation d'unicité
             'lines.*.panel_id'             => 'nullable|exists:panels,id',
             'lines.*.external_panel_id'    => 'nullable|exists:external_panels,id',
+            // Dates de campagne de la ligne (2026-11-26) : reprises à la modification.
+            'lines.*.campaign_start'       => 'nullable|date',
+            'lines.*.campaign_end'         => 'nullable|date',
         ], [
             'services.*.label.required_with'   => 'Chaque service annexe doit avoir un libellé.',
             'services.*.prix_ht.required_with' => 'Chaque service annexe doit avoir un prix HT.',
@@ -900,7 +988,6 @@ class InvoiceController extends Controller
                 : null;
 
             $invoice->update([
-                'reference'            => $data['reference'],
                 'client_id'            => $clientId,
                 'campaign_id'          => $data['campaign_id'] ?? null,
                 'issued_at'            => $data['issued_at'],
@@ -1138,9 +1225,17 @@ class InvoiceController extends Controller
         $invoice->lock(auth()->id());
 
         // ── Notification email client (lien public 30 jours sécurisé) ──
-        $this->notifyClientInvoiceIssued($invoice);
+        // 2026-11-26 (point 19) : le message dit ce qui s'est vraiment passé.
+        // Avant, « envoyée par email » s'affichait même sans adresse.
+        $envoi = $this->notifyClientInvoiceIssued($invoice);
 
-        return $this->statusResponse($request, $invoice, true, 'Facture envoyée au client par email. 🔒 Verrouillée.');
+        $message = match ($envoi) {
+            'envoye'       => 'Facture envoyée au client par mail. 🔒 Verrouillée.',
+            'sans_adresse' => 'Facture passée en « Envoyée » et verrouillée. ⚠ Aucun mail : le client n\'a pas d\'adresse. Transmettez-lui le PDF vous-même.',
+            default        => 'Facture passée en « Envoyée » et verrouillée. ⚠ Le mail n\'est pas parti (erreur d\'envoi). Transmettez-lui le PDF vous-même.',
+        };
+
+        return $this->statusResponse($request, $invoice, true, $message);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -1350,6 +1445,9 @@ class InvoiceController extends Controller
             return back()->withInput()->with('error', '🚫 ' . $e->getMessage());
         }
 
+        // 2026-11-26 — nouvelle échéance : le statut « en retard » est revérifié.
+        app(\App\Services\PaymentService::class)->syncInvoiceStatus($invoice->fresh());
+
         return back()->with('success', '✅ Échéancier généré ('
             . $invoice->schedules()->count() . ' échéance(s)).');
     }
@@ -1394,6 +1492,9 @@ class InvoiceController extends Controller
     {
         $this->authorize('markPaid', $invoice);
         $invoice->schedules()->delete();
+        // 2026-11-26 — l'échéance dépend de l'échéancier (Invoice::echeance) :
+        // sans lui, émission + délai. Le statut « en retard » est revérifié.
+        app(\App\Services\PaymentService::class)->syncInvoiceStatus($invoice->fresh());
         return back()->with('success', 'Échéancier supprimé.');
     }
 
@@ -1444,8 +1545,11 @@ class InvoiceController extends Controller
     /**
      * Envoie la facture au client par email avec un lien public sécurisé.
      * Try/catch — n'interrompt jamais le flux métier en cas d'erreur SMTP.
+     *
+     * @return string 'envoye', 'sans_adresse' ou 'echec' (2026-11-26 : le
+     *                message à l'écran dit ce qui s'est vraiment passé)
      */
-    protected function notifyClientInvoiceIssued(Invoice $invoice, bool $isReminder = false, ?int $reminderNumber = null): void
+    protected function notifyClientInvoiceIssued(Invoice $invoice, bool $isReminder = false, ?int $reminderNumber = null): string
     {
         $client = $invoice->client;
         $adresses = $invoice->adressesClient(); // fiche + interlocuteur de la campagne (2026-10-29)
@@ -1453,7 +1557,7 @@ class InvoiceController extends Controller
             \Illuminate\Support\Facades\Log::info('invoice.notify.skipped', [
                 'invoice_id' => $invoice->id, 'reason' => 'no_client_email',
             ]);
-            return;
+            return 'sans_adresse';
         }
 
         try {
@@ -1464,7 +1568,7 @@ class InvoiceController extends Controller
             );
 
             $mailer = app(\App\Services\NotificationMailer::class);
-            $mailer->sendSilently(
+            $parti = $mailer->sendSilently(
                 $adresses,
                 new \App\Mail\InvoiceIssuedMail(
                     invoice: $invoice->loadMissing('client', 'campaign'),
@@ -1475,11 +1579,15 @@ class InvoiceController extends Controller
                 cc: null,
                 context: ['invoice_id' => $invoice->id, 'client_id' => $client->id, 'reminder' => $isReminder],
             );
+
+            return $parti ? 'envoye' : 'echec';
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('invoice.notify.failed', [
                 'invoice_id' => $invoice->id,
                 'error'      => $e->getMessage(),
             ]);
+
+            return 'echec';
         }
     }
 

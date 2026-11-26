@@ -39,30 +39,35 @@
     <a href="{{ route('admin.invoices.audit', $invoice) }}" class="btn btn-ghost btn-sm" title="Historique complet des modifications">
         📋 <span class="btn-label">Audit</span>
     </a>
-    @if($invoice->status === 'brouillon')
+    {{-- 2026-11-26 — chaque bouton n'apparaît qu'à qui a le droit de s'en
+         servir (InvoicePolicy) : avant, le comptable et le commercial
+         voyaient des boutons qui menaient à « accès refusé ». --}}
+    @if($invoice->status === 'brouillon' && auth()->user()?->can('markSent', $invoice))
     <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}">
         @csrf
         @method('PATCH')
         <button type="submit" class="btn btn-blue btn-sm keep-label" title="Envoyer la facture au client">📤 <span class="btn-label">Envoyer au client</span></button>
     </form>
     @endif
-    @if($invoice->status === 'envoyee')
+    @if($invoice->status === 'envoyee' && auth()->user()?->can('markPaid', $invoice))
     <form method="POST" action="{{ route('admin.invoices.pay', $invoice) }}">
         @csrf
         @method('PATCH')
         <button type="submit" class="btn btn-success btn-sm keep-label" title="Marquer la facture comme soldée">✅ <span class="btn-label">Marquer soldée</span></button>
     </form>
     @endif
-    @if(in_array($invoice->status, ['envoyee', 'payee']))
+    @if(in_array($invoice->status, ['envoyee', 'payee']) && auth()->user()?->can('revertDraft', $invoice))
     <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}"
           onsubmit="return confirm('Rebasculer en brouillon ? La date de paiement sera effacée.')">
         @csrf @method('PATCH')
         <button type="submit" class="btn btn-ghost btn-sm" title="Rebasculer en brouillon">↩ <span class="btn-label">Brouillon</span></button>
     </form>
     @endif
+    @can('update', $invoice)
     <a href="{{ route('admin.invoices.edit', $invoice) }}" class="btn btn-ghost btn-sm" title="Modifier la facture">
         ✏️ <span class="btn-label">Modifier</span>
     </a>
+    @endcan
 </x-slot>
 
 <div style="display:grid; grid-template-columns:1fr 300px; gap:20px;">
@@ -125,7 +130,10 @@
 
         {{-- ════════════════════ CARD STATUT & ACTIONS ════════════════════
              Section dédiée au cycle de vie de la facture : pipeline visuel
-             Brouillon → Envoyée → Soldée + boutons de transition contextuels.
+             Brouillon → Finalisée → Validée → Envoyée → Soldée (2026-11-26 :
+             avant, 3 étapes seulement, et aucune ne s'allumait pour une
+             facture finalisée, validée, partielle, en retard ou en litige)
+             + boutons de transition contextuels.
              Avant cette section, seul un bouton "Envoyer au client" dans
              la topbar permettait de changer de statut — peu découvrable.
         ════════════════════════════════════════════════════════════════ --}}
@@ -135,9 +143,17 @@
             // Libellés centralisés via Invoice::statusLabel (M1 cosmétique).
             $steps = [
                 ['key' => 'brouillon', 'label' => \App\Models\Invoice::statusLabel('brouillon'), 'icon' => '📝'],
+                ['key' => 'generee',   'label' => \App\Models\Invoice::statusLabel('generee'),   'icon' => '📋'],
+                ['key' => 'validee',   'label' => \App\Models\Invoice::statusLabel('validee'),   'icon' => '🔒'],
                 ['key' => 'envoyee',   'label' => \App\Models\Invoice::statusLabel('envoyee'),   'icon' => '📤'],
                 ['key' => 'payee',     'label' => \App\Models\Invoice::statusLabel('payee'),     'icon' => '✅'],
             ];
+            // Partielle, en retard, en litige : la facture est partie, l'étape
+            // « Envoyée » s'allume avec le vrai statut.
+            $etapeEnvoyee = ['partiellement_payee' => '💳', 'en_retard' => '⏰', 'litige' => '⚠️'];
+            if (isset($etapeEnvoyee[$status])) {
+                $steps[3] = ['key' => $status, 'label' => \App\Models\Invoice::statusLabel($status), 'icon' => $etapeEnvoyee[$status]];
+            }
             $cancelled = $status === 'annulee';
             $currentIdx = array_search($status, array_column($steps, 'key'));
         @endphp
@@ -151,7 +167,7 @@
             </div>
             <div class="card-body">
 
-                {{-- Pipeline visuel : Brouillon → Envoyée → Soldée --}}
+                {{-- Pipeline visuel : Brouillon → Finalisée → Validée → Envoyée → Soldée --}}
                 <div style="display:flex;align-items:center;gap:0;margin-bottom:18px;{{ $cancelled ? 'opacity:.45;filter:grayscale(.6)' : '' }}">
                     @foreach($steps as $i => $step)
                         @php
@@ -213,10 +229,12 @@
                             @csrf @method('PATCH')
                             <button type="submit" class="btn btn-blue btn-sm">🔒 Valider et figer</button>
                         </form>
+                        @can('revertDraft', $invoice)
                         <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}" style="margin:0">
                             @csrf @method('PATCH')
                             <button type="submit" class="btn btn-ghost btn-sm">↩ Retour en brouillon</button>
                         </form>
+                        @endcan
                     @endif
 
                     @if($status === 'validee')
@@ -262,7 +280,7 @@
                         </button>
                     @endif
 
-                    @if(in_array($status, ['envoyee', 'payee', 'validee', 'partiellement_payee', 'en_retard', 'generee', 'litige']))
+                    @if(in_array($status, ['envoyee', 'payee', 'validee', 'partiellement_payee', 'en_retard', 'generee', 'litige']) && auth()->user()?->can('revertDraft', $invoice))
                         <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}" style="margin:0"
                               onsubmit="return confirm('Rebasculer en brouillon ?\n\nLa facture sera déverrouillée et redeviendra modifiable. La date de paiement (si présente) sera effacée. Action tracée.');">
                             @csrf @method('PATCH')
@@ -270,7 +288,7 @@
                         </form>
                     @endif
 
-                    @if(!in_array($status, ['annulee', 'payee']))
+                    @if(!in_array($status, ['annulee', 'payee']) && auth()->user()?->can('markCancelled', $invoice))
                         <form method="POST" action="{{ route('admin.invoices.cancel', $invoice) }}" style="margin:0;margin-left:auto"
                               onsubmit="return confirm('Annuler cette facture ?\n\nLa facture restera dans l\'historique (traçable) mais ne pourra plus être réglée ni envoyée.');">
                             @csrf @method('PATCH')
@@ -278,7 +296,7 @@
                         </form>
                     @endif
 
-                    @if($status === 'annulee')
+                    @if($status === 'annulee' && auth()->user()?->can('revertDraft', $invoice))
                         <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}" style="margin:0"
                               onsubmit="return confirm('Réactiver cette facture en brouillon ?');">
                             @csrf @method('PATCH')
@@ -301,32 +319,38 @@
                                 <div><strong style="color:var(--text)">📤 Envoyer au client</strong> — Envoie la facture par email au client + verrouille automatiquement (statut <em>Envoyée</em>). Démarre le suivi paiements et les relances.</div>
                                 <div><strong style="color:var(--text)">✅ Marquer soldée</strong> — Bascule directement en <em>Soldée</em> (saute Envoyée). Utilise-le pour les paiements comptants où l'envoi par email n'est pas nécessaire.</div>
                                 <div><strong style="color:var(--text)">💼 Solder manuellement</strong> — Solde la facture <strong>sans saisir chaque versement</strong>. Cas migration (facture historique) ou paiement encaissé hors plateforme. Justification obligatoire, action tracée dans l'audit.</div>
+                                @can('markCancelled', $invoice)
                                 <div><strong style="color:var(--text)">🚫 Annuler la facture</strong> — Marque la facture comme <em>Annulée</em>. Reste dans l'historique mais ne sera plus réglée ni envoyée.</div>
+                                @endcan
                             </div>
                         </div>
                     </details>
                 @endif
 
-                {{-- Tip contextuel sous les boutons --}}
+                {{-- Tip contextuel sous les boutons. 2026-11-26 (points 18 et 20) :
+                     chaque astuce ne propose que ce que la personne peut faire ;
+                     l'avoir n'existe pas dans Panora, la correction d'une
+                     facture partie passe par l'admin. --}}
+                @php $peutRebasculer = auth()->user()?->can('revertDraft', $invoice); @endphp
                 <div style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11.5px;color:var(--text3);line-height:1.5">
                     @if($status === 'brouillon')
-                        💡 Tant que la facture est en brouillon, elle est modifiable. <strong>L'envoi au client la verrouille</strong> et ouvre le suivi paiements.
+                        💡 Tant que la facture est en brouillon, elle est modifiable. <strong>La valider ou l'envoyer au client la verrouille</strong> ; l'envoi ouvre le suivi des paiements.
                     @elseif($status === 'generee')
-                        💡 Facture finalisée. Valide-la pour la figer (verrouillage + gel des taux), envoie-la au client, ou repasse en brouillon.
+                        💡 Facture finalisée, encore modifiable. Valide-la pour la figer (verrouillage + gel des taux) avant de l'envoyer au client{{ $peutRebasculer ? ', ou repasse-la en brouillon' : '' }}.
                     @elseif($status === 'validee')
-                        💡 Facture validée et verrouillée. Prête à être envoyée au client. Aucune modification possible sans déverrouillage.
+                        💡 Facture validée et verrouillée, prête à être envoyée au client. {{ $peutRebasculer ? 'Pour la modifier, repasse-la en brouillon (action tracée).' : 'Pour la modifier, contactez l\'admin.' }}
                     @elseif($status === 'envoyee')
-                        💡 Facture verrouillée car envoyée au client. Rebascule en brouillon pour modifier, ou enregistre un versement pour solder.
+                        💡 Facture verrouillée car envoyée au client. Enregistre les versements pour la solder. {{ $peutRebasculer ? 'Pour la modifier, repasse-la en brouillon (action tracée).' : 'Pour la corriger, contactez l\'admin.' }}
                     @elseif($status === 'partiellement_payee')
                         💡 Facture partiellement soldée. Continue à enregistrer les versements jusqu'au solde complet, ou solde manuellement si paiement hors plateforme.
                     @elseif($status === 'payee')
-                        💡 Facture soldée. Tu peux toujours rebasculer en brouillon si besoin de correction, ou émettre un avoir.
+                        💡 Facture soldée. {{ $peutRebasculer ? 'Si elle doit être corrigée, tu peux la repasser en brouillon (action tracée).' : 'Pour la corriger, contactez l\'admin.' }}
                     @elseif($status === 'en_retard')
-                        💡 Facture en retard — au moins une échéance prévisionnelle est dépassée. Lance une relance ou enregistre un versement.
+                        💡 Facture en retard : l'échéance est dépassée et il reste à payer (échéancier, ou 30 jours après l'émission). Panora relance le client à J+7, J+15 et J+30 ; enregistre ici tes relances manuelles et les versements.
                     @elseif($status === 'litige')
-                        💡 Facture en litige. Suspends temporairement les relances. Sors du litige pour reprendre le suivi.
+                        💡 Facture en litige : aucune relance automatique ne part. Sors du litige pour reprendre le suivi.
                     @else
-                        💡 Facture annulée — figée dans l'historique. Réactive-la en brouillon si l'annulation était une erreur.
+                        💡 Facture annulée — figée dans l'historique. {{ $peutRebasculer ? 'Réactive-la en brouillon si l\'annulation était une erreur.' : 'Si l\'annulation était une erreur, contactez l\'admin.' }}
                     @endif
                 </div>
             </div>
@@ -478,74 +502,65 @@
                      TOTAL HT → TVA → TOTAL TTC, puis AUTRES TAXES détaillées
                      (TSP/TM/ODP), puis services TTC, puis TOTAL À PAYER. --}}
                 <div style="margin-top:20px;padding:16px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
-                    @if($invoice->remise_pct > 0)
-                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px;color:var(--text3)">
-                            <span>Total HT brut</span>
-                            <span>{{ $fmt($invoice->amount) }} FCFA</span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px;color:#b45309">
-                            <span>Remise ({{ rtrim(rtrim(number_format($invoice->remise_pct, 2, ',', ''), '0'), ',') }}%)</span>
-                            <span>− {{ $fmt(($invoice->amount * $invoice->remise_pct / 100)) }} FCFA</span>
+                    {{-- 2026-11-26 — Totaux du modèle DGI, dans l'ordre du PDF : la TVA
+                         et le TTC comprennent les services annexes. Source unique :
+                         Invoice::totauxAffiches(). Avant, la page recalculait les
+                         services sans la quantité et taxait même les « HT strict ». --}}
+                    @php $sansTarifTm = \App\Models\Invoice::communesSansTarifTm($invoice->lines, $invoice->issued_at); @endphp
+                    @if($sansTarifTm)
+                        <div style="margin-bottom:12px;padding:8px 10px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);color:#92400e;font-size:12px;line-height:1.45">
+                            ⚠ Tarif TM manquant pour {{ implode(', ', $sansTarifTm) }} : la base nationale de
+                            {{ number_format(\App\Services\TaxCalculationService::tmParDefaut(), 0, ',', ' ') }} FCFA/m²/mois a été appliquée.
+                            Renseigne le tarif dans « Tarifs communes ».
                         </div>
                     @endif
+                    @php
+                        $tx = $invoice->totauxAffiches();
+                        $tauxLib = fn ($t) => rtrim(rtrim(number_format((float) $t, 2, ',', ''), '0'), ',');
+                        $lignesServices = $invoice->services->isNotEmpty()
+                            ? $invoice->services->map(fn ($s) => [
+                                'label' => $s->label, 'qte' => max(1, (int) ($s->quantite ?: 1)),
+                                'pu' => (int) $s->prix_ht, 'montant' => $s->montantHt(), 'tva' => (bool) $s->tva_applicable,
+                              ])
+                            : collect(array_filter([
+                                (int) $invoice->services_impression > 0 ? ['label' => "Frais d'impression", 'qte' => 1, 'pu' => (int) $invoice->services_impression, 'montant' => (int) $invoice->services_impression, 'tva' => true] : null,
+                                (int) $invoice->services_pose_depose > 0 ? ['label' => 'Frais de pose et dépose', 'qte' => 1, 'pu' => (int) $invoice->services_pose_depose, 'montant' => (int) $invoice->services_pose_depose, 'tva' => true] : null,
+                              ]));
+                    @endphp
 
                     <div style="display:flex;justify-content:space-between;margin-bottom:8px">
                         <span style="color:var(--text2);font-weight:600">TOTAL HT</span>
-                        <span style="font-weight:700;">{{ $fmt($invoice->net_ht ?: $invoice->amount) }} FCFA</span>
+                        <span style="font-weight:700;">{{ $fmt($tx['ht_brut']) }} FCFA</span>
                     </div>
+                    @if($tx['remise'] > 0)
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px;color:#b45309">
+                            <span>Remise ({{ $tauxLib($tx['remise_pct']) }} %)</span>
+                            <span>− {{ $fmt($tx['remise']) }} FCFA</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                            <span style="color:var(--text2);font-weight:600">TOTAL HT APRÈS REMISE</span>
+                            <span style="font-weight:700;">{{ $fmt($tx['net_ht']) }} FCFA</span>
+                        </div>
+                    @endif
+                    @if($tx['services_ht'] > 0)
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                            <span style="color:var(--text2);font-weight:600">Services annexes HT</span>
+                            <span style="font-weight:700;">{{ $fmt($tx['services_ht']) }} FCFA</span>
+                        </div>
+                    @endif
                     <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-                        <span style="color:var(--text2);font-weight:600">TVA ({{ rtrim(rtrim(number_format($invoice->tva, 2, ',', ''), '0'), ',') }} %)</span>
-                        <span style="font-weight:700;">{{ $fmt($invoice->tva_amount ?: ($invoice->amount_ttc - $invoice->amount)) }} FCFA</span>
+                        <span style="color:var(--text2);font-weight:600">TVA ({{ $tauxLib($tx['taux_tva']) }} %)</span>
+                        <span style="font-weight:700;">{{ $fmt($tx['tva']) }} FCFA</span>
                     </div>
                     <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid var(--border);margin-bottom:14px">
                         <span style="font-weight:800;font-size:13px">TOTAL TTC</span>
-                        <span style="font-weight:800;font-size:14px;">{{ $fmt($invoice->amount_ttc) }} FCFA</span>
+                        <span style="font-weight:800;font-size:14px;">{{ $fmt($tx['ttc']) }} FCFA</span>
                     </div>
 
-                    @php
-                        $autres = (float) $invoice->tsp_amount + (float) $invoice->tm_total + (float) $invoice->odp_total;
-                        // Services annexes (prompt v2) : N lignes libres. Fallback
-                        // sur les 2 champs legacy si la facture n'a pas encore été
-                        // migrée vers invoice_services.
-                        $serviceLines = $invoice->services;
-                        if ($serviceLines->isEmpty()) {
-                            $tmp = collect();
-                            if ((float) $invoice->services_impression > 0) {
-                                // Objet fictif AVEC tva_applicable = true pour
-                                // matcher le comportement historique legacy.
-                                $tmp->push((object) [
-                                    'label' => "Frais d'impression",
-                                    'prix_ht' => (float) $invoice->services_impression,
-                                    'tva_applicable' => true,
-                                ]);
-                            }
-                            if ((float) $invoice->services_pose_depose > 0) {
-                                $tmp->push((object) [
-                                    'label' => 'Frais de pose et dépose',
-                                    'prix_ht' => (float) $invoice->services_pose_depose,
-                                    'tva_applicable' => true,
-                                ]);
-                            }
-                            $serviceLines = $tmp;
-                        }
-                        $tvaRate     = (float) $invoice->tva;
-                        $servicesHt  = $serviceLines->sum('prix_ht');
-                        // 2026-08-03 : respect du flag tva_applicable par service.
-                        $servicesTtc = 0.0;
-                        foreach ($serviceLines as $svc) {
-                            $apply = property_exists($svc, 'tva_applicable')
-                                ? (bool) $svc->tva_applicable
-                                : true;
-                            $servicesTtc += $apply
-                                ? (float) $svc->prix_ht * (1 + $tvaRate / 100)
-                                : (float) $svc->prix_ht;
-                        }
-                    @endphp
-
-                    @if($autres > 0)
+                    @if($tx['autres_taxes'] > 0)
                         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">
                             <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Autres taxes</div>
-                            @if($invoice->tsp_amount > 0)
+                            @if($tx['tsp'] > 0)
                                 @php
                                     // Taux TSP effectif — override facture ou défaut config.
                                     $tspRateEff = $invoice->tsp_rate_override !== null
@@ -553,55 +568,51 @@
                                         : (float) config('billing.tsp_rate', 3);
                                 @endphp
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
-                                    <span>TSP — Taxe de Soutien à la Production ({{ rtrim(rtrim(number_format($tspRateEff, 2, ',', ''), '0'), ',') }} %)</span>
-                                    <span>{{ $fmt($invoice->tsp_amount) }}</span>
+                                    <span>TSP — Taxe de Soutien à la Production ({{ $tauxLib($tspRateEff) }} %)</span>
+                                    <span>{{ $fmt($tx['tsp']) }}</span>
                                 </div>
                             @endif
-                            @if($invoice->tm_total > 0)
+                            @if($tx['tm'] > 0)
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
                                     <span>TM — Taxe Municipale</span>
-                                    <span>{{ $fmt($invoice->tm_total) }}</span>
+                                    <span>{{ $fmt($tx['tm']) }}</span>
                                 </div>
                             @endif
-                            @if($invoice->odp_total > 0)
+                            @if($tx['odp'] > 0)
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
                                     <span>ODP — Occupation Domaine Public</span>
-                                    <span>{{ $fmt($invoice->odp_total) }}</span>
+                                    <span>{{ $fmt($tx['odp']) }}</span>
                                 </div>
                             @endif
                             <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding-top:6px;border-top:1px dashed var(--border);margin-top:6px">
                                 <span>Sous-total autres taxes</span>
-                                <span>{{ $fmt($autres) }} FCFA</span>
+                                <span>{{ $fmt($tx['autres_taxes']) }} FCFA</span>
                             </div>
                         </div>
                     @endif
 
-                    @if($servicesHt > 0)
+                    @if($lignesServices->isNotEmpty())
                         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">
                             <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
-                                Services annexes ({{ $serviceLines->count() }})
+                                Services annexes ({{ $lignesServices->count() }})
                             </div>
-                            @foreach($serviceLines as $svc)
-                                @php
-                                    $svcHasTva = property_exists($svc, 'tva_applicable')
-                                        ? (bool) $svc->tva_applicable
-                                        : true;
-                                @endphp
+                            @foreach($lignesServices as $svc)
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
                                     <span>
-                                        {{ $svc->label }}
-                                        @if($svcHasTva)
+                                        {{ $svc['label'] }}
+                                        @if($svc['qte'] > 1)<span style="color:var(--text3)">({{ $svc['qte'] }} × {{ $fmt($svc['pu']) }})</span>@endif
+                                        @if($svc['tva'])
                                             <span style="color:var(--text3);font-size:10.5px">(HT)</span>
                                         @else
                                             <span style="background:rgba(59,130,246,.12);color:#1d4ed8;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;margin-left:3px">HT strict</span>
                                         @endif
                                     </span>
-                                    <span>{{ $fmt($svc->prix_ht) }}</span>
+                                    <span>{{ $fmt($svc['montant']) }}</span>
                                 </div>
                             @endforeach
                             <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding-top:6px;border-top:1px dashed var(--border);margin-top:6px">
                                 <span>Sous-total services TTC</span>
-                                <span>{{ $fmt($servicesTtc) }} FCFA</span>
+                                <span>{{ $fmt($tx['services_ttc']) }} FCFA</span>
                             </div>
                         </div>
                     @endif
@@ -612,7 +623,7 @@
                          devenait invisible dans certains thèmes. --}}
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:linear-gradient(135deg,#1f2937,#0f172a);color:#fbbf24;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.18);border:1px solid rgba(251,191,36,.25)">
                         <span style="font-weight:800;font-size:14px;letter-spacing:.4px;color:#fbbf24">💰 TOTAL À PAYER</span>
-                        <span style="font-weight:800;font-size:19px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</span>
+                        <span style="font-weight:800;font-size:19px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)">{{ $fmt($tx['total_a_payer']) }} FCFA</span>
                     </div>
                 </div>
 

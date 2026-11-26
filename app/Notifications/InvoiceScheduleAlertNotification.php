@@ -9,6 +9,11 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
+ * ⚠ 2026-11-26 — plus utilisée par invoices:alerts : ses alertes « in-app »
+ * n'étaient affichées sur aucun écran, et son mail client doublait celui
+ * de la facture. Les alertes passent par AlertService (centre d'alertes),
+ * les mails par InvoiceScheduleReminderMail et InvoiceIssuedMail.
+ *
  * Notification envoyée sur une alerte d'échéance facture (§7 cahier).
  *
  * Canaux dynamiques : in_app (database) + email, selon le canal posé sur

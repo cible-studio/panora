@@ -33,6 +33,8 @@
                     Statuts campagne inclus : planifié, actif, en pause, terminé (les annulées sont exclues).
                 </div>
             </div>
+            {{-- 2026-11-26 — exports d'occupation : admin + MP (RapportController::ACCES). --}}
+            @if(\App\Http\Controllers\Admin\RapportController::peut('occupation'))
             <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <a href="{{ route('admin.rapports.export.occupation-details-excel', request()->query()) }}"
                    style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#22c55e;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;text-transform:uppercase;letter-spacing:.5px">
@@ -45,6 +47,7 @@
                     PDF
                 </a>
             </div>
+            @endif
         </div>
 
         {{-- Petits KPI en ligne --}}

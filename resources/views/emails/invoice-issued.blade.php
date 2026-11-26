@@ -4,9 +4,15 @@
     $title = $isReminder
         ? "Rappel — Facture impayée {$invoice->reference}"
         : "Nouvelle facture — {$invoice->reference}";
+    // 2026-11-26 — Le mail annonçait le TTC des panneaux (sans taxes ni
+    // services) et la TVA en « 18 FCFA » (le taux pris pour un montant).
+    // Source unique : Invoice::totauxAffiches(), comme la page et le PDF.
+    $tx    = $invoice->totauxAffiches();
+    $reste = (int) round($invoice->remainingAmount());
+    $f     = fn ($n) => number_format((int) $n, 0, ',', ' ');
     $preheader = $isReminder
-        ? "Facture {$invoice->reference} de " . number_format($invoice->amount_ttc, 0, ',', ' ') . " FCFA TTC en attente de règlement."
-        : "Facture {$invoice->reference} d'un montant de " . number_format($invoice->amount_ttc, 0, ',', ' ') . " FCFA TTC.";
+        ? "Facture {$invoice->reference} : " . $f($reste) . " FCFA restent à régler."
+        : "Facture {$invoice->reference} d'un montant total de " . $f($tx['total_a_payer']) . " FCFA.";
 @endphp
 
 <x-mail.layout :title="$title" :preheader="$preheader">
@@ -28,15 +34,15 @@
     @if($isReminder)
         <p>
             Nous vous rappelons que la facture
-            <strong>{{ $invoice->reference }}</strong> d'un montant de
-            <strong>{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA TTC</strong>
-            n'a pas encore été réglée. Merci de procéder au paiement dès que possible.
+            <strong>{{ $invoice->reference }}</strong>, d'un montant total de
+            <strong>{{ $f($tx['total_a_payer']) }} FCFA</strong>, n'est pas encore entièrement réglée :
+            il reste <strong>{{ $f($reste) }} FCFA</strong> à payer. Merci de procéder au paiement dès que possible.
         </p>
     @else
         <p>
             Veuillez trouver votre facture
-            <strong>{{ $invoice->reference }}</strong> d'un montant de
-            <strong>{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA TTC</strong>.
+            <strong>{{ $invoice->reference }}</strong>, d'un montant total de
+            <strong>{{ $f($tx['total_a_payer']) }} FCFA</strong> (taxes et services compris).
         </p>
     @endif
 
@@ -46,17 +52,33 @@
             <div class="val"><code>{{ $invoice->reference }}</code></div>
         </div>
         <div class="info-row">
-            <div class="lbl">Montant HT</div>
-            <div class="val">{{ number_format($invoice->amount, 0, ',', ' ') }} FCFA</div>
+            <div class="lbl">Total HT{{ $tx['remise'] > 0 ? ' après remise' : '' }}</div>
+            <div class="val">{{ $f($tx['net_ht'] + $tx['services_ht']) }} FCFA</div>
         </div>
         <div class="info-row">
-            <div class="lbl">TVA</div>
-            <div class="val">{{ number_format($invoice->tva, 0, ',', ' ') }} FCFA</div>
+            <div class="lbl">TVA ({{ rtrim(rtrim(number_format($tx['taux_tva'], 2, ',', ''), '0'), ',') }} %)</div>
+            <div class="val">{{ $f($tx['tva']) }} FCFA</div>
         </div>
         <div class="info-row">
             <div class="lbl">Total TTC</div>
-            <div class="val"><strong>{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA</strong></div>
+            <div class="val">{{ $f($tx['ttc']) }} FCFA</div>
         </div>
+        @if($tx['autres_taxes'] > 0)
+        <div class="info-row">
+            <div class="lbl">Autres taxes (ODP, TM, TSP)</div>
+            <div class="val">{{ $f($tx['autres_taxes']) }} FCFA</div>
+        </div>
+        @endif
+        <div class="info-row">
+            <div class="lbl">Total à payer</div>
+            <div class="val"><strong>{{ $f($tx['total_a_payer']) }} FCFA</strong></div>
+        </div>
+        @if($isReminder && $reste < $tx['total_a_payer'])
+        <div class="info-row">
+            <div class="lbl">Reste à payer</div>
+            <div class="val"><strong>{{ $f($reste) }} FCFA</strong></div>
+        </div>
+        @endif
         <div class="info-row">
             <div class="lbl">Émise le</div>
             <div class="val">{{ $invoice->issued_at?->format('d/m/Y') ?? $invoice->created_at->format('d/m/Y') }}</div>

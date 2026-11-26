@@ -61,7 +61,15 @@ window.__RPT__ = {
 @endphp
 {{-- data-export-route : la base statique de l'URL. rapports-live.js suffixe
      la query string courante au moment de chaque mise à jour AJAX. --}}
+{{-- 2026-11-26 — chaque export n'apparaît qu'à qui peut l'ouvrir
+     (RapportController::ACCES) : avant, tous les voyaient. --}}
+@php
+    $exportDirection  = \App\Http\Controllers\Admin\RapportController::peut('direction');
+    $exportOccupation = \App\Http\Controllers\Admin\RapportController::peut('occupation');
+@endphp
+@if($exportDirection || $exportOccupation)
 <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    @if($exportDirection)
     <a href="{{ route('admin.rapports.export.excel', $exportFilters) }}"
        data-export-route="{{ route('admin.rapports.export.excel') }}"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700"
@@ -76,8 +84,12 @@ window.__RPT__ = {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8"/></svg>
         Synthèse PDF
     </a>
+    @endif
+    @if($exportDirection && $exportOccupation)
     {{-- Séparateur visuel --}}
     <span style="width:1px;height:24px;background:var(--border);margin:0 4px"></span>
+    @endif
+    @if($exportOccupation)
     {{-- Exports dédiés : panneaux + taux d'occupation (filtrés par zone si sélectionnée) --}}
     <a href="{{ route('admin.rapports.export.panels-occupation-excel', $exportFilters) }}"
        data-export-route="{{ route('admin.rapports.export.panels-occupation-excel') }}"
@@ -93,7 +105,9 @@ window.__RPT__ = {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8"/></svg>
         Panneaux + occupation (PDF)
     </a>
+    @endif
 </div>
+@endif
 
 {{-- 2026-06-18 (feedback patronne) : la barre de filtres a été déplacée
      SOUS la barre d'onglets pour libérer la vue d'entrée (KPI/cards plus
@@ -136,18 +150,11 @@ window.__RPT__ = {
     ];
 
     // Mapping rôle → onglets autorisés (null = tous = admin).
-    $tabsByRole = [
-        'admin'        => null, // tous (après retraits SLA + Campagnes)
-        'mediaplanner' => [     // production / opérationnel
-            'occupation', 'occupation-details', 'panneaux', 'periodes',
-            'zones', 'clients', 'decap',
-            // EXCLUS pour MP : 'ca' (CA stratégique entreprise),
-            //                  'insights' (synthèse exécutive direction).
-        ],
-        'commercial'   => [     // strictement personnel filtré
-            'periodes', 'ca', 'decap',
-        ],
-    ];
+    // 2026-11-26 — source unique RapportController::ONGLETS_PAR_ROLE.
+    //   MP         : pas « CA & Revenus » ni « Insights » (direction) ;
+    //   comptable  : tout sauf « Insights » (avant : tous les onglets) ;
+    //   commercial : strictement personnel filtré.
+    $tabsByRole = \App\Http\Controllers\Admin\RapportController::ONGLETS_PAR_ROLE;
     $allowedTabs = $tabsByRole[$tabRole] ?? null;
     if ($allowedTabs !== null) {
         $onglets = array_values(array_filter(

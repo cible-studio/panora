@@ -586,4 +586,50 @@ class TaxeExerciceServiceTest extends TestCase
         $this->assertStringContainsString('Saisi deux fois', $interne, 'le motif de l\'annulation');
         $this->assertStringContainsString('<th>Saisi par</th>', $interne);
     }
+
+    /**
+     * Point 24 (2026-11-26) : la page Taxes reprend le statut du Suivi des
+     * mairies. Daloa a payé en 2026 sans montant réclamé saisi : le suivi dit
+     * « ✍ Réclamé à saisir » ; la page disait « ✓ Payé ».
+     */
+    public function test_la_page_taxes_reprend_le_statut_du_suivi(): void
+    {
+        $ctrl = new \App\Http\Controllers\Admin\TaxController();
+        $annuel = $ctrl->calcul(\Illuminate\Http\Request::create('/', 'GET', [
+            'period_type' => 'annuel', 'period_year' => 2026, 'period_value' => 0, 'inclure_lumipub' => 1,
+        ]), app(TaxCalculationService::class))->getData(true);
+        $daloa = collect($annuel['communes'])->firstWhere('commune_id', 2);
+
+        $this->assertSame('a_saisir', TaxeExerciceService::statutAffiche($this->service()->exercice(Commune::find(2), 2026)));
+        $this->assertSame('a_saisir', $daloa['statut_year']);
+        $this->assertSame('✍ Réclamé à saisir', $daloa['statut_libelle']);
+        $this->assertSame(0, $annuel['kpi']['communes_soldees'] ?? 0, 'une mairie à saisir n\'est pas comptée soldée');
+    }
+
+    /**
+     * Point 5 (2026-11-26) : un tarif qui change en cours d'année compte mois
+     * par mois sur la page Taxes, comme dans le Suivi des mairies.
+     */
+    public function test_un_changement_de_tarif_en_cours_d_annee_compte_mois_par_mois(): void
+    {
+        app(\App\Services\Taxes\TarifsCommunes::class)->enregistrer(Commune::find(1), Carbon::create(2027, 7, 1),
+            ['odp' => 6000, 'tm' => 1000], 'Hausse au 1er juillet');
+        // SQLite garde l'heure (« 2027-07-01 00:00:00 ») et compare du texte ;
+        // la colonne MySQL est une vraie DATE. On remet la date seule.
+        DB::table('commune_tax_rate_history')->update(['effective_from' => DB::raw('substr(effective_from, 1, 10)')]);
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->app->forgetScopedInstances();
+
+        $ctrl = new \App\Http\Controllers\Admin\TaxController();
+        $annuel = $ctrl->calcul(\Illuminate\Http\Request::create('/', 'GET', [
+            'period_type' => 'annuel', 'period_year' => 2027, 'period_value' => 0, 'inclure_lumipub' => 1,
+        ]), app(TaxCalculationService::class))->getData(true);
+        $cocody = collect($annuel['communes'])->firstWhere('commune_id', 1);
+
+        // 6 mois à 5 000 + 6 mois à 6 000, × 12 m².
+        $this->assertEquals(5000 * 12 * 6 + 6000 * 12 * 6, $cocody['odp_theorique']);
+
+        $suivi = app(TaxeExerciceService::class)->exercice(Commune::find(1), 2027);
+        $this->assertEquals($suivi['odp'], $cocody['odp_theorique'], 'même montant que le suivi des mairies');
+    }
 }

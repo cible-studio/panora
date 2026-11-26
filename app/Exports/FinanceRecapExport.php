@@ -194,20 +194,17 @@ class FinanceRecapCreancesSheet extends FinanceRecapBaseSheet
     public function collection()
     {
         return $this->creances->map(function ($inv) {
-            $statusLabels = [
-                'paye'      => 'Soldée',
-                'partiel'   => 'Paiement partiel',
-                'en_attente'=> 'En attente',
-                'en_retard' => 'En retard',
-            ];
+            // 2026-11-26 — `due_date` n'existe pas sur une facture (colonne
+            // toujours « — ») et les codes attendus ne correspondaient pas à
+            // paymentStatus() : échéance et libellés viennent du modèle.
             return [
                 $inv->reference ?? '—',
                 $inv->client?->name ?? '—',
                 $inv->issued_at?->format('d/m/Y') ?? '—',
-                $inv->due_date?->format('d/m/Y') ?? '—',
+                $inv->echeance()?->format('d/m/Y') ?? '—',
                 (int) $inv->montantTotal(),
                 (int) round($inv->remainingAmount()),
-                $statusLabels[$inv->paymentStatus()] ?? $inv->paymentStatus(),
+                \App\Models\Invoice::paymentStatusLabel($inv->paymentStatus()),
             ];
         });
     }

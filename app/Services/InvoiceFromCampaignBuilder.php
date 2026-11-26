@@ -19,8 +19,8 @@ use Illuminate\Support\Facades\DB;
  *      - dimension_m2 = panel.format.surface_m2
  *      - duree_mois = campaign.billableMonths()
  *      - commune = panel.commune
- *      - tarif ODP/TM résolu via Commune::ratesAt(year-12-31)
- *        (historisation pour cohérence sur recalcul futur)
+ *      - tarif ODP/TM résolu via Commune::ratesAt(date d'émission)
+ *        (2026-11-26 ; avant : 31/12 de l'année), figé sur la ligne
  *   3. Génère une référence FAC-YYYY-NNN unique
  *   4. Persiste invoice + lignes, recalcule les agrégats via
  *      InvoiceCalculator
@@ -136,7 +136,8 @@ class InvoiceFromCampaignBuilder
             }
         }
 
-        return DB::transaction(function () use ($campaign, $opts, $issuedAt, $year, $dureeMois, $negotiated, $devis, $tauxFiges) {
+        // 2026-11-26 (point 21) — numéro attribué sous verrou (Invoice::creerAvecNumero).
+        return Invoice::creerAvecNumero($year, fn (string $reference) => DB::transaction(function () use ($campaign, $opts, $issuedAt, $year, $dureeMois, $negotiated, $devis, $tauxFiges, $reference) {
             // ─── Création facture brouillon ──────────────────────
             // commercial_user_id = COMMERCIAL responsable du compte client
             //   (priorité campaign.commercial_user_id, fallback campaign.user_id)
@@ -148,7 +149,7 @@ class InvoiceFromCampaignBuilder
             $createdBy        = auth()->id() ?? $commercialUserId;
 
             $invoice = Invoice::create([
-                'reference'           => $this->generateReference($year),
+                'reference'           => $reference,
                 'client_id'           => $campaign->client_id,
                 'campaign_id'         => $campaign->id,
                 'commercial_user_id'  => $commercialUserId,
@@ -185,6 +186,7 @@ class InvoiceFromCampaignBuilder
                     complement: $groupe['complement'],
                     taxesALaMain: $groupe['taxes_a_la_main'],
                     tauxForces: $tauxFiges['int_' . $groupe['porteur']->id] ?? null,
+                    dateTarif: $issuedAt->toDateString(),
                 );
             }
 
@@ -203,6 +205,7 @@ class InvoiceFromCampaignBuilder
                     isExternal: true,
                     campaign: $campaign,
                     tauxForces: $tauxFiges['ext_' . $ext->id] ?? null,
+                    dateTarif: $issuedAt->toDateString(),
                 );
             }
 
@@ -215,7 +218,7 @@ class InvoiceFromCampaignBuilder
 
             // ─── Recalcul agrégats facture ───────────────────────
             return $this->calculator->recalculateAndPersist($invoice);
-        });
+        }));
     }
 
     /**
@@ -238,6 +241,7 @@ class InvoiceFromCampaignBuilder
         ?string $complement = null,
         bool $taxesALaMain = false,
         ?array $tauxForces = null,
+        ?string $dateTarif = null,
     ): InvoiceLine {
         // $puForce : prix déjà résolu par le regroupement des axes (le prix
         // négocié vit sur les pieds, pas sur la ligne de l'axe qui porte
@@ -256,8 +260,10 @@ class InvoiceFromCampaignBuilder
         // existe. Un panneau de régie externe n'est jamais compté éclairé.
         // 2026-11-23 — panneau d'un devis accepté : taux FIGÉS du devis (règle validée).
         $rates = $tauxForces
-            ?? $commune?->ratesAt("{$year}-12-31", !$isExternal && (bool) ($panel->is_lit ?? false))
-            ?? ['odp' => 0, 'tm' => 1000];
+            // 2026-11-26 — tarif à la DATE D'ÉMISSION (CLAUDE.md, confirmé le
+            // 26/11), comme la facture saisie à la main. Avant : 31/12 de l'année.
+            ?? $commune?->ratesAt($dateTarif ?? "{$year}-12-31", !$isExternal && (bool) ($panel->is_lit ?? false))
+            ?? ['odp' => 0, 'tm' => (float) config('billing.tm_default', 1000)];
 
         // Désignation lisible : "ABG-001A — Abengourou rte gare UTI 4×3m"
         $ref  = $panel->reference ?? ($isExternal ? 'EXT-' . $panel->id : 'PAN-' . $panel->id);
@@ -307,11 +313,11 @@ class InvoiceFromCampaignBuilder
      */
     protected function copierDevis(Campaign $campaign, \App\Models\Quote $devis, array $opts, \Carbon\Carbon $issuedAt, int $year): Invoice
     {
-        return DB::transaction(function () use ($campaign, $devis, $opts, $issuedAt, $year) {
+        return Invoice::creerAvecNumero($year, fn (string $reference) => DB::transaction(function () use ($campaign, $devis, $opts, $issuedAt, $year, $reference) {
             $commercialUserId = $campaign->commercial_user_id ?? $devis->commercial_user_id ?? $campaign->user_id;
 
             $invoice = Invoice::create([
-                'reference'           => $this->generateReference($year),
+                'reference'           => $reference,
                 'client_id'           => $campaign->client_id,
                 'campaign_id'         => $campaign->id,
                 'commercial_user_id'  => $commercialUserId,
@@ -352,7 +358,7 @@ class InvoiceFromCampaignBuilder
             $this->copierServices($invoice, $devis);
 
             return $this->calculator->recalculateAndPersist($invoice);
-        });
+        }));
     }
 
     /** Services du devis (libellé, quantité, prix unitaire HT, TVA ou non). */
@@ -492,20 +498,12 @@ class InvoiceFromCampaignBuilder
     }
 
     /**
-     * Numérotation FAC-YYYY-NNN avec compteur séquentiel sur l'année.
-     * Tente jusqu'à 5 fois en cas de collision (très rare).
+     * Numérotation FAC-YYYY-NNN — 2026-11-26 : délègue à la source unique
+     * Invoice::prochaineReference (avant : comptage des factures de l'année,
+     * doublon possible). La création passe par Invoice::creerAvecNumero.
      */
     protected function generateReference(int $year): string
     {
-        $format = config('billing.reference_format', 'FAC-%s-%03d');
-        for ($i = 0; $i < 5; $i++) {
-            $count = Invoice::whereYear('created_at', $year)->count();
-            $ref = sprintf($format, $year, $count + 1 + $i);
-            if (!Invoice::where('reference', $ref)->exists()) {
-                return $ref;
-            }
-        }
-        // Fallback paranoïaque
-        return sprintf($format, $year, time() % 1000);
+        return Invoice::prochaineReference($year);
     }
 }

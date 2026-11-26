@@ -67,7 +67,7 @@ class ChangementClientAffaire
 
         return 'Facture déjà émise au client actuel (' . $emises->implode(', ') . ') : '
             . 'le client de cette affaire ne peut plus changer. Repassez la facture en brouillon '
-            . 'si elle n\'a pas été envoyée, sinon faites un avoir.';
+            . 'si elle n\'a pas été envoyée, sinon contactez l\'admin pour corriger la facture envoyée.';
     }
 
     /**
