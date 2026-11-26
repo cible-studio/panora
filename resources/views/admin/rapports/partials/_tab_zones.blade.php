@@ -12,6 +12,8 @@
                 <div style="font-size:10px;color:#1e40af;margin-top:2px">Total panneaux, occupés, libres, taux et CA par commune · respecte les filtres actifs</div>
             </div>
         </div>
+        {{-- 2026-11-26 — admin, MP et comptable (RapportController::ACCES). --}}
+        @if(\App\Http\Controllers\Admin\RapportController::peut('zones'))
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <a href="{{ route('admin.rapports.export.zones-communes-excel', request()->query()) }}"
                style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;text-transform:uppercase;letter-spacing:.5px">
@@ -24,6 +26,7 @@
                 PDF
             </a>
         </div>
+        @endif
     </div>
 
     {{-- Boutons mode --}}

@@ -379,10 +379,10 @@ class FinancialDashboardService
     public function invoiceAgeDays(Invoice $invoice, ?CarbonInterface $ref = null): int
     {
         $ref = $ref ?? Carbon::today();
-        $schedules = $invoice->relationLoaded('schedules') ? $invoice->schedules : $invoice->schedules()->get();
-
-        $oldestUnpaid = $schedules->whereNull('paid_at')->sortBy('due_date')->first();
-        $base = $oldestUnpaid?->due_date ?? $invoice->issued_at;
+        // 2026-11-26 — Âge compté depuis l'échéance unique (Invoice::echeance :
+        // échéancier, sinon émission + délai de paiement). Avant, une facture
+        // sans échéancier vieillissait dès son émission.
+        $base = $invoice->echeance() ?? $invoice->issued_at;
         if (!$base) return 0;
 
         return max(0, $base->startOfDay()->diffInDays($ref->copy()->startOfDay(), false));
@@ -463,12 +463,13 @@ class FinancialDashboardService
             $byClient[$cid]['factures_count']++;
             $byClient[$cid]['plus_ancien_jours']  = max($byClient[$cid]['plus_ancien_jours'], $age);
 
-            // Prochaine échéance = la due_date non payée la plus proche
-            $next = $inv->schedules->whereNull('paid_at')->sortBy('due_date')->first();
-            if ($next) {
+            // Prochaine échéance (2026-11-26 : Invoice::echeance, définition
+            // unique — sans échéancier, émission + délai de paiement).
+            $echeance = $inv->echeance();
+            if ($echeance) {
                 $existing = $byClient[$cid]['prochaine_echeance'];
-                if (!$existing || $next->due_date->lt($existing)) {
-                    $byClient[$cid]['prochaine_echeance'] = $next->due_date;
+                if (!$existing || $echeance->lt($existing)) {
+                    $byClient[$cid]['prochaine_echeance'] = $echeance;
                 }
             }
 

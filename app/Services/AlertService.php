@@ -815,15 +815,18 @@ class AlertService
             // facturation/recouvrement/taxes (broadcasts cron user_id NULL),
             // pas les alertes opérationnelles (pose/pige/maintenance).
             'comptable' => [
-                // Échéancier facture (CheckDueDates)
+                // Échéancier facture (invoices:alerts depuis le 26/11, sans destinataire nominatif)
                 'echeance_proche_j7', 'echeance_proche_j3', 'echeance_depassee',
                 // Recouvrement / relances
                 'relance_envoyee', 'facture_en_retard', 'facture_litige',
                 // Taxes communales
                 'taxe_due_soon', 'taxe_en_retard', 'taxe_payee',
-                // Cycle de vie facture
+                // Cycle de vie facture. 2026-11-26 : + créée / envoyée, les
+                // deux types réellement émis (CampaignController) qui
+                // manquaient — le comptable ne les voyait pas.
                 'facture_emise', 'facture_payee', 'facture_partiellement_payee',
                 'facture_annulee', 'facture_litige',
+                'facture_creee', 'facture_envoyee',
             ],
 
             // Commercial : reste strict — uniquement ses alertes ciblées.

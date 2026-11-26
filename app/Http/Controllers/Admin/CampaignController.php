@@ -519,12 +519,12 @@ class CampaignController extends Controller
 
         if ($isCreation) {
             $year = (int) date('Y');
-            $seq  = Invoice::whereYear('created_at', $year)->count() + 1;
-            $ref  = 'FAC-' . $year . '-' . str_pad($seq, 3, '0', STR_PAD_LEFT);
 
             $amount = isset($data['amount_ttc']) ? (float) $data['amount_ttc'] : (float) $campaign->total_amount;
 
-            $invoice = Invoice::create([
+            // 2026-11-26 (point 21) — numéro attribué sous verrou par la source
+            // unique (avant : comptage des factures de l'année, doublon possible).
+            $invoice = Invoice::creerAvecNumero($year, fn (string $ref) => Invoice::create([
                 'reference'   => $ref,
                 'client_id'   => $campaign->client_id,
                 'campaign_id' => $campaign->id,
@@ -537,7 +537,7 @@ class CampaignController extends Controller
                 'paid_at'     => $data['status'] === 'payee'
                                     ? ($data['paid_at'] ?? today()->toDateString())
                                     : null,
-            ]);
+            ]));
         } else {
             $update = ['status' => $data['status']];
             $update['paid_at'] = $data['status'] === 'payee'

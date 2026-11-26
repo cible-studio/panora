@@ -82,13 +82,17 @@
             <div class="lbl">Nombre</div>
             <div class="val">{{ count($invoices) }}</div>
         </td>
+        {{-- 2026-11-26 — Totaux sur les factures comptées au CA (comme
+             « Encaissé ») : avant, brouillons et factures annulées y entraient.
+             Et le total à payer (taxes et services compris), pas le TTC. --}}
+        @php $auCa = $invoices->filter->compteAuCa(); @endphp
         <td class="ch-kpi k-rouge">
-            <div class="lbl">Total HT</div>
-            <div class="val">{{ number_format((float) $invoices->sum('amount'), 0, ',', ' ') }} FCFA</div>
+            <div class="lbl">Total HT (hors brouillons et annulées)</div>
+            <div class="val">{{ number_format((float) $auCa->sum('amount'), 0, ',', ' ') }} FCFA</div>
         </td>
         <td class="ch-kpi k-rouge">
-            <div class="lbl">Total TTC</div>
-            <div class="val">{{ number_format((float) $invoices->sum('amount_ttc'), 0, ',', ' ') }} FCFA</div>
+            <div class="lbl">Total à payer (hors brouillons et annulées)</div>
+            <div class="val">{{ number_format((float) $auCa->sum(fn ($i) => $i->montantTotal()), 0, ',', ' ') }} FCFA</div>
         </td>
         <td class="ch-kpi k-vert">
             {{-- 2026-10-30 : versements reçus sur les factures comptées au CA
@@ -111,7 +115,7 @@
             <th style="width:9%;">Statut</th>
             <th class="r" style="width:9%;">HT</th>
             <th class="r" style="width:5%;">TVA</th>
-            <th class="r" style="width:11%;">TTC</th>
+            <th class="r" style="width:11%;">Total à payer</th>
             <th style="width:10%;">Créée par</th>
         </tr>
     </thead>
@@ -133,7 +137,7 @@
             </td>
             <td class="r">{{ number_format((float) $inv->amount, 0, ',', ' ') }}</td>
             <td class="r">{{ rtrim(rtrim(number_format((float) $inv->tva, 2, ',', ''), '0'), ',') }} %</td>
-            <td class="r"><strong>{{ number_format((float) $inv->amount_ttc, 0, ',', ' ') }}</strong></td>
+            <td class="r"><strong>{{ number_format((float) $inv->montantTotal(), 0, ',', ' ') }}</strong></td>
             <td>{{ $inv->creator?->name ?? '—' }}</td>
         </tr>
         @empty

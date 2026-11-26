@@ -50,10 +50,10 @@ Schedule::command('propositions:expire')->everyFifteenMinutes();
 //    Tous les jours à 07h00
 Schedule::command('alerts:generate')->dailyAt('07:00');
 
-// 4-bis. Échéances de facturation (J-7, J-3, dépassée) — tourne avant
-//        alerts:generate pour que les retards soient visibles dans le
-//        même cycle quotidien.
-Schedule::command('finance:check-due-dates')->dailyAt('06:30');
+// 4-bis. 2026-11-26 — finance:check-due-dates retiré du planning. Il
+//        doublait le rappel J-7 de invoices:alerts (deux mails au client le
+//        même jour) et ses alertes n'allaient qu'au commercial. Le système
+//        unique est invoices:alerts (point 13 ci-dessous).
 
 // 5. Synchronisation statut panneaux externes
 //    Tous les jours à 02h00
@@ -71,12 +71,10 @@ Schedule::command('propositions:send-reminders')
     ->dailyAt('09:00')
     ->withoutOverlapping();
 
-// 8. Relances factures impayées (J+7, J+14, J+30 depuis issued_at).
-//    Idempotent : le N° de relance est stocké en metadata du PublicLink
-//    pour éviter d'envoyer 2× la même relance.
-Schedule::command('invoices:send-reminders')
-    ->dailyAt('09:15')
-    ->withoutOverlapping();
+// 8. 2026-11-26 — invoices:send-reminders retiré du planning. Il comptait
+//    depuis la date d'émission (pas l'échéance) et s'arrêtait au premier
+//    versement partiel. Les relances J+7, J+15, J+30 partent de
+//    invoices:alerts (point 13 ci-dessous).
 
 // 9. Mails aux clients avant l'échéance de leur campagne.
 //    · 12 mois ou plus (2026-10-22) : séquence de renouvellement J-60,
@@ -147,12 +145,11 @@ Schedule::call(function () {
     \App\Services\PublicLinkService::purgeOld(90);
 })->monthlyOn(1, '03:00');
 
-// 13. Phase 4 cahier Recouvrement §7 — alertes échéances factures.
-//     Matérialise les alertes J-15/-7/-3/-1/+1/+7/+15/+30 par canal
-//     activé (in_app + email par défaut, cf. config('billing.alerts'))
-//     et envoie celles dont la date de déclenchement est atteinte.
-//     Bascule aussi les factures dont une échéance est dépassée +
-//     reste à payer → status='en_retard'.
+// 13. Rappels et relances d'échéance — SYSTÈME UNIQUE (2026-11-26).
+//     Client : rappel J-7, relances J+7, J+15, J+30 tant qu'il reste à
+//     payer (config billing.alerts). Comptable, admins et commercial du
+//     dossier : une alerte à chaque étape. Rien pour une facture soldée,
+//     annulée ou en litige. Met aussi à jour le statut « en retard ».
 Schedule::command('invoices:alerts')
     ->dailyAt('07:00')
     ->withoutOverlapping();

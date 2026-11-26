@@ -218,6 +218,7 @@
                     @endforeach
                 </select>
             </div>
+            @include('admin.finance.partials._champ-facture-relance', ['champClient' => 'modal-client-id'])
             <div class="fne-grid-2">
                 <div class="fne-field">
                     <label>Date de la relance <span class="req">*</span></label>
@@ -331,7 +332,7 @@
 <script>
 function finOpenRelanceModal(clientId, clientName) {
     const sel = document.getElementById('modal-client-id');
-    if (sel) sel.value = clientId;
+    if (sel) { sel.value = clientId; sel.dispatchEvent(new Event('change')); }
     document.getElementById('modal-relance').style.display = 'flex';
     // Focus auto sur le champ note pour gagner du temps de saisie
     setTimeout(() => {

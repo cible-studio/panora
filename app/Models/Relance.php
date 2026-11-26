@@ -27,9 +27,12 @@ class Relance extends Model implements Auditable
         'relance_date' => 'date',
     ];
 
+    // 2026-11-26 — liste unique des canaux (ReminderService::canalLabel la
+    // lit) ; WhatsApp manquait : ses relances n'avaient ni filtre ni libellé.
     public const CANAUX = [
         'telephone' => '📞 Téléphone',
         'email'     => '✉️ Email',
+        'whatsapp'  => '💬 WhatsApp',
         'courrier'  => '📮 Courrier',
         'visite'    => '🚶 Visite',
         'autre'     => '🔁 Autre',

@@ -12,17 +12,22 @@
 <x-slot:topbarLeft>
     {{-- Retour intelligent : la provenance (?back=), sinon la page
          précédente, sinon la destination ci-dessous. --}}
-    @include('admin.partials._smart_back', ['defaut' => [
-        'url'   => route('admin.settings.index'),
-        'label' => 'Réglages',
-    ]])
+    {{-- 2026-11-26 — « Réglages » est réservé à l'admin (role:admin) : le
+         comptable et le MP, qui ont accès aux tarifs, revenaient sur une
+         page « accès refusé ». Pour eux, retour à l'accueil. --}}
+    @php $tarifsDepuisReglages = auth()->user()?->role?->value === 'admin'; @endphp
+    @include('admin.partials._smart_back', ['defaut' => $tarifsDepuisReglages
+        ? ['url' => route('admin.settings.index'), 'label' => 'Réglages']
+        : ['url' => route('admin.dashboard'), 'label' => 'Accueil']])
 </x-slot:topbarLeft>
 
 <div style="max-width:1100px;margin:0 auto">
 
     <div style="font-size:12px;color:var(--text3);margin-bottom:14px">
+        @if($tarifsDepuisReglages)
         <a href="{{ route('admin.settings.index') }}" style="color:var(--text3);text-decoration:none">Réglages</a>
         <span style="margin:0 6px">›</span>
+        @endif
         <span style="color:var(--text)">Tarifs communaux ODP / TM</span>
     </div>
 
@@ -79,7 +84,7 @@
                                 @endif
                             </td>
                             <td style="padding:10px 14px;text-align:right;font-weight:700;color:var(--accent)">{{ number_format($c->odp_rate, 0, ',', ' ') }}@if(!is_null($c->odp_rate_eclaire))<div style="font-size:10.5px;font-weight:600;color:#b45309" title="Panneaux éclairés">💡 {{ number_format($c->odp_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
-                            <td style="padding:10px 14px;text-align:right;">{{ number_format($c->tm_rate, 0, ',', ' ') }}@if(!is_null($c->tm_rate_eclaire))<div style="font-size:10.5px;font-weight:600;color:#b45309" title="Panneaux éclairés">💡 {{ number_format($c->tm_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
+                            <td style="padding:10px 14px;text-align:right;">{{ number_format($c->tm_rate, 0, ',', ' ') }}@if((float) $c->tm_rate <= 0){{-- 2026-11-26 — base nationale appliquée, à renseigner --}}<div style="font-size:10.5px;font-weight:700;color:#b45309" title="Sans tarif TM, la base nationale s'applique aux factures et aux taxes dues : renseigne le vrai tarif avec « Programmer ».">⚠ {{ number_format(\App\Services\TaxCalculationService::tmParDefaut(), 0, ',', ' ') }} par défaut — à renseigner</div>@endif @if(!is_null($c->tm_rate_eclaire))<div style="font-size:10.5px;font-weight:600;color:#b45309" title="Panneaux éclairés">💡 {{ number_format($c->tm_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
                             <td style="padding:10px 14px;color:var(--text2)">
                                 @if($c->last_change_date)
                                     <div style="font-size:11.5px">{{ $c->last_change_date->format('d/m/Y') }}</div>

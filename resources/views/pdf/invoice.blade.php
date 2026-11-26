@@ -96,30 +96,28 @@
         : null;
 
     // ── Ventilation détaillée (résumé bas de page) ──
-    $netHt         = (int) $invoice->net_ht;
+    // 2026-11-26 — Source unique Invoice::totauxAffiches(), partagée avec la
+    // page de la facture, le mail et la page publique. Avant, le PDF
+    // recalculait la TVA des services avec son propre arrondi.
+    $tx            = $invoice->totauxAffiches();
+    $netHt         = $tx['net_ht'];
     $totalTtc      = (int) $invoice->amount_ttc;
-    $tvaAmount     = (int) $invoice->tva_amount;
-    $tspAmount     = (int) $invoice->tsp_amount;
-    $tmTotal       = (int) $invoice->tm_total;
-    $odpTotal      = (int) $invoice->odp_total;
-    $tvaRate       = (float) $invoice->tva;
+    $tvaAmount     = $tx['tva_panneaux'];
+    $tspAmount     = $tx['tsp'];
+    $tmTotal       = $tx['tm'];
+    $odpTotal      = $tx['odp'];
+    $tvaRate       = $tx['taux_tva'];
 
-    // Services annexes : depuis 2026-08-03, chaque service porte un
-    // flag `tva_applicable`. On sépare le HT en 2 sous-totaux pour ne
-    // taxer que ceux qui l'exigent (les autres restent en HT strict).
-    $servicesWithTva = $invoice->services->filter(fn($s) => (bool) $s->tva_applicable);
-    $servicesNoTva   = $invoice->services->filter(fn($s) => !(bool) $s->tva_applicable);
-    // Quantité (2026-11-16) : `prix_ht` n'est plus que le prix UNITAIRE.
-    // On somme le montant de ligne (prix × quantité) — sans quoi une
-    // facture de 30 impressions n'en compterait qu'une.
-    $servicesHtTot     = (int) $invoice->services->sum(fn($s) => $s->montantHt());
-    $servicesHtWithTva = (int) $servicesWithTva->sum(fn($s) => $s->montantHt());
-    $servicesHtNoTva   = (int) $servicesNoTva->sum(fn($s) => $s->montantHt());
-    $servicesTvaAmount = (int) round($servicesHtWithTva * ($tvaRate / 100));
-    $servicesTtcTot    = $servicesHtWithTva + $servicesTvaAmount + $servicesHtNoTva;
+    // Services annexes : chaque service porte son flag `tva_applicable` ;
+    // le HT est séparé en deux sous-totaux pour le résumé DGI.
+    $servicesHtTot     = $tx['services_ht'];
+    $servicesHtWithTva = $tx['services_ht_avec_tva'];
+    $servicesHtNoTva   = $tx['services_ht_sans_tva'];
+    $servicesTvaAmount = $tx['tva_services'];
+    $servicesTtcTot    = $tx['services_ttc'];
 
-    $autresTaxes   = $tspAmount + $tmTotal + $odpTotal;
-    $totalAPayer   = (int) $invoice->total_a_payer;
+    $autresTaxes   = $tx['autres_taxes'];
+    $totalAPayer   = $tx['total_a_payer'];
 
     // Base et taux du bloc "ODP+TM+TSP" du résumé — TTC panneaux + TTC
     // services (HT+TVA pour les taxés, HT seul pour les autres).
@@ -403,6 +401,15 @@
     </style>
 </head>
 <body>
+
+    {{-- 2026-11-26 (point 22) — filigrane tant que la facture n'est pas
+         validée (brouillon, générée) : avant, un brouillon imprimé
+         ressemblait à une vraie facture FNE. Fixe = répété sur chaque page. --}}
+    @if(!$isCreditNote && in_array($invoice->status, ['brouillon', 'generee'], true))
+        <div style="position:fixed;top:38%;left:0;right:0;text-align:center;z-index:-1;transform:rotate(-30deg);font-size:110px;font-weight:800;letter-spacing:8px;color:#e20613;opacity:0.12;">
+            BROUILLON
+        </div>
+    @endif
 
     {{-- Liseré 5 couleurs de la charte (signature commune à tous les PDF). --}}
     <div style="margin-bottom:8px;">@include('pdf.partials.charte-lisere')</div>

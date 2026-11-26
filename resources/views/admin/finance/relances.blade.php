@@ -600,6 +600,7 @@
                     @endforeach
                 </select>
             </div>
+            @include('admin.finance.partials._champ-facture-relance', ['champClient' => 'relances-modal-client'])
             <div class="fne-grid-2">
                 <div class="fne-field">
                     <label>Date de la relance <span class="req">*</span></label>
@@ -648,7 +649,7 @@
 function relancesOpenModal(clientId) {
     const modal = document.getElementById('relances-modal');
     const sel = document.getElementById('relances-modal-client');
-    if (sel) sel.value = clientId ? String(clientId) : '';
+    if (sel) { sel.value = clientId ? String(clientId) : ''; sel.dispatchEvent(new Event('change')); }
     modal.classList.add('is-open');
     setTimeout(() => {
         const note = modal.querySelector('textarea[name="note"]');

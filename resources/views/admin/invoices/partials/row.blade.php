@@ -103,6 +103,26 @@
             @elseif($st === 'partial')
                 <span style="display:inline-block;margin-top:2px;background:rgba(245,158,11,.12);color:#b45309;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800">⏳ PARTIELLE {{ rtrim(rtrim(number_format($nextDue->paymentPercentage(), 1, ',', ''), '0'), ',') }} %</span>
             @endif
+        @elseif(!in_array($invoice->status, ['payee', 'annulee'], true) && ($echeanceSans = $invoice->echeance()) && $invoice->remainingAmount() > 0.01)
+            {{-- 2026-11-26 — Sans échéancier, l'échéance est la date d'émission
+                 + le délai de paiement (Invoice::echeance, définition unique). --}}
+            @php
+                $joursAvant = (int) now()->startOfDay()->diffInDays($echeanceSans, false);
+                $reclamable = in_array($invoice->status, \App\Models\Invoice::STATUTS_RECLAMABLES, true);
+            @endphp
+            <div style="font-size:11.5px;font-weight:700;color:{{ $reclamable && $joursAvant < 0 ? '#b91c1c' : ($reclamable && $joursAvant <= 7 ? '#b45309' : 'var(--text2)') }}">
+                {{ $echeanceSans->format('d/m/Y') }}
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:1px">
+                Émission + {{ (int) config('billing.delai_paiement_jours', 30) }} j · {{ number_format($invoice->remainingAmount(), 0, ',', ' ') }} F
+            </div>
+            @if(in_array($invoice->status, ['brouillon', 'generee', 'validee'], true))
+                <span style="display:inline-block;margin-top:2px;background:rgba(107,114,128,.12);color:#4b5563;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800" title="Facture pas encore envoyée au client, donc pas relançable">📝 À ENVOYER</span>
+            @elseif($reclamable && $joursAvant < 0)
+                <span style="display:inline-block;margin-top:2px;background:rgba(239,68,68,.15);color:#b91c1c;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800">🔴 RELANCER ({{ abs($joursAvant) }}j)</span>
+            @elseif($reclamable && $joursAvant <= 7)
+                <span style="display:inline-block;margin-top:2px;background:rgba(245,158,11,.12);color:#b45309;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800">⏰ DANS {{ $joursAvant }}j</span>
+            @endif
         @else
             <span style="color:var(--text3);font-size:11px">—</span>
         @endif
@@ -172,28 +192,29 @@
             <a href="{{ route('admin.invoices.show', $invoice) }}" class="btn btn-ghost btn-sm" title="Voir">👁️</a>
             <a href="{{ route('admin.invoices.pdf', $invoice) }}" class="btn btn-ghost btn-sm" title="PDF">📄</a>
 
-            @if($invoice->status === 'brouillon')
+            {{-- 2026-11-26 — boutons selon les droits (InvoicePolicy). --}}
+            @if($invoice->status === 'brouillon' && auth()->user()?->can('markSent', $invoice))
                 <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}" class="inline-form invoice-action" data-action="send">
                     @csrf @method('PATCH')
                     <button type="submit" class="btn btn-blue btn-sm" title="Marquer envoyée">📤</button>
                 </form>
             @endif
 
-            @if(in_array($invoice->status, ['envoyee', 'payee']))
+            @if(in_array($invoice->status, ['envoyee', 'payee']) && auth()->user()?->can('revertDraft', $invoice))
                 <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}" class="inline-form invoice-action" data-action="revert" data-confirm="Rebasculer cette facture en brouillon ? La date de paiement sera effacée.">
                     @csrf @method('PATCH')
                     <button type="submit" class="btn btn-ghost btn-sm" title="Rebasculer en brouillon" style="color:var(--text3);">↩</button>
                 </form>
             @endif
 
-            @if(!in_array($invoice->status, ['annulee', 'payee']))
+            @if(!in_array($invoice->status, ['annulee', 'payee']) && auth()->user()?->can('markCancelled', $invoice))
                 <form method="POST" action="{{ route('admin.invoices.cancel', $invoice) }}" class="inline-form invoice-action" data-action="cancel" data-confirm="Annuler cette facture ?">
                     @csrf @method('PATCH')
                     <button type="submit" class="btn btn-ghost btn-sm" title="Annuler" style="color:#ef4444;">🚫</button>
                 </form>
             @endif
 
-            @if(!$invoice->isLocked())
+            @if(!$invoice->isLocked() && auth()->user()?->can('update', $invoice))
                 <a href="{{ route('admin.invoices.edit', $invoice) }}" class="btn btn-ghost btn-sm" title="Modifier">✏️</a>
             @endif
         </div>

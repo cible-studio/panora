@@ -3,20 +3,24 @@
 @section('content')
 <div class="card">
     @php
-        $statusColors = [
-            'brouillon' => ['#6b7280', 'Brouillon'],
-            'envoyee'   => ['#3b82f6', 'Envoyée'],
-            'payee'     => ['#16a34a', 'Payée'],
-            'annulee'   => ['#dc2626', 'Annulée'],
+        // 2026-11-26 — Libellés officiels (Invoice::STATUS_LABELS, « Soldée »
+        // et non « Payée ») et les 9 statuts, pas seulement 4.
+        $couleurs = [
+            'payee' => '#16a34a', 'partiellement_payee' => '#d97706', 'en_retard' => '#dc2626',
+            'litige' => '#b45309', 'annulee' => '#dc2626', 'envoyee' => '#3b82f6',
+            'validee' => '#3b82f6', 'generee' => '#6b7280', 'brouillon' => '#6b7280',
         ];
-        [$col, $label] = $statusColors[$invoice->status] ?? ['#6b7280', $invoice->status];
+        $col   = $couleurs[$invoice->status] ?? '#6b7280';
+        $label = \App\Models\Invoice::statusLabel($invoice->status);
+        $tx    = $invoice->totauxAffiches();
+        $f     = fn ($n) => number_format((int) $n, 0, ',', ' ');
     @endphp
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
         <h1>Facture {{ $invoice->reference }}</h1>
         <span class="badge" style="background:{{ $col }}22;color:{{ $col }}">{{ strtoupper($label) }}</span>
     </div>
     <p class="muted">Émise le {{ $invoice->issued_at?->format('d/m/Y') ?? $invoice->created_at->format('d/m/Y') }}
-        @if($invoice->paid_at) · Payée le {{ $invoice->paid_at->format('d/m/Y') }}@endif
+        @if($invoice->paid_at) · Soldée le {{ $invoice->paid_at->format('d/m/Y') }}@endif
     </p>
 
     <h2>Destinataire</h2>
@@ -43,10 +47,14 @@
     <h2>Détail</h2>
     <table>
         <tr><th>Description</th><th style="text-align:right">Montant</th></tr>
-        <tr><td>Montant HT</td><td style="text-align:right">{{ number_format($invoice->amount, 0, ',', ' ') }} FCFA</td></tr>
-        <tr><td>TVA</td><td style="text-align:right">{{ number_format($invoice->tva, 0, ',', ' ') }} FCFA</td></tr>
-        <tr><td style="font-weight:700;font-size:14px">Total TTC</td>
-            <td style="text-align:right;font-weight:700;color:var(--green);font-size:16px">{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA</td></tr>
+        <tr><td>Total HT{{ $tx['remise'] > 0 ? ' après remise' : '' }}</td><td style="text-align:right">{{ $f($tx['net_ht'] + $tx['services_ht']) }} FCFA</td></tr>
+        <tr><td>TVA ({{ rtrim(rtrim(number_format($tx['taux_tva'], 2, ',', ''), '0'), ',') }} %)</td><td style="text-align:right">{{ $f($tx['tva']) }} FCFA</td></tr>
+        <tr><td>Total TTC</td><td style="text-align:right">{{ $f($tx['ttc']) }} FCFA</td></tr>
+        @if($tx['autres_taxes'] > 0)
+        <tr><td>Autres taxes (ODP, TM, TSP)</td><td style="text-align:right">{{ $f($tx['autres_taxes']) }} FCFA</td></tr>
+        @endif
+        <tr><td style="font-weight:700;font-size:14px">Total à payer</td>
+            <td style="text-align:right;font-weight:700;color:var(--green);font-size:16px">{{ $f($tx['total_a_payer']) }} FCFA</td></tr>
     </table>
 
     @if($invoice->status !== 'payee' && $invoice->status !== 'annulee')

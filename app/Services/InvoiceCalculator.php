@@ -121,7 +121,8 @@ class InvoiceCalculator
         $odpRate  = (float) ($line['odp_rate_applique'] ?? 0);
 
         // TM : base FIXE 1000 F/m²/mois sur tout le territoire (cf. prompt
-        // 2025). On lit tm_rate_applique pour permettre une dérogation
+        // 2025 ; étendue aux taxes dues aux mairies le 2026-11-26,
+        // TaxCalculationService::tmParDefaut). On lit tm_rate_applique pour permettre une dérogation
         // commune (si le législateur introduit un tarif différencié plus
         // tard), MAIS si la ligne arrive avec tm = 0 (commune mal seedée,
         // oubli admin), on FALLBACK sur tm_default config = 1000.
@@ -147,8 +148,10 @@ class InvoiceCalculator
             $moisTM  = $this->period->moisAnniversaireEntames($csDate, $ceDate);
             // TX-14 (2026-09-24) — L'ODP se compte en MOIS (cf.
             // TaxCalculationService et docs/ODP 2024 SAN PEDRO.xlsx).
-            // ⚠ HYPOTHÈSE À CONFIRMER : sur une facture, on retient les
-            //   mois CALENDAIRES touchés par la campagne. La TM, elle,
+            // RÈGLE CONFIRMÉE PAR ÉCRIT le 2026-11-26 : sur une facture, on
+            //   retient les mois CALENDAIRES touchés par la campagne (le
+            //   client paie ses mois de campagne ; la mairie, elle, est
+            //   payée pour tous les mois où le panneau est debout). La TM
             //   garde ses mois « de date à date » — les deux comptages
             //   peuvent donc différer d'un mois sur une campagne à cheval.
             $moisODP = $this->period->moisCalendairesTouches($csDate, $ceDate);
@@ -368,7 +371,7 @@ class InvoiceCalculator
         if ($invoice->isLocked()) {
             throw new \LogicException(
                 "Facture verrouillée (envoyée le {$invoice->locked_at?->format('d/m/Y')}). "
-                . "Déverrouille-la d'abord ou émets un avoir."
+                . "Pour la corriger, contactez l'admin."
             );
         }
 

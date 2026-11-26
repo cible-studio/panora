@@ -44,6 +44,9 @@ class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                 'client:id,name',
                 'campaign:id,name',
                 'creator:id,name',
+                // 2026-11-26 — payé / reste à payer et totaux affichés.
+                'payments:id,invoice_id,montant',
+                'services',
             ]);
 
         // RBAC commercial : si l'appelant a injecté commercial_user_id,
@@ -70,6 +73,11 @@ class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         return $q->orderByDesc('issued_at')->orderByDesc('id');
     }
 
+    /**
+     * 2026-11-26 — Colonnes complètes : avant, l'export s'arrêtait au TTC des
+     * panneaux (ni taxes, ni services, ni total à payer, ni payé, ni reste).
+     * Montants issus de Invoice::totauxAffiches(), comme la facture et le PDF.
+     */
     public function headings(): array
     {
         return [
@@ -79,9 +87,15 @@ class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
             'Statut',
             'Date émission',
             'Date paiement',
-            'Montant HT (FCFA)',
-            'TVA (%)',
-            'Montant TTC (FCFA)',
+            'Total HT après remise (FCFA)',
+            'TVA (FCFA)',
+            'Total TTC (FCFA)',
+            'TSP (FCFA)',
+            'TM (FCFA)',
+            'ODP (FCFA)',
+            'Total à payer (FCFA)',
+            'Payé (FCFA)',
+            'Reste à payer (FCFA)',
             'Créée par',
         ];
     }
@@ -98,9 +112,20 @@ class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
             $statusLabels[$invoice->status] ?? $invoice->status,
             $invoice->issued_at?->format('d/m/Y') ?? '',
             $invoice->paid_at?->format('d/m/Y') ?? '',
-            (float) ($invoice->amount ?? 0),
-            (float) ($invoice->tva ?? 0),
-            (float) ($invoice->amount_ttc ?? 0),
+            ...(function () use ($invoice) {
+                $tx = $invoice->totauxAffiches();
+                return [
+                    $tx['net_ht'] + $tx['services_ht'],
+                    $tx['tva'],
+                    $tx['ttc'],
+                    $tx['tsp'],
+                    $tx['tm'],
+                    $tx['odp'],
+                    $tx['total_a_payer'],
+                    (int) round($invoice->paidAmount()),
+                    (int) round($invoice->remainingAmount()),
+                ];
+            })(),
             $invoice->creator?->name ?? '—',
         ];
     }
@@ -134,22 +159,20 @@ class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                     !empty($this->filters['date_to'])   ? 'Jusqu\'au ' . $this->filters['date_to'] : null,
                 ]));
 
-                // Format monétaire FCFA sur colonnes G (HT) et I (TTC) — data row 6+
+                // Format monétaire FCFA sur les colonnes G à O — data row 6+
                 if ($lastRow >= 6) {
-                    $sheet->getStyle("G6:G{$lastRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
-                    $sheet->getStyle("I6:I{$lastRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
-                    $sheet->getStyle("H6:H{$lastRow}")->getNumberFormat()->setFormatCode('0.##"%"');
+                    $sheet->getStyle("G6:O{$lastRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
                 }
 
-                // Ligne TOTAL en bas (somme HT + TTC)
+                // Ligne TOTAL en bas : chaque colonne de montant
                 if ($lastRow >= 6) {
                     $totalRow = $lastRow + 2;
                     $sheet->setCellValue("F{$totalRow}", 'TOTAL :');
-                    $sheet->setCellValue("G{$totalRow}", "=SUM(G6:G{$lastRow})");
-                    $sheet->setCellValue("I{$totalRow}", "=SUM(I6:I{$lastRow})");
-                    $sheet->getStyle("F{$totalRow}:I{$totalRow}")->getFont()->setBold(true);
-                    $sheet->getStyle("G{$totalRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
-                    $sheet->getStyle("I{$totalRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
+                    foreach (range('G', 'O') as $col) {
+                        $sheet->setCellValue("{$col}{$totalRow}", "=SUM({$col}6:{$col}{$lastRow})");
+                    }
+                    $sheet->getStyle("F{$totalRow}:O{$totalRow}")->getFont()->setBold(true);
+                    $sheet->getStyle("G{$totalRow}:O{$totalRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
                 }
 
                 // Bordures + alternance + freeze + print landscape

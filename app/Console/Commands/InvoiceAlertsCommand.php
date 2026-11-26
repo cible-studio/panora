@@ -2,43 +2,53 @@
 
 namespace App\Console\Commands;
 
+use App\Mail\InvoiceIssuedMail;
+use App\Mail\InvoiceScheduleReminderMail;
 use App\Models\Invoice;
 use App\Models\InvoiceAlert;
 use App\Models\InvoiceSchedule;
 use App\Models\User;
-use App\Notifications\InvoiceScheduleAlertNotification;
+use App\Services\AlertService;
+use App\Services\NotificationMailer;
+use App\Services\PaymentService;
+use App\Services\PublicLinkService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Notification;
 
 /**
- * Job planifié quotidien — Phase 4 du cahier des charges Recouvrement (§7).
+ * Rappels et relances d'échéance des factures — SYSTÈME UNIQUE (2026-11-26).
  *
- * S'exécute via `php artisan invoices:alerts` (planifié dans
- * routes/console.php → daily at 07:00).
+ * Règle validée le 26/11 (docs/formation/plan-videos-formation.md, points
+ * 11 à 13) :
+ *   - client : un rappel à J-7, puis des relances à J+7, J+15 et J+30,
+ *     tant qu'il reste à payer (config billing.alerts.offsets) ;
+ *   - comptable et commercial du dossier : une alerte à chaque étape,
+ *     les admins voient tout ;
+ *   - aucune relance pour une facture soldée, annulée ou en litige
+ *     (seuls les statuts Invoice::STATUTS_RECLAMABLES sont relancés).
  *
- * Deux passes :
+ * L'échéance est celle de Invoice::echeance() : chaque échéance non soldée
+ * de l'échéancier, ou à défaut la date d'émission + 30 jours.
  *
- *   PASSE 1 — Matérialisation
- *   Pour chaque échéance active (paid_at NULL, invoice non annulée) :
- *     - Génère les InvoiceAlerts manquantes pour les 4+4 offsets de
- *       config('billing.alerts.offsets'), par canal de
- *       config('billing.alerts.channels'). Idempotent : la contrainte
- *       UNIQUE (schedule_id, kind, offset_days, channel) empêche les
- *       doublons sur re-run.
+ * Avant, trois commandes se chevauchaient : finance:check-due-dates
+ * (J-7 envoyé deux fois), invoices:send-reminders (comptée depuis la date
+ * d'émission, arrêtée au premier versement partiel) et celle-ci (huit mails
+ * par échéance, alertes « in-app » qu'aucun écran n'affichait). Les deux
+ * premières sont retirées du planning (routes/console.php).
  *
- *   PASSE 2 — Envoi
- *   Pour chaque alerte pending dont due_date <= today :
- *     - Envoie via canal (in_app → admins/commercial via database,
- *       email → client via mail).
- *     - Marque sent_at + status='sent'. En cas d'exception, status='failed'
- *       avec error_message tronqué.
+ *   PASSE 1 — Préparation : pour chaque échéance des factures réclamables,
+ *   crée les étapes manquantes (une par canal). Une étape dont la date est
+ *   passée depuis plus de RATTRAPAGE_JOURS est notée « skipped » : on
+ *   rattrape un arrêt du serveur, on n'envoie pas d'un coup des relances
+ *   en retard de plusieurs semaines.
  *
- *   PASSE 3 — Transition auto en_retard
- *   Toute facture avec au moins une schedule.due_date < today &&
- *   paid_at NULL bascule en status='en_retard' (transition auto via
- *   Invoice::transitionTo qui alimente invoice_status_history).
+ *   PASSE 2 — Envoi : chaque étape arrivée à sa date est revérifiée juste
+ *   avant l'envoi (facture soldée, annulée, en litige, échéance payée ou
+ *   modifiée → « skipped » avec la raison), puis envoyée.
+ *
+ *   PASSE 3 — Statut : PaymentService::syncInvoiceStatus() sur les factures
+ *   réclamables (passage en retard, ou retour si l'échéance a été reportée).
  */
 class InvoiceAlertsCommand extends Command
 {
@@ -46,74 +56,81 @@ class InvoiceAlertsCommand extends Command
                             {--dry-run : Affiche ce qui SERAIT fait sans rien envoyer}
                             {--invoice= : Restreint à une facture précise (id ou référence)}';
 
-    protected $description = 'Génère et envoie les alertes d\'échéance facture (J-15…J+30) — cahier §7.';
+    protected $description = 'Rappels et relances d\'échéance des factures (J-7, J+7, J+15, J+30) et passage en retard.';
+
+    /** Une étape manquée est encore envoyée pendant ce nombre de jours, pas au-delà. */
+    public const RATTRAPAGE_JOURS = 7;
 
     public function handle(): int
     {
-        $this->info('🔔 Phase 4 — Alertes échéances factures');
+        $this->info('🔔 Rappels et relances d\'échéance des factures');
         $dry = (bool) $this->option('dry-run');
 
-        $offsets = config('billing.alerts.offsets');
-        $channels = collect(config('billing.alerts.channels'))
-            ->filter()->keys()->all();
+        $etapes = self::etapes();
+        $channels = collect(config('billing.alerts.channels'))->filter()->keys()->all();
 
-        if (empty($channels)) {
-            $this->warn('Aucun canal d\'alerte activé (config billing.alerts.channels). Rien à faire.');
-            return self::SUCCESS;
-        }
+        $this->line('Étapes : ' . implode(', ', array_map(fn ($e) => self::libelleEtape($e[0], $e[1]), $etapes)));
+        $this->line('Canaux : ' . (empty($channels) ? '(aucun)' : implode(', ', $channels)));
 
-        $this->line('Canaux actifs : ' . implode(', ', $channels));
-        $this->line('Offsets before : ' . implode(', ', $offsets['before']));
-        $this->line('Offsets after  : ' . implode(', ', $offsets['after']));
+        $stats = ['created' => 0, 'skipped' => 0, 'sent' => 0, 'failed' => 0, 'statuts' => 0];
 
-        // ───────────── Passe 1 : matérialisation ─────────────
-        $stats = ['created' => 0, 'sent' => 0, 'failed' => 0, 'overdue_invoices' => 0];
+        // ───────────── Passe 1 : préparation des étapes ─────────────
+        $invoices = $this->facturesReclamables();
+        $today = now()->startOfDay();
 
-        $invoiceFilter = $this->option('invoice');
-        $invoiceQuery = Invoice::query()
-            ->whereNotIn('status', ['annulee', 'brouillon', 'generee', 'validee'])
-            ->whereHas('schedules', fn($q) => $q->whereNull('paid_at'));
-        if ($invoiceFilter) {
-            if (is_numeric($invoiceFilter)) {
-                $invoiceQuery->where('id', (int) $invoiceFilter);
-            } else {
-                $invoiceQuery->where('reference', $invoiceFilter);
-            }
-        }
-        $invoices = $invoiceQuery->with('schedules', 'client', 'commercialUser')->get();
+        if (!empty($channels)) {
+            foreach ($invoices as $invoice) {
+                if ($invoice->remainingAmount() <= 0.01) continue;
 
-        foreach ($invoices as $invoice) {
-            foreach ($invoice->schedules->whereNull('paid_at') as $schedule) {
-                foreach ($offsets['before'] as $d) {
-                    $stats['created'] += $this->ensureAlert($schedule, $invoice, 'before', -$d, $channels, $dry);
-                }
-                foreach ($offsets['after'] as $d) {
-                    $stats['created'] += $this->ensureAlert($schedule, $invoice, 'after', $d, $channels, $dry);
+                foreach (self::echeancesDe($invoice) as [$scheduleId, $date]) {
+                    foreach ($etapes as [$kind, $offset]) {
+                        foreach ($channels as $channel) {
+                            $r = $this->preparerEtape($invoice, $scheduleId, $date, $kind, $offset, $channel, $today, $dry);
+                            if ($r) $stats[$r]++;
+                        }
+                    }
                 }
             }
+        } else {
+            $this->warn('Aucun canal activé (config billing.alerts.channels) : rien à préparer.');
         }
-        $this->info("✓ Matérialisé {$stats['created']} alerte(s).");
+        $this->info("✓ Étapes préparées : {$stats['created']} — passées sans envoi : {$stats['skipped']}.");
 
-        // ───────────── Passe 2 : envoi des pending dues ─────────────
+        // ───────────── Passe 2 : envoi des étapes arrivées ─────────────
         $pending = InvoiceAlert::where('status', 'pending')
-            ->whereDate('due_date', '<=', now()->toDateString())
-            ->with('invoice.client', 'invoice.commercialUser', 'schedule')
+            ->whereDate('due_date', '<=', $today->toDateString())
+            ->when($this->filtreFacture(), fn ($q, $ids) => $q->whereIn('invoice_id', $ids))
+            ->with('invoice.client', 'invoice.campaign', 'invoice.commercialUser', 'invoice.schedules', 'invoice.payments', 'schedule')
+            ->orderBy('due_date')
             ->get();
 
         foreach ($pending as $alert) {
+            $raison = self::raisonDeNePasEnvoyer($alert, $today);
+            if ($raison !== null) {
+                if ($dry) {
+                    $this->line("[dry] étape #{$alert->id} ({$alert->channel}) écartée : {$raison}");
+                } else {
+                    $alert->update(['status' => 'skipped', 'error_message' => mb_substr($raison, 0, 500)]);
+                }
+                $stats['skipped']++;
+                continue;
+            }
+
             try {
                 if ($dry) {
-                    $this->line("[dry] envoi alerte #{$alert->id} ({$alert->channel}) — {$alert->humanLabel()}");
+                    $this->line("[dry] envoi étape #{$alert->id} ({$alert->channel}) — {$alert->invoice->reference} " . self::libelleEtape($alert->kind, $alert->offset_days));
                 } else {
-                    $this->dispatchAlert($alert);
+                    $this->dispatchAlert($alert, $today);
                     $alert->update(['status' => 'sent', 'sent_at' => now()]);
                 }
                 $stats['sent']++;
             } catch (\Throwable $e) {
-                $alert->update([
-                    'status' => 'failed',
-                    'error_message' => mb_substr($e->getMessage(), 0, 500),
-                ]);
+                if (!$dry) {
+                    $alert->update([
+                        'status' => 'failed',
+                        'error_message' => mb_substr($e->getMessage(), 0, 500),
+                    ]);
+                }
                 $stats['failed']++;
                 Log::error('invoice.alert.failed', [
                     'alert_id' => $alert->id,
@@ -122,103 +139,276 @@ class InvoiceAlertsCommand extends Command
                 ]);
             }
         }
-        $this->info("✓ Envoyé {$stats['sent']} alerte(s) — {$stats['failed']} échec(s).");
+        $this->info("✓ Envoyées : {$stats['sent']} — échecs : {$stats['failed']}.");
 
-        // ───────────── Passe 3 : bascule auto en_retard ─────────────
-        foreach ($invoices as $invoice) {
-            if (in_array($invoice->status, ['annulee', 'brouillon', 'generee', 'validee', 'payee', 'litige', 'en_retard'], true)) {
+        // ───────────── Passe 3 : statut « en retard » ─────────────
+        $sync = app(PaymentService::class);
+        foreach ($this->facturesReclamables() as $invoice) {
+            $avant = $invoice->status;
+            if ($dry) {
+                $cible = match ($invoice->paymentStatus()) {
+                    'soldee' => 'payee', 'en_retard' => 'en_retard',
+                    'partielle' => 'partiellement_payee', 'non_payee' => 'envoyee',
+                    default => $avant,
+                };
+                if ($cible !== $avant) {
+                    $this->line("[dry] facture {$invoice->reference} : {$avant} → {$cible}");
+                    $stats['statuts']++;
+                }
                 continue;
             }
-            $hasOverdue = $invoice->schedules
-                ->whereNull('paid_at')
-                ->contains(fn($s) => $s->due_date && $s->due_date->lt(now()->startOfDay()));
-            if ($hasOverdue && $invoice->remainingAmount() > 0) {
-                if ($dry) {
-                    $this->line("[dry] facture #{$invoice->id} {$invoice->reference} → en_retard");
-                } else {
-                    $invoice->transitionStatusTo(
-                        'en_retard',
-                        reason: 'Auto (Job alertes) : échéance dépassée + reste à payer',
-                        auto:   true
-                    );
-                }
-                $stats['overdue_invoices']++;
-            }
+            $sync->syncInvoiceStatus($invoice);
+            if ($invoice->status !== $avant) $stats['statuts']++;
         }
-        $this->info("✓ Facture(s) basculée(s) en_retard : {$stats['overdue_invoices']}.");
+        $this->info("✓ Statuts mis à jour : {$stats['statuts']}.");
 
         return self::SUCCESS;
     }
 
-    /** Génère les alertes manquantes pour les canaux donnés. Retourne le nombre créé. */
-    protected function ensureAlert(InvoiceSchedule $schedule, Invoice $invoice, string $kind, int $offsetDays, array $channels, bool $dry): int
+    /**
+     * Étapes du calendrier : [kind, offset_days], offset négatif avant
+     * l'échéance. Config billing.alerts.offsets (J-7 ; J+7, J+15, J+30).
+     *
+     * @return list<array{0:string,1:int}>
+     */
+    public static function etapes(): array
     {
-        $created = 0;
-        $effectiveDate = $schedule->due_date->copy()->addDays($offsetDays);
+        $o = config('billing.alerts.offsets', ['before' => [], 'after' => []]);
+        $etapes = [];
+        foreach ($o['before'] ?? [] as $d) $etapes[] = ['before', -abs((int) $d)];
+        foreach ($o['after'] ?? [] as $d) $etapes[] = ['after', abs((int) $d)];
 
-        foreach ($channels as $channel) {
-            $exists = InvoiceAlert::where('schedule_id', $schedule->id)
-                ->where('kind', $kind)
-                ->where('offset_days', $offsetDays)
-                ->where('channel', $channel)
-                ->exists();
-            if ($exists) continue;
-
-            if ($dry) {
-                $created++;
-                continue;
-            }
-
-            InvoiceAlert::create([
-                'invoice_id'  => $invoice->id,
-                'schedule_id' => $schedule->id,
-                'kind'        => $kind,
-                'offset_days' => $offsetDays,
-                'due_date'    => $effectiveDate->toDateString(),
-                'channel'     => $channel,
-                'status'      => 'pending',
-            ]);
-            $created++;
-        }
-        return $created;
+        return $etapes;
     }
 
-    protected function dispatchAlert(InvoiceAlert $alert): void
+    /**
+     * Échéances à suivre : chaque échéance non soldée de l'échéancier, ou,
+     * sans échéancier, l'échéance par défaut de Invoice::echeance().
+     *
+     * @return list<array{0:?int,1:Carbon}>
+     */
+    public static function echeancesDe(Invoice $invoice): array
     {
+        $schedules = $invoice->relationLoaded('schedules') ? $invoice->schedules : $invoice->schedules()->get();
+
+        if ($schedules->isNotEmpty()) {
+            return $schedules->whereNull('paid_at')
+                ->filter(fn ($s) => $s->due_date)
+                ->map(fn ($s) => [$s->id, $s->due_date->copy()->startOfDay()])
+                ->values()->all();
+        }
+
+        $date = $invoice->echeance();
+
+        return $date ? [[null, $date]] : [];
+    }
+
+    /**
+     * Raison d'écarter une étape au moment de l'envoyer, ou null si elle
+     * doit partir. Règle des points 11 et 12 (2026-11-26).
+     */
+    public static function raisonDeNePasEnvoyer(InvoiceAlert $alert, ?Carbon $today = null): ?string
+    {
+        $today ??= now()->startOfDay();
         $invoice = $alert->invoice;
 
+        if (!$invoice) return 'Facture supprimée.';
+        if (!in_array($invoice->status, Invoice::STATUTS_RECLAMABLES, true)) {
+            return 'Facture « ' . Invoice::statusLabel($invoice->status) . ' » : aucune relance.';
+        }
+        if ($invoice->remainingAmount() <= 0.01) return 'Plus rien à payer.';
+
+        $etapes = array_map(fn ($e) => $e[0] . ':' . $e[1], self::etapes());
+        if (!in_array($alert->kind . ':' . $alert->offset_days, $etapes, true)) {
+            return 'Étape retirée du calendrier (rappel J-7, relances J+7, J+15, J+30).';
+        }
+        if ($alert->channel === 'whatsapp') return 'Canal WhatsApp non disponible.';
+
+        // L'échéance visée existe-t-elle encore, à la même date ?
+        if ($alert->schedule_id) {
+            $schedule = $alert->schedule;
+            if (!$schedule) return 'Échéance supprimée de l\'échéancier.';
+            if ($schedule->paid_at) return 'Échéance soldée.';
+            $echeance = $schedule->due_date?->copy()->startOfDay();
+        } else {
+            if ($invoice->schedules->isNotEmpty()) return 'Un échéancier a remplacé l\'échéance par défaut.';
+            $echeance = $invoice->echeance();
+        }
+        if (!$echeance) return 'Échéance sans date.';
+        if (!$echeance->copy()->addDays($alert->offset_days)->isSameDay($alert->due_date)) {
+            return 'Date d\'échéance modifiée depuis la préparation.';
+        }
+
+        if ($alert->due_date->copy()->startOfDay()->lt($today->copy()->subDays(self::RATTRAPAGE_JOURS))) {
+            return 'Étape manquée depuis plus de ' . self::RATTRAPAGE_JOURS . ' jours.';
+        }
+        if ($alert->kind === 'before' && $echeance->lt($today)) {
+            return 'Rappel avant échéance arrivé après l\'échéance.';
+        }
+
+        return null;
+    }
+
+    public static function libelleEtape(string $kind, int $offset): string
+    {
+        return $kind === 'before' ? 'J-' . abs($offset) : 'J+' . abs($offset);
+    }
+
+    /** Factures réclamables (envoyée, partielle, en retard), filtre --invoice compris. */
+    protected function facturesReclamables()
+    {
+        return Invoice::query()
+            ->whereIn('status', Invoice::STATUTS_RECLAMABLES)
+            ->when($this->filtreFacture(), fn ($q, $ids) => $q->whereIn('id', $ids))
+            ->with('schedules', 'payments', 'client', 'campaign', 'commercialUser')
+            ->get();
+    }
+
+    /** @return list<int>|null */
+    protected function filtreFacture(): ?array
+    {
+        $f = $this->option('invoice');
+        if (!$f) return null;
+
+        return is_numeric($f)
+            ? [(int) $f]
+            : (Invoice::where('reference', $f)->pluck('id')->all() ?: [0]);
+    }
+
+    /**
+     * Crée l'étape si elle manque. Si elle attend encore et que la date
+     * d'échéance a bougé, sa date suit. Retourne 'created', 'skipped' ou null.
+     */
+    protected function preparerEtape(Invoice $invoice, ?int $scheduleId, Carbon $echeance, string $kind, int $offset, string $channel, Carbon $today, bool $dry): ?string
+    {
+        $date = $echeance->copy()->addDays($offset);
+
+        $existante = InvoiceAlert::query()
+            ->where('invoice_id', $invoice->id)
+            ->when($scheduleId, fn ($q) => $q->where('schedule_id', $scheduleId), fn ($q) => $q->whereNull('schedule_id'))
+            ->where('kind', $kind)
+            ->where('offset_days', $offset)
+            ->where('channel', $channel)
+            ->first();
+
+        if ($existante) {
+            if ($existante->status === 'pending' && !$existante->due_date->isSameDay($date) && !$dry) {
+                $existante->update(['due_date' => $date->toDateString()]);
+            }
+            return null;
+        }
+
+        $tropTard = $date->lt($today->copy()->subDays(self::RATTRAPAGE_JOURS));
+        if ($dry) {
+            if (!$tropTard && $date->lte($today)) {
+                $this->line("[dry] {$invoice->reference} : " . self::libelleEtape($kind, $offset) . " ({$channel}) partirait aujourd'hui");
+            }
+            return $tropTard ? 'skipped' : 'created';
+        }
+
+        InvoiceAlert::create([
+            'invoice_id'    => $invoice->id,
+            'schedule_id'   => $scheduleId,
+            'kind'          => $kind,
+            'offset_days'   => $offset,
+            'due_date'      => $date->toDateString(),
+            'channel'       => $channel,
+            'status'        => $tropTard ? 'skipped' : 'pending',
+            'error_message' => $tropTard ? 'Date passée depuis plus de ' . self::RATTRAPAGE_JOURS . ' jours à la préparation : pas d\'envoi.' : null,
+        ]);
+
+        return $tropTard ? 'skipped' : 'created';
+    }
+
+    protected function dispatchAlert(InvoiceAlert $alert, Carbon $today): void
+    {
+        $invoice  = $alert->invoice;
+        $schedule = $alert->schedule;
+        $echeance = $schedule?->due_date?->copy()->startOfDay() ?? $invoice->echeance();
+        $etape    = self::libelleEtape($alert->kind, $alert->offset_days);
+        $f        = fn ($n) => number_format((float) $n, 0, ',', ' ');
+
         if ($alert->channel === 'in_app') {
-            // Notifications in-app : commercial responsable + admins
-            $recipients = collect();
-            if ($invoice->commercialUser) $recipients->push($invoice->commercialUser);
+            // Alerte du centre d'alertes. Sans destinataire nominatif, elle est
+            // vue par le comptable et les admins (AlertService::broadcastTypesForRole) ;
+            // une copie ciblée va au commercial du dossier.
+            $type = $alert->kind === 'before' ? 'echeance_proche_j7' : 'echeance_depassee';
+            $titre = $alert->kind === 'before'
+                ? "📅 Échéance dans " . abs($alert->offset_days) . " jours — facture {$invoice->reference}"
+                : "🔴 Relance {$etape} — facture {$invoice->reference}";
 
-            $admins = User::query()
-                ->where(function ($q) {
-                    $q->whereHas('role', fn($r) => $r->whereIn('value', ['admin']))
-                      ->orWhere('role', 'admin');
-                })
-                ->where('id', '!=', $invoice->commercial_user_id ?? 0)
-                ->get();
-            $recipients = $recipients->concat($admins)->unique('id');
+            $mailClient = in_array('email', collect(config('billing.alerts.channels'))->filter()->keys()->all(), true);
+            $message = ($invoice->client?->name ?? 'Client') . ' — échéance « ' . ($schedule?->label ?? 'Solde') . ' » du '
+                . $echeance?->format('d/m/Y')
+                . ($schedule ? ' (' . $f($schedule->amount) . ' FCFA)' : '')
+                . '. Reste à payer : ' . $f($invoice->remainingAmount()) . ' FCFA. '
+                . (!$mailClient ? ''
+                    : ($invoice->adressesClient()
+                        ? 'Le client reçoit ' . ($alert->kind === 'before' ? 'un rappel' : 'une relance') . ' par mail.'
+                        : '⚠ Le client n\'a pas d\'adresse mail : aucune relance automatique ne part, contactez-le.'));
 
-            if ($recipients->isEmpty()) return;
-            Notification::send($recipients, new InvoiceScheduleAlertNotification($alert));
+            $opts = ['lien' => route('admin.invoices.show', $invoice), 'dedup_extra' => 'etape:' . $alert->id];
+            AlertService::notify($type, $titre, $message, $invoice, $opts);
+
+            $commercial = $invoice->commercialUser ?? $invoice->campaign?->resolveCommercialContact();
+            $roleCommercial = $commercial?->role instanceof \BackedEnum ? $commercial->role->value : $commercial?->role;
+            if ($commercial && !in_array($roleCommercial, ['admin', 'comptable'], true)) {
+                // array_merge, pas « + » : la clé d'unicité doit différer de
+                // celle du comptable, sinon l'alerte du commercial n'est pas créée.
+                AlertService::notify($type, $titre, $message, $invoice, array_merge($opts, [
+                    'user_id' => $commercial->id,
+                    'dedup_extra' => 'etape:' . $alert->id . ':commercial',
+                ]));
+            }
             return;
         }
 
         if ($alert->channel === 'email') {
-            $email = $invoice->adressesClient(); // fiche + interlocuteur de la campagne (2026-10-29)
-            if (!$email) {
-                throw new \DomainException("Client #{$invoice->client_id} sans email — alerte impossible.");
+            $adresses = $invoice->adressesClient(); // fiche + interlocuteur de la campagne (2026-10-29)
+            if (!$adresses) {
+                throw new \DomainException("Client #{$invoice->client_id} sans adresse mail : relance impossible.");
             }
-            Notification::route('mail', $email)
-                ->notify(new InvoiceScheduleAlertNotification($alert));
+
+            $link = PublicLinkService::create(
+                target:    $invoice,
+                type:      'invoice',
+                expiresAt: now()->addDays(30),
+                clientId:  $invoice->client_id,
+                metadata:  ['etape_echeance' => $alert->id],
+            );
+
+            if ($alert->kind === 'before') {
+                // Sans échéancier : l'échéance par défaut, pour le reste à payer.
+                $sch = $schedule ?? (new InvoiceSchedule())->forceFill([
+                    'invoice_id' => $invoice->id,
+                    'label'      => 'Solde',
+                    'amount'     => (int) round($invoice->remainingAmount()),
+                    'due_date'   => $echeance,
+                ]);
+                $mail = new InvoiceScheduleReminderMail(
+                    invoice:      $invoice,
+                    schedule:     $sch,
+                    link:         $link,
+                    daysUntilDue: max(0, (int) $today->diffInDays($echeance, false)),
+                );
+            } else {
+                $relances = array_values(array_filter(self::etapes(), fn ($e) => $e[0] === 'after'));
+                $numero = 1 + (int) array_search($alert->offset_days, array_column($relances, 1), true);
+                $mail = new InvoiceIssuedMail($invoice, $link, isReminder: true, reminderNumber: $numero);
+            }
+
+            $r = app(NotificationMailer::class)->send(
+                $adresses,
+                $mail,
+                cc: null,
+                context: ['invoice_id' => $invoice->id, 'etape' => $etape],
+            );
+            if (!$r->ok) {
+                throw new \RuntimeException($r->message ?? 'Envoi du mail impossible.');
+            }
             return;
         }
 
-        if ($alert->channel === 'whatsapp') {
-            // Délégué à un service Twilio existant — Phase 5 si activé
-            throw new \DomainException('Canal WhatsApp non encore implémenté côté job (Phase 5).');
-        }
+        throw new \DomainException('Canal ' . $alert->channel . ' non disponible.');
     }
 }

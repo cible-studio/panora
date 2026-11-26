@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
  *   - 'admin' : tous les users role=admin
  *   - 'commercial' : commercial assigné à l'objet OU tous les commerciaux
  *   - 'mediaplanner' : tous les users role=mediaplanner
- *   - 'comptable' : users role=admin (à défaut d'un rôle comptable dédié)
+ *   - 'comptable' : users role=comptable (repli : admins s'il n'y en a aucun)
  *
  * Throttling : un même titre n'est pas envoyé 2× en moins de 30 minutes
  * (anti-spam si plusieurs déclencheurs simultanés).
@@ -130,12 +130,22 @@ class AdminAlertNotifier
                     break;
 
                 case 'comptable':
-                    // À défaut d'un rôle dédié : admin
+                    // 2026-11-26 — le rôle comptable existe : les mails de
+                    // finance vont aux comptables (avant : aux seuls admins).
+                    // Les appelants ajoutent 'admin' pour la copie. Sans
+                    // comptable enregistré, repli sur les admins.
                     $list = User::query()
-                        ->whereIn('role', ['admin'])
+                        ->where('role', 'comptable')
                         ->whereNotNull('email')
                         ->pluck('email')
                         ->toArray();
+                    if (empty($list)) {
+                        $list = User::query()
+                            ->where('role', 'admin')
+                            ->whereNotNull('email')
+                            ->pluck('email')
+                            ->toArray();
+                    }
                     $emails = array_merge($emails, $list);
                     break;
             }

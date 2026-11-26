@@ -12,6 +12,11 @@ use Illuminate\Support\Facades\DB;
 /**
  * finance:check-due-dates
  *
+ * ⚠ 2026-11-26 — RETIRÉE DU PLANNING. Le rappel J-7 et les alertes
+ * d'échéance partent désormais de invoices:alerts (système unique), qui
+ * prévient aussi le comptable. Ne pas lancer à la main : le client
+ * recevrait deux rappels J-7.
+ *
  * Cron quotidien (06h30) qui parcourt l'échéancier prévisionnel des
  * factures actives et émet 3 types d'alertes selon la position de
  * l'échéance par rapport à aujourd'hui :

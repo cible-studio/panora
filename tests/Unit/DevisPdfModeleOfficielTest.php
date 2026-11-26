@@ -233,10 +233,14 @@ class DevisPdfModeleOfficielTest extends TestCase
     {
         $src = $this->src('resources/views/pdf/invoice.blade.php');
 
+        // 2026-11-26 — la somme des services vit dans une seule source,
+        // Invoice::totauxAffiches(), que le PDF, la fiche et le mail lisent.
+        $this->assertStringContainsString('$invoice->totauxAffiches()', $src,
+            'Le PDF facture lit les totaux de la source unique.');
         $this->assertStringContainsString(
-            "sum(fn(\$s) => \$s->montantHt())",
-            $src,
-            "Le PDF facture doit sommer le montant de ligne, quantité "
+            "sum(fn (\$s) => \$s->montantHt())",
+            $this->src('app/Models/Invoice.php'),
+            "La source unique doit sommer le montant de ligne, quantité "
             . "comprise."
         );
 

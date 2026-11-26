@@ -235,7 +235,7 @@ window.financeBootstrap = {
             @include('admin.finance.partials.creances', compact('aging', 'creances', 'fmt', 'onlyOverdue'))
             @break
         @case('recouvrement')
-            @include('admin.finance.partials.recouvrement', compact('clientsToFollow', 'clientsList', 'fmt'))
+            @include('admin.finance.partials.recouvrement', compact('clientsToFollow', 'clientsList', 'fmt', 'facturesRelance'))
             @break
         @default
             @include('admin.finance.partials.encaissements', compact('series', 'topClients', 'byCommune', 'byCommercial', 'recentPayments', 'fmt'))

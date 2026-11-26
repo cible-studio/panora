@@ -153,8 +153,11 @@
                                     @endif
                                 </td>
                                 <td style="color:var(--text2)">{{ $inv->issued_at?->format('d/m/Y') }}</td>
-                                <td style="color:{{ $next && $next->due_date->isPast() ? '#ef4444' : 'var(--text2)' }}">
-                                    {{ $next ? $next->due_date->format('d/m/Y') : '—' }}
+                                {{-- 2026-11-26 — échéance unique (Invoice::echeance) : sans
+                                     échéancier, la date d'émission + le délai de paiement. --}}
+                                @php $echeanceCreance = $inv->echeance(); @endphp
+                                <td style="color:{{ $inv->isOverdue() ? '#ef4444' : 'var(--text2)' }}">
+                                    {{ $echeanceCreance ? $echeanceCreance->format('d/m/Y') : '—' }}
                                 </td>
                                 <td class="num">{{ $fmt($inv->montantTotal()) }}</td>
                                 <td class="num" style="color:#22c55e">{{ $fmt($inv->paidAmount()) }}</td>

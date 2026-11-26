@@ -81,7 +81,10 @@ class ChangementClientAffaireTest extends TestCase
         DB::table('invoices')->insert(['reference' => 'FAC-2', 'client_id' => 78, 'campaign_id' => 122, 'status' => 'validee']);
         $message = $this->service()->empechement(null, Reservation::find(119));
         $this->assertStringContainsString('FAC-2', $message, 'vu depuis la réservation aussi');
-        $this->assertStringContainsString('avoir', $message);
+        // 2026-11-26 (point 18) : l'avoir n'existe pas dans Panora, le message
+        // renvoie vers l'admin pour corriger une facture envoyée.
+        $this->assertStringContainsString('admin', $message);
+        $this->assertStringNotContainsString('avoir', $message);
     }
 
     public function test_depuis_la_campagne_toute_l_affaire_suit(): void

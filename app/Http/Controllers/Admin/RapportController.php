@@ -15,6 +15,40 @@ use Illuminate\Support\Facades\DB;
 class RapportController extends Controller
 {
     /**
+     * Qui ouvre quoi dans Rapports (2026-11-26) — SOURCE UNIQUE, lue par
+     * les routes (routes/admin.php) et par les boutons des vues. Avant, les
+     * boutons s'affichaient pour tous et menaient à « accès refusé ».
+     *   direction    : export Excel complet + synthèse PDF (admin)
+     *   occupation   : exports d'occupation, panneaux, annulations (admin + MP)
+     *   zones        : export Zones & Communes, ouvert au comptable (point 16)
+     */
+    public const ACCES = [
+        'direction'  => ['admin'],
+        'occupation' => ['admin', 'mediaplanner'],
+        'zones'      => ['admin', 'mediaplanner', 'comptable'],
+    ];
+
+    /** Onglets par rôle (null = tous). Le comptable : tous sauf « Insights », réservé à la direction. */
+    public const ONGLETS_PAR_ROLE = [
+        'admin'        => null,
+        'mediaplanner' => ['occupation', 'occupation-details', 'panneaux', 'periodes', 'zones', 'clients', 'decap'],
+        'comptable'    => ['occupation', 'occupation-details', 'panneaux', 'periodes', 'ca', 'zones', 'clients', 'decap'],
+        'commercial'   => ['periodes', 'ca', 'decap'],
+    ];
+
+    /** L'utilisateur connecté a-t-il accès à ce groupe (clé de ACCES) ? */
+    public static function peut(string $groupe): bool
+    {
+        return in_array(auth()->user()?->role?->value, self::ACCES[$groupe] ?? [], true);
+    }
+
+    /** Middleware de route d'un groupe de ACCES. */
+    public static function middlewareAcces(string $groupe): string
+    {
+        return 'role:' . implode(',', self::ACCES[$groupe]);
+    }
+
+    /**
      * RBAC commerciaux : un commercial ne voit dans les rapports QUE ses
      * propres campagnes (commercial assigné OU créateur fallback). Admin/MP
      * voient tout.

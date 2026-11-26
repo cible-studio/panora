@@ -313,23 +313,25 @@ class DashboardController extends Controller
             // Versements des seules factures comptées (comme Finance).
             ->whereHas('invoice', fn($i) => $i->facturees()->when($isCommercial, fn($q) => $q->forCommercialUser($uid)))
             ->sum('montant');
-        $invoicesEnRetard = (clone $finScope)
-            ->where('status', 'en_retard')->count();
-
-        // Total à recouvrer : remainingAmount est dérivé, pas pur SQL.
-        // Cap 200 pour éviter une explosion mémoire si 5000+ factures.
-        $invoicesUnpaid = (clone $finScope)
+        // 2026-11-26 — Définition unique du retard (Invoice::isOverdue : une
+        // échéance dépassée et un reste à payer) et toutes les factures, comme
+        // la page Finance. Avant : le seul statut « en_retard », un plafond de
+        // 200 factures pour « À recouvrer », et une prévision qui comptait des
+        // brouillons, des factures annulées et des échéances déjà en partie payées.
+        $invoicesOuvertes = (clone $finScope)
             ->whereNotIn('status', ['payee'])
-            ->with('payments')
-            ->limit(200)
+            ->with(['payments', 'schedules'])
             ->get();
-        $totalRecouvrer = (int) $invoicesUnpaid->sum(fn($i) => $i->remainingAmount());
+        $invoicesEnRetard = $invoicesOuvertes->filter(fn($i) => $i->isOverdue())->count();
+        $totalRecouvrer   = (int) $invoicesOuvertes->sum(fn($i) => $i->remainingAmount());
 
         $previsionMontant30j = (int) \App\Models\InvoiceSchedule::query()
             ->whereNull('paid_at')
             ->whereBetween('due_date', [$now->toDateString(), $now->copy()->addDays(30)->toDateString()])
-            ->when($isCommercial, fn($q) => $q->whereHas('invoice', fn($i) => $i->forCommercialUser($uid)))
-            ->sum('amount');
+            ->whereHas('invoice', fn($i) => $i->facturees()
+                ->when($isCommercial, fn($q) => $q->forCommercialUser($uid)))
+            ->get(['amount', 'paid_amount'])
+            ->sum(fn($e) => max(0, (int) $e->amount - (int) ($e->paid_amount ?? 0)));
 
         $topClients = \App\Models\Invoice::query()
             // Repli commun à toute l'application (Invoice::montantTotal).

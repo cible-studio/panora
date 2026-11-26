@@ -13,7 +13,9 @@
        class="btn btn-ghost btn-sm" title="Export Excel (.xlsx) du listing filtré">
         📊 <span class="btn-label">Excel</span>
     </a>
+    @can('create', \App\Models\Invoice::class)
     <a href="{{ route('admin.invoices.create') }}" class="btn btn-primary btn-sm keep-label" title="Créer une nouvelle facture">＋ <span class="btn-label">Nouvelle facture</span></a>
+    @endcan
 </x-slot>
 
 {{-- Bandeau contexte campagne (deeplinking depuis la fiche campagne :
@@ -192,7 +194,9 @@
         </div>
         <div class="filter-group">
             <label class="filter-label">Statut paiement</label>
-            <select id="filter-pay-status" class="filter-select" style="width:150px;" onchange="window.location.href = '?pay_status=' + this.value">
+            {{-- 2026-11-26 — même mécanisme que les autres filtres (AJAX) :
+                 avant, ce choix rechargeait la page et perdait client et statut. --}}
+            <select id="filter-pay-status" class="filter-select" style="width:150px;">
                 <option value="">Tous</option>
                 <option value="non_payee" {{ request('pay_status') === 'non_payee' ? 'selected' : '' }}>❌ Non soldée</option>
                 <option value="partielle" {{ request('pay_status') === 'partielle' ? 'selected' : '' }}>⏳ Partielle</option>
@@ -353,7 +357,8 @@ cursor: pointer;
 (function() {
     let currentFilters = {
         client_id: '',
-        status: ''
+        status: '',
+        pay_status: ''
     };
     let debounceTimer = null;
     let isUpdating = false;
@@ -361,6 +366,7 @@ cursor: pointer;
     const elements = {
         client: document.getElementById('filter-client'),
         status: document.getElementById('filter-status'),
+        payStatus: document.getElementById('filter-pay-status'),
         resetBtn: document.getElementById('btn-reset'),
         resetWrapper: document.getElementById('reset-wrapper'),
         resultCount: document.getElementById('result-count'),
@@ -370,7 +376,7 @@ cursor: pointer;
     };
 
     function updateResetButton() {
-        const hasFilters = currentFilters.client_id || currentFilters.status;
+        const hasFilters = currentFilters.client_id || currentFilters.status || currentFilters.pay_status;
         if (elements.resetWrapper) {
             elements.resetWrapper.style.display = hasFilters ? 'flex' : 'none';
         }
@@ -383,6 +389,7 @@ cursor: pointer;
         const params = new URLSearchParams();
         if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
         if (currentFilters.status) params.set('status', currentFilters.status);
+        if (currentFilters.pay_status) params.set('pay_status', currentFilters.pay_status);
         params.set('ajax', '1');
 
         if (elements.tableBody) {
@@ -499,7 +506,8 @@ cursor: pointer;
     // Reset button
     if (elements.resetBtn) {
         elements.resetBtn.addEventListener('click', () => {
-            currentFilters = { client_id: '', status: '' };
+            currentFilters = { client_id: '', status: '', pay_status: '' };
+            if (elements.payStatus) elements.payStatus.value = '';
             if (elements.client) elements.client.value = '';
             // Pour le client géré en Select2, on déclenche le change pour
             // que le widget se rafraîchisse (le reset .value='' seul ne
@@ -525,6 +533,14 @@ cursor: pointer;
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('client_id')) currentFilters.client_id = urlParams.get('client_id');
     if (urlParams.has('status')) currentFilters.status = urlParams.get('status');
+    if (urlParams.has('pay_status')) currentFilters.pay_status = urlParams.get('pay_status') === 'overdue' ? 'en_retard' : urlParams.get('pay_status');
+    if (elements.payStatus) {
+        elements.payStatus.addEventListener('change', () => {
+            currentFilters.pay_status = elements.payStatus.value;
+            updateResetButton();
+            applyFilters();
+        });
+    }
 
     if (elements.client && currentFilters.client_id) elements.client.value = currentFilters.client_id;
     if (elements.status && currentFilters.status) elements.status.value = currentFilters.status;

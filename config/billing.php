@@ -68,6 +68,10 @@ return [
         'BILLING_PAYMENT_TERMS',
         'Paiement à 30 jours nets à compter de la date de facturation.'
     ),
+    // Délai de paiement en jours (2026-11-26) : l'échéance d'une facture
+    // sans échéancier = date d'émission + ce délai (règle validée le 26/11,
+    // cf. Invoice::echeance()). Aligné sur les conditions ci-dessus.
+    'delai_paiement_jours' => (int) env('BILLING_DELAI_PAIEMENT_JOURS', 30),
 
     // ─── Module Devis (2026-07-21) ───────────────────────────────
     // Durée de validité d'un devis par défaut (jours). Le commercial
@@ -116,15 +120,15 @@ return [
     'reference_format' => env('BILLING_REF_FORMAT', 'FAC-%s-%03d'),
     'credit_note_format' => env('BILLING_CN_FORMAT', 'AV-%s-%03d'),
 
-    // ─── ALERTES AUTOMATIQUES — Phase 4 (§7 cahier) ──────────────
-    // Délais d'alerte autour de chaque échéance prévisionnelle.
-    //   J-15/-7/-3/-1 = AVANT échéance (relances préventives)
-    //   J+1/+7/+15/+30 = APRÈS (relances de retard)
-    // Modifiables ici sans déploiement de code (juste cache:clear).
+    // ─── RAPPELS ET RELANCES D'ÉCHÉANCE (invoices:alerts) ───────
+    // Règle validée le 26/11/2026 : au client, un rappel à J-7 puis des
+    // relances à J+7, J+15 et J+30 tant qu'il reste à payer ; au comptable
+    // et au commercial du dossier, une alerte à chaque étape.
+    // (Avant : J-15/-7/-3/-1 et J+1/+7/+15/+30, soit huit mails par échéance.)
     'alerts' => [
         'offsets' => [
-            'before' => [15, 7, 3, 1],
-            'after'  => [1, 7, 15, 30],
+            'before' => [7],
+            'after'  => [7, 15, 30],
         ],
         // Canaux ACTIVÉS. Mettre false pour désactiver totalement un canal.
         'channels' => [

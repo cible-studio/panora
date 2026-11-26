@@ -82,6 +82,7 @@ class FinanceDashboardController extends Controller
             'clientsToFollow'  => $clientsToFollow,
             'creances'         => $creances,
             'clientsList'      => $clientsList,
+            'facturesRelance'  => $this->facturesRelance($commercialUid),
             'communes'         => $communes,
             'commerciaux'      => $commerciaux,
             'from'             => $from,
@@ -360,6 +361,7 @@ class FinanceDashboardController extends Controller
         return view('admin.finance.relances', [
             'relances'    => $relances,
             'clientsList' => Client::orderBy('name')->get(['id', 'name']),
+            'facturesRelance' => $this->facturesRelance($commercialUid),
             'canaux'      => Relance::CANAUX,
             'kpis'        => $kpis,
             'byCanal'     => $byCanal,
@@ -544,6 +546,12 @@ class FinanceDashboardController extends Controller
             'client_id.exists' => 'Ce client est introuvable ou a été supprimé.',
         ]);
 
+        // 2026-11-26 — la facture choisie doit être celle du client choisi.
+        if (!empty($data['invoice_id'])
+            && (int) Invoice::whereKey($data['invoice_id'])->value('client_id') !== (int) $data['client_id']) {
+            return back()->withInput()->with('error', '🚫 Cette facture n\'est pas celle de ce client.');
+        }
+
         // RBAC : un commercial ne peut enregistrer une relance que sur une
         // de SES factures (ou sur ses clients si invoice_id null).
         if (auth()->user()?->role?->value === 'commercial' && !empty($data['invoice_id'])) {
@@ -565,6 +573,23 @@ class FinanceDashboardController extends Controller
     // ══════════════════════════════════════════════════════════════════
     // HELPERS
     // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Factures proposées dans le champ « Facture » du formulaire de relance
+     * (2026-11-26) : celles qu'on peut relancer (Invoice::STATUTS_RECLAMABLES)
+     * et celles en litige, dans le périmètre du commercial s'il y a lieu.
+     */
+    protected function facturesRelance(?int $commercialUid)
+    {
+        return Invoice::query()
+            ->whereIn('status', [...Invoice::STATUTS_RECLAMABLES, 'litige'])
+            ->when($commercialUid !== null, fn ($q) => $q->forCommercialUser($commercialUid))
+            ->with('payments:id,invoice_id,montant', 'services')
+            ->orderBy('reference')
+            ->get()
+            ->filter(fn ($inv) => $inv->remainingAmount() > 0.01)
+            ->values();
+    }
 
     /**
      * Parse la période depuis la query string. Formats supportés :

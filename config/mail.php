@@ -124,10 +124,10 @@ return [
     |   - Récaps direction (daily, weekly, monthly)
     |   - AdminAlertNotifier (tous événements admin : pige uploadée, pose
     |     réalisée, problème signalé, factures, taxes…)
-    |   - Alertes échéances internes (invoices:alerts, taxes:notify-due-soon)
+    |   - Alertes échéances internes (taxes:notify-due-soon)
     |
     | Mails CLIENT non concernés (toujours envoyés quel que soit ce flag) :
-    |   - Relances factures impayées (invoices:send-reminders)
+    |   - Rappels et relances d'échéance des factures (invoices:alerts)
     |   - Rappels fin campagne (campaigns:notify-ending)
     |   - Devis / propositions / réponses client
     |
