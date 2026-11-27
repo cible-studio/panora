@@ -357,7 +357,7 @@ class InvoiceAlertsCommand extends Command
                 // celle du comptable, sinon l'alerte du commercial n'est pas créée.
                 AlertService::notify($type, $titre, $message, $invoice, array_merge($opts, [
                     'user_id' => $commercial->id,
-                    'dedup_extra' => 'etape:' . $alert->id . ':commercial',
+                    'dedup_extra' => 'etape:' . $alert->id . AlertService::MARQUE_COPIE_COMMERCIAL,
                 ]));
             }
             return;
