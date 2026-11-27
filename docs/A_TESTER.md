@@ -3484,7 +3484,7 @@ Les 24 points relevés pour la vidéo « Facturer et encaisser » ont été corr
 - [ ] Modifier une facture issue d'une campagne : le récapitulatif ne bouge pas tant qu'on ne change rien (dates de campagne gardées)
 - [ ] Compte comptable : fiche d'une facture envoyée → ni « Annuler », ni « Retour brouillon » ; Rapports → pas d'« Insights », export Zones & Communes téléchargeable
 - [ ] Compte commercial : liste des factures sans « Nouvelle facture », fiche sans « Envoyer » ni « Marquer soldée »
-- [ ] PDF d'un brouillon : le filigrane BROUILLON est lisible et ne cache pas les montants (contrôlé seulement dans le fichier, pas à l'œil)
+- [x] PDF d'un brouillon : le filigrane BROUILLON est lisible et ne cache pas les montants. **Vu à l'œil le 27/11 sur la copie (rendu du PDF réel, vidéo des comptables).**
 - [ ] Taxes 2026 : une mairie « ✍ Réclamé à saisir » dans le Suivi s'affiche de même sur la page Taxes
 - [ ] Enregistrer une relance en choisissant une facture : la colonne Facture de l'historique est remplie ; le filtre WhatsApp existe
 

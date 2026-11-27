@@ -1339,7 +1339,9 @@
     .lines-table .col-designation { min-width: 280px; }
     .lines-table .col-commune     { min-width: 170px; }
     .lines-table .col-m2          { width: 120px; min-width: 100px; }
-    .lines-table .col-pu          { width: 150px; }
+    /* 2026-11-27 : min-width ajouté — sans lui, une désignation longue
+       comprimait la colonne et le PU s'affichait « 12000( ». */
+    .lines-table .col-pu          { width: 150px; min-width: 140px; }
     .lines-table .col-qte         { width: 100px; min-width: 80px; }
     .lines-table .col-mois        { width: 110px; min-width: 90px; }
     .lines-table .col-total {
