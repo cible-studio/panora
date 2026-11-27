@@ -35,7 +35,8 @@ class RegleCaFactureTest extends TestCase
             $t->id(); $t->string('reference'); $t->unsignedBigInteger('client_id')->nullable();
             $t->unsignedBigInteger('campaign_id')->nullable(); $t->string('status')->default('brouillon');
             $t->unsignedBigInteger('credit_note_for_id')->nullable();
-            $t->bigInteger('amount')->default(0); $t->bigInteger('amount_ttc')->default(0); $t->bigInteger('total_a_payer')->default(0);
+            $t->bigInteger('amount')->default(0); $t->bigInteger('net_ht')->nullable(); // net_ht : 2026-11-27, déjà facturé après remise
+            $t->bigInteger('amount_ttc')->default(0); $t->bigInteger('total_a_payer')->default(0);
             $t->date('issued_at')->nullable(); $t->timestamp('paid_at')->nullable();
             $t->timestamp('locked_at')->nullable(); $t->unsignedBigInteger('locked_by')->nullable();
             $t->string('litige_motif')->nullable(); $t->text('litige_note')->nullable(); $t->timestamp('litige_opened_at')->nullable();

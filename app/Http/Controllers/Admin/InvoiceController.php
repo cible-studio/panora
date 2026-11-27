@@ -824,7 +824,10 @@ class InvoiceController extends Controller
             //      computedAmountHt() != invoice.amount (±1 FCFA)
             //      → dates campagne modifiées, montant attendu a bougé
             $issuedAt = $invoice->issued_at;
-            $invAmount = (float) $invoice->amount;
+            // 2026-11-27 : HT après remise, même base que le montant de la
+            // campagne (avant : faux écart sur une campagne issue d'un devis
+            // avec remise).
+            $invAmount = (float) $invoice->htApresRemise();
             $diff = round($expectedHt - $invAmount, 2);
             $matches = abs($diff) < 1.0;
             $overriddenAfter = $invoice->campaign->total_amount_overridden_at

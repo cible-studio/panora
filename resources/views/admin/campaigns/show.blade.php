@@ -614,20 +614,19 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             @foreach($campaign->invoices as $inv)
                                 @php
-                                    $stCfg = match($inv->status) {
-                                        'payee'     => ['c'=>'#16a34a','bg'=>'rgba(34,197,94,.10)','l'=>'Payée'],
-                                        'envoyee'   => ['c'=>'#3b82f6','bg'=>'rgba(59,130,246,.10)','l'=>'Envoyée'],
-                                        'brouillon' => ['c'=>'#6b7280','bg'=>'rgba(107,114,128,.10)','l'=>'Brouillon'],
-                                        'annulee'   => ['c'=>'#ef4444','bg'=>'rgba(239,68,68,.10)','l'=>'Annulée'],
-                                        default     => ['c'=>'var(--text3)','bg'=>'var(--surface3)','l'=>$inv->status],
-                                    };
+                                    // 2026-11-27 : les 9 statuts, libellés et couleurs uniques
+                                    // (avant : 4, « Payée » au lieu de « Soldée »). HT = après
+                                    // remise, la base du « déjà facturé » ci-dessus.
+                                    $pal   = \App\Models\Invoice::COULEURS_STATUT[$inv->status] ?? \App\Models\Invoice::COULEURS_STATUT['brouillon'];
+                                    $stCfg = ['c' => $pal['color'], 'bg' => $pal['bg'], 'l' => $pal['icon'] . ' ' . \App\Models\Invoice::statusLabel($inv->status)];
+                                    $invHt = $inv->htApresRemise();
                                 @endphp
                                 <a href="{{ route('admin.invoices.show', $inv) }}"
                                    class="flex justify-between items-center py-3 px-4 rounded-xl border transition group"
                                    style="background:var(--surface2);border-color:var(--border);text-decoration:none"
                                    onmouseover="this.style.borderColor='var(--accent)'"
                                    onmouseout="this.style.borderColor='var(--border)'"
-                                   title="Ouvrir la facture {{ $inv->reference ?? '#'.$inv->id }} — HT {{ number_format($inv->amount, 0, ',', ' ') }} / TTC {{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA">
+                                   title="Ouvrir la facture {{ $inv->reference ?? '#'.$inv->id }} — HT après remise {{ number_format($invHt, 0, ',', ' ') }} / TTC {{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA">
                                     <div class="flex flex-col gap-1">
                                         <span class="font-mono text-sm group-hover:underline" style="color:var(--accent)">
                                             {{ $inv->reference ?? '#'.$inv->id }}
@@ -638,7 +637,7 @@
                                     </div>
                                     <div class="flex flex-col items-end">
                                         <span class="font-bold text-sm" style="color:var(--text)">
-                                            {{ number_format($inv->amount, 0, ',', ' ') }} <span style="font-size:10px;color:var(--text3)">HT</span>
+                                            {{ number_format($invHt, 0, ',', ' ') }} <span style="font-size:10px;color:var(--text3)">HT</span>
                                         </span>
                                         <span style="font-size:11px;color:var(--text3)">
                                             {{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA TTC
