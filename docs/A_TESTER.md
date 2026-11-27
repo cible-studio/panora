@@ -3487,6 +3487,7 @@ Les 24 points relevés pour la vidéo « Facturer et encaisser » ont été corr
 - [x] PDF d'un brouillon : le filigrane BROUILLON est lisible et ne cache pas les montants. **Vu à l'œil le 27/11 sur la copie (rendu du PDF réel, vidéo des comptables).**
 - [ ] Taxes 2026 : une mairie « ✍ Réclamé à saisir » dans le Suivi s'affiche de même sur la page Taxes
 - [ ] Enregistrer une relance en choisissant une facture : la colonne Facture de l'historique est remplie ; le filtre WhatsApp existe
+- [ ] *(27/11, alertes)* Tableau de bord du comptable : le widget « Alertes » ne montre que ses alertes (plus celles des commerciaux) ; un admin ne voit chaque « Relance J+… » qu'une fois. Si dev a fait tourner `invoices:alerts` entre le 26 et le 27/11, les copies créées alors (marque `:commercial`) restent visibles des admins : sans gravité, elles disparaissent une fois lues.
 
 ### Reste ouvert
 - **Facturation rapide de la liste des campagnes** (`campaigns/{id}/billing-quick`) : route ouverte à l'admin et au **MP**, alors que le MP n'a plus accès aux factures depuis le 02/11 ; le commercial et le comptable voient le bouton mais reçoivent « accès refusé ». Le numéro passe désormais par la règle unique. Décision à prendre : réserver à l'admin, ou retirer.
