@@ -838,18 +838,31 @@ class AlertService
     }
 
     /**
-     * Restreint une query Alert à l'utilisateur courant.
+     * Marque d'une alerte « copie pour le commercial du dossier » (2026-11-27) :
+     * la même alerte existe déjà pour le comptable et les admins. Posée en fin
+     * de dedup_key (option dedup_extra de notify()). L'admin ne la voit pas,
+     * sinon chaque étape lui arrivait deux fois.
+     */
+    public const MARQUE_COPIE_COMMERCIAL = ':copie-commercial';
+
+    /**
+     * Restreint une query Alert à l'utilisateur courant — RÈGLE UNIQUE
+     * (2026-11-27) : centre d'alertes, cloche, tableau de bord, résumés.
      *
-     *   - Admin       : voit TOUT (alertes ciblées + broadcasts système)
-     *   - MP/Technique : voient leurs alertes ciblées + les broadcasts
+     *   - Admin       : voit TOUT (alertes ciblées + broadcasts système),
+     *                   sauf les copies destinées au commercial
+     *   - MP/Technique/Comptable : leurs alertes ciblées + les broadcasts
      *                    pertinents à leur rôle (cf. broadcastTypesForRole)
      *   - Commercial  : strict — uniquement ses alertes ciblées
      */
-    protected function scopeCurrentUser($query)
+    public function scopeCurrentUser($query)
     {
         $user = auth()->user();
         if (!$user) return $query->whereRaw('1 = 0');
-        if ($user->role?->value === 'admin') return $query;
+        if ($user->role?->value === 'admin') {
+            return $query->where(fn ($q) => $q->whereNull('dedup_key')
+                ->orWhere('dedup_key', 'not like', '%' . self::MARQUE_COPIE_COMMERCIAL));
+        }
 
         $uid       = (int) $user->id;
         $broadcast = self::broadcastTypesForRole($user->role->value);

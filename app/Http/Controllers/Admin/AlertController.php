@@ -13,28 +13,12 @@ class AlertController extends Controller
     public function __construct(protected AlertService $alertService) {}
 
     /**
-     * Scope RBAC : admin voit tout, MP/Technique voient leurs alertes
-     * ciblées + les broadcasts pertinents à leur rôle, commercial reste
-     * strict. Mirroirise AlertService::scopeCurrentUser() — DOIT rester
-     * identique pour cohérence.
+     * Scope RBAC — 2026-11-27 : délègue à AlertService::scopeCurrentUser(),
+     * règle unique. Avant, la règle était recopiée ici.
      */
     protected function scopeCurrentUser($query)
     {
-        $user = auth()->user();
-        if (!$user) return $query->whereRaw('1 = 0');
-        if ($user->role?->value === 'admin') return $query;
-
-        $uid       = (int) $user->id;
-        $broadcast = \App\Services\AlertService::broadcastTypesForRole($user->role->value);
-
-        return $query->where(function ($q) use ($uid, $broadcast) {
-            $q->where('user_id', $uid);
-            if (!empty($broadcast)) {
-                $q->orWhere(function ($qq) use ($broadcast) {
-                    $qq->whereNull('user_id')->whereIn('type', $broadcast);
-                });
-            }
-        });
+        return $this->alertService->scopeCurrentUser($query);
     }
 
     /**
@@ -53,20 +37,11 @@ class AlertController extends Controller
         if (!$user) abort(403);
         if ($user->role?->value === 'admin') return;
 
-        // Alerte ciblée à moi → OK
-        if ($alert->user_id !== null && (int) $alert->user_id === (int) $user->id) {
-            return;
+        // 2026-11-27 : même règle que la liste (AlertService::scopeCurrentUser) —
+        // une alerte se manipule si elle fait partie de celles qu'on voit.
+        if (!$this->scopeCurrentUser(Alert::whereKey($alert->getKey()))->exists()) {
+            abort(403, "Cette alerte ne vous appartient pas.");
         }
-
-        // Alerte broadcast → OK si pertinent pour mon rôle
-        if ($alert->user_id === null) {
-            $broadcast = \App\Services\AlertService::broadcastTypesForRole($user->role->value);
-            if (in_array($alert->type, $broadcast, true)) {
-                return;
-            }
-        }
-
-        abort(403, "Cette alerte ne vous appartient pas.");
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -280,7 +255,8 @@ class AlertController extends Controller
      */
     public function summary()
     {
-        $data = Alert::unread()
+        // 2026-11-27 : filtré par utilisateur (avant : les alertes de tous).
+        $data = $this->scopeCurrentUser(Alert::unread())
             ->selectRaw('type, niveau, COUNT(*) as count')
             ->groupBy('type', 'niveau')
             ->get();

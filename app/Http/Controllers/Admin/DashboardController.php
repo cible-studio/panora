@@ -87,9 +87,11 @@ class DashboardController extends Controller
         $maintenancesUrgentes = Maintenance::where('priorite', 'urgente')
             ->where('statut', '!=', 'resolu')->count();
 
-        $alertesNonLues = Alert::where('is_read', false)
-            ->when($isCommercial, fn($q) => $q->where('user_id', $uid))
-            ->count();
+        // 2026-11-27 : même règle que le centre d'alertes et la cloche
+        // (AlertService::scopeCurrentUser). Avant, seul le commercial était
+        // filtré : le comptable et le MP voyaient les alertes de tous.
+        $alertesService = app(\App\Services\AlertService::class);
+        $alertesNonLues = $alertesService->unreadCount();
 
         $dernieresReservations = Reservation::with('client', 'panels')
             ->where('status', 'en_attente')
@@ -110,9 +112,7 @@ class DashboardController extends Controller
         // alertes GLOBALES de l'entreprise (résa/campagne d'autres commerciaux,
         // problèmes terrain, etc.) — incohérent avec le KPI $alertesNonLues
         // déjà scopé. Maintenant aligné.
-        $dernieresAlertes = Alert::where('is_read', false)
-            ->when($isCommercial, fn($q) => $q->where('user_id', $uid))
-            ->latest()->take(5)->get();
+        $dernieresAlertes = $alertesService->latest(5);
 
         $tauxOccupation = $totalPanneaux > 0
             ? round(($panneauxOccupes / $totalPanneaux) * 100, 1) : 0;
