@@ -20,7 +20,7 @@ Durée visée : 6 à 9 minutes par vidéo. Au-delà, on coupe en deux parties, p
 | # | Vidéo | Public | Format | État |
 |---|---|---|---|---|
 | 0 | Du devis à la réservation ferme | Commerciaux | Écran 16:9 | ✅ Livrée le 25/11 |
-| 1 | Facturer et encaisser | Comptables, finance | Écran 16:9 | À faire en premier |
+| 1 | Facturer et encaisser | Comptables, finance | Écran 16:9 | ✅ Livrée le 27/11 (7 min 20) |
 | 2 | Taxes communales et suivi des mairies | Comptables, finance | Écran 16:9 | Ensuite |
 | 3 | Le métier du média planner (A : de la campagne au terrain ; B : le parc et le pilotage) | MP | Écran 16:9 | Ensuite |
 | 4 | Ma journée de technicien | Techniciens | **Vertical 9:16**, pour le téléphone | Ensuite |
