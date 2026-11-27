@@ -1,4 +1,4 @@
-<x-admin-layout title="{{ $agency->name }}">
+<x-admin-layout :title="$agency->name">
 
 <x-slot:topbarLeft>
     {{-- Retour intelligent : la provenance (?back=), sinon la page

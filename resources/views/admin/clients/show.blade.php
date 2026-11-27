@@ -16,7 +16,7 @@
     }
 @endphp
 
-<x-admin-layout title="{{ $displayName }}">
+<x-admin-layout :title="$displayName">
 
 <x-slot:topbarLeft>
     {{-- Un seul retour (2026-11-02) : provenance, sinon page précédente,
