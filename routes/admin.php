@@ -841,7 +841,9 @@ Route::prefix('admin')
         // = admin + MP + comptable. Modifier les tarifs communaux reste
         // réservé à l'admin (matrice TAXES). Le comptable saisit les
         // règlements TM/ODP comme les autres encaissements.
-        Route::middleware('role:admin,mediaplanner,comptable')->group(function () {
+        // 2026-11-27 (point 21) : rôles lus dans config/acces.php (module
+        // « taxes »), comme les autres modules — mêmes rôles qu'avant.
+        Route::middleware(\App\Support\Acces::middleware('taxes'))->group(function () {
             Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
             Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
             Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');

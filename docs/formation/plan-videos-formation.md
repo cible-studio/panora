@@ -21,7 +21,7 @@ Durée visée : 6 à 9 minutes par vidéo. Au-delà, on coupe en deux parties, p
 |---|---|---|---|---|
 | 0 | Du devis à la réservation ferme | Commerciaux | Écran 16:9 | ✅ Livrée le 25/11 |
 | 1 | Facturer et encaisser | Comptables, finance | Écran 16:9 | ✅ Livrée le 27/11 (7 min 20) |
-| 2 | Taxes communales et suivi des mairies | Comptables, finance | Écran 16:9 | Ensuite |
+| 2 | Taxes communales et suivi des mairies | Comptables, finance | Écran 16:9 | Corrections faites le 27/11 ; texte à écrire |
 | 3 | Le métier du média planner (A : de la campagne au terrain ; B : le parc et le pilotage) | MP | Écran 16:9 | Ensuite |
 | 4 | Ma journée de technicien | Techniciens | **Vertical 9:16**, pour le téléphone | Ensuite |
 | 5 | Piloter Panora | Direction, admins | Écran 16:9 | Ensuite |
@@ -151,7 +151,59 @@ Chaque point a une **recommandation**. Les points marqués ⚠ changent une règ
 6. **Enregistrer un règlement** : quittance, annulation avec motif, relevé pour la mairie, exports.
 7. **L'alerte trimestrielle**.
 
-Incohérences propres aux taxes : n° 5, 6, 7, 23 et 24 ci-dessus.
+Incohérences propres aux taxes : n° 5, 6, 7, 23 et 24 ci-dessus (corrigées le 26/11).
+
+### Incohérences à corriger avant le tournage (taxes) — audit du 27/11
+
+> **État au 27/11 :** recommandations validées (« ok pour tout ce qui est recommandé » ; point 5 : `PanelFormat::surface_m2` partout, aucun format différent en production). Points 1 à 21 **corrigés** ; le 19 se vérifie en production. Détail et vérifications : `docs/A_TESTER.md` § 56.
+
+**Montants faux ou différents selon l'écran — prioritaires**
+1. **Le relevé remis à la mairie écrit « Payé en trop »** pour une mairie dont le montant réclamé 2026 n'est pas saisi (dû = 0, versements > 0), avec « déduit de 2027 ». L'écran, lui, dit « Réclamé à saisir ». Même défaut dans le PDF et l'Excel du Suivi (pas de statut, solde négatif sans explication).
+   → *Recommandé :* le relevé affiche « Montant réclamé non saisi » à la place du solde tant que le réclamé n'est pas saisi ; le PDF et l'Excel du Suivi gagnent une colonne Statut (mêmes libellés que l'écran).
+2. **En 2026, deux « relevés » donnent deux totaux** : le PDF du Détail par panneau écrit « TOTAL À PAYER » avec le calcul de Panora, le « Relevé pour la mairie » du Suivi donne le réclamé (le vrai dû de 2026).
+   → *Recommandé :* pendant l'année de reprise, le PDF du Détail écrit « Total calculé par la régie (contrôle) » au lieu de « TOTAL À PAYER », et renvoie au relevé du Suivi.
+3. **Les boutons « Détail par panneau », « Suivi des mairies » et « PDF » de la page Taxes ignorent la période choisie** (ils gardent celle du chargement) : le détail ouvert n'a pas le même total.
+   → *Recommandé :* ces liens suivent la période, l'année et les cases Lumipub / maintenance choisies.
+4. **La page Taxes oublie les panneaux démantelés en cours d'année** (et les formats sans largeur/hauteur) que le Détail et le Suivi comptent : son grand total peut être plus bas.
+   → *Recommandé :* la page Taxes regroupe les lignes du même calcul que le Détail (`generateLines`), au lieu de repartir du parc actuel. À contrôler ensuite sur la vraie base (Taxes annuel 2026 = Calcul Panora du Suivi).
+5. ⚠ **Surface : la taxe et la facture ne lisent pas la même** (surface du format côté taxes, largeur × hauteur côté facture et colonne « Surface » de la page Taxes). Un format « 4x3m » avec surface 32 a été vu en production.
+   → *Recommandé :* d'abord compter les formats concernés en production ; la règle (quelle valeur fait foi) est à trancher par toi ensuite.
+6. **Page Tarifs : le « tarif courant » se périme** : un tarif programmé ne remplace pas l'ancien à sa date (rien ne met à jour la fiche) ; la page montre alors l'ancien tarif, et le pré-remplissage de « Programmer » propose l'ancienne valeur. Les calculs, eux, prennent bien le nouveau. « Dernier changement » peut afficher une date future.
+   → *Recommandé :* la page affiche le tarif en vigueur aujourd'hui (historique), et « Dernier changement » ne regarde que le passé.
+7. **Un tarif programmé ne s'annule pas** : la fonction existe, mais aucun bouton.
+   → *Recommandé :* bouton « Supprimer » sur les lignes « PROGRAMMÉ » de l'historique.
+8. **Les champs de tarif n'acceptent que des multiples de 100** (250 ou 1 250 refusés).
+   → *Recommandé :* accepter tout montant entier.
+9. **L'Excel du Détail ne se recalcule pas** : la colonne Tarif est celle du début de période (pas le tarif moyen appliqué) ; la période d'une ligne ODP est celle de la dernière campagne, pas la période taxée.
+   → *Recommandé :* même tarif que l'écran et le PDF ; pour l'ODP, la période du filtre.
+10. **Taux de couverture et Top 5 faussés par les mairies « à saisir »** (payé compté, dû = 0 : taux > 100 % possible ; 0 % en rouge pour une mairie qui a payé).
+    → *Recommandé :* ces mairies sont écartées du taux et marquées « à saisir » dans le Top 5.
+11. **« Solde » du PDF du Suivi ≠ « Reste à payer » de l'écran** (le PDF déduit les trop-perçus et les mairies à saisir).
+    → *Recommandé :* le PDF affiche le même « Reste à payer » que l'écran.
+
+**Affichage et textes**
+12. **« TM 0 » affiché pour une commune sans tarif** (page Taxes : « 💡 TM 0/m² » comme un tarif éclairé ; fiche mairie : « TM 0 FCFA/m²/mois »), alors que 1 000 F sont appliqués.
+    → *Recommandé :* « 1 000 (par défaut) », comme la page des tarifs.
+13. **Le nombre de « Panneaux » change d'un écran à l'autre** (faces, mâts, démantelés compris ou non).
+    → *Recommandé :* même définition partout (mâts, plus le nombre de faces à côté), libellés précis.
+14. **Page Taxes : dû de la période et payé de l'exercice mélangés** (répartition géographique, Top 5).
+    → *Recommandé :* préciser « dû de la période » / « payé de l'exercice ».
+15. **Case maintenance formulée à l'envers** (« Exclure » sur la page Taxes, « Inclure » sur le Détail, pied de page trompeur).
+    → *Recommandé :* même case et même sens sur les deux écrans.
+16. **Libellés** : « Q1 » (anglais) au lieu de « T1 » ; « 3m » pour 3 mois ; « 1e trimestre » dans le mail ; « FéVRIER » dans l'Excel ; filtres de l'Excel en noms techniques ; notes d'historique « odp_rate = … » ; « Occupé » au lieu de « En affichage » ; « Soldé / Partiel » à côté de « À jour / Payé en partie » ; « Taxes Communes » / « Taxes Communales » ; infobulle périmée sur les faces des axes ; couleurs ODP/TM inversées entre écrans.
+    → *Recommandé :* tout corriger.
+17. **Colonne « Statut » du Détail** : état du panneau aujourd'hui, même pour une période passée.
+    → *Recommandé :* la retirer de l'écran et des exports (ou la renommer « État actuel »).
+18. **Alerte trimestrielle** : mail seulement (rien dans le centre d'alertes), part même un jour férié (prochaine : 1er janvier 2027), envoyée aussi aux comptes désactivés.
+    → *Recommandé :* une alerte dans le centre d'alertes du comptable, premier jour ouvré (fériés compris), comptes actifs seulement.
+19. **Quittances** : stockées sur le disque du serveur ; à vérifier qu'il est conservé entre deux déploiements, sinon « Voir » mène à « Quittance introuvable ».
+    → *Recommandé :* vérification en production (A_TESTER).
+
+**Fonctions mortes**
+20. Anciennes adresses encore ouvertes (`/admin/taxes/create` enregistre une ligne qui n'apparaît nulle part, etc.).
+    → *Recommandé :* les renvoyer vers la page Taxes, comme `/admin/taxes/{id}`.
+21. Droits des routes taxes écrits en dur au lieu de `config/acces.php`.
+    → *Recommandé :* lire `config/acces.php`, comme les autres modules.
 
 ---
 

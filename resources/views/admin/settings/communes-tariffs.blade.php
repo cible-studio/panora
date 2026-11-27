@@ -1,4 +1,4 @@
-<x-admin-layout title="Tarifs communaux">
+<x-admin-layout title="Tarifs communes">
 
 {{-- Fix : .modal-overlay a `display:flex` permanent dans app.css.
      Sans :not(.show), nos modaux restent ouverts au chargement. --}}
@@ -28,7 +28,7 @@
         <a href="{{ route('admin.settings.index') }}" style="color:var(--text3);text-decoration:none">Réglages</a>
         <span style="margin:0 6px">›</span>
         @endif
-        <span style="color:var(--text)">Tarifs communaux ODP / TM</span>
+        <span style="color:var(--text)">Tarifs communes ODP / TM</span>
     </div>
 
     {{-- Intro --}}
@@ -67,8 +67,8 @@
                     <thead>
                         <tr style="background:var(--surface2);text-align:left;color:var(--text3)">
                             <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">Commune</th>
-                            <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;text-align:right">ODP courant</th>
-                            <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;text-align:right">TM courant</th>
+                            <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;text-align:right" title="Tarif en vigueur aujourd'hui (F/m²/mois)">ODP en vigueur</th>
+                            <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;text-align:right" title="Tarif en vigueur aujourd'hui (F/m²/mois)">TM en vigueur</th>
                             <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">Dernier changement</th>
                             <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">Tarif futur</th>
                             <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;text-align:center">Actions</th>
@@ -76,6 +76,7 @@
                     </thead>
                     <tbody>
                         @foreach($communes as $c)
+                        @php $tv = $c->tarif_courant; @endphp
                         <tr class="tariff-row" data-name="{{ strtolower($c->name) }}" style="border-top:1px solid var(--border)">
                             <td style="padding:10px 14px">
                                 <div style="font-weight:700;color:var(--text)">{{ $c->name }}</div>
@@ -83,11 +84,15 @@
                                     <div style="font-size:10.5px;color:var(--text3);margin-top:1px">{{ $c->rate_history_count }} entrée(s) d'historique</div>
                                 @endif
                             </td>
-                            <td style="padding:10px 14px;text-align:right;font-weight:700;color:var(--accent)">{{ number_format($c->odp_rate, 0, ',', ' ') }}@if(!is_null($c->odp_rate_eclaire))<div style="font-size:10.5px;font-weight:600;color:#b45309" title="Panneaux éclairés">💡 {{ number_format($c->odp_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
-                            <td style="padding:10px 14px;text-align:right;">{{ number_format($c->tm_rate, 0, ',', ' ') }}@if((float) $c->tm_rate <= 0){{-- 2026-11-26 — base nationale appliquée, à renseigner --}}<div style="font-size:10.5px;font-weight:700;color:#b45309" title="Sans tarif TM, la base nationale s'applique aux factures et aux taxes dues : renseigne le vrai tarif avec « Programmer ».">⚠ {{ number_format(\App\Services\TaxCalculationService::tmParDefaut(), 0, ',', ' ') }} par défaut — à renseigner</div>@endif @if(!is_null($c->tm_rate_eclaire))<div style="font-size:10.5px;font-weight:600;color:#b45309" title="Panneaux éclairés">💡 {{ number_format($c->tm_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
+                            <td style="padding:10px 14px;text-align:right;font-weight:700;color:var(--accent)">{{ number_format($tv['odp'], 0, ',', ' ') }}@if(!is_null($tv['odp_eclaire']))<div style="font-size:10.5px;font-weight:600;color:#b45309" title="Panneaux éclairés">💡 {{ number_format($tv['odp_eclaire'], 0, ',', ' ') }}</div>@endif</td>
+                            <td style="padding:10px 14px;text-align:right;">{{ number_format($tv['tm'], 0, ',', ' ') }}@if((float) $tv['tm'] <= 0){{-- 2026-11-26 — base nationale appliquée, à renseigner --}}<div style="font-size:10.5px;font-weight:700;color:#b45309" title="Sans tarif TM, la base nationale s'applique aux factures et aux taxes dues : renseigne le vrai tarif avec « Programmer ».">⚠ {{ number_format(\App\Services\TaxCalculationService::tmParDefaut(), 0, ',', ' ') }} par défaut — à renseigner</div>@endif @if(!is_null($tv['tm_eclaire']))<div style="font-size:10.5px;font-weight:600;color:#b45309" title="Panneaux éclairés">💡 {{ number_format($tv['tm_eclaire'], 0, ',', ' ') }}</div>@endif</td>
                             <td style="padding:10px 14px;color:var(--text2)">
                                 @if($c->last_change_date)
-                                    <div style="font-size:11.5px">{{ $c->last_change_date->format('d/m/Y') }}</div>
+                                    @if($c->last_change_origine)
+                                        <div style="font-size:11.5px" title="Tarif enregistré avant le premier changement daté">Tarif d'origine</div>
+                                    @else
+                                        <div style="font-size:11.5px">{{ $c->last_change_date->format('d/m/Y') }}</div>
+                                    @endif
                                 @else
                                     <span style="color:var(--text3);font-size:11px">—</span>
                                 @endif
@@ -108,7 +113,7 @@
                             <td style="padding:10px 14px;text-align:center;white-space:nowrap">
                                 <button type="button" class="btn btn-ghost btn-sm" onclick="openHistory({{ $c->id }}, '{{ addslashes($c->name) }}')"
                                         style="font-size:11px;padding:5px 9px">📜 Historique</button>
-                                <button type="button" class="btn btn-ghost btn-sm" onclick="openSchedule({{ $c->id }}, '{{ addslashes($c->name) }}', {{ (int) $c->odp_rate }}, {{ (int) $c->tm_rate }}, {{ $c->odp_rate_eclaire ?? 'null' }}, {{ $c->tm_rate_eclaire ?? 'null' }})"
+                                <button type="button" class="btn btn-ghost btn-sm" onclick="openSchedule({{ $c->id }}, '{{ addslashes($c->name) }}', {{ (int) $tv['odp'] }}, {{ (int) $tv['tm'] }}, {{ isset($tv['odp_eclaire']) ? (int) $tv['odp_eclaire'] : 'null' }}, {{ isset($tv['tm_eclaire']) ? (int) $tv['tm_eclaire'] : 'null' }})"
                                         style="font-size:11px;padding:5px 9px;color:var(--accent-dark)">📅 Programmer</button>
                             </td>
                         </tr>
@@ -149,7 +154,7 @@
             <div class="modal-body">
                 <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:11.5px;color:var(--text3)">
                     <strong>Commune :</strong> <span id="sched-commune-name">…</span><br>
-                    <strong>Tarif courant :</strong> ODP <span id="sched-current-odp">—</span> · TM <span id="sched-current-tm">—</span>
+                    <strong>Tarif en vigueur aujourd'hui :</strong> ODP <span id="sched-current-odp">—</span> · TM <span id="sched-current-tm">—</span>
                 </div>
                 <div class="mfg">
                     <label>Date d'effet <span style="color:var(--red)">*</span></label>
@@ -162,12 +167,12 @@
                 <div class="form-2col">
                     <div class="mfg">
                         <label>Nouveau tarif ODP (F/m²/mois) <span style="color:var(--red)">*</span></label>
-                        <input type="number" name="odp_rate" id="sched-odp" min="0" step="100" required
+                        <input type="number" name="odp_rate" id="sched-odp" min="0" step="1" required
                                style="text-align:right">
                     </div>
                     <div class="mfg">
                         <label>Nouveau tarif TM (F/m²/mois) <span style="color:var(--red)">*</span></label>
-                        <input type="number" name="tm_rate" id="sched-tm" min="0" step="100" required
+                        <input type="number" name="tm_rate" id="sched-tm" min="0" step="1" required
                                style="text-align:right">
                     </div>
                 </div>
@@ -177,11 +182,11 @@
                 <div class="form-2col">
                     <div class="mfg">
                         <label>ODP éclairé (F/m²/mois)</label>
-                        <input type="number" name="odp_rate_eclaire" id="sched-odp-eclaire" min="0" step="100" style="text-align:right">
+                        <input type="number" name="odp_rate_eclaire" id="sched-odp-eclaire" min="0" step="1" style="text-align:right">
                     </div>
                     <div class="mfg">
                         <label>TM éclairé (F/m²/mois)</label>
-                        <input type="number" name="tm_rate_eclaire" id="sched-tm-eclaire" min="0" step="100" style="text-align:right">
+                        <input type="number" name="tm_rate_eclaire" id="sched-tm-eclaire" min="0" step="1" style="text-align:right">
                     </div>
                 </div>
                 <div class="mfg">
@@ -211,13 +216,19 @@ document.getElementById('filter-input')?.addEventListener('input', (e) => {
 const URLS_TARIF = {
     history:  @json(route('admin.settings.communes.tariffs.history', ['commune' => '__ID__'])),
     schedule: @json(route('admin.settings.communes.tariffs.schedule', ['commune' => '__ID__'])),
+    // 2026-11-27 (point 7) : supprimer un tarif programmé.
+    delete:   @json(route('admin.settings.communes.tariffs.delete', ['commune' => '__ID__', 'entry' => '__ENTREE__'])),
 };
-const urlTarif = (quoi, communeId) => URLS_TARIF[quoi].replace('__ID__', encodeURIComponent(communeId));
+const urlTarif = (quoi, communeId, entreeId = '') => URLS_TARIF[quoi]
+    .replace('__ID__', encodeURIComponent(communeId))
+    .replace('__ENTREE__', encodeURIComponent(entreeId));
+let histCommuneId = null;
 // Les notes sont saisies à la main : jamais injectées telles quelles.
 const echapper = (t) => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ─── Modal historique ────────────────────────────────────────
 async function openHistory(communeId, name) {
+    histCommuneId = communeId;
     document.getElementById('hist-commune-name').textContent = name;
     document.getElementById('hist-body').textContent = 'Chargement…';
     document.getElementById('modal-history').classList.add('show');
@@ -255,6 +266,7 @@ function renderHistory(history) {
                     <div style="font-weight:700">${h.effective_from_h} →  ${h.effective_to_h || '∞'}</div>
                     <div style="margin-top:3px">${badge}</div>
                     ${h.notes ? '<div style="font-size:10.5px;color:var(--text3);margin-top:3px;font-style:italic">' + echapper(h.notes) + '</div>' : ''}
+                    ${h.is_future ? '<div class="hist-suppr" style="margin-top:5px"><button type="button" class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 8px;color:#b91c1c" onclick="demanderSuppression(this, ' + Number(h.id) + ')">🗑 Supprimer ce tarif programmé</button></div>' : ''}
                 </td>
                 <td style="padding:8px 12px;text-align:right;color:var(--accent);font-weight:700">${fmt(h.odp_rate)}${h.odp_rate_eclaire != null ? '<div style="font-size:10.5px;color:#b45309">💡 ' + fmt(h.odp_rate_eclaire) + '</div>' : ''}</td>
                 <td style="padding:8px 12px;text-align:right;">${fmt(h.tm_rate)}${h.tm_rate_eclaire != null ? '<div style="font-size:10.5px;color:#b45309">💡 ' + fmt(h.tm_rate_eclaire) + '</div>' : ''}</td>
@@ -278,6 +290,28 @@ function renderHistory(history) {
             <tbody>${rows}</tbody>
         </table>
     `;
+}
+
+// ─── Supprimer un tarif programmé (2026-11-27, point 7) ──────
+// Confirmation dans la ligne même (pas de fenêtre du navigateur).
+function demanderSuppression(btn, entreeId) {
+    const zone = btn.closest('.hist-suppr');
+    zone.innerHTML = '<span style="font-size:11px;color:#b91c1c;font-weight:700">Supprimer ce tarif ? L\'ancien tarif reste en vigueur.</span> '
+        + '<button type="button" class="btn btn-sm" style="font-size:10.5px;padding:3px 8px;background:#b91c1c;color:#fff" data-oui>Oui, supprimer</button> '
+        + '<button type="button" class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 8px" data-non>Garder</button>';
+    zone.querySelector('[data-non]').addEventListener('click', () => {
+        zone.innerHTML = '<button type="button" class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 8px;color:#b91c1c">🗑 Supprimer ce tarif programmé</button>';
+        zone.querySelector('button').addEventListener('click', (e) => demanderSuppression(e.currentTarget, entreeId));
+    });
+    zone.querySelector('[data-oui]').addEventListener('click', () => {
+        const f = document.createElement('form');
+        f.method = 'POST';
+        f.action = urlTarif('delete', histCommuneId, entreeId);
+        f.innerHTML = '<input type="hidden" name="_token" value="' + echapper(@json(csrf_token())) + '">'
+            + '<input type="hidden" name="_method" value="DELETE">';
+        document.body.appendChild(f);
+        f.submit();
+    });
 }
 
 // ─── Modal programmer ────────────────────────────────────────

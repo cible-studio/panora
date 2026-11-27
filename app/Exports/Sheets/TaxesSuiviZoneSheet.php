@@ -23,6 +23,7 @@ class TaxesSuiviZoneSheet implements FromArray, WithTitle, WithEvents
 
     private int $nbReglements;
     private int $derniereLigne = 0;
+    private int $ligneTotal = 0; // 2026-11-27 : ligne TOTAL (la dernière est le reste à payer)
     /** @var array<int, int> lignes où commence une mairie */
     private array $debutsMairie = [];
 
@@ -84,7 +85,9 @@ class TaxesSuiviZoneSheet implements FromArray, WithTitle, WithEvents
                             $l['total_du'],
                         ],
                         $reglements,
-                        [$l['total_paye'], $l['solde']]
+                        [$l['total_paye'], $l['solde'],
+                         // 2026-11-27 (point 1) : statut du Suivi (« Réclamé à saisir »…).
+                         trim(preg_replace('/^[^\p{L}]+/u', '', \App\Services\Taxes\TaxeExerciceService::LIBELLES_STATUT[\App\Services\Taxes\TaxeExerciceService::statutAffiche($l)][1] ?? ''))]
                     );
                 } else {
                     $rows[] = array_merge([null], $dim);
@@ -99,7 +102,15 @@ class TaxesSuiviZoneSheet implements FromArray, WithTitle, WithEvents
             ['TOTAL', null, (int) $this->lignes->sum('nb_panneaux'), (int) $this->lignes->sum('nb_faces'),
              $t('arrieres'), $t('odp'), $tTrim(1), $tTrim(2), $tTrim(3), $tTrim(4), $t('tm'), $t('total_du')],
             array_fill(0, $this->nbReglements, null),
-            [$t('total_paye'), $t('solde')]
+            [$t('total_paye'), $t('solde'), null]
+        );
+        $this->ligneTotal = count($rows);
+        // 2026-11-27 (point 11) : le « Reste à payer » de l'écran (soldes
+        // positifs), sous le solde net de la colonne.
+        $rows[] = array_merge(
+            ['RESTE À PAYER (soldes positifs)'],
+            array_fill(0, 11 + $this->nbReglements + 1, null),
+            [(int) $this->lignes->sum(fn ($l) => max(0, (int) $l['solde'])), null]
         );
         $this->derniereLigne = count($rows);
 
@@ -118,7 +129,7 @@ class TaxesSuiviZoneSheet implements FromArray, WithTitle, WithEvents
             ['MAIRIES', 'Dim (m²)', 'Nbr Pa', 'Nbr face', 'TAXES ARRIÉRÉES', 'ODP ' . $this->exercice,
              'TM 1er Trim', 'TM 2è Trim', 'TM 3è Trim', 'TM 4è Trim', 'TOTAL TM', 'TOTAL GÉNÉRAL'],
             $regl,
-            ['TOTAL Paiement', 'SOLDE']
+            ['TOTAL Paiement', 'SOLDE', 'STATUT']
         );
     }
 
@@ -127,7 +138,7 @@ class TaxesSuiviZoneSheet implements FromArray, WithTitle, WithEvents
         return [
             AfterSheet::class => function (AfterSheet $e) {
                 $s = $e->sheet->getDelegate();
-                $nbCol = 12 + $this->nbReglements + 2;
+                $nbCol = 12 + $this->nbReglements + 3;
                 $der = Coordinate::stringFromColumnIndex($nbCol);
                 $h = self::ENTETE_LIGNE;
 
@@ -151,10 +162,12 @@ class TaxesSuiviZoneSheet implements FromArray, WithTitle, WithEvents
                     $s->getStyle($plage)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
                     $s->getStyle("E" . ($h + 1) . ":{$der}{$this->derniereLigne}")
                         ->getNumberFormat()->setFormatCode('#,##0');
-                    $s->getStyle("A{$this->derniereLigne}:{$der}{$this->derniereLigne}")->applyFromArray([
-                        'font' => ['bold' => true],
-                        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'EDEDED']],
-                    ]);
+                    foreach ([$this->ligneTotal, $this->derniereLigne] as $ligneTot) {
+                        $s->getStyle("A{$ligneTot}:{$der}{$ligneTot}")->applyFromArray([
+                            'font' => ['bold' => true],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'EDEDED']],
+                        ]);
+                    }
                     foreach ($this->debutsMairie as $ligne) {
                         $s->getStyle("A{$ligne}")->getFont()->setBold(true);
                     }

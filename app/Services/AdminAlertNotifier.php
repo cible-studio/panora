@@ -110,7 +110,8 @@ class AdminAlertNotifier
                 continue;
             }
 
-            // Rôle → emails actifs
+            // Rôle → emails des comptes ACTIFS (2026-11-27, point 18 : un
+            // compte désactivé ne reçoit plus les mails staff).
             switch (strtolower($entry)) {
                 case 'commercial_assigned':
                     if ($commercialAssigned?->email) {
@@ -124,6 +125,7 @@ class AdminAlertNotifier
                     $list = User::query()
                         ->where('role', $entry)
                         ->whereNotNull('email')
+                        ->where(fn ($q) => $q->where('is_active', true)->orWhereNull('is_active'))
                         ->pluck('email')
                         ->toArray();
                     $emails = array_merge($emails, $list);
@@ -137,12 +139,14 @@ class AdminAlertNotifier
                     $list = User::query()
                         ->where('role', 'comptable')
                         ->whereNotNull('email')
+                        ->where(fn ($q) => $q->where('is_active', true)->orWhereNull('is_active'))
                         ->pluck('email')
                         ->toArray();
                     if (empty($list)) {
                         $list = User::query()
                             ->where('role', 'admin')
                             ->whereNotNull('email')
+                            ->where(fn ($q) => $q->where('is_active', true)->orWhereNull('is_active'))
                             ->pluck('email')
                             ->toArray();
                     }

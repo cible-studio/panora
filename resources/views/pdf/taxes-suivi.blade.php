@@ -40,7 +40,9 @@
     ['label' => 'Exercice',  'value' => (string) $exercice, 'accent' => true],
     ['label' => 'Total dû',  'value' => $fmt($totaux['tout']['total_du']) . ' FCFA'],
     ['label' => 'Payé',      'value' => $fmt($totaux['tout']['total_paye']) . ' FCFA'],
-    ['label' => 'Solde',     'value' => $fmt($totaux['tout']['solde']) . ' FCFA'],
+    {{-- 2026-11-27 (point 11) : même « Reste à payer » que l'écran (soldes
+         positifs) ; avant, le solde net déduisait trop-perçus et mairies à saisir. --}}
+    ['label' => 'Reste à payer', 'value' => $fmt($totaux['tout']['reste']) . ' FCFA'],
     ['label' => 'Arrêté au', 'value' => now()->format('d/m/Y')],
 ]])
 
@@ -74,7 +76,10 @@
                     <td class="right mono">{{ $l['tm'] ? $fmt($l['tm']) : '' }}</td>
                     <td class="right mono"><b>{{ $fmt($l['total_du']) }}</b></td>
                     <td class="right mono">{{ $l['total_paye'] ? $fmt($l['total_paye']) : '' }}</td>
-                    <td class="right mono"><b>{{ $fmt($l['solde']) }}</b></td>
+                    {{-- 2026-11-27 (point 1) : statut du Suivi sous le solde. --}}
+                    @php $st = \App\Services\Taxes\TaxeExerciceService::statutAffiche($l); @endphp
+                    <td class="right mono"><b>{{ $st === 'a_saisir' ? '—' : $fmt($l['solde']) }}</b>
+                        <div style="font-size:6.5px;font-weight:400;font-family:sans-serif;white-space:nowrap">{{ trim(preg_replace('/^[^\p{L}]+/u', '', \App\Services\Taxes\TaxeExerciceService::LIBELLES_STATUT[$st][1] ?? '')) }}</div></td>
                 </tr>
             @empty
                 <tr><td colspan="13" class="tdoc-muted" style="text-align:center">Aucune mairie.</td></tr>

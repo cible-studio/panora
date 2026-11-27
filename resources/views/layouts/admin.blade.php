@@ -300,9 +300,9 @@
                     {{-- 2026-07-21 : Taxes Communes ouvert au comptable
                          (suivi mensuel des taxes ODP+TM à payer aux mairies). --}}
                     @if($voit('taxes'))
-                    <a href="{{ route('admin.taxes.index') }}" data-tooltip="Taxes Communes" class="nav-item {{ request()->routeIs('admin.taxes.*') && !request()->routeIs('admin.taxes.suivi.*') ? 'active' : '' }}">
+                    <a href="{{ route('admin.taxes.index') }}" data-tooltip="Taxes communales" class="nav-item {{ request()->routeIs('admin.taxes.*') && !request()->routeIs('admin.taxes.suivi.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
-                        <span class="nav-text">Taxes Communes</span>
+                        <span class="nav-text">Taxes communales</span>
                     </a>
                     {{-- 2026-11-16 : Suivi des mairies — la fiche de la direction
                          (arriérés, règlements, solde par exercice). --}}

@@ -3495,3 +3495,32 @@ Les 24 points relevés pour la vidéo « Facturer et encaisser » ont été corr
 - **Litige sur une facture partiellement payée ou en retard** : la table des transitions suit les boutons actuels, qui ne le proposent pas. À ajouter si le besoin existe.
 - **Avoir** : à chiffrer comme chantier à part.
 - **Manuel comptable** (`docs/manuels/03-comptable.md`) : à réécrire à partir du texte de la vidéo.
+
+---
+
+## § 56 — Taxes communales : corrections avant la vidéo des comptables *(2026-11-27)*
+
+Les 21 points de l'audit des taxes sont corrigés (liste et recommandations : `docs/formation/plan-videos-formation.md`, section 4 ; validés « ok pour tout ce qui est recommandé » ; point 5 : la surface est `PanelFormat::surface_m2` partout, aucun format différent en production). Tests : `TaxesFormationComptableTest` (nouveau, 10 tests), `TaxeExerciceServiceTest`, `TaxeDetailSelectionTest`, `FinanceFormationComptableTest` complétés. Vérifié sur la copie MySQL (panora_essai) : page Taxes, Détail par panneau, Suivi et Calcul Panora donnent le même total 2026 (105 846 000) et le même parc (305 panneaux, 364 faces).
+
+**Bogue trouvé en vérifiant** : depuis le 26/11 (tarif mois par mois), le Détail par panneau tombait en **erreur 500** dès qu'un tarif changeait pendant la période et qu'un panneau n'avait pas de campagne. Corrigé (`TaxCalculationService::moisDeLaLigneDans`), test ajouté.
+
+**Ce qui change pour les utilisateurs**
+- **Relevé pour la mairie** (Suivi) : une mairie 2026 dont le réclamé n'est pas saisi n'affiche plus « Payé en trop … déduit de 2027 » mais « Non arrêté ». Le PDF et l'Excel du Suivi ont le statut de chaque mairie et le « Reste à payer » de l'écran.
+- **PDF du Détail par panneau en 2026** (année de reprise) : « Total calculé par la régie (contrôle) » au lieu de « TOTAL À PAYER », avec le renvoi au relevé du Suivi. À partir de 2027, « TOTAL À PAYER » revient.
+- **Page Taxes** : même calcul que le Détail (panneaux démantelés en cours d'année compris) ; « Panneaux » = mâts taxés, faces à côté ; les boutons Détail, Suivi et PDF suivent la période et les cases choisies ; la case « Inclure la maintenance » a le même sens que sur le Détail ; taux de couverture et Top 5 sans les mairies « à saisir » ; colonne « Tarifs » avec « 1 000 (par défaut) » ; T1 à T4 au lieu de Q1 à Q4.
+- **Détail par panneau** : colonne « État actuel » (« En affichage » au lieu de « Occupé ») ; « × 12 mois » au lieu de « 12m » ; ODP en bleu, TM en violet comme la page Taxes. L'Excel prend le tarif réellement appliqué (Tarif × Surface × Mois = Montant) et, pour l'ODP, la période taxée ; ses filtres sont écrits en français ; « FÉVRIER » en capitales justes.
+- **Tarifs communes** : la page montre le tarif **en vigueur aujourd'hui** (un tarif programmé passé apparaît enfin) ; « Dernier changement » ne regarde que le passé ; un tarif programmé se supprime depuis l'historique (« 🗑 Supprimer ce tarif programmé », l'ancien tarif reprend) ; tout montant entier est accepté (250, 1 250). Réglages → Communes affiche aussi le tarif en vigueur.
+- **Alerte du trimestre** : premier jour **ouvré** fériés compris (prochaine : **lundi 4 janvier 2027**, le 1er janvier est férié) ; une alerte dans le centre d'alertes du comptable en plus du mail ; titre « début du T1 2027 ».
+- **Mails staff** : plus aucun mail aux comptes désactivés (toutes les alertes, pas seulement les taxes).
+- **Anciennes adresses** (`/admin/taxes/create`, modifier, supprimer, payer, génération automatique, ancien PDF) : elles ramènent à la page Taxes avec un message.
+- Menus : « Taxes communales », « Tarifs communes » (mêmes noms partout). Notes de l'historique tarifaire lisibles (« ODP 1 500 F/m²/mois »).
+
+### À vérifier (prod, après déploiement)
+- [ ] **Page Taxes, année 2026** : le grand total = le total du Détail par panneau (Annuel 2026) = le « Calcul Panora » du Suivi des mairies. S'il diffère, noter les deux chiffres.
+- [ ] Page Taxes : changer la période puis cliquer « Détail par panneau » → le détail s'ouvre sur la même période, même total
+- [ ] Tarifs communes : une commune avec un tarif programmé dont la date est passée affiche le nouveau tarif ; « Dernier changement » n'affiche jamais une date future
+- [ ] Tarifs communes → Historique d'une commune avec un tarif programmé → « 🗑 Supprimer ce tarif programmé » → l'ancien tarif reprend (ligne « ✓ COURANT » sans date de fin)
+- [ ] Suivi des mairies 2026 → une mairie « ✍ Réclamé à saisir » qui a déjà versé → « Relevé pour la mairie » : « Non arrêté », pas de « Payé en trop »
+- [ ] Détail par panneau → PDF, période 2026 : « Total calculé par la régie (contrôle) » et le renvoi au Suivi
+- [ ] Le **4 janvier 2027** au matin : le comptable a l'alerte « Taxes mairies — début du T1 2027 » dans son centre d'alertes et le mail ; rien le 1er janvier
+- [ ] **Quittances** (point 19) : elles sont rangées sur le disque du serveur (`storage/app/private/taxes/quittances/…`). Vérifier dans Coolify que `storage/` est un **volume conservé** entre deux déploiements : enregistrer un règlement avec quittance, redéployer, puis « Voir » la quittance. Si « Quittance introuvable », le volume manque (même contrôle que les photos de pige).

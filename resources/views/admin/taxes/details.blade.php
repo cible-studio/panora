@@ -38,16 +38,16 @@
     @php
         $typeLabels = ['tm' => 'TM', 'odp' => 'ODP'];
         $typeColors = [
-            'tm'  => ['bg' => 'rgba(34,197,94,.1)',  'c' => '#16a34a'],
-            'odp' => ['bg' => 'rgba(249,115,22,.1)', 'c' => '#ea580c'],
+            // 2026-11-27 (point 16) : ODP bleu, TM violet, comme la page Taxes.
+            'tm'  => ['bg' => 'rgba(168,85,247,.1)', 'c' => '#9333ea'],
+            'odp' => ['bg' => 'rgba(59,130,246,.1)', 'c' => '#2563eb'],
         ];
-        $statutLabels = [
-            'libre'       => '🟢 Libre',
-            'occupe'      => '🔴 Occupé',
-            'option'      => '🟡 Option',
-            'confirme'    => '🔵 Confirmé',
-            'maintenance' => '🔧 Maintenance',
-        ];
+        // 2026-11-27 (points 16-17) : libellés de PanelStatus (« En affichage »).
+        // C'est l'état du panneau AUJOURD'HUI, pas pendant la période.
+        $etatPanneau = function ($statut) {
+            $e = \App\Enums\PanelStatus::tryFrom((string) $statut);
+            return $e ? $e->uiConfig()['icon'] . ' ' . $e->label() : (string) $statut;
+        };
     @endphp
 
     {{-- ═══ FILTRES ═══ --}}
@@ -278,16 +278,22 @@
             ],
             [
                 'label' => 'TM', 'val' => $totals['by_type']['tm']  ?? 0, 'sub' => 'taxe municipale',
-                'color' => '#22c55e', 'unit' => ' FCFA',
+                'color' => '#a855f7', 'unit' => ' FCFA',
                 'svg' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M10 21V11h4v10"/></svg>',
             ],
             [
                 'label' => 'ODP', 'val' => $totals['by_type']['odp'] ?? 0, 'sub' => 'domaine public',
-                'color' => '#f97316', 'unit' => ' FCFA',
+                'color' => '#3b82f6', 'unit' => ' FCFA',
                 'svg' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
             ],
             [
-                'label' => 'Panneaux', 'val' => $totals['panels_count'], 'sub' => 'concernés période',
+                // 2026-11-27 (point 13) : mâts taxés à l'ODP, faces à côté,
+                // comme la page Taxes et le Suivi. Filtre TM seul : faces en campagne.
+                'label' => 'Panneaux',
+                'val'   => ($totals['mats_count'] ?? 0) > 0 ? $totals['mats_count'] : $totals['panels_count'],
+                'sub'   => ($totals['mats_count'] ?? 0) > 0
+                    ? 'mâts taxés · ' . number_format($totals['faces_count'] ?? 0, 0, ',', ' ') . ' face(s)'
+                    : 'faces en campagne',
                 'color' => '#6b7280', 'unit' => '',
                 'svg' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
             ],
@@ -390,7 +396,7 @@
                         <th>Panneau</th>
                         <th>Dimensions</th>
                         <th>Type</th>
-                        <th>Statut</th>
+                        <th title="État du panneau aujourd'hui, pas pendant la période affichée">État actuel</th>
                         <th>Client</th>
                         <th>Campagne</th>
                         <th>Période campagne</th>
@@ -446,7 +452,7 @@
                                  une erreur de saisie doit pouvoir se repérer ici. --}}
                             @if(($row['faces_pied'] ?? 1) > 1)
                                 <div style="font-size:10px;color:#78350f;font-weight:700;"
-                                     title="Surface taxable = {{ rtrim(rtrim(number_format($row['surface_face'] ?? 0, 2), '0'), '.') }} m² par face × {{ $row['faces_pied'] }} faces. Le nombre de faces est lu dans le nom de l'axe.">
+                                     title="Surface taxable = {{ rtrim(rtrim(number_format($row['surface_face'] ?? 0, 2), '0'), '.') }} m² par face × {{ $row['faces_pied'] }} faces. Le nombre de faces vient de la fiche du pied, sinon de celle de l'axe.">
                                     {{ rtrim(rtrim(number_format($row['surface_face'] ?? 0, 2), '0'), '.') }} m² × {{ $row['faces_pied'] }} faces
                                 </div>
                             @endif
@@ -456,7 +462,7 @@
                                 {{ $typeLabels[$row['type']] ?? $row['type'] }}
                             </span>
                         </td>
-                        <td style="font-size:12px;">{{ $statutLabels[$row['statut']] ?? $row['statut'] }}</td>
+                        <td style="font-size:12px;">{{ $etatPanneau($row['statut']) }}</td>
                         <td>{{ $row['client_name'] ?? '—' }}</td>
                         <td>
                             @if($row['campaign_id'])
@@ -480,9 +486,9 @@
                                 //   TM  → tarif_mensuel × surface × Nm (mois anniversaires)
                                 //   ODP → tarif_mensuel × surface × Nm (mois calendaires touchés)
                                 $rateShown = $row['rate_applied'] ?? $row['rate'];
-                                $unitAbbr  = ($row['unit'] ?? 'mois') === 'trimestre' ? 't' : 'm';
+                                $unitTxt   = ($row['unit'] ?? 'mois') === 'trimestre' ? 'trim.' : 'mois';
                             @endphp
-                            {{ number_format($rateShown, 0, ',', ' ') }} × {{ rtrim(rtrim(number_format($row['surface'], 2), '0'), '.') }}m² × {{ $row['months'] }}{{ $unitAbbr }}
+                            {{ number_format($rateShown, 0, ',', ' ') }} × {{ rtrim(rtrim(number_format($row['surface'], 2), '0'), '.') }} m² × {{ $row['months'] }} {{ $unitTxt }}
                         </td>
                         <td style="text-align:right;font-weight:700;color:var(--accent);">
                             {{ number_format($row['amount'], 0, ',', ' ') }} FCFA
@@ -538,8 +544,8 @@
         d'une face. La TM, elle, taxe l'affichage → elle reste due <strong>par face</strong>.<br>
         💡 <strong>Point de départ ODP</strong> : les panneaux déjà en place avant Panora sont
         taxés sur toute la période ; ceux créés dans l'app le sont à partir de leur date de création.<br>
-        💡 <strong>Maintenance</strong> : les panneaux en maintenance sont exclus du calcul sauf si
-        la case « Inclure » est cochée.<br>
+        💡 <strong>Maintenance</strong> : les panneaux en maintenance restent comptés (le mât
+        occupe toujours le sol) ; décochez « Inclure la maintenance » pour les retirer.<br>
         Les tarifs utilisent l'<strong>historique tarifaire</strong> de la commune (cohérence rétroactive).
     </div>
 

@@ -298,56 +298,10 @@ class TaxController extends Controller
         // Libellé période lisible (titre PDF + nom du fichier)
         $periodLabel = $this->periodLabel($periodType, $periodValue, $periodEndValue, $year);
 
-        // Récap filtres pour l'en-tête PDF — structure lisible pour l'affichage
-        // « fiche synthétique » (labels FR) + chaîne compacte legacy conservée
-        // pour l'export Excel et l'ancien nom de fichier.
-        $filterMeta  = [];
-        $filterParts = [];
-        if (!empty($filters['commune_id'])) {
-            $c = Commune::find($filters['commune_id']);
-            if ($c) {
-                $filterMeta[]  = ['label' => 'Commune',  'value' => $c->name];
-                $filterParts[] = "commune={$c->name}";
-            }
-        }
-        if (!empty($filters['client_id'])) {
-            $cl = Client::find($filters['client_id']);
-            if ($cl) {
-                $filterMeta[]  = ['label' => 'Client',   'value' => $cl->name];
-                $filterParts[] = "client={$cl->name}";
-            }
-        }
-        if (!empty($filters['campaign_id'])) {
-            $cm = Campaign::find($filters['campaign_id']);
-            if ($cm) {
-                $filterMeta[]  = ['label' => 'Campagne', 'value' => $cm->name];
-                $filterParts[] = "campagne={$cm->name}";
-            }
-        }
-        // 2026-11-13 — La maintenance est désormais incluse par défaut
-        // (l'ODP court tant que le mât est planté) : c'est l'EXCLUSION
-        // qui mérite d'être écrite sur le PDF.
-        if (!empty($filters['exclure_maintenance'])) {
-            $filterMeta[]  = ['label' => 'Maintenance', 'value' => 'Panneaux en maintenance exclus'];
-            $filterParts[] = 'maintenance=exclue';
-        }
-        if (!empty($filters['inclure_lumipub'])) {
-            $filterMeta[]  = ['label' => 'Lumipub', 'value' => 'Pieds des axes inclus (une ligne par mât)'];
-            $filterParts[] = 'lumipub=inclus';
-        }
-        // 2026-11-24 (demande de l'utilisateur) : les catégories exclues
-        // (chevalets…) ne sont plus jamais écrites sur le document. Le filtre
-        // s'applique toujours aux lignes ; seule sa mention disparaît.
-        if (!empty($filters['type'])) {
-            $typeLabels = ['tm' => 'Taxe Municipale (TM)', 'odp' => 'Occupation Domaine Public (ODP)'];
-            $filterMeta[]  = ['label' => 'Nature',   'value' => $typeLabels[$filters['type']] ?? strtoupper($filters['type'])];
-            $filterParts[] = "type=" . strtoupper($filters['type']);
-        }
-        if ($selection) {
-            $filterMeta[]  = ['label' => 'Sélection', 'value' => $selection];
-            $filterParts[] = 'selection=' . $selection;
-        }
-        $filterSummary = implode(' · ', $filterParts);
+        // Récap filtres pour l'en-tête PDF (libellés en français). 2026-11-27
+        // (point 16) : même description que l'en-tête de l'Excel.
+        $filterMeta    = $this->filtresLisibles($filters, $selection);
+        $filterSummary = self::resumeFiltres($filterMeta);
 
         // 2026-11-24 — Dates de début et de fin, et trimestres couverts, en
         // gras en tête du PDF. Mêmes bornes que le calcul des lignes.
@@ -392,17 +346,9 @@ class TaxController extends Controller
 
         $periodLabel = $this->periodLabel($periodType, $periodValue, $periodEndValue, $year);
 
-        // Récap filtres pour l'en-tête imprimable de la feuille
-        $parts = [];
-        if (!empty($filters['commune_id']))  { $c = Commune::find($filters['commune_id']);  if ($c) $parts[] = "commune={$c->name}"; }
-        if (!empty($filters['client_id']))   { $c = Client::find($filters['client_id']);    if ($c) $parts[] = "client={$c->name}"; }
-        if (!empty($filters['campaign_id'])) { $c = Campaign::find($filters['campaign_id']);if ($c) $parts[] = "campagne={$c->name}"; }
-        if (!empty($filters['type']))        $parts[] = 'type=' . strtoupper($filters['type']);
-        if (!empty($filters['exclure_maintenance'])) $parts[] = 'maintenance=exclue';
-        if (!empty($filters['inclure_lumipub']))     $parts[] = 'lumipub=inclus';
-        // 2026-11-24 : catégories exclues jamais écrites (cf. detailsPdf).
-        if ($selection) $parts[] = "selection={$selection}";
-        $filterSummary = implode(' · ', $parts);
+        // Récap filtres pour l'en-tête imprimable de la feuille. 2026-11-27
+        // (point 16) : en français, comme le PDF (avant : « type=TM »).
+        $filterSummary = self::resumeFiltres($this->filtresLisibles($filters, $selection));
 
         // 2026-09-23 — Nom personnalisable, cf. detailsPdf().
         $filename = DownloadFilename::sanitize(
@@ -495,6 +441,48 @@ class TaxController extends Controller
      * modal de renommage : la suggestion affichée à l'écran est ainsi
      * exactement ce que le serveur utilisera si l'utilisateur ne change rien.
      */
+    /**
+     * Filtres du Détail par panneau, en français, pour l'en-tête du PDF et de
+     * l'Excel (source unique, 2026-11-27). Les catégories exclues ne sont
+     * jamais écrites (demande du 24/11) ; la maintenance n'est écrite que
+     * quand elle est exclue (incluse par défaut depuis le 13/11).
+     *
+     * @return array<int, array{label: string, value: string}>
+     */
+    private function filtresLisibles(array $filters, ?string $selection): array
+    {
+        $meta = [];
+        if (!empty($filters['commune_id']) && ($c = Commune::find($filters['commune_id']))) {
+            $meta[] = ['label' => 'Commune', 'value' => $c->name];
+        }
+        if (!empty($filters['client_id']) && ($cl = Client::find($filters['client_id']))) {
+            $meta[] = ['label' => 'Client', 'value' => $cl->name];
+        }
+        if (!empty($filters['campaign_id']) && ($cm = Campaign::find($filters['campaign_id']))) {
+            $meta[] = ['label' => 'Campagne', 'value' => $cm->name];
+        }
+        if (!empty($filters['exclure_maintenance'])) {
+            $meta[] = ['label' => 'Maintenance', 'value' => 'Panneaux en maintenance exclus'];
+        }
+        if (!empty($filters['inclure_lumipub'])) {
+            $meta[] = ['label' => 'Lumipub', 'value' => 'Pieds des axes inclus (une ligne par mât)'];
+        }
+        if (!empty($filters['type'])) {
+            $typeLabels = ['tm' => 'Taxe Municipale (TM)', 'odp' => 'Occupation Domaine Public (ODP)'];
+            $meta[] = ['label' => 'Nature', 'value' => $typeLabels[$filters['type']] ?? strtoupper($filters['type'])];
+        }
+        if ($selection) {
+            $meta[] = ['label' => 'Sélection', 'value' => $selection];
+        }
+        return $meta;
+    }
+
+    /** « Commune : Abidjan · Nature : Taxe Municipale (TM) ». */
+    private static function resumeFiltres(array $meta): string
+    {
+        return implode(' · ', array_map(fn ($m) => $m['label'] . ' : ' . $m['value'], $meta));
+    }
+
     private function periodLabel(string $periodType, int $periodValue, ?int $periodEndValue, int $year): string
     {
         return match ($periodType) {
@@ -572,26 +560,34 @@ class TaxController extends Controller
         ]);
     }
 
+    /**
+     * 2026-11-27 (point 20 validé) — Anciennes fonctions de la table `taxes`
+     * (avant le Suivi des mairies) : créer / modifier / supprimer / payer une
+     * écriture, génération automatique, PDF. Plus aucun écran ne les lit :
+     * /admin/taxes/create enregistrait une ligne qui n'apparaissait nulle
+     * part. Les adresses restent valables et ramènent à la page Taxes, comme
+     * /admin/taxes/{id} (point 23 du 26/11).
+     */
+    private function ancienneFonctionTaxes(Request $request)
+    {
+        $message = 'Cette ancienne fonction des taxes n\'existe plus : les montants dus se lisent sur cette page, '
+            . 'les règlements s\'enregistrent dans le Suivi des mairies.';
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['error' => $message], 410);
+        }
+
+        return redirect()->route('admin.taxes.index')->with('info', $message);
+    }
+
     public function create()
     {
-        $communes = Commune::orderBy('name')->get();
-        return view('admin.taxes.create', compact('communes'));
+        return $this->ancienneFonctionTaxes(request());
     }
 
     public function store(Request $request)
     {
-        $request->validate([
-            'commune_id' => 'required|exists:communes,id',
-            'year'       => 'required|integer|min:2000|max:2099',
-            'type'       => 'required|in:odp,tm,db',
-            'amount'     => 'required|numeric|min:0',
-            'due_date'   => 'nullable|date',
-        ]);
-
-        Tax::create($request->all());
-
-        return redirect()->route('admin.taxes.index')
-            ->with('success', 'Taxe créée avec succès !');
+        return $this->ancienneFonctionTaxes($request);
     }
 
     public function show(Tax $tax)
@@ -606,91 +602,45 @@ class TaxController extends Controller
 
     public function edit(Tax $tax)
     {
-        $communes = Commune::orderBy('name')->get();
-        return view('admin.taxes.edit', compact('tax', 'communes'));
+        return $this->ancienneFonctionTaxes(request());
     }
 
     public function update(Request $request, Tax $tax)
     {
-        $request->validate([
-            'commune_id' => 'required|exists:communes,id',
-            'year'       => 'required|integer|min:2000|max:2099',
-            'type'       => 'required|in:odp,tm,db',
-            'amount'     => 'required|numeric|min:0',
-            'due_date'   => 'nullable|date',
-            'status'     => 'required|in:en_attente,payee,en_retard',
-        ]);
-
-        $tax->update($request->all());
-
-        return redirect()->route('admin.taxes.index')
-            ->with('success', 'Taxe modifiée !');
+        return $this->ancienneFonctionTaxes($request);
     }
 
     public function destroy(Tax $tax)
     {
-        $tax->delete();
-        return redirect()->route('admin.taxes.index')
-            ->with('success', 'Taxe supprimée !');
+        return $this->ancienneFonctionTaxes(request());
     }
 
     public function markPaid(Request $request, Tax $tax)
     {
-        $tax->update([
-            'status'  => 'payee',
-            'paid_at' => now(),
-        ]);
-
-        return back()->with('success', 'Taxe marquée comme payée ! ✅');
+        return $this->ancienneFonctionTaxes($request);
     }
 
-    /**
-     * Pré-visualise les lignes Tax qui seraient créées pour l'année donnée.
-     * Sans effet de bord — l'admin déclenche la création via generateAuto().
-     */
+    /** Ancienne génération automatique (aperçu) : voir ancienneFonctionTaxes(). */
     public function previewAuto(Request $request, \App\Services\TaxAutoService $service)
     {
-        $year = (int) $request->input('year', date('Y'));
-        if ($year < 2000 || $year > 2099) {
-            return response()->json(['error' => 'Année invalide.'], 422);
-        }
-        return response()->json($service->preview($year));
+        return $this->ancienneFonctionTaxes($request);
     }
 
-    /**
-     * Applique la génération automatique des taxes pour l'année donnée.
-     * Idempotent : ré-appel sur la même année ne crée rien si les lignes
-     * existent déjà.
-     */
+    /** Ancienne génération automatique : voir ancienneFonctionTaxes(). */
     public function generateAuto(Request $request, \App\Services\TaxAutoService $service)
     {
-        $request->validate([
-            'year' => 'required|integer|min:2000|max:2099',
-        ]);
-
-        $result = $service->apply((int) $request->input('year'));
-
-        $msg = $result['created'] > 0
-            ? sprintf('%d taxe(s) créée(s) pour %d (%s FCFA).',
-                     $result['created'], $result['year'], number_format($result['total_amount'], 0, ',', ' '))
-            : 'Aucune nouvelle taxe à créer pour ' . $result['year'] . '.';
-
-        if ($request->expectsJson() || $request->ajax()) {
-            return response()->json(array_merge(['success' => true, 'message' => $msg], $result));
-        }
-        return redirect()->route('admin.taxes.index', ['year' => $result['year']])
-            ->with('success', $msg);
+        return $this->ancienneFonctionTaxes($request);
     }
 
     /**
      * Calcul live ODP + TM sur une période donnée. Retourne le tableau
      * commune × format avec lignes détaillées + KPIs globaux.
      *
-     * Formules (CIBLE CI / mairies CI 2025) :
-     *   ODP = commune.odp_rate × surface_m² × nb_panneaux × nb_mois
-     *   TM  = 1000 × surface_m² × nb_panneaux × nb_mois  (fixe national)
-     *
-     * nb_mois selon period_type : mensuel=1, trimestriel=3, annuel=12.
+     * Depuis le 2026-11-27 : regroupe les lignes de
+     * TaxCalculationService::generateLines() (même calcul que le Détail par
+     * panneau et le Suivi des mairies) :
+     *   ODP = tarif du mois × surface × mois calendaires où le mât est debout
+     *   TM  = tarif du mois (1 000 par défaut) × surface × mois de campagne
      *
      * Endpoint AJAX appelé depuis l'UI pour basculer entre les vues.
      */
@@ -736,49 +686,16 @@ class TaxController extends Controller
             default       => 1,
         };
 
-        // Charge les communes avec leurs panneaux opérables. On limite les
-        // colonnes pour rester léger : un parc de 1000 panneaux × 34
-        // communes = ~30k cellules, l'agrégation est instantanée en mémoire.
-        //
         // TX-12 (2026-09-23) — La maintenance est pilotable, comme sur
-        // /admin/taxes/details : les deux écrans doivent répondre au même
-        // filtre, sinon leurs totaux ne se raccordent pas.
-        // 2026-11-13 — Le sens par défaut s'inverse : la maintenance est
-        // INCLUSE (l'ODP court tant que le mât occupe le sol), et c'est
-        // 'exclure_maintenance' qui la retire. (L'ancien
-        // 'include_maintenance', sans effet depuis, a été retiré le
-        // 2026-11-17.)
+        // /admin/taxes/details. 2026-11-13 : incluse par défaut,
+        // 'exclure_maintenance' la retire. Lumipub : pieds exclus par défaut.
         $exclureMaintenance = $request->boolean('exclure_maintenance');
         $inclureLumipub     = $request->boolean('inclure_lumipub');
-        $communes = Commune::query()
-            ->with([
-                'panels' => fn($q) => $q
-                    ->whereNull('deleted_at')
-                    ->avecTaxesAutomatiques($inclureLumipub)
-                    ->when($exclureMaintenance, fn($qq) => $qq->whereNotIn('status', ['maintenance']))
-                    ->with('format:id,name,width,height'),
-            ])
-            ->whereNotNull('odp_rate')
-            ->get(['id', 'name', 'odp_rate', 'tm_rate', 'odp_rate_eclaire', 'tm_rate_eclaire']);
-
-        // ── 2026-11-16 — TM : SOURCE UNIQUE (TaxCalculationService) ──────
-        // Avant, ce tableau recalculait la TM avec sa propre formule : mois
-        // CALENDAIRES occupés × tarif × m² (un jour de campagne dans le mois
-        // = un mois), alors que le détail, le PDF, l'Excel et la fiche
-        // commune comptent les mois de campagne de date à date (règle
-        // validée le 2026-07-29). Deux TM pour la même période. Elle vient
-        // désormais de generateLines(), comme l'ODP depuis TX-12 — avec la
-        // règle du 2026-11-16 : toutes les campagnes du panneau, chaque mois
-        // rangé dans la période où il commence.
 
         // ── 2026-11-16 — Payé, solde et statut : ceux de l'EXERCICE ──────
-        // Source unique : TaxeExerciceService (Suivi des mairies). Avant, ce
-        // tableau lisait commune_tax_payments par period_year, avec un
-        // prorata quand un versement débordait la période, pendant que la
-        // fiche commune rangeait les mêmes versements par date de paiement :
-        // deux écrans, deux « payé ». Un règlement se rattache désormais à un
-        // exercice, pas à un mois ; le dû théorique de la PÉRIODE reste
-        // affiché à part (colonnes ODP / TM / Total).
+        // Source unique : TaxeExerciceService (Suivi des mairies). Un règlement
+        // se rattache à un exercice, pas à un mois ; le dû théorique de la
+        // PÉRIODE reste affiché à part (colonnes ODP / TM / Total).
         $queryMonths = self::monthsForPeriod($periodType, $periodValue, $periodEndValue);
 
         $suivi = app(\App\Services\Taxes\TaxeExerciceService::class);
@@ -788,74 +705,74 @@ class TaxController extends Controller
             ->get()
             ->groupBy('commune_id');
 
-        // Date de référence pour le snapshot tarifaire : on prend le
-        // 1er jour du mois de la période demandée. Garantit que les
-        // rapports historiques utilisent les tarifs en vigueur À CETTE
-        // DATE (cohérent avec Invoice::syncLines qui fige les taux à
-        // issued_at via Commune::ratesAt — règle d'or §3).
+        // Tarifs AFFICHÉS : ceux du 1er jour de la période (Commune::ratesAt).
+        // Le calcul, lui, prend le tarif de chaque mois (generateLines).
         $rateDate = \Carbon\Carbon::create(
             $periodYear,
             $queryMonths[0] ?? 1,
             1
         )->toDateString();
 
-        // ── TX-12 (2026-09-23) — SOURCE UNIQUE POUR L'ODP ──────────
-        // Avant : ce dashboard recalculait l'ODP avec sa propre formule
-        // ($odpRate × m² × qty × nbMois) pendant que /admin/taxes/details
-        // utilisait TaxCalculationService. Deux moteurs → deux résultats
-        // (divergence ×3 en mensuel, désaccord sur la maintenance et sur
-        // les mâts double-face depuis TX-10). On consomme désormais le
-        // service, agrégé par (commune, format) pour alimenter le tableau.
-        // 2026-11-16 — Même chose pour la TM : un seul appel, les deux types.
-        $theoParCommuneFormat = $calc
-            ->generateLines($periodType, $periodValue, $periodYear, [
-                'exclure_maintenance' => $exclureMaintenance,
-                'inclure_lumipub'     => $inclureLumipub,
-            ], $periodEndValue)
-            ->groupBy(fn($l) => $l['commune_id'] . '|' . $l['format_id'] . '|' . $l['type'])
-            ->map(fn($g) => (float) $g->sum('amount'));
+        // ── 2026-11-27 (point 4 validé) — LES LIGNES DU MOTEUR, telles quelles ──
+        // Même calcul que le Détail par panneau et que le Suivi des mairies
+        // (TaxCalculationService::generateLines) : ODP et TM, panneaux
+        // démantelés en cours de période (ODP au prorata), formats sans
+        // largeur/hauteur et communes sans tarif ODP compris. Avant, la page
+        // repartait du parc ACTUEL (panneaux debout, formats complets) et
+        // allait chercher les montants du moteur par (commune, format) : ce qui
+        // n'avait plus de panneau debout disparaissait du total.
+        $lignesMoteur = $calc->generateLines($periodType, $periodValue, $periodYear, [
+            'exclure_maintenance' => $exclureMaintenance,
+            'inclure_lumipub'     => $inclureLumipub,
+        ], $periodEndValue);
+        $parCommune = $lignesMoteur->groupBy('commune_id');
+        $formats = \App\Models\PanelFormat::query()
+            ->whereIn('id', $lignesMoteur->pluck('format_id')->filter()->unique()->values()->all())
+            ->get(['id', 'name', 'width', 'height', 'surface'])
+            ->keyBy('id');
+        $communes = Commune::query()
+            ->whereIn('id', $parCommune->keys()->all())
+            ->get(['id', 'name', 'city', 'odp_rate', 'tm_rate', 'odp_rate_eclaire', 'tm_rate_eclaire']);
 
-        $rows = $communes->map(function ($commune) use ($periodYear, $rateDate, $theoParCommuneFormat, $suivi, $exercicesSuivis, $reglementsAnnee) {
-            // Phase audit 8E — tarifs HISTORISÉS, pas courants.
-            // Avant : $commune->odp_rate (valeur actuelle) → divergeait
-            // avec la facturation qui utilise ratesAt(issued_at).
+        // Faces d'une ligne ODP : même règle que le Suivi des mairies.
+        $faces = fn (array $l) => TaxCalculationService::facesDeLigne($l);
+
+        $rows = $communes->map(function ($commune) use ($periodYear, $rateDate, $parCommune, $formats, $faces, $suivi, $exercicesSuivis, $reglementsAnnee) {
+            // Phase audit 8E — tarifs HISTORISÉS (Commune::ratesAt).
             $rates   = $commune->ratesAt($rateDate);
             $odpRate = (float) ($rates['odp'] ?? 0);
-            // 2026-11-26 — Sans tarif TM, la base nationale s'applique
-            // (generateLines() aussi, règle confirmée le 26/11) : on l'affiche,
-            // avec un repère « par défaut » pour que le tarif soit renseigné.
-            $tmRate  = (float) ($rates['tm'] ?? 0);
-            $tmParDefaut = $tmRate <= 0;
-            if ($tmParDefaut) {
-                $tmRate = \App\Services\TaxCalculationService::tmParDefaut();
-            }
-            // 2026-11-18 — Tarif des panneaux éclairés, affiché s'il diffère
-            // (le calcul, lui, vient de generateLines(), panneau par panneau).
+            // Sans tarif TM, la base nationale s'applique (règle du 26/11) :
+            // on l'affiche, avec la mention « par défaut » (point 12, 27/11).
+            $tmBrut      = (float) ($rates['tm'] ?? 0);
+            $tmParDefaut = $tmBrut <= 0;
+            $tmRate      = $tmParDefaut ? \App\Services\TaxCalculationService::tmParDefaut() : $tmBrut;
+            // Tarif des panneaux éclairés, affiché s'il diffère — avec la même
+            // base par défaut (avant : « TM 0 » s'affichait comme un tarif éclairé).
             $ratesEclaire   = $commune->ratesAt($rateDate, true);
+            $tmEclaire      = (float) $ratesEclaire['tm'] > 0 ? (float) $ratesEclaire['tm'] : \App\Services\TaxCalculationService::tmParDefaut();
             $odpRateEclaire = (float) $ratesEclaire['odp'] !== $odpRate ? (float) $ratesEclaire['odp'] : null;
-            $tmRateEclaire  = (float) $ratesEclaire['tm'] !== $tmRate ? (float) $ratesEclaire['tm'] : null;
+            $tmRateEclaire  = $tmEclaire !== $tmRate ? $tmEclaire : null;
 
-            // Lignes détaillées par format (pour affichage tableau)
-            $lignes = $commune->panels
-                ->groupBy('format_id')
-                ->map(function ($panels) use ($tmRate, $odpRate, $theoParCommuneFormat, $commune) {
-                    $fmt = $panels->first()->format;
-                    if (!$fmt?->width || !$fmt?->height) return null;
+            $lc   = $parCommune->get($commune->id, collect());
+            $odpL = $lc->where('type', TaxCalculationService::TYPE_ODP);
 
-                    $m2  = round((float) $fmt->width * (float) $fmt->height, 2);
-                    $qty = $panels->count();
-                    $cle = $commune->id . '|' . $fmt->id . '|';
-                    $odp = round($theoParCommuneFormat[$cle . TaxCalculationService::TYPE_ODP] ?? 0);
-                    $tm  = round($theoParCommuneFormat[$cle . TaxCalculationService::TYPE_TM]  ?? 0);
+            // Lignes par format (infobulle du tableau)
+            $lignes = $lc
+                ->groupBy(fn ($l) => (int) ($l['format_id'] ?? 0))
+                ->map(function ($g, $formatId) use ($formats, $faces, $odpRate, $tmRate) {
+                    $fmt  = $formats->get($formatId);
+                    $odpG = $g->where('type', TaxCalculationService::TYPE_ODP);
+                    $odp  = round($odpG->sum('amount'));
+                    $tm   = round($g->where('type', TaxCalculationService::TYPE_TM)->sum('amount'));
 
                     return [
-                        'format_id'  => $fmt->id,
-                        'format'     => $fmt->name,
-                        'dimensions' => rtrim(rtrim(number_format($fmt->width, 2, '.', ''), '0'), '.')
-                                      . '×'
-                                      . rtrim(rtrim(number_format($fmt->height, 2, '.', ''), '0'), '.') . 'm',
-                        'm2'         => $m2,
-                        'qty'        => $qty,
+                        'format_id'  => $formatId ?: null,
+                        'format'     => $fmt?->name ?? '—',
+                        'dimensions' => $fmt?->dimensions_label ?? '',
+                        // Même surface que le moteur et que la facture (point 5, 27/11).
+                        'm2'         => (float) ($fmt?->surface_m2 ?? 0),
+                        'qty'        => $odpG->count(),                           // mâts
+                        'faces'      => (int) $odpG->sum(fn ($l) => $faces($l)),
                         'odp_taux'   => $odpRate,
                         'tm_taux'    => $tmRate,
                         'odp'        => $odp,
@@ -863,7 +780,6 @@ class TaxController extends Controller
                         'total'      => $odp + $tm,
                     ];
                 })
-                ->filter()
                 ->values();
 
             $odpTheo = (float) $lignes->sum('odp');
@@ -901,10 +817,15 @@ class TaxController extends Controller
                 'is_abidjan'     => $commune->isAbidjan(),
                 'odp_taux'       => $odpRate,
                 'tm_taux'        => $tmRate,
+                'tm_par_defaut'  => $tmParDefaut,
                 'odp_taux_eclaire' => $odpRateEclaire,
                 'tm_taux_eclaire'  => $tmRateEclaire,
-                'nb_panneaux'    => (int) $commune->panels->count(),
-                'surface_totale' => (float) $lignes->sum(fn($l) => $l['m2'] * $l['qty']),
+                // 2026-11-27 (point 13) — Panneaux = mâts taxés sur la période
+                // (comme le Suivi des mairies), faces à part ; surface = surface
+                // taxable des mâts (ODP).
+                'nb_panneaux'    => $odpL->count(),
+                'nb_faces'       => (int) $odpL->sum(fn ($l) => $faces($l)),
+                'surface_totale' => round((float) $odpL->sum('surface'), 2),
                 'odp_theorique'  => $odpTheo,
                 'tm_theorique'   => $tmTheo,
                 'total_theorique'=> $totalTheo,
@@ -935,7 +856,7 @@ class TaxController extends Controller
                 'lignes'         => $lignes,
             ];
         })
-        ->filter(fn($r) => $r['nb_panneaux'] > 0) // hide communes vides
+        ->filter(fn($r) => $r['nb_panneaux'] > 0 || $r['total_theorique'] > 0) // communes sans ligne : masquées
         // FIX 2026-06-22 — Tri alphabétique accent-insensitive (Adjamé, Attécoubé,
         // Port-Bouët triés correctement même avec accents/tirets/casse mixtes).
         ->sortBy(fn ($r) => Commune::normalizeForMatch($r['commune']))
@@ -957,6 +878,7 @@ class TaxController extends Controller
             'solde_total'      => (float) $totExercice['reste'],
             'communes_actives' => $rows->count(),
             'panneaux_total'   => (int) $rows->sum('nb_panneaux'),
+            'faces_total'      => (int) $rows->sum('nb_faces'),
             // FIX 2026-06-22 v2 — Compteurs basés sur le statut ANNUEL
             // (pas sur la période courante). Ainsi en mode Mensuel/Trim/Perso
             // on voit quand même les communes en cours de règlement sur
@@ -1005,14 +927,20 @@ class TaxController extends Controller
                 'total_du_exercice' => (float) $r['total_du_exercice'],
                 'total_paye'      => (float) $r['total_paye'],
                 'solde'           => (float) $r['solde'],
+                // 2026-11-27 (point 10) — réclamé non saisi : pas de %.
+                'a_saisir'        => (bool) $r['a_saisir'],
             ])
             ->values();
         // Taux de couverture : payé / dû de l'EXERCICE (2026-11-16), les deux
-        // venant du Suivi des mairies.
-        $totalDueYearGlobal = (float) $totExercice['total_du'];
+        // venant du Suivi des mairies. 2026-11-27 (point 10 validé) : sans les
+        // mairies dont le réclamé n'est pas saisi (dû 0 mais versements
+        // comptés : le taux pouvait dépasser 100 %).
+        $totCouverture = $suivi->totaux($exercicesSuivis->reject(fn ($e) => !empty($e['a_saisir'])));
+        $totalDueYearGlobal = (float) $totCouverture['total_du'];
         $kpi['taux_couverture'] = $totalDueYearGlobal > 0
-            ? round(($kpi['paye_total'] / $totalDueYearGlobal) * 100, 1)
+            ? round(((float) $totCouverture['total_paye'] / $totalDueYearGlobal) * 100, 1)
             : 0;
+        $kpi['communes_a_saisir'] = $exercicesSuivis->filter(fn ($e) => !empty($e['a_saisir']))->count();
 
         // LOT 4 (cahier 2026-06-19) — Évolution mensuelle des paiements
         // sur l'année en cours, par mois de versement. Source depuis le
@@ -1130,23 +1058,6 @@ class TaxController extends Controller
 
     public function exportPdf(Request $request)
     {
-        $query = Tax::with('commune');
-
-        if ($request->filled('commune_id')) {
-            $query->where('commune_id', $request->commune_id);
-        }
-        if ($request->filled('year')) {
-            $query->where('year', $request->year);
-        }
-
-        $taxes    = $query->orderBy('year', 'desc')->get();
-        $commune  = $request->filled('commune_id')
-            ? Commune::find($request->commune_id)
-            : null;
-
-        $pdf = Pdf::loadView('pdf.taxes-report', compact('taxes', 'commune'));
-        $pdf->setPaper('A4', 'landscape');
-
-        return $pdf->download('rapport-taxes.pdf');
+        return $this->ancienneFonctionTaxes($request);
     }
 }

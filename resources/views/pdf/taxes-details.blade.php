@@ -38,6 +38,13 @@
     $deCommune  = fn ($c) => (preg_match('/^[aeiouhâàéèêîïôûAEIOUHÂÀÉÈÊÎÏÔÛ]/u', $nomCommune($c)) ? "d'" : 'de ') . $nomCommune($c);
 
     $parCommune = $lines->groupBy('commune');
+
+    // 2026-11-27 (point 2 validé) — Année de reprise : ce que la mairie
+    // réclame, c'est le montant saisi dans le Suivi des mairies (son
+    // « Relevé pour la mairie »). Ce document-ci n'est alors qu'un calcul de
+    // contrôle : il ne dit plus « TOTAL À PAYER ».
+    $repriseDoc = $debutC && app(\App\Services\Taxes\TaxeExerciceService::class)->estReprise((int) $debutC->year);
+    $libelleTotal = $repriseDoc ? 'TOTAL CALCULÉ PAR LA RÉGIE (CONTRÔLE)' : 'TOTAL À PAYER';
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
@@ -171,7 +178,7 @@
                         <tr class="st"><td colspan="5" class="right">Sous-total ODP</td><td class="right mono">{{ $fmt($odp->sum('amount')) }}</td></tr>
                     @else
                         <tr class="tdoc-total">
-                            <td colspan="5" class="right">TOTAL À PAYER</td>
+                            <td colspan="5" class="right">{{ $libelleTotal }}</td>
                             <td class="tdoc-amount mono">{{ $fmt($total) }}<span>FCFA</span></td>
                         </tr>
                     @endif
@@ -221,7 +228,7 @@
                     @endif
                     {{-- Montant sur deux colonnes : « 3 096 000 FCFA » tient sur une ligne. --}}
                     <tr class="tdoc-total">
-                        <td colspan="7" class="right">TOTAL À PAYER</td>
+                        <td colspan="7" class="right">{{ $libelleTotal }}</td>
                         <td colspan="2" class="tdoc-amount mono">{{ $fmt($total) }}<span>FCFA</span></td>
                     </tr>
                 </tbody>
@@ -229,8 +236,14 @@
         @endif
 
         <div class="rv-arrete">
-            Arrêté le présent relevé à la somme de
-            <b>{{ \App\Support\MontantEnLettres::en((int) round($total)) }} ({{ $fmt($total) }}) francs CFA</b>.
+            @if($repriseDoc)
+                Montant calculé par la régie pour contrôle :
+                <b>{{ \App\Support\MontantEnLettres::en((int) round($total)) }} ({{ $fmt($total) }}) francs CFA</b>.
+                Pour {{ $debutC->year }}, année de reprise, le montant dû est celui réclamé par la mairie : voir le relevé du Suivi des mairies.
+            @else
+                Arrêté le présent relevé à la somme de
+                <b>{{ \App\Support\MontantEnLettres::en((int) round($total)) }} ({{ $fmt($total) }}) francs CFA</b>.
+            @endif
         </div>
 
         <div class="tdoc-note tdoc-details-fin">

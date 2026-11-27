@@ -102,10 +102,19 @@ class CommuneController extends Controller
         //   - last_change : date du dernier changement de tarif
         //   - next_change : tarif programmé futur (effective_from > today)
         $communes->each(function ($c) use ($today) {
+            // 2026-11-27 (point 6 validé) — Tarif EN VIGUEUR aujourd'hui (même
+            // source que les calculs), et non la colonne de la fiche, qui ne
+            // suit pas un tarif programmé quand sa date arrive.
+            $c->tarif_courant = $c->tarifsEnVigueur($today);
+
+            // Dernier changement : le passé seulement (avant : un tarif
+            // programmé affichait sa date future ici).
             $last = $c->rateHistory()
+                ->whereDate('effective_from', '<=', $today)
                 ->orderByDesc('effective_from')->first();
             $c->last_change_date = $last?->effective_from;
             $c->last_change_notes = $last?->notes;
+            $c->last_change_origine = $last && $last->effective_from?->toDateString() === \App\Observers\CommuneObserver::DEBUT_SANS_HISTORIQUE;
 
             $future = $c->rateHistory()
                 ->where('effective_from', '>', $today)
@@ -211,7 +220,17 @@ class CommuneController extends Controller
             );
         }
 
-        $entry->delete();
-        return back()->with('success', 'Tarif programmé supprimé.');
+        // 2026-11-27 (point 7) — La période précédente reprend jusqu'où allait
+        // le tarif supprimé : TarifsCommunes l'avait refermée la veille.
+        \Illuminate\Support\Facades\DB::transaction(function () use ($commune, $entry) {
+            \App\Models\CommuneTaxRateHistory::where('commune_id', $commune->id)
+                ->whereKeyNot($entry->getKey())
+                ->whereDate('effective_to', $entry->effective_from->copy()->subDay()->toDateString())
+                ->update(['effective_to' => $entry->effective_to?->toDateString()]);
+            $entry->delete();
+        });
+
+        return back()->with('success', 'Tarif programmé du ' . $entry->effective_from->format('d/m/Y')
+            . ' supprimé pour ' . $commune->name . '.');
     }
 }

@@ -628,15 +628,16 @@ class AxesMultiPiedsTest extends TestCase
         // 2026-11-16 — showCommune redirige vers le Suivi des mairies (plus de
         // lecture du parc) ; le rapport Taxes et le Suivi des mairies lisent le
         // parc via generateLines(), donc via la règle ci-dessus.
+        // 2026-11-27 (point 4) — la page Taxes (TaxController::calcul) aussi :
+        // elle regroupe les lignes de generateLines() au lieu de relire le parc.
         $sources = [
             'app/Services/TaxCalculationService.php' => 2, // generateLines + panneauxPourCalcul
             'app/Services/TaxAutoService.php'        => 1,
-            'app/Http/Controllers/Admin/TaxController.php' => 1, // calcul (dashboard)
         ];
         foreach ($sources as $fichier => $attendu) {
             $this->assertSame($attendu, substr_count(file_get_contents(base_path($fichier)), '->avecTaxesAutomatiques('), $fichier);
         }
-        foreach (['app/Services/TaxReportService.php', 'app/Services/Taxes/TaxeExerciceService.php'] as $fichier) {
+        foreach (['app/Services/TaxReportService.php', 'app/Services/Taxes/TaxeExerciceService.php', 'app/Http/Controllers/Admin/TaxController.php'] as $fichier) {
             $src = file_get_contents(base_path($fichier));
             $this->assertStringContainsString('->generateLines(', $src, $fichier . ' doit lire le parc via le moteur unique.');
             $this->assertStringNotContainsString('Panel::', $src, $fichier . ' ne doit pas relire le parc lui-même.');

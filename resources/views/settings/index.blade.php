@@ -53,10 +53,12 @@
                         @if($highlightCommune == $commune->id) class="row-highlight" @endif>
                         <td><strong>{{ $commune->name }}</strong></td>
                         <td style="color:var(--text2);font-size:12px;">{{ $commune->city ?? '—' }}</td>
-                        <td style="font-size:12px;">{{ number_format($commune->odp_rate, 0, ',', ' ') }} FCFA
-                            @if(!is_null($commune->odp_rate_eclaire))<div style="font-size:10.5px;color:#b45309">💡 {{ number_format($commune->odp_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
-                        <td style="font-size:12px;">{{ number_format($commune->tm_rate, 0, ',', ' ') }} FCFA
-                            @if(!is_null($commune->tm_rate_eclaire))<div style="font-size:10.5px;color:#b45309">💡 {{ number_format($commune->tm_rate_eclaire, 0, ',', ' ') }}</div>@endif</td>
+                        {{-- 2026-11-27 (point 6) : tarif EN VIGUEUR (historique), comme la page Tarifs communes. --}}
+                        @php $tv = $commune->tarifsEnVigueur(); @endphp
+                        <td style="font-size:12px;">{{ number_format($tv['odp'], 0, ',', ' ') }} FCFA
+                            @if(!is_null($tv['odp_eclaire']))<div style="font-size:10.5px;color:#b45309">💡 {{ number_format($tv['odp_eclaire'], 0, ',', ' ') }}</div>@endif</td>
+                        <td style="font-size:12px;">{{ number_format($tv['tm'], 0, ',', ' ') }} FCFA
+                            @if(!is_null($tv['tm_eclaire']))<div style="font-size:10.5px;color:#b45309">💡 {{ number_format($tv['tm_eclaire'], 0, ',', ' ') }}</div>@endif</td>
                         <td>
                             <div style="display:flex;gap:4px;">
                                 <button type="button" class="btn btn-ghost btn-sm"

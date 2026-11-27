@@ -245,9 +245,11 @@ class TaxCalculationServicePureTest extends TestCase
         // loué) est donc portée par le moteur, avec la même règle de mois
         // que le détail, le PDF et le Suivi des mairies.
 
-        // 1) La TM est lue dans l'agrégat du moteur, par commune × format.
+        // 1) La TM est lue dans les lignes du moteur. 2026-11-27 (point 4) :
+        //    la page regroupe directement les lignes de generateLines()
+        //    (avant : agrégat par commune × format du parc actuel).
         $this->assertStringContainsString(
-            '$theoParCommuneFormat[$cle . TaxCalculationService::TYPE_TM]',
+            "->where('type', TaxCalculationService::TYPE_TM)->sum('amount')",
             $source,
             'TX-OCC-1 / 2026-11-16 : TaxController::calcul doit lire la TM ' .
             'dans le moteur unique, pas la recalculer.'

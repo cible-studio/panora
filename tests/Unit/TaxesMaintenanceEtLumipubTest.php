@@ -74,7 +74,11 @@ class TaxesMaintenanceEtLumipubTest extends TestCase
 
         $this->assertStringContainsString('name="exclure_maintenance"', $detail);
         $this->assertStringContainsString('name="inclure_lumipub"', $detail);
-        $this->assertStringContainsString('id="exclure-maintenance"', $index);
+        // 2026-11-27 (point 15) : même case et même sens que le Détail
+        // (« Inclure la maintenance », cochée par défaut) ; le paramètre
+        // envoyé reste exclure_maintenance.
+        $this->assertStringContainsString('id="inclure-maintenance"', $index);
+        $this->assertStringContainsString("params.set('exclure_maintenance', '1')", $index);
         $this->assertStringContainsString('id="inclure-lumipub"', $index);
 
         // L'ancienne case ne doit plus traîner : elle n'a plus d'effet et
@@ -159,11 +163,16 @@ class TaxesMaintenanceEtLumipubTest extends TestCase
         foreach ([
             'app/Services/TaxCalculationService.php',
             'app/Services/TaxAutoService.php',
-            'app/Http/Controllers/Admin/TaxController.php',
         ] as $fichier) {
             $this->assertStringContainsString('avecTaxesAutomatiques(', $this->src($fichier),
                 "{$fichier} doit passer par le scope commun.");
         }
+
+        // 2026-11-27 (point 4) : la page Taxes ne lit plus le parc elle-même,
+        // elle regroupe les lignes du moteur (qui applique le scope).
+        $ctrl = $this->src('app/Http/Controllers/Admin/TaxController.php');
+        $this->assertStringNotContainsString('Panel::', $ctrl, 'TaxController ne doit plus lire le parc en direct.');
+        $this->assertStringContainsString('$lignesMoteur = $calc->generateLines(', $ctrl);
     }
 
     public function test_les_exports_annoncent_les_filtres_appliques(): void
@@ -171,8 +180,9 @@ class TaxesMaintenanceEtLumipubTest extends TestCase
         $ctrl = $this->src('app/Http/Controllers/Admin/TaxController.php');
 
         // Un PDF remis à la mairie doit dire sur quelle base il a été bâti.
-        $this->assertStringContainsString('maintenance=exclue', $ctrl);
-        $this->assertStringContainsString('lumipub=inclus', $ctrl);
+        // 2026-11-27 (point 16) : en français, PDF et Excel (filtresLisibles()).
+        $this->assertStringContainsString('Panneaux en maintenance exclus', $ctrl);
+        $this->assertStringContainsString('Pieds des axes inclus', $ctrl);
         $this->assertStringNotContainsString('maintenance=incluse', $ctrl,
             "L'ancien libellé décrirait le contraire du défaut actuel.");
     }

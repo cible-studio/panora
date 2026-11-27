@@ -59,13 +59,13 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
             'Dimensions',
             'Surface (m²)',
             'Type taxe',
-            'Statut',
+            'État actuel du panneau',
             'Client',
             'Campagne',
             'Période début',
             'Période fin',
             'Nb mois',
-            'Tarif (FCFA)',
+            'Tarif appliqué (FCFA/m²/mois)',
             'Montant (FCFA)',
         ];
     }
@@ -73,19 +73,16 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
     public function map($row): array
     {
         $typeLabels = ['tm' => 'TM', 'odp' => 'ODP'];
-        $statutLabels = [
-            'libre'       => 'Libre',
-            'occupe'      => 'Occupé',
-            'option'      => 'Option',
-            'confirme'    => 'Confirmé',
-            'maintenance' => 'Maintenance',
-        ];
+        // 2026-11-27 (point 17) : état du panneau aujourd'hui, libellés de
+        // PanelStatus (« En affichage » et non plus « Occupé »).
+        $etat = \App\Enums\PanelStatus::tryFrom((string) ($row['statut'] ?? ''));
 
-        // FIX 2026-06-26 — Colonnes "Période début/fin" = vraies dates de la
-        // campagne si présente ; fallback sur la période du filtre pour les
-        // lignes ODP sans campagne (aligné avec /admin/taxes/details + PDF).
-        $debut = $row['campaign_start'] ?? $row['period_start'] ?? null;
-        $fin   = $row['campaign_end']   ?? $row['period_end']   ?? null;
+        // 2026-11-27 (point 9 validé) — TM : les dates de la campagne. ODP :
+        // la période taxée (celle du filtre), et non plus les dates de la
+        // dernière campagne du panneau.
+        $estOdp = ($row['type'] ?? '') === 'odp';
+        $debut = $estOdp ? ($row['period_start'] ?? null) : ($row['campaign_start'] ?? $row['period_start'] ?? null);
+        $fin   = $estOdp ? ($row['period_end']   ?? null) : ($row['campaign_end']   ?? $row['period_end']   ?? null);
 
         // generateLines() retourne des arrays — accès par clé.
         return [
@@ -101,13 +98,16 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
             $row['dimensions'] ?? '',
             (float) ($row['surface'] ?? 0),
             $typeLabels[$row['type'] ?? ''] ?? $row['type'] ?? '',
-            $statutLabels[$row['statut'] ?? ''] ?? $row['statut'] ?? '',
+            $etat ? $etat->label() : ($row['statut'] ?? ''),
             $row['client_name'] ?? '',
             $row['campaign_name'] ?? '',
-            $debut ? $debut->format('d/m/Y') : '',
-            $fin   ? $fin->format('d/m/Y')   : '',
+            $debut ? \Carbon\Carbon::parse($debut)->format('d/m/Y') : '',
+            $fin   ? \Carbon\Carbon::parse($fin)->format('d/m/Y')   : '',
             (int) ($row['months'] ?? 0),
-            (float) ($row['rate'] ?? 0),
+            // Point 9 : le tarif réellement appliqué (moyen si le tarif change
+            // dans la période), comme l'écran et le PDF : Montant = Tarif ×
+            // Surface × Nb mois.
+            (float) ($row['rate_applied'] ?? $row['rate'] ?? 0),
             (float) ($row['amount'] ?? 0),
         ];
     }
@@ -138,7 +138,7 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
                 $lastRow = $sheet->getHighestRow();
 
                 // Bandeau brandé PANORA (rows 1-4)
-                $this->applyBrandingHeader($event, 'TAXES COMMUNALES — ' . strtoupper($this->periodLabel), array_filter([
+                $this->applyBrandingHeader($event, 'TAXES COMMUNALES — ' . mb_strtoupper($this->periodLabel), array_filter([
                     'Généré le ' . now()->format('d/m/Y à H:i'),
                     max(0, $lastRow - 5) . ' ligne(s)',
                     $this->filterSummary ?: null,
