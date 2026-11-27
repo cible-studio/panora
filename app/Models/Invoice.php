@@ -401,7 +401,7 @@ class Invoice extends Model implements Auditable
         }
 
         $htBrut = (int) $this->amount;
-        $netHt  = (int) ($this->net_ht ?: $htBrut);
+        $netHt  = $this->htApresRemise();
 
         return [
             'ht_brut'              => $htBrut,
@@ -562,6 +562,38 @@ class Invoice extends Model implements Auditable
     {
         return $query->where($this->getTable() . '.status', '!=', 'annulee');
     }
+
+    /**
+     * HT des panneaux APRÈS remise — base du « déjà facturé » d'une campagne
+     * (règle A validée le 27/11 : le montant d'une campagne issue d'un devis
+     * est lui-même après la remise du devis). Repli sur le HT avant remise
+     * quand net_ht n'est pas renseigné (factures anciennes), comme
+     * totauxAffiches(). Services exclus, comme dans le montant de la campagne.
+     */
+    public function htApresRemise(): int
+    {
+        return (int) ($this->net_ht ?: $this->amount);
+    }
+
+    /** Même règle que htApresRemise(), en SQL — pour les sommes. */
+    public const SQL_HT_APRES_REMISE = 'COALESCE(NULLIF(invoices.net_ht, 0), invoices.amount, 0)';
+
+    /**
+     * Couleurs et icône de chaque statut (2026-11-27) — reprises de la page
+     * de modification, la seule à couvrir les 9 statuts. Libellé :
+     * statusLabel().
+     */
+    public const COULEURS_STATUT = [
+        'brouillon'           => ['bg' => 'rgba(107,114,128,.10)', 'color' => '#4b5563', 'icon' => '📝'],
+        'generee'             => ['bg' => 'rgba(232,160,32,.10)',  'color' => '#a16207', 'icon' => '📋'],
+        'validee'             => ['bg' => 'rgba(99,102,241,.10)',  'color' => '#4338ca', 'icon' => '🔒'],
+        'envoyee'             => ['bg' => 'rgba(59,130,246,.10)',  'color' => '#1d4ed8', 'icon' => '📤'],
+        'partiellement_payee' => ['bg' => 'rgba(245,158,11,.10)',  'color' => '#b45309', 'icon' => '⏳'],
+        'payee'               => ['bg' => 'rgba(34,197,94,.10)',   'color' => '#15803d', 'icon' => '✅'],
+        'en_retard'           => ['bg' => 'rgba(239,68,68,.10)',   'color' => '#b91c1c', 'icon' => '⚠️'],
+        'litige'              => ['bg' => 'rgba(244,63,94,.10)',   'color' => '#9f1239', 'icon' => '⚖️'],
+        'annulee'             => ['bg' => 'rgba(107,114,128,.10)', 'color' => '#374151', 'icon' => '🚫'],
+    ];
 
     /**
      * Somme des versements enregistrés sur cette facture.

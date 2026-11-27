@@ -290,6 +290,51 @@ class FinanceFormationComptableTest extends TestCase
         }
     }
 
+    // ── Déjà facturé d'une campagne : HT après remise (règle A, 27/11) ──
+
+    public function test_le_deja_facture_compte_le_ht_apres_remise(): void
+    {
+        Schema::create('campaigns', function (Blueprint $t) {
+            $t->id(); $t->string('name'); $t->unsignedBigInteger('client_id')->nullable();
+            $t->unsignedBigInteger('reservation_id')->nullable(); $t->string('status')->default('actif');
+            $t->decimal('total_amount', 14, 2)->nullable(); $t->softDeletes(); $t->timestamps();
+        });
+        Schema::create('invoices', function (Blueprint $t) {
+            $t->id(); $t->string('reference'); $t->unsignedBigInteger('campaign_id')->nullable();
+            $t->string('status'); $t->unsignedBigInteger('amount')->default(0); $t->unsignedBigInteger('net_ht')->nullable();
+            $t->unsignedBigInteger('credit_note_for_id')->nullable(); $t->timestamps();
+        });
+        // Campagne issue d'un devis : 240 000 avant remise de 5 % → 228 000.
+        DB::table('campaigns')->insert(['id' => 2, 'name' => 'KALABA – Fêtes', 'total_amount' => 228000]);
+        DB::table('invoices')->insert([
+            ['reference' => 'FAC-2026-005', 'campaign_id' => 2, 'status' => 'envoyee', 'amount' => 240000, 'net_ht' => 228000],
+            ['reference' => 'FAC-2026-009', 'campaign_id' => 2, 'status' => 'annulee', 'amount' => 50000, 'net_ht' => 50000],
+        ]);
+        $c = \App\Models\Campaign::find(2);
+        $this->assertSame(228000.0, $c->alreadyBilledHt(), 'après remise ; l\'annulée ne compte pas');
+        $this->assertSame(0.0, $c->remainingToBillHt(), 'plus de « facturé au-delà du total »');
+
+        // Facture ancienne sans HT après remise renseigné : repli sur le HT.
+        DB::table('campaigns')->insert(['id' => 3, 'name' => 'Ancienne', 'total_amount' => 300000]);
+        DB::table('invoices')->insert(['reference' => 'FAC-2025-001', 'campaign_id' => 3, 'status' => 'payee', 'amount' => 100000, 'net_ht' => null]);
+        $this->assertSame(100000.0, \App\Models\Campaign::find(3)->alreadyBilledHt());
+        $this->assertSame(200000.0, \App\Models\Campaign::find(3)->remainingToBillHt());
+
+        $this->assertSame(228000, (new Invoice())->forceFill(['amount' => 240000, 'net_ht' => 228000])->htApresRemise());
+        $this->assertSame(100000, (new Invoice())->forceFill(['amount' => 100000, 'net_ht' => 0])->htApresRemise());
+    }
+
+    public function test_la_fiche_campagne_charge_le_ht_et_le_statut_des_factures(): void
+    {
+        $ctrl = file_get_contents(base_path('app/Http/Controllers/Admin/CampaignController.php'));
+        $this->assertStringContainsString("'invoices:id,campaign_id,reference,status,amount,net_ht,amount_ttc'", $ctrl,
+            'sans ces colonnes, les cartes affichaient « 0 HT » et un statut vide');
+        $vue = file_get_contents(base_path('resources/views/admin/campaigns/show.blade.php'));
+        $this->assertStringContainsString('Invoice::COULEURS_STATUT', $vue);
+        $this->assertStringContainsString('$inv->htApresRemise()', $vue);
+        $this->assertCount(9, Invoice::COULEURS_STATUT, 'les 9 statuts');
+    }
+
     // ── Point 3 : totaux affichés ──────────────────────────────────
 
     public function test_les_totaux_affiches_reprennent_ceux_du_pdf(): void

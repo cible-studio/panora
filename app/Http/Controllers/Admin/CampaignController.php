@@ -160,7 +160,9 @@ class CampaignController extends Controller
             'externalPanels.commune:id,name',
             'externalPanels.format:id,name',
             'externalPanels.agency:id,name',
-            'invoices:id,campaign_id,reference,amount_ttc',
+            // 2026-11-27 : + statut et HT (avant remise et après). Sans eux,
+            // les cartes de factures affichaient « 0 HT » et un statut vide.
+            'invoices:id,campaign_id,reference,status,amount,net_ht,amount_ttc',
         ]);
 
         $user = auth()->user();

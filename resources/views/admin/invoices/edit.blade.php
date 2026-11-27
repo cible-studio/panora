@@ -35,17 +35,7 @@
         // → UnhandledMatchError 500 dès que la facture passait en
         // generee/validee/partiellement_payee/en_retard/litige et qu'on
         // ouvrait /edit. Label centralisé via Invoice::statusLabel().
-        $statusPalette = [
-            'brouillon'           => ['bg' => 'rgba(107,114,128,.10)', 'color' => '#4b5563', 'icon' => '📝'],
-            'generee'             => ['bg' => 'rgba(232,160,32,.10)',  'color' => '#a16207', 'icon' => '📋'],
-            'validee'             => ['bg' => 'rgba(99,102,241,.10)',  'color' => '#4338ca', 'icon' => '🔒'],
-            'envoyee'             => ['bg' => 'rgba(59,130,246,.10)',  'color' => '#1d4ed8', 'icon' => '📤'],
-            'partiellement_payee' => ['bg' => 'rgba(245,158,11,.10)',  'color' => '#b45309', 'icon' => '⏳'],
-            'payee'               => ['bg' => 'rgba(34,197,94,.10)',   'color' => '#15803d', 'icon' => '✅'],
-            'en_retard'           => ['bg' => 'rgba(239,68,68,.10)',   'color' => '#b91c1c', 'icon' => '⚠️'],
-            'litige'              => ['bg' => 'rgba(244,63,94,.10)',   'color' => '#9f1239', 'icon' => '⚖️'],
-            'annulee'             => ['bg' => 'rgba(107,114,128,.10)', 'color' => '#374151', 'icon' => '🚫'],
-        ];
+        $statusPalette = \App\Models\Invoice::COULEURS_STATUT; // 2026-11-27 : source unique
         $statusCfg = $statusPalette[$invoice->status] ?? ['bg' => 'rgba(107,114,128,.10)', 'color' => '#4b5563', 'icon' => '📝'];
         $statusCfg['label'] = $statusCfg['icon'] . ' ' . \App\Models\Invoice::statusLabel($invoice->status);
     @endphp

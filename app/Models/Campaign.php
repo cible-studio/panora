@@ -521,7 +521,10 @@ class Campaign extends Model
             // une facture générée, validée, partiellement soldée, en retard ou en
             // litige n'était pas « déjà facturée » — risque de facturer deux fois.
             ->nonAnnulees()
-            ->sum('amount');
+            // 2026-11-27 (règle A validée) : HT APRÈS remise, comme le montant
+            // de la campagne. Avant : HT avant remise — une campagne issue
+            // d'un devis avec remise paraissait facturée au-delà de son total.
+            ->sum(\Illuminate\Support\Facades\DB::raw(Invoice::SQL_HT_APRES_REMISE));
     }
 
     /**
