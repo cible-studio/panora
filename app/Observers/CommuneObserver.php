@@ -31,6 +31,14 @@ class CommuneObserver
     /** Colonnes dont un changement crée une ligne d'historique. */
     public const COLONNES_TARIF = ['odp_rate', 'tm_rate', 'odp_rate_eclaire', 'tm_rate_eclaire'];
 
+    /** Libellés des notes d'historique (2026-11-27). */
+    private const LIBELLES_TARIF = [
+        'odp_rate'         => 'ODP',
+        'tm_rate'          => 'TM',
+        'odp_rate_eclaire' => 'ODP éclairé',
+        'tm_rate_eclaire'  => 'TM éclairé',
+    ];
+
     public function updated(Commune $commune): void
     {
         $changed = $commune->getChanges();
@@ -80,9 +88,12 @@ class CommuneObserver
             'effective_from' => $today,
             'effective_to'   => null,
             'created_by'     => auth()->id(),
+            // 2026-11-27 (point 16) : libellés lisibles (avant « odp_rate = 1500 »).
             'notes'          => '[Auto] Mise à jour des tarifs : '
                 . implode(', ', array_map(
-                    fn($k) => $k . ' = ' . $commune->{$k},
+                    fn($k) => (self::LIBELLES_TARIF[$k] ?? $k) . ' ' . ($commune->{$k} === null || $commune->{$k} === ''
+                        ? 'retiré'
+                        : number_format((float) $commune->{$k}, 0, ',', ' ') . ' F/m²/mois'),
                     array_keys($rateChanged)
                 )),
         ];

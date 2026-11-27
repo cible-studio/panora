@@ -372,6 +372,12 @@ class AlertService
             'label' => 'Échéance taxe communale',
             'group' => 'Système',
         ],
+        // 2026-11-27 — Alerte de début de trimestre (taxes:notify-due-soon).
+        'taxe_due_soon' => [
+            'icon' => '🏛️', 'niveau' => 'warning', 'color' => '#f97316',
+            'label' => 'Taxes mairies à prévoir',
+            'group' => 'Système',
+        ],
 
         // ── Recouvrement (échéancier facture) ─────────────────────
         // Émis par le cron finance:check-due-dates (06h30). Cible :

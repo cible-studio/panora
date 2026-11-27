@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Services\AdminAlertNotifier;
+use App\Services\AlertService;
+use App\Services\Diffusion\JoursFeriesService;
 use App\Services\Taxes\TaxeExerciceService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -21,6 +23,11 @@ use Illuminate\Console\Command;
  * les autres jours. --forcer l'envoie tout de suite (contrôle en production).
  * L'option --days est conservée pour ne pas casser la planification ; elle
  * n'a plus d'effet.
+ *
+ * 2026-11-27 (point 18 validé) — Premier jour OUVRÉ fériés compris (mêmes
+ * jours fériés que la diffusion : JoursFeriesService), une alerte dans le
+ * centre d'alertes du comptable en plus du mail, et mail aux seuls comptes
+ * actifs (AdminAlertNotifier).
  */
 class NotifyTaxDueSoon extends Command
 {
@@ -72,7 +79,8 @@ class NotifyTaxDueSoon extends Command
         AdminAlertNotifier::notify(
             to: ['comptable', 'admin'],
             severity: 'warning',
-            title: "Taxes mairies — début du {$trimestre}e trimestre {$exercice}",
+            // 2026-11-27 (point 16) : « T1 », plus « 1e trimestre ».
+            title: "Taxes mairies — début du T{$trimestre} {$exercice}",
             summary: $lignes->count() . ' mairie(s) peuvent réclamer ' . $fmt($total)
                 . ' FCFA à ce jour. Prévoir les règlements avant leur passage, et garder les quittances.',
             lines: $detail,
@@ -83,17 +91,33 @@ class NotifyTaxDueSoon extends Command
             dedupKey: "taxes-trimestre-{$exercice}-T{$trimestre}",
         );
 
+        // Centre d'alertes : diffusion sans destinataire nominatif, vue par
+        // les comptables (broadcastTypesForRole) et les admins.
+        AlertService::notify(
+            'taxe_due_soon',
+            "Taxes mairies — début du T{$trimestre} {$exercice}",
+            $lignes->count() . ' mairie(s) peuvent réclamer ' . $fmt($total)
+                . ' FCFA à ce jour. Prévoir les règlements et garder les quittances.',
+            null,
+            [
+                'lien'        => route('admin.taxes.suivi.index', ['exercice' => $exercice]),
+                'dedup_extra' => "{$exercice}-T{$trimestre}",
+            ],
+        );
+
         $this->info("Alerte envoyée : {$lignes->count()} mairie(s), {$fmt($total)} FCFA exigibles.");
         return self::SUCCESS;
     }
 
-    /** Premier lundi-vendredi du trimestre de $date. */
+    /**
+     * Premier jour ouvré du trimestre de $date : ni samedi, ni dimanche, ni
+     * jour férié (le 1er janvier l'est toujours). Jours fériés : ceux de la
+     * diffusion (JoursFeriesService), réglables dans Diffusion → Disponibilités.
+     */
     public static function premierJourOuvreDuTrimestre(Carbon $date): Carbon
     {
-        $jour = $date->copy()->firstOfQuarter()->startOfDay();
-        while ($jour->isWeekend()) {
-            $jour->addDay();
-        }
-        return $jour;
+        $debut = $date->copy()->firstOfQuarter()->startOfDay();
+
+        return app(JoursFeriesService::class)->calendrier($debut)->premierOuvrableAPartirDe($debut);
     }
 }

@@ -223,7 +223,9 @@ class TaxCalculationService
             // Vaut 1 face pour tout panneau ordinaire : rien ne change
             // hors des pieds d'axe.
             $faces      = $facesParPied[$panel->id] ?? 1;
-            $surfaceUne = (float) ($panel->format?->surface ?? 0);
+            // 2026-11-27 (point 5 validé) : même surface que la facture
+            // (PanelFormat::surface_m2 = largeur × hauteur, sinon la surface saisie).
+            $surfaceUne = (float) ($panel->format?->surface_m2 ?? 0);
             $surface    = $surfaceUne * $faces;
             $dimensions = $panel->format?->name ?? '—';
 
@@ -906,6 +908,15 @@ class TaxCalculationService
      * sélection. ODP : une ligne par panneau. TM : une ligne par panneau
      * ET par campagne (la campagne fait partie de la clé).
      */
+    public static function facesDeLigne(array $ligne): int
+    {
+        // 2026-11-27 (point 13 validé) — Faces portées par une ligne ODP (un
+        // mât) : double-face fusionné (faces_count) × faces d'un pied d'axe
+        // (faces_pied). 1 pour un panneau ordinaire. Source unique de la page
+        // Taxes, du Détail et du Suivi des mairies.
+        return max(1, (int) ($ligne['faces_count'] ?? 1)) * max(1, (int) ($ligne['faces_pied'] ?? 1));
+    }
+
     public static function cleLigne(array $ligne): string
     {
         return $ligne['panel_id'] . '-' . $ligne['type']
@@ -920,6 +931,10 @@ class TaxCalculationService
             'by_type'      => $byType,
             'by_commune'   => $lines->groupBy('commune')->map->sum('amount'),
             'panels_count' => $lines->pluck('panel_id')->unique()->count(),
+            // 2026-11-27 (point 13) — mâts taxés (lignes ODP) et leurs faces,
+            // même définition que la page Taxes et le Suivi des mairies.
+            'mats_count'   => $lines->where('type', self::TYPE_ODP)->count(),
+            'faces_count'  => (int) $lines->where('type', self::TYPE_ODP)->sum(fn ($l) => self::facesDeLigne($l)),
             'lines_count'  => $lines->count(),
             // Alias pour les consommateurs TaxController qui les attendaient.
             'odp_total'    => (float) ($byType[self::TYPE_ODP] ?? 0),
@@ -965,7 +980,7 @@ class TaxCalculationService
             $rate = (float) ($commune->ratesAt($debut, (bool) $panel->is_lit)['odp'] ?? 0); // éclairé : 2026-11-18
             if ($rate <= 0) continue;
             // Surface taxable = une face × nombre de faces (2026-11-13).
-            $surface = (float) ($panel->format?->surface ?? 0)
+            $surface = (float) ($panel->format?->surface_m2 ?? 0) // 2026-11-27 : surface unique
                 * app(\App\Services\Axes\AxeService::class)->facesParPied($panel);
             if ($surface <= 0) continue;
             $moisExistence = $this->moisExistencePanneau($panel, $debut, $fin);
@@ -989,7 +1004,7 @@ class TaxCalculationService
             if ($rate <= 0) $rate = self::tmParDefaut();   // base nationale (2026-11-26)
             if ($rate <= 0) continue;
             // Surface taxable = une face × nombre de faces (2026-11-13).
-            $surface = (float) ($panel->format?->surface ?? 0)
+            $surface = (float) ($panel->format?->surface_m2 ?? 0) // 2026-11-27 : surface unique
                 * app(\App\Services\Axes\AxeService::class)->facesParPied($panel);
             if ($surface <= 0) continue;
             $moisOccupation = $this->moisOccupationPanneau($panel, $debut, $fin);
@@ -1180,8 +1195,13 @@ class TaxCalculationService
         return $mois;
     }
 
-    /** Mois d'une ligne comptés dans une sous-période (mêmes règles que generateLines). */
-    private function moisDeLaLigneDans(string $type, array $occurrence, $panel, \Carbon\Carbon $debut, \Carbon\Carbon $fin, int $moisParDefaut): int
+    /**
+     * Mois d'une ligne comptés dans une sous-période (mêmes règles que generateLines).
+     * 2026-11-27 — $occurrence peut être null : ligne ODP d'un panneau sans
+     * campagne. Avant, un tarif changeant dans la période faisait planter le
+     * calcul pour ces panneaux (erreur 500 sur le Détail par panneau).
+     */
+    private function moisDeLaLigneDans(string $type, ?array $occurrence, $panel, \Carbon\Carbon $debut, \Carbon\Carbon $fin, int $moisParDefaut): int
     {
         if ($type === self::TYPE_TM && !empty($occurrence['campaign_start']) && !empty($occurrence['campaign_end'])) {
             return $this->period->moisTMCommencantDansPeriode($occurrence['campaign_start'], $occurrence['campaign_end'], $debut, $fin);

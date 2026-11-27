@@ -191,6 +191,31 @@ class Commune extends Model
         ];
     }
 
+    /**
+     * Tarifs EN VIGUEUR à une date (aujourd'hui par défaut), pour l'affichage
+     * (2026-11-27, point 6 validé). Les colonnes odp_rate / tm_rate de la
+     * fiche ne suivent pas un tarif programmé quand sa date arrive : l'écran
+     * montrait alors l'ancien tarif, alors que les calculs (ratesAt) prenaient
+     * le nouveau. Même source que les calculs, donc.
+     *
+     * Tarif éclairé : null quand il est le même que le tarif normal.
+     *
+     * @return array{odp: float, tm: float, odp_eclaire: ?float, tm_eclaire: ?float}
+     */
+    public function tarifsEnVigueur(\DateTimeInterface|string|null $date = null): array
+    {
+        $date ??= now();
+        $normal  = $this->ratesAt($date);
+        $eclaire = $this->ratesAt($date, true);
+
+        return [
+            'odp'         => $normal['odp'],
+            'tm'          => $normal['tm'],
+            'odp_eclaire' => $eclaire['odp'] !== $normal['odp'] ? $eclaire['odp'] : null,
+            'tm_eclaire'  => $eclaire['tm'] !== $normal['tm'] ? $eclaire['tm'] : null,
+        ];
+    }
+
     /** La commune a-t-elle (aujourd'hui) un tarif différent pour les panneaux éclairés ? */
     public function aUnTarifEclaire(\DateTimeInterface|string|null $date = null): bool
     {

@@ -140,7 +140,11 @@ class TaxeDetailSelectionTest extends TestCase
         $this->assertStringContainsString('(novembre 2026)', $html);
         $this->assertMatchesRegularExpression('#Opérateur</span>\s*<span class="val">CIBLE CI</span>#', $html);
         $this->assertMatchesRegularExpression('#Nombre de panneaux</span>\s*<span class="val">2</span>#', $html);
-        $this->assertStringContainsString('TOTAL À PAYER', $html);
+        // 2026-11-27 (point 2) : 2026 est l'année de reprise ; le dû est le
+        // réclamé du Suivi des mairies, ce relevé n'est qu'un contrôle.
+        $this->assertStringContainsString('TOTAL CALCULÉ PAR LA RÉGIE (CONTRÔLE)', $html);
+        $this->assertStringNotContainsString('TOTAL À PAYER', $html);
+        $this->assertStringContainsString('voir le relevé du Suivi des mairies', $html);
         $this->assertStringContainsString('vingt-six mille (26 000) francs CFA', $html);
         $this->assertStringContainsString('Un panneau double face est compté une seule fois.', $html);
         $this->assertStringNotContainsString('>Annonceur<', $html, 'ODP : pas de colonne annonceur');

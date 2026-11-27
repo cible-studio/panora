@@ -1,8 +1,10 @@
 <x-admin-layout>
-<x-slot name="title">Taxes Communales</x-slot>
+<x-slot name="title">Taxes communales</x-slot>
 
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.taxes.details', ['year' => $year, 'period_type' => $periodType, 'period_value' => $periodValue]) }}"
+    {{-- 2026-11-27 (point 3) : ces liens suivent la période et les cases
+         choisies (majLiens(), appelé par loadCalcul()). --}}
+    <a id="lien-detail" href="{{ route('admin.taxes.details', ['year' => $year, 'period_type' => $periodType, 'period_value' => $periodValue]) }}"
        class="btn btn-primary btn-sm keep-label" title="Détail par panneau (justification commune par commune)">
         🔍 <span class="btn-label">Détail par panneau</span>
     </a>
@@ -18,10 +20,10 @@
          (une ligne par versement, jamais écrasée). L'ancien « Historique »
          (table legacy `taxes`) et son PDF quittent l'écran ; leurs routes
          restent en place. --}}
-    <a href="{{ route('admin.taxes.suivi.index', ['exercice' => $year]) }}" class="btn btn-ghost btn-sm" title="Arriérés, règlements et solde par mairie">
+    <a id="lien-suivi" href="{{ route('admin.taxes.suivi.index', ['exercice' => $year]) }}" class="btn btn-ghost btn-sm" title="Arriérés, règlements et solde par mairie">
         🏛️ <span class="btn-label">Suivi des mairies</span>
     </a>
-    <a href="{{ route('admin.taxes.suivi.pdf', ['exercice' => $year]) }}" class="btn btn-ghost btn-sm" title="Fiche de l'exercice, par mairie">📄 <span class="btn-label">PDF</span></a>
+    <a id="lien-suivi-pdf" href="{{ route('admin.taxes.suivi.pdf', ['exercice' => $year]) }}" class="btn btn-ghost btn-sm" title="Fiche de l'exercice, par mairie">📄 <span class="btn-label">PDF</span></a>
 </x-slot>
 
 {{-- ════ EN-TÊTE PÉRIODE ════ --}}
@@ -61,11 +63,13 @@
         {{-- 2026-11-13 — Le sens s'inverse : la maintenance est désormais
              comptée par défaut (l'ODP court tant que le mât occupe le sol).
              Cette case retrouve l'ancienne vue. --}}
+        {{-- 2026-11-27 (point 15) : même case, même sens que le Détail par
+             panneau (« Inclure », cochée par défaut). --}}
         <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;white-space:nowrap;"
-               title="L'ODP reste due pendant une panne : le mât occupe toujours le sol. Cochez pour retirer du calcul les panneaux aujourd'hui en maintenance.">
-            <input type="checkbox" id="exclure-maintenance"
+               title="L'ODP reste due pendant une panne : le mât occupe toujours le sol. Décochez pour retirer du calcul les panneaux aujourd'hui en maintenance.">
+            <input type="checkbox" id="inclure-maintenance" checked
                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
-            <span style="color:var(--text2);">Exclure la maintenance</span>
+            <span style="color:var(--text2);">Inclure la maintenance</span>
         </label>
         {{-- 2026-11-13 — Lumipub : une ligne par pied, jamais la ligne d'axe.
              Décochée par défaut, comme sur l'écran de détail. --}}
@@ -86,10 +90,11 @@
         physique</strong> (un mât double-face A/B compte pour un) ·
         TM = tarif commune × m² × nb mois de campagne, <strong>par face</strong> — toutes les
         campagnes du panneau, chaque mois rangé dans la période où il commence.
-        Calcul en temps réel sur le parc actuel. Les panneaux en maintenance sont inclus,
-        sauf si la case « Exclure la maintenance » est cochée.
-        <strong>Payé et solde</strong> : ceux de l'exercice {{ $year }} dans le
-        <a href="{{ route('admin.taxes.suivi.index', ['exercice' => $year]) }}" style="color:var(--accent)">Suivi des mairies</a>
+        Mêmes lignes que le Détail par panneau : un panneau démantelé en cours de période
+        paie son ODP jusqu'à sa date de démantèlement. Les panneaux en maintenance sont
+        inclus (le mât occupe le sol), sauf si la case « Inclure la maintenance » est décochée.
+        <strong>Payé et reste à payer</strong> : ceux de l'exercice <span id="annee-exercice">{{ $year }}</span> dans le
+        <a id="lien-suivi-texte" href="{{ route('admin.taxes.suivi.index', ['exercice' => $year]) }}" style="color:var(--accent)">Suivi des mairies</a>
         (arriérés compris).
     </div>
 </div>
@@ -105,7 +110,7 @@
             // 2026-11-16 — Payé et solde viennent du Suivi des mairies
             // (TaxeExerciceService) : exercice de l'année, arriérés compris.
             ['key'=>'paye_total',  'label'=>'Déjà payé',     'color'=>'#22c55e', 'icon'=>'✅', 'sub'=>'FCFA · règlements de l\'exercice (Suivi des mairies)'],
-            ['key'=>'solde_total', 'label'=>'Solde restant', 'color'=>'#ef4444', 'icon'=>'⏳', 'sub'=>'FCFA · reste à payer de l\'exercice, arriérés compris'],
+            ['key'=>'solde_total', 'label'=>'Reste à payer', 'color'=>'#ef4444', 'icon'=>'⏳', 'sub'=>'FCFA · reste à payer de l\'exercice, arriérés compris'],
         ];
     @endphp
     @foreach($kpiCfg as $k)
@@ -127,14 +132,14 @@
             <span style="font-size:14px">📊</span>
         </div>
         <div data-kpi="taux_couverture" style="font-size:18px;font-weight:800;color:#6366f1;font-variant-numeric:tabular-nums">—</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:3px">% payé / dû sur l'exercice</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">% payé / dû sur l'exercice, hors mairies « à saisir »</div>
     </div>
     {{-- FIX 2026-06-22 — Compteur communes SOLDÉES (cliquable pour filtrer).
          La classe tax-kpi-value est requise pour que renderKpis() remplisse la valeur. --}}
     <div class="tax-kpi-card" data-kpi-filter="communes_soldees"
          style="background:var(--surface);border:1px solid var(--border);border-left:4px solid #22c55e;border-radius:12px;padding:14px 16px;cursor:pointer;transition:box-shadow .15s,transform .1s;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px">✓ Soldé</span>
+            <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px">✓ À jour</span>
             <span style="font-size:14px">🟢</span>
         </div>
         <div class="tax-kpi-value" data-kpi="communes_soldees" style="font-size:18px;font-weight:800;color:#15803d;font-variant-numeric:tabular-nums">—</div>
@@ -144,7 +149,7 @@
     <div class="tax-kpi-card" data-kpi-filter="communes_partielles"
          style="background:var(--surface);border:1px solid var(--border);border-left:4px solid #f59e0b;border-radius:12px;padding:14px 16px;cursor:pointer;transition:box-shadow .15s,transform .1s;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px">◐ Partiel</span>
+            <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px">◐ Payé en partie</span>
             <span style="font-size:14px">🟠</span>
         </div>
         <div class="tax-kpi-value" data-kpi="communes_partielles" style="font-size:18px;font-weight:800;color:#b45309;font-variant-numeric:tabular-nums">—</div>
@@ -159,6 +164,7 @@
         <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">
             🌍 Répartition géographique
         </div>
+        <div style="font-size:10.5px;color:var(--text3);margin:-6px 0 8px">Dû de la période · payé de l'exercice</div>
         <div style="display:flex;flex-direction:column;gap:8px">
             <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.20);border-radius:8px">
                 <div>
@@ -185,7 +191,7 @@
     {{-- Top 5 communes par montant dû --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px">
         <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">
-            🏆 Top 5 communes les plus taxées (période)
+            🏆 Top 5 communes les plus taxées (dû de la période · % payé de l'exercice)
         </div>
         <div id="top-communes-list" style="display:flex;flex-direction:column;gap:5px">
             <div style="text-align:center;color:var(--text3);font-size:11px;font-style:italic;padding:10px">Chargement…</div>
@@ -245,9 +251,9 @@
             <thead>
                 <tr>
                     <th style="text-align:left;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Commune</th>
-                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Panneaux</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);" title="Mâts taxés sur la période ; le nombre de faces est indiqué dessous">Panneaux</th>
                     <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Surface (m²)</th>
-                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Tarif ODP</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);" title="Tarifs du 1er jour de la période, en F/m²/mois">Tarifs</th>
                     <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">ODP</th>
                     <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:#a855f7;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">TM</th>
                     <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Total</th>
@@ -347,7 +353,7 @@ window.TaxModule = (function () {
     const ficheUrl = id => `{{ url('/admin/taxes/suivi/mairie') }}/${id}?exercice=${currentPeriodYear}`;
 
     const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-    const quarterNames = ['Q1 (Jan-Mars)','Q2 (Avr-Juin)','Q3 (Juil-Sept)','Q4 (Oct-Déc)'];
+    const quarterNames = ['T1 (janv.-mars)','T2 (avr.-juin)','T3 (juil.-sept.)','T4 (oct.-déc.)'];
 
     function rebuildPeriodValueOptions() {
         const sel = document.getElementById('period-value-select');
@@ -449,8 +455,27 @@ window.TaxModule = (function () {
     // point de vérité, et loadCalcul() est rappelé à chaque changement
     // de période.
     function excludeMaintenance() {
-        const cb = document.getElementById('exclure-maintenance');
-        return !!(cb && cb.checked);
+        const cb = document.getElementById('inclure-maintenance');
+        return !!(cb && !cb.checked);
+    }
+
+    // 2026-11-27 (point 3) — Les liens de la barre du haut suivent la période,
+    // l'année et les cases choisies : le Détail ouvert a le même total.
+    function majLiens(params) {
+        const detail = document.getElementById('lien-detail');
+        if (detail) detail.href = `{{ route('admin.taxes.details') }}?${new URLSearchParams({
+            year: params.get('period_year'), period_type: params.get('period_type'), period_value: params.get('period_value'),
+            ...(params.get('period_end_value') ? { period_end_value: params.get('period_end_value') } : {}),
+            ...(params.get('exclure_maintenance') ? { exclure_maintenance: '1' } : {}),
+            ...(params.get('inclure_lumipub') ? { inclure_lumipub: '1' } : {}),
+        })}`;
+        const annee = params.get('period_year');
+        for (const [id, route] of [['lien-suivi', `{{ route('admin.taxes.suivi.index') }}`], ['lien-suivi-texte', `{{ route('admin.taxes.suivi.index') }}`], ['lien-suivi-pdf', `{{ route('admin.taxes.suivi.pdf') }}`]]) {
+            const a = document.getElementById(id);
+            if (a) a.href = `${route}?exercice=${annee}`;
+        }
+        const an = document.getElementById('annee-exercice');
+        if (an) an.textContent = annee;
     }
 
     // 2026-11-13 — Pieds des axes Lumipub dans le calcul (décoché par défaut).
@@ -475,6 +500,7 @@ window.TaxModule = (function () {
         // Lumipub sont exclus par défaut.
         if (excludeMaintenance()) params.set('exclure_maintenance', '1');
         if (includeLumipub())     params.set('inclure_lumipub', '1');
+        majLiens(params);
 
         try {
             const r = await fetch(`{{ route('admin.taxes.calcul') }}?${params}`, {
@@ -510,7 +536,7 @@ window.TaxModule = (function () {
             renderKpis(data.kpi);
             renderTable(getFilteredSortedCommunes());
             document.getElementById('period-label').textContent =
-                `${buildPeriodLabel()} · ${data.kpi.communes_actives ?? 0} commune(s) · ${data.kpi.panneaux_total ?? 0} panneau(x)`;
+                `${buildPeriodLabel()} · ${data.kpi.communes_actives ?? 0} commune(s) · ${data.kpi.panneaux_total ?? 0} panneau(x), ${data.kpi.faces_total ?? 0} face(s)`;
         } catch (e) {
             console.error(e);
             document.getElementById('tax-table-body').innerHTML =
@@ -539,10 +565,10 @@ window.TaxModule = (function () {
         const it = kpi.breakdown?.interieur || {};
         setExtra('abidjan_count',   `${ab.communes ?? 0} communes · ${ab.panneaux ?? 0} panneaux`);
         setExtra('abidjan_du',      fmt(ab.total_du ?? 0) + ' FCFA');
-        setExtra('abidjan_paye',    'payé : ' + fmt(ab.total_paye ?? 0));
+        setExtra('abidjan_paye',    'payé (exercice) : ' + fmt(ab.total_paye ?? 0));
         setExtra('interieur_count', `${it.communes ?? 0} communes · ${it.panneaux ?? 0} panneaux`);
         setExtra('interieur_du',    fmt(it.total_du ?? 0) + ' FCFA');
-        setExtra('interieur_paye',  'payé : ' + fmt(it.total_paye ?? 0));
+        setExtra('interieur_paye',  'payé (exercice) : ' + fmt(it.total_paye ?? 0));
 
         // LOT 4 — Top 5 communes (cliquable vers la fiche).
         const topEl = document.getElementById('top-communes-list');
@@ -565,7 +591,9 @@ window.TaxModule = (function () {
                             <span style="font-size:12px;width:22px;flex-shrink:0;text-align:center">${medal}</span>
                             <span style="flex:1;font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.commune}</span>
                             <span style="font-size:11.5px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;text-align:right">${fmt(c.total_theorique)}</span>
-                            <span style="font-size:9.5px;color:${pctPaye >= 80 ? '#15803d' : (pctPaye >= 30 ? '#b45309' : '#b91c1c')};font-weight:700;width:32px;text-align:right">${pctPaye}%</span>
+                            ${c.a_saisir
+                                ? `<span style="font-size:9.5px;color:#c2570d;font-weight:700;text-align:right" title="Montant réclamé par la mairie pas encore saisi dans le Suivi des mairies">à saisir</span>`
+                                : `<span style="font-size:9.5px;color:${pctPaye >= 80 ? '#15803d' : (pctPaye >= 30 ? '#b45309' : '#b91c1c')};font-weight:700;width:32px;text-align:right" title="Payé / dû de l'exercice">${pctPaye}%</span>`}
                         </a>
                     `;
                 }).join('');
@@ -630,9 +658,9 @@ window.TaxModule = (function () {
     // la liste ci-dessous ne sert que de repli.
     function statusPill(statut, libelle, aide) {
         const labels = {
-            paye:     '✓ Payé',
-            partiel:  '◐ Partiel',
-            non_paye: '⏳ Non payé',
+            paye:     '✓ À jour',
+            partiel:  '◐ Payé en partie',
+            non_paye: '⏳ Rien payé',
             aucun:    '— Aucun',
             a_saisir: '✍ Réclamé à saisir',
         };
@@ -674,9 +702,9 @@ window.TaxModule = (function () {
                             ${(c.lignes || []).length} format(s) · ${lignesTooltip.length > 60 ? lignesTooltip.substr(0,60) + '…' : lignesTooltip}
                         </div>
                     </td>
-                    <td style="text-align:right;font-variant-numeric:tabular-nums;">${c.nb_panneaux}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;">${c.nb_panneaux}<div style="font-size:9.5px;color:var(--text3)">${c.nb_faces} face${c.nb_faces > 1 ? 's' : ''}</div></td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">${surface}</td>
-                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">${fmt(c.odp_taux)}/m²${c.odp_taux_eclaire != null ? `<div style="font-size:10px;color:#b45309" title="Panneaux éclairés">💡 ${fmt(c.odp_taux_eclaire)}/m²</div>` : ''}${c.tm_taux_eclaire != null ? `<div style="font-size:10px;color:#b45309" title="TM des panneaux éclairés">💡 TM ${fmt(c.tm_taux_eclaire)}/m²</div>` : ''}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">ODP ${fmt(c.odp_taux)}<div style="font-size:10.5px">TM ${fmt(c.tm_taux)}${c.tm_par_defaut ? ' <span style="color:#b45309" title="Commune sans tarif TM : la base de 1 000 F s\'applique, à renseigner dans Tarifs communes">(par défaut)</span>' : ''}</div>${c.odp_taux_eclaire != null ? `<div style="font-size:10px;color:#b45309" title="Panneaux éclairés">💡 ODP ${fmt(c.odp_taux_eclaire)}</div>` : ''}${c.tm_taux_eclaire != null ? `<div style="font-size:10px;color:#b45309" title="TM des panneaux éclairés">💡 TM ${fmt(c.tm_taux_eclaire)}</div>` : ''}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:#3b82f6;font-weight:600;">${fmt(c.odp_theorique)}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:#a855f7;font-weight:600;">${fmt(c.tm_theorique)}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:var(--accent);">${fmt(c.total_theorique)}</td>
@@ -722,7 +750,7 @@ window.TaxModule = (function () {
                 <td style="text-align:right;font-variant-numeric:tabular-nums;">${fmt(k.odp_total)}</td>
                 <td style="text-align:right;font-variant-numeric:tabular-nums;">${fmt(k.tm_total)}</td>
                 <td style="text-align:right;font-variant-numeric:tabular-nums;background:rgba(232,160,32,.15);">${fmt(k.grand_total)}</td>
-                <td colspan="2" style="text-align:right;color:#22c55e;">Payé : ${fmt(k.paye_total)} · Solde : ${fmt(k.solde_total)}</td>
+                <td colspan="2" style="text-align:right;color:#22c55e;">Payé : ${fmt(k.paye_total)} · Reste à payer : ${fmt(k.solde_total)}</td>
             </tr>
         `;
 
@@ -789,9 +817,9 @@ window.TaxModule = (function () {
             grand_total:         'Triées par total décroissant',
             paye_total:          'Filtrées : avec paiement · triées par montant payé',
             solde_total:         'Filtrées : avec solde restant · triées par solde',
-            communes_soldees:    'Filtrées : communes SOLDÉES · ordre alphabétique',
-            communes_partielles: 'Filtrées : communes en paiement PARTIEL · ordre alphabétique',
-            communes_non_payees: 'Filtrées : communes NON PAYÉES · ordre alphabétique',
+            communes_soldees:    'Filtrées : communes À JOUR · ordre alphabétique',
+            communes_partielles: 'Filtrées : communes PAYÉES EN PARTIE · ordre alphabétique',
+            communes_non_payees: 'Filtrées : communes RIEN PAYÉ · ordre alphabétique',
         };
         const el = document.querySelector('#tax-table-body')
             ?.closest('div[style*="border-radius:14px"]')
@@ -857,7 +885,7 @@ window.TaxModule = (function () {
             // décoche la maintenance. Le serveur refait l'agrégation :
             // impossible de filtrer côté client, les panneaux en
             // maintenance ne sont pas descendus dans la réponse.
-            ['exclure-maintenance', 'inclure-lumipub'].forEach(id => {
+            ['inclure-maintenance', 'inclure-lumipub'].forEach(id => {
                 const cb = document.getElementById(id);
                 if (cb) cb.addEventListener('change', () => loadCalcul());
             });

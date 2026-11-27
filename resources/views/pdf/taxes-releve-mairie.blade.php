@@ -97,17 +97,32 @@
     <p style="margin:-6px 0 8px"><span class="rl-interne">Document interne — ne pas remettre à la mairie</span></p>
 @endif
 
+{{-- 2026-11-27 (point 1 validé) — Année de reprise, montant réclamé pas
+     encore saisi : le dû vaut 0, donc tout versement paraîtrait « payé en
+     trop ». Le relevé le dit au lieu d'afficher un faux solde. --}}
+@php $aSaisir = !empty($ligne['a_saisir']); @endphp
+@if($aSaisir)
+    <p style="margin:-2px 0 8px;padding:6px 9px;border:0.8pt solid #c2570d;color:#c2570d;font-size:9px;font-weight:700">
+        Montant réclamé par la mairie pour {{ $exercice }} non encore saisi : le dû et le solde ne sont pas arrêtés.
+    </p>
+@endif
+
 {{-- ══ Récapitulatif ══ --}}
 <table class="rl-recap">
     <tr>
         <td><span class="l">Arriérés</span><span class="v">{{ $fmt($ligne['arrieres']) }}</span>
             <span class="s">{{ $reprise ? 'années passées, réclamés' : 'solde ' . ($exercice - 1) }}</span></td>
-        <td><span class="l">Total dû {{ $exercice }}</span><span class="v">{{ $fmt($ligne['total_du']) }}</span>
+        <td><span class="l">Total dû {{ $exercice }}</span><span class="v">{{ $aSaisir ? 'À saisir' : $fmt($ligne['total_du']) }}</span>
             <span class="s">arriérés + ODP + TM</span></td>
         <td><span class="l">Versé</span><span class="v">{{ $fmt($ligne['total_paye']) }}</span>
             <span class="s">{{ $valides->count() }} versement{{ $valides->count() > 1 ? 's' : '' }}</span></td>
+        @if($aSaisir)
+        <td class="rl-fort"><span class="l">Solde</span><span class="v">Non arrêté</span>
+            <span class="s">montant réclamé à saisir</span></td>
+        @else
         <td class="rl-fort"><span class="l">{{ $ligne['solde'] >= 0 ? 'Solde restant dû' : 'Payé en trop' }}</span><span class="v">{{ $fmt(abs($ligne['solde'])) }}</span>
             <span class="s">{{ $ligne['solde'] >= 0 ? 'total dû − versé' : 'déduit de ' . ($exercice + 1) }}</span></td>
+        @endif
         <td><span class="l">Dû au {{ $aujourdhui }}</span><span class="v">{{ $fmt($ligne['exigible']) }}</span>
             <span class="s">trimestres déjà commencés</span></td>
     </tr>
@@ -180,11 +195,17 @@
         <td class="signe">−</td>
         <td><span class="l">Versé</span><span class="v">{{ $fmt($ligne['total_paye']) }}</span></td>
         <td class="signe">=</td>
+        @if($aSaisir)
+        <td class="rl-res"><span class="l">Solde</span><span class="v">Non arrêté</span></td>
+        @else
         <td class="rl-res"><span class="l">{{ $ligne['solde'] >= 0 ? 'Solde restant dû' : 'Payé en trop' }}</span><span class="v">{{ $fmt(abs($ligne['solde'])) }} FCFA</span></td>
+        @endif
     </tr>
 </table>
 <p class="rl-apres">
-    @if($ligne['solde'] > 0)
+    @if($aSaisir)
+        Le montant réclamé par la mairie pour {{ $exercice }} doit être saisi dans le Suivi des mairies pour arrêter le solde.
+    @elseif($ligne['solde'] > 0)
         Ce solde sera reporté en arriérés sur l'exercice {{ $exercice + 1 }} s'il n'est pas réglé d'ici le 31/12/{{ $exercice }}.
     @elseif($ligne['solde'] < 0)
         La régie a versé {{ $fmt(-$ligne['solde']) }} FCFA de plus que le dû : la différence est déduite de l'exercice {{ $exercice + 1 }}.

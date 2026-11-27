@@ -306,12 +306,22 @@ class TaxeExerciceServiceTest extends TestCase
 
     public function test_l_alerte_part_le_premier_jour_ouvre_du_trimestre(): void
     {
+        // 2026-11-27 (point 18 validé) : jours fériés compris, ceux de la
+        // diffusion (JoursFeriesService, table jours_feries).
+        Schema::create('jours_feries', function (Blueprint $t) {
+            $t->id(); $t->date('date')->unique(); $t->string('libelle', 120);
+            $t->string('source', 20)->default('manuel'); $t->timestamps();
+        });
         $premier = fn (string $d) => \App\Console\Commands\NotifyTaxDueSoon::premierJourOuvreDuTrimestre(Carbon::parse($d))->toDateString();
 
-        $this->assertSame('2027-01-01', $premier('2027-02-14'), 'le 1er janvier 2027 est un vendredi');
+        $this->assertSame('2027-01-04', $premier('2027-02-14'), 'le 1er janvier 2027 (vendredi) est férié : lundi 4');
         $this->assertSame('2027-04-01', $premier('2027-05-10'));
         $this->assertSame('2026-10-01', $premier('2026-11-16'), 'le 1er octobre 2026 est un jeudi');
         $this->assertSame('2028-04-03', $premier('2028-06-30'), 'le 1er avril 2028 est un samedi : lundi 3');
+
+        // Un jour férié saisi à la main (Diffusion → Disponibilités) compte aussi.
+        DB::table('jours_feries')->insert(['date' => '2027-04-01', 'libelle' => 'Essai', 'source' => 'manuel']);
+        $this->assertSame('2027-04-02', $premier('2027-05-10'));
     }
 
     public function test_un_exercice_anterieur_a_la_reprise_n_est_pas_suivi(): void
@@ -404,6 +414,28 @@ class TaxeExerciceServiceTest extends TestCase
         $this->assertStringContainsString('41 840 000', $releve);
         $this->assertStringNotContainsString('Saisi deux fois', $releve, 'le règlement annulé ne figure pas au relevé');
 
+        // 2026-11-27 (point 1 validé) — Daloa 2026 : un versement, rien de
+        // réclamé saisi. Le relevé remis à la mairie ne dit plus « Payé en
+        // trop … déduit de 2027 », comme l'écran (« Réclamé à saisir »).
+        $releveDaloa = view('pdf.taxes-releve-mairie', [
+            'commune' => Commune::find(2), 'exercice' => 2026, 'reprise' => true,
+            'ligne' => $s->exercice(Commune::find(2), 2026),
+            'reglements' => TaxeReglement::where('commune_id', 2)->where('exercice', 2026)->get(),
+        ])->render();
+        $this->assertStringContainsString('non encore saisi', $releveDaloa);
+        $this->assertStringContainsString('Non arrêté', $releveDaloa);
+        $this->assertStringNotContainsString('Payé en trop', $releveDaloa);
+        $this->assertStringNotContainsString('déduit de 2027', $releveDaloa);
+
+        // PDF du Suivi : statut de chaque mairie, et « Reste à payer » (point 11).
+        $zones2026 = $s->parZone($s->exercices(2026));
+        $suivi2026 = view('pdf.taxes-suivi', [
+            'exercice' => 2026, 'reprise' => true, 'zones' => $zones2026,
+            'totaux' => ['abidjan' => $s->totaux($zones2026['abidjan']), 'interieur' => $s->totaux($zones2026['interieur']), 'tout' => $s->totaux($s->exercices(2026))],
+        ])->render();
+        $this->assertStringContainsString('Réclamé à saisir', $suivi2026);
+        $this->assertStringContainsString('Reste à payer', $suivi2026);
+
         $zones = $s->parZone($s->exercices(2027));
         $tableauPdf = view('pdf.taxes-suivi', [
             'exercice' => 2027, 'reprise' => false, 'zones' => $zones,
@@ -428,7 +460,17 @@ class TaxeExerciceServiceTest extends TestCase
         $this->assertSame('COCODY', $feuille[4][0]);
         $this->assertSame(12.0, $feuille[4][1], 'Dim (m²)');
         $this->assertSame(41840000, $feuille[4][4], 'arriérés');
-        $this->assertSame(41680000, end($feuille)[array_key_last(end($feuille))], 'solde au total');
+        // 2026-11-27 (points 1 et 11) : colonne STATUT en dernier, et une
+        // ligne « Reste à payer » (soldes positifs, comme l'écran) sous le TOTAL.
+        $this->assertSame('STATUT', end($feuille[3]));
+        $total = $feuille[count($feuille) - 2];
+        $reste = end($feuille);
+        $this->assertSame('TOTAL', $total[0]);
+        $this->assertSame(41680000, $total[count($total) - 2], 'solde au total');
+        $this->assertSame('RESTE À PAYER (soldes positifs)', $reste[0]);
+        $this->assertCount(count($total), $reste, 'reste à payer sous la colonne SOLDE');
+        $this->assertSame((int) $zones['abidjan']->sum(fn ($l) => max(0, (int) $l['solde'])), $reste[count($reste) - 2]);
+        $this->assertNotSame('', $feuille[4][count($feuille[4]) - 1], 'statut de la mairie renseigné');
 
         // Le classeur complet se construit (styles, fusions, 3 feuilles).
         $binaire = \Maatwebsite\Excel\Facades\Excel::raw(
@@ -614,6 +656,10 @@ class TaxeExerciceServiceTest extends TestCase
     {
         app(\App\Services\Taxes\TarifsCommunes::class)->enregistrer(Commune::find(1), Carbon::create(2027, 7, 1),
             ['odp' => 6000, 'tm' => 1000], 'Hausse au 1er juillet');
+        // 2026-11-27 — Daloa aussi : son panneau n'a aucune campagne en cours
+        // (ligne ODP sans campagne) ; le calcul plantait (erreur 500).
+        app(\App\Services\Taxes\TarifsCommunes::class)->enregistrer(Commune::find(2), Carbon::create(2027, 7, 1),
+            ['odp' => 2000, 'tm' => 1000], 'Hausse au 1er juillet');
         // SQLite garde l'heure (« 2027-07-01 00:00:00 ») et compare du texte ;
         // la colonne MySQL est une vraie DATE. On remet la date seule.
         DB::table('commune_tax_rate_history')->update(['effective_from' => DB::raw('substr(effective_from, 1, 10)')]);
@@ -631,5 +677,9 @@ class TaxeExerciceServiceTest extends TestCase
 
         $suivi = app(TaxeExerciceService::class)->exercice(Commune::find(1), 2027);
         $this->assertEquals($suivi['odp'], $cocody['odp_theorique'], 'même montant que le suivi des mairies');
+
+        $daloa = collect($annuel['communes'])->firstWhere('commune_id', 2);
+        $this->assertEquals(1000 * 12 * 6 + 2000 * 12 * 6, $daloa['odp_theorique'], 'panneau sans campagne : mois par mois aussi');
+        $this->assertEquals(app(TaxeExerciceService::class)->exercice(Commune::find(2), 2027)['odp'], $daloa['odp_theorique']);
     }
 }

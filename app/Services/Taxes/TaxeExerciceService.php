@@ -135,7 +135,7 @@ class TaxeExerciceService
                     $ref = TaxCalculationService::referencePhysique((string) $l['reference']);
                     $physiques[$cid][$ref] = [
                         'surface' => (float) ($l['surface_face'] ?? $l['surface']),
-                        'faces'   => max(1, (int) ($l['faces_count'] ?? 1)) * max(1, (int) ($l['faces_pied'] ?? 1)),
+                        'faces'   => TaxCalculationService::facesDeLigne($l),
                     ];
                 }
             }

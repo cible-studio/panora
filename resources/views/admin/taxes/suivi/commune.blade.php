@@ -63,9 +63,17 @@
         <div class="sf-hero-t">{{ $commune->name }}</div>
         <div class="sf-hero-s">
             {{ $ligne['is_abidjan'] ? 'Abidjan et banlieue' : 'Intérieur' }} ·
-            Tarifs Panora aujourd'hui : ODP <strong>{{ $fmt($rates['odp'] ?? 0) }}</strong> · TM <strong>{{ $fmt($rates['tm'] ?? 0) }}</strong> FCFA/m²/mois
+            {{-- 2026-11-27 (point 12 validé) : sans tarif TM, la base nationale
+                 s'applique ; on l'affiche « (par défaut) », comme la page des tarifs. --}}
+            @php
+                $tmDefaut = \App\Services\TaxCalculationService::tmParDefaut();
+                $tmAff = fn ($r) => (float) ($r['tm'] ?? 0) > 0
+                    ? '<strong>' . e($fmt($r['tm'])) . '</strong>'
+                    : '<strong>' . e($fmt($tmDefaut)) . '</strong> (par défaut)';
+            @endphp
+            Tarifs Panora aujourd'hui : ODP <strong>{{ $fmt($rates['odp'] ?? 0) }}</strong> · TM {!! $tmAff($rates) !!} FCFA/m²/mois
             @if(isset($ratesEclaire) && $ratesEclaire !== $rates)
-                · 💡 panneaux éclairés : ODP <strong>{{ $fmt($ratesEclaire['odp']) }}</strong> · TM <strong>{{ $fmt($ratesEclaire['tm']) }}</strong>
+                · 💡 panneaux éclairés : ODP <strong>{{ $fmt($ratesEclaire['odp']) }}</strong> · TM {!! $tmAff($ratesEclaire) !!}
             @endif
             @if(\App\Support\Acces::peut('tarifs_communes'))
                 · <a href="{{ route('admin.settings.communes.tariffs') }}" style="color:var(--accent)">modifier les tarifs</a>

@@ -192,16 +192,22 @@ class FinanceFormationComptableTest extends TestCase
     public function test_les_mails_comptable_vont_aux_comptables_sinon_aux_admins(): void
     {
         Schema::create('users', function (Blueprint $t) {
-            $t->id(); $t->string('name'); $t->string('email')->nullable(); $t->string('role'); $t->timestamps();
+            $t->id(); $t->string('name'); $t->string('email')->nullable(); $t->string('role');
+            $t->boolean('is_active')->default(true); $t->timestamps();
         });
         DB::table('users')->insert([
-            ['name' => 'Admin', 'email' => 'admin@example.com', 'role' => 'admin'],
-            ['name' => 'Compta', 'email' => 'compta@example.com', 'role' => 'comptable'],
+            ['name' => 'Admin', 'email' => 'admin@example.com', 'role' => 'admin', 'is_active' => true],
+            ['name' => 'Compta', 'email' => 'compta@example.com', 'role' => 'comptable', 'is_active' => true],
+            // 2026-11-27 (point 18 des taxes) : un compte désactivé ne reçoit rien.
+            ['name' => 'Ancien', 'email' => 'ancien@example.com', 'role' => 'comptable', 'is_active' => false],
         ]);
         $resoudre = new \ReflectionMethod(AdminAlertNotifier::class, 'resolveRecipients');
 
         $this->assertSame(['compta@example.com'], $resoudre->invoke(null, ['comptable']));
         $this->assertEqualsCanonicalizing(['compta@example.com', 'admin@example.com'], $resoudre->invoke(null, ['comptable', 'admin']));
+
+        DB::table('users')->where('email', 'compta@example.com')->update(['is_active' => false]);
+        $this->assertSame(['admin@example.com'], $resoudre->invoke(null, ['comptable']), 'comptables tous désactivés : les admins');
 
         DB::table('users')->where('role', 'comptable')->delete();
         $this->assertSame(['admin@example.com'], $resoudre->invoke(null, ['comptable']), 'sans comptable : les admins');

@@ -590,10 +590,12 @@ Livré : `TaxeExerciceService` (source unique de l'exercice), tables
 - **Anciennes tables conservées** (règle n° 3) : `commune_tax_payments` (ses
   lignes sont recopiées par `taxes:reprendre-reglements`) et la table legacy
   `taxes`. Plus aucun écran ne les écrit ni ne les lit pour un total. Les
-  routes legacy restent ouvertes par adresse, sans lien : `taxes.historique`,
-  `taxes.create/edit/show/update/destroy`, `taxes.pay`, `taxes.export.pdf`,
-  `taxes.auto.preview/generate`. **`TaxAutoService` porte encore une autre
-  formule** (nombre de panneaux × tarif annuel) — à retirer avec ces routes.
+  routes legacy restent déclarées : depuis le 27/11 elles **ramènent à la
+  page Taxes** (`TaxController::ancienneFonctionTaxes()`, JSON 410 pour un
+  appel AJAX) ; `taxes.historique` ramène au Suivi. Restent sur le disque,
+  sans usage : `TaxAutoService` (autre formule, nombre de panneaux × tarif
+  annuel), les vues `admin/taxes/create`, `edit`, `historique`,
+  `partials/table-rows`, `pdf/taxes-report`. À retirer ensemble.
 - **Code sans usage** : vues `admin/taxes/commune-show` et `commune-history`
   (leurs routes redirigent vers le suivi), `TaxController::computeAnnualTotalDue()`,
   et le groupe `calculTMCommune()` / `totalDuCommune()` / `soldeRestant()`…
@@ -615,6 +617,25 @@ Livré : `TaxeExerciceService` (source unique de l'exercice), tables
   (pas de dédoublonnage). Le contrôle de disponibilité doit l'empêcher en amont.
 - **Exercice de reprise** : l'ODP réclamée est annuelle (comme la fiche) ; elle
   est comptée exigible dès le 1er trimestre.
+- **Tarif « courant » de la fiche commune (27/11)** : les colonnes
+  `communes.odp_rate / tm_rate` ne suivent pas un tarif programmé quand sa
+  date arrive (rien ne les met à jour). Les calculs lisent l'historique
+  (`ratesAt`) et, depuis le 27/11, l'affichage aussi
+  (`Commune::tarifsEnVigueur()` : Tarifs communes, Réglages → Communes).
+  Le crayon de Réglages → Communes pré-remplit encore la colonne : modifier
+  là une commune dont un tarif programmé est passé repart de l'ancienne
+  valeur. Une tâche quotidienne qui recopierait le tarif du jour sur la fiche
+  réglerait le fond.
+- **Surface d'un format lue de deux façons (27/11)** : les taxes, la facture
+  et la page Taxes lisent `PanelFormat::surface_m2` (largeur × hauteur, sinon
+  la surface saisie). Lisent encore la colonne `surface` brute :
+  `QuoteController` (l. 184 et 541), `AxeService` (l. 369),
+  `OccupationDetailsService` (l. 144). Sans effet aujourd'hui : aucun format
+  de la production n'a une surface différente de largeur × hauteur (contrôlé
+  le 27/11). À aligner si un format « surface libre » apparaît.
+- **Destinataires des mails staff (27/11)** : `AdminAlertNotifier` écarte
+  désormais les comptes désactivés pour **tous** les mails staff (source
+  unique des destinataires), pas seulement l'alerte des taxes.
 - **Rapport Taxes** : les panneaux des régies externes n'y sont plus (leurs
   taxes ne sont pas dues par la régie) ; `days` n'est plus calculé (aucune vue
   ne le lit). `DashboardKpiService::taxesByCommune()` n'est affiché par aucune
