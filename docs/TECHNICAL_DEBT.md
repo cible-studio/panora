@@ -81,6 +81,21 @@ ouverte à l'admin et au MP, alors que le MP n'a plus accès aux factures
 campagnes mais reçoivent « accès refusé ». Le numéro passe désormais par
 `Invoice::creerAvecNumero`. À trancher : réserver à l'admin, ou retirer.
 
+### Couleurs des statuts de facture recopiées dans plusieurs vues (constaté 2026-11-27)
+
+`Invoice::COULEURS_STATUT` (9 statuts) sert la fiche campagne et la page de
+modification. D'autres vues gardent leur propre tableau : fiche facture
+(badge, l. ~375), liste (`partials/row`), Créances (`finance/partials/creances`),
+page publique. Les couleurs diffèrent un peu d'un écran à l'autre. À aligner
+sur la constante quand on retouchera ces écrans.
+
+### Tableau des lignes de facture : défilement horizontal permanent (constaté 2026-11-27)
+
+`#lines-table` fait ~1450 px dans un conteneur de ~920 px, quelle que soit la
+largeur de l'écran : quantité, mois et total sont hors champ tant qu'on ne
+fait pas défiler. Le PU tronqué est corrigé (min-width) ; la mise en page
+reste à revoir si les comptables le demandent.
+
 ### Ancienne page « Taxes — historique » (2026-11-26)
 
 `TaxController::historique` renvoie vers le Suivi des mairies (hors appel

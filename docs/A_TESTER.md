@@ -3487,6 +3487,7 @@ Les 24 points relevés pour la vidéo « Facturer et encaisser » ont été corr
 - [x] PDF d'un brouillon : le filigrane BROUILLON est lisible et ne cache pas les montants. **Vu à l'œil le 27/11 sur la copie (rendu du PDF réel, vidéo des comptables).**
 - [ ] Taxes 2026 : une mairie « ✍ Réclamé à saisir » dans le Suivi s'affiche de même sur la page Taxes
 - [ ] Enregistrer une relance en choisissant une facture : la colonne Facture de l'historique est remplie ; le filtre WhatsApp existe
+- [ ] *(27/11, déjà facturé)* Fiche campagne BNI 2026 : la carte FAC-2026-010 affiche « 17 520 000 HT » et son statut (avant : « 0 HT », statut vide). Une campagne issue d'un devis avec remise : « Déjà facturé » = son total, reste 0.
 - [ ] *(27/11, alertes)* Tableau de bord du comptable : le widget « Alertes » ne montre que ses alertes (plus celles des commerciaux) ; un admin ne voit chaque « Relance J+… » qu'une fois. Si dev a fait tourner `invoices:alerts` entre le 26 et le 27/11, les copies créées alors (marque `:commercial`) restent visibles des admins : sans gravité, elles disparaissent une fois lues.
 
 ### Reste ouvert
